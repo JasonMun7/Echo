@@ -88,14 +88,12 @@ export const DesktopSidebar = ({
     <>
       <motion.div
         className={cn(
-          "h-full px-4 py-4 hidden md:flex md:flex-col bg-white border-r border-gray-200 w-[300px] shrink-0",
+          "h-full px-4 py-4 hidden md:flex md:flex-col echo-gradient-sidebar w-[300px] shrink-0",
           className
         )}
         animate={{
-          width: animate ? (open ? "300px" : "60px") : "300px",
+          width: "300px",
         }}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
         {...props}
       >
         {children}
@@ -120,7 +118,7 @@ export const MobileSidebar = ({
       >
         <div className="flex justify-end z-20 w-full">
           <IconMenu2
-            className="text-gray-700"
+            className="text-[#150A35]"
             onClick={() => setOpen(!open)}
           />
         </div>
@@ -156,10 +154,12 @@ export const MobileSidebar = ({
 
 export const SidebarLink = ({
   link,
+  active,
   className,
   ...props
 }: {
   link: Links;
+  active?: boolean;
   className?: string;
 }) => {
   const { open, animate } = useSidebar();
@@ -167,7 +167,9 @@ export const SidebarLink = ({
     <a
       href={link.href}
       className={cn(
-        "flex items-center justify-start gap-2  group/sidebar py-2",
+        "flex cursor-pointer items-center justify-start gap-2 group/sidebar rounded-lg py-2 px-2.5 transition-colors",
+        active && "bg-[#A577FF] text-white",
+        !active && "text-white/80 hover:bg-white/10 hover:text-white",
         className
       )}
       {...props}
@@ -179,7 +181,7 @@ export const SidebarLink = ({
           display: animate ? (open ? "inline-block" : "none") : "inline-block",
           opacity: animate ? (open ? 1 : 0) : 1,
         }}
-        className="text-gray-600 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+        className="text-sm group-hover/sidebar:translate-x-0.5 transition duration-150 whitespace-pre inline-block !p-0 !m-0 [&.inherit]:inherit"
       >
         {link.label}
       </motion.span>

@@ -5,3 +5,4 @@ venv
 .env
 .git
 *.md
+agent/

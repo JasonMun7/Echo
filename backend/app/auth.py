@@ -6,7 +6,7 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
 
-from app.config import GOOGLE_APPLICATION_CREDENTIALS
+from app.config import FIREBASE_PROJECT_ID, GOOGLE_APPLICATION_CREDENTIALS
 
 security = HTTPBearer(auto_error=False)
 
@@ -18,7 +18,8 @@ def get_firebase_app():
             if GOOGLE_APPLICATION_CREDENTIALS
             else credentials.ApplicationDefault()
         )
-        firebase_admin.initialize_app(cred)
+        opts = {"projectId": FIREBASE_PROJECT_ID} if FIREBASE_PROJECT_ID else {}
+        firebase_admin.initialize_app(cred, opts)
     return firebase_admin.get_app()
 
 

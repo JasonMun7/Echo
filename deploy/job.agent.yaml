@@ -1,0 +1,26 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: echo-agent
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          containers:
+            - image: gcr.io/PROJECT_ID/echo-agent:latest
+              env:
+                - name: WORKFLOW_ID
+                  value: ""  # Set at execution time
+                - name: RUN_ID
+                  value: ""
+                - name: OWNER_UID
+                  value: ""
+              resources:
+                limits:
+                  cpu: "2"
+                  memory: 2Gi
+          maxRetries: 0
+          taskCount: 1

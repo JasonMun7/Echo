@@ -8,6 +8,12 @@
     "start": "cd frontend && npm run start",
     "lint": "cd frontend && npm run lint",
     "backend:dev": "cd backend && uvicorn main:app --reload",
-    "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend"
+    "backend:dev:doppler": "cd backend && doppler run -- uvicorn main:app --reload",
+    "dev:doppler": "cd frontend && doppler run -- npm run dev",
+    "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend",
+    "deploy": "dotenv -e backend/.env -- ./deploy.sh"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^11.0.0"
   }
 }

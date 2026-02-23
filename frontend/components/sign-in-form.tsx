@@ -75,10 +75,10 @@ export default function SignInForm() {
 
   return (
     <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm md:p-8">
-      <h2 className="text-xl font-bold text-gray-900">
+      <h2 className="text-xl font-bold text-[#150A35]">
         Welcome to Echo
       </h2>
-      <p className="mt-2 max-w-sm text-sm text-gray-600">
+      <p className="mt-2 max-w-sm text-sm text-[#150A35]/80">
         Sign in with your email or Google to continue
       </p>
 
@@ -119,13 +119,13 @@ export default function SignInForm() {
         >
           {isLoading ? (isSignUp ? "Creating account..." : "Signing in...") : isSignUp ? "Sign up" : "Sign in"}
         </button>
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="mt-4 text-center text-sm text-[#150A35]/80">
           {isSignUp ? (
             <>
               Already have an account?{" "}
               <button
                 type="button"
-                className="font-medium text-[#007bff] hover:underline"
+                className="font-medium text-[#A577FF] hover:underline"
                 onClick={() => setIsSignUp(false)}
               >
                 Sign in
@@ -136,7 +136,7 @@ export default function SignInForm() {
               Don&apos;t have an account?{" "}
               <button
                 type="button"
-                className="font-medium text-[#007bff] hover:underline"
+                className="font-medium text-[#A577FF] hover:underline"
                 onClick={() => setIsSignUp(true)}
               >
                 Sign up
@@ -145,7 +145,7 @@ export default function SignInForm() {
           )}
         </p>
 
-        <div className="my-8 h-px w-full bg-gray-200" />
+        <div className="my-8 h-px w-full bg-[#A577FF]/20" />
 
         <div className="flex flex-col space-y-4">
           <button
@@ -154,7 +154,7 @@ export default function SignInForm() {
             onClick={handleGoogleSignIn}
             disabled={isGoogleLoading}
           >
-            <IconBrandGoogle className="h-5 w-5 text-gray-600" />
+            <IconBrandGoogle className="h-5 w-5 text-[#150A35]" />
             <span className="text-sm">
               {isGoogleLoading ? "Signing in..." : "Continue with Google"}
             </span>

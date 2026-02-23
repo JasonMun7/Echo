@@ -2,14 +2,14 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#f9fafb]">
+    <div className="echo-gradient-dramatic flex min-h-screen w-full items-center justify-center">
       <main className="flex w-full max-w-2xl flex-col items-center justify-center gap-8 px-6 py-16">
-        <div className="flex h-10 w-10 shrink-0 rounded-tl-lg rounded-tr-sm rounded-br-lg rounded-bl-sm bg-[#007bff]" />
+        <div className="flex h-10 w-10 shrink-0 rounded-tl-lg rounded-tr-sm rounded-br-lg rounded-bl-sm bg-[#A577FF]" />
         <div className="flex flex-col items-center gap-4 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Welcome to Echo
           </h1>
-          <p className="max-w-md text-lg text-gray-600">
+          <p className="max-w-md text-lg text-white/90">
             Sign in with email or Google to get started.
           </p>
         </div>
