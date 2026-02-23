@@ -1,0 +1,10 @@
+google-adk>=1.17.0
+google-genai>=1.0.0
+playwright==1.52.0
+firebase-admin>=6.6.0
+termcolor==3.1.0
+browserbase==1.3.0
+rich
+google-cloud-firestore>=2.19.0
+google-cloud-storage>=2.18.0
+python-dotenv>=1.0.0
