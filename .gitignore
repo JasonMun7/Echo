@@ -33,8 +33,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (example files committed)
 .env*
+!.env.example
+!frontend/.env.local.example
 
 # vercel
 .vercel
@@ -50,6 +52,8 @@ next-env.d.ts
 backend/service-account.json
 *.pem
 .env*
+!.env.example
+!frontend/.env.local.example
 
 # Next.js Build Output/Cache
 frontend/.next/

@@ -1,129 +1,386 @@
 # Echo
 
-Next.js frontend + FastAPI backend with Firebase Auth, Firestore, and Google Cloud Storage.
+**Echo** is a workflow automation platform that lets you create, edit, and run browser-based workflows. The agent uses **Gemini 2.5 Computer Use** to execute steps (navigate, click, type, scroll) in a headless browser. You can stream live screenshots while a run executes.
+
+## Tech Stack
+
+| Layer | Stack |
+|-------|-------|
+| Frontend | Next.js 16, React 19, Tailwind CSS, Firebase Auth, Firestore |
+| Backend | FastAPI, Firebase Admin, Google Cloud Storage |
+| Agent | Google ADK, Playwright, Gemini 2.5 Computer Use (Cloud Run Job) |
+| Deploy | Cloud Run (services + job), gcloud, Docker |
 
 ## Project Structure
 
 ```
-├── frontend/           # Next.js app (Firebase Auth, Firestore)
-│   └── DESIGN_SYSTEM.md  # Design system - follow for all UI work
-├── backend/            # FastAPI app (Firebase Admin, GCS)
+echo/
+├── frontend/              # Next.js app
+│   ├── app/               # App router pages
+│   ├── components/        # UI components
+│   └── DESIGN_SYSTEM.md   # Design tokens (Cetacean Blue, Lavender, Ghost White)
+├── backend/               # FastAPI app
+│   ├── app/               # Routers, auth, services
+│   └── agent/             # ADK workflow executor (Cloud Run Job)
+│       ├── run_workflow_agent.py
+│       ├── playwright_computer.py
+│       └── screenshot_stream.py
+├── deploy.sh              # Deploys frontend, backend, agent to Cloud Run
+├── firestore.rules        # Firestore security rules
+└── package.json           # Root scripts (dev, deploy)
 ```
+
+---
 
 ## Prerequisites
 
-- Node.js 18+
-- Python 3.11+
-- Firebase project
-- Google Cloud project (for GCS)
+- **Node.js** 18+
+- **Python** 3.11+
+- **Docker** (for deployment)
+- **gcloud** CLI (for deployment)
+- **Firebase** project
+- **Google Cloud** project (same as or linked to Firebase)
 
-## Setup
+---
 
-### 1. Firebase
+## Phase 1: GCP Setup
 
-1. Create a project at [Firebase Console](https://console.firebase.google.com)
-2. Enable **Authentication** → Email/Password and Google sign-in
-3. Create a **Firestore** database
-4. Register a Web app and copy the config object
+### 1.1 Create a GCP project
 
-### 2. Frontend
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create or select a project with billing enabled
+
+### 1.2 Enable APIs
+
+In **APIs & Services → Enable APIs**, enable:
+
+- Cloud Run API  
+- Cloud Scheduler API  
+- Firestore API  
+- Cloud Storage API  
+- Gemini API  
+- Secret Manager API (if using Firebase SA from different project)
+
+### 1.3 Create a GCS bucket
+
+1. Go to **Cloud Storage → Buckets**
+2. Create a bucket with **Uniform bucket-level access**
+3. Note the bucket name (e.g. `echo-assets-prod`)
+
+This bucket stores workflow assets (video, screenshots) and agent screenshots for live streaming.
+
+---
+
+## Phase 2: Firebase Setup
+
+### 2.1 Create or link Firebase project
+
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Create a new project or add Firebase to your existing GCP project
+
+### 2.2 Authentication
+
+1. **Authentication → Sign-in method**
+2. Enable **Email/Password**
+3. Enable **Google** (add OAuth client IDs if needed)
+
+### 2.3 Firestore
+
+1. **Firestore Database → Create database**
+2. Choose **Native mode**
+3. Pick a location (e.g. `us-central1`)
+
+### 2.4 Register web app
+
+1. **Project Settings (gear) → Your apps**
+2. Add a web app (</>)
+3. Copy the config object (e.g. `apiKey`, `authDomain`, `projectId`, etc.)
+
+### 2.5 Deploy Firestore rules
+
+From the project root:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Or paste the rules in **Firestore → Rules** and publish.
+
+### 2.6 Firebase vs GCP project
+
+- **Same project**: Use default compute credentials; no extra setup.
+- **Different project** (e.g. Firebase `my-app`, GCP `my-app-backend`):
+  1. In Firebase Console → Project Settings → Service Accounts → **Generate new private key**
+  2. Create a Secret Manager secret:
+     ```bash
+     gcloud secrets create firebase-sa-key --data-file=path/to/your-firebase-sa.json
+     ```
+  3. Grant Cloud Run access:
+     ```bash
+     gcloud secrets add-iam-policy-binding firebase-sa-key \
+       --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+     ```
+  4. Use `FIREBASE_SA_SECRET=firebase-sa-key` and `FIREBASE_PROJECT_ID=your-firebase-project-id` when deploying
+
+---
+
+## Phase 3: Service accounts & IAM
+
+### 3.1 Backend / Agent service account
+
+For Cloud Run, you typically use the default compute service account or a custom one.
+
+If Firebase and GCP projects match, the default compute SA is enough. Ensure it has:
+
+- **Firestore**: Cloud Datastore User (or Firestore roles)
+- **Storage**: Storage Object Admin (for GCS upload and signed URLs)
+- **Cloud Run Jobs**: Run Jobs Executor (for agent job execution)
+
+If you use a separate Firebase service account:
+
+- Download its JSON key and store it in Secret Manager as above
+- Grant the Firebase SA: **Storage Object Admin** on your GCS bucket (for agent screenshots)
+
+---
+
+## Phase 4: Gemini API key
+
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
+2. Sign in and create an API key (select your GCP project)
+3. Copy the key
+
+Used for:
+
+- Workflow synthesis (video/screenshots → steps)
+- Computer Use agent (workflow execution)
+
+---
+
+## Phase 5: Local development
+
+### 5.1 Clone and install
+
+```bash
+git clone <your-repo>
+cd echo
+npm install
+```
+
+### 5.2 Option A: Doppler (recommended for teams)
+
+**You do not need `.env` or `.env.local` files** when using Doppler. Secrets live in [Doppler](https://doppler.com) and are injected at runtime.
+
+**Setup (one-time):**
+
+1. Install Doppler CLI: `brew install dopplerhq/cli/doppler`
+2. Log in: `doppler login`
+3. Link the project: `doppler setup` (select project and `dev` config)
+4. Add all env vars in the Doppler dashboard (backend + frontend; see Environment variables reference below)
+5. Place `service-account.json` in `backend/` (share securely with teammates; do not commit)
+
+**Run:**
+
+```bash
+# Terminal 1 – backend
+npm run backend:dev:doppler
+
+# Terminal 2 – frontend
+npm run dev:doppler
+```
+
+**For teammates:** Invite them in Doppler → Members. They run `doppler setup` once, place `service-account.json` in `backend/`, then use the scripts above. No `.env` copying.
+
+### 5.3 Option B: .env files
+
+If you prefer local env files instead of Doppler:
+
+**Frontend**
 
 ```bash
 cd frontend
 cp .env.local.example .env.local
-# Fill in NEXT_PUBLIC_FIREBASE_* from Firebase Console
+```
+
+Edit `.env.local` with your Firebase config and `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+
+```bash
 npm install
 npm run dev
 ```
 
-Sign-in: [http://localhost:3000/signin](http://localhost:3000/signin)  
-Dashboard (after sign-in): [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
-
-### 3. Backend
+**Backend**
 
 ```bash
 cd backend
 cp .env.example .env
-# Set GOOGLE_APPLICATION_CREDENTIALS to path of your GCP service account JSON
-# Set GCS_BUCKET to your bucket name
+```
+
+Edit `.env` with `GOOGLE_APPLICATION_CREDENTIALS=./service-account.json`, `GCS_BUCKET`, `GEMINI_API_KEY`, `FIREBASE_PROJECT_ID`, `PROJECT_ID`, `REGION`. Place `service-account.json` in `backend/`.
+
+```bash
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-API: [http://localhost:8000](http://localhost:8000)  
+Frontend: [http://localhost:3000](http://localhost:3000)  
+Backend: [http://localhost:8000](http://localhost:8000)  
 Health: [http://localhost:8000/health](http://localhost:8000/health)
 
-### 4. Firestore Security Rules
-
-The app syncs user profiles to Firestore on sign-in. You must deploy rules that allow authenticated users to write their own document:
-
-**Option A – Firebase Console:**
-1. Go to [Firebase Console](https://console.firebase.google.com) → Firestore Database → Rules
-2. Replace the rules with:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-3. Click **Publish**
-
-**Option B – Firebase CLI:**
-```bash
-firebase init firestore  # if not done
-firebase deploy --only firestore:rules
-```
-(Ensure `firestore.rules` in the project root matches the rules above.)
-
-### 5. Google Cloud Storage
-
-1. Enable Cloud Storage API in GCP
-2. Create a bucket
-3. Create a service account with Storage Object Admin role
-4. Download the JSON key and set `GOOGLE_APPLICATION_CREDENTIALS` in backend `.env`
-
-### 6. Docker (Backend)
+### 5.4 Agent (optional, local runs)
 
 ```bash
-cd backend
-docker build -t echo-backend .
-docker run -p 8000:8000 -e GCS_BUCKET=your-bucket -e GOOGLE_APPLICATION_CREDENTIALS=/path/to/key echo-backend
+cd backend/agent
+pip install -r requirements.txt
+playwright install chromium
 ```
 
-## Scripts (from root)
+Run manually (for debugging):
 
-| Script           | Description                    |
-|------------------|--------------------------------|
-| `npm run dev`    | Start Next.js dev server       |
-| `npm run build`  | Build Next.js                  |
-| `npm run start`  | Start Next.js production       |
-| `npm run backend:dev`   | Start FastAPI with hot reload  |
-| `npm run backend:docker`| Build and run backend in Docker|
+```bash
+WORKFLOW_ID=xxx RUN_ID=yyy OWNER_UID=zzz GEMINI_API_KEY=your-key \
+  GCS_BUCKET=your-bucket python run_workflow_agent.py
+```
 
-## Environment Variables
+Set `HEADLESS=false` to see the browser.
+
+---
+
+## Phase 6: Deploy to Cloud Run
+
+### 6.1 Prepare backend/.env
+
+Ensure these are set in `backend/.env`:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ID` | Yes | GCP project ID |
+| `GCS_BUCKET` | Yes | GCS bucket name |
+| `GEMINI_API_KEY` | Yes | Gemini API key |
+| `FIREBASE_PROJECT_ID` | If different | Firebase project ID |
+| `FIREBASE_SA_SECRET` | If different | Secret Manager secret name for Firebase SA JSON |
+| `REGION` | No | Default `us-central1` |
+
+### 6.2 Deploy
+
+```bash
+npm run deploy
+# or
+dotenv -e backend/.env -- ./deploy.sh
+# or
+GEMINI_API_KEY=your-key GCS_BUCKET=your-bucket \
+  FIREBASE_PROJECT_ID=your-firebase-id \
+  ./deploy.sh YOUR_GCP_PROJECT_ID us-central1
+```
+
+The script will:
+
+1. Build frontend, backend, and agent Docker images  
+2. Push to `gcr.io/YOUR_PROJECT/...`  
+3. Deploy `echo-frontend` and `echo-backend` as Cloud Run services  
+4. Deploy `echo-agent` as a Cloud Run Job  
+5. Configure env vars and CORS  
+6. Grant agent execution permissions  
+
+### 6.3 Post-deploy
+
+- Frontend URL: `https://echo-frontend-{PROJECT_NUMBER}.{REGION}.run.app`  
+- Backend URL: `https://echo-backend-{PROJECT_NUMBER}.{REGION}.run.app`  
+
+The deploy script injects `NEXT_PUBLIC_API_URL` into the frontend build. No extra config needed for production.
+
+---
+
+## Environment variables reference
 
 ### Frontend (`.env.local`)
 
-| Variable                          | Description                    |
-|-----------------------------------|--------------------------------|
-| `NEXT_PUBLIC_FIREBASE_API_KEY`    | Firebase config                |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`| Firebase config                |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase config                |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase config            |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase config         |
-| `NEXT_PUBLIC_FIREBASE_APP_ID`     | Firebase config                |
-| `NEXT_PUBLIC_API_URL`             | Backend URL (optional)         |
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase config |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase config |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase app ID |
+| `NEXT_PUBLIC_API_URL` | Backend API URL (e.g. `http://localhost:8000` or Cloud Run URL) |
 
 ### Backend (`.env`)
 
-| Variable                       | Description                         |
-|--------------------------------|-------------------------------------|
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON  |
-| `GCS_BUCKET`                  | GCS bucket name                     |
-| `FIREBASE_PROJECT_ID`         | Firebase project ID (optional)      |
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON |
+| `GCS_BUCKET` | GCS bucket name |
+| `FIREBASE_PROJECT_ID` | Firebase project ID (if different from GCP) |
+| `GEMINI_API_KEY` | Gemini API key |
+| `PROJECT_ID` | GCP project ID (for deploy) |
+| `REGION` | Cloud Run region (default `us-central1`) |
+| `FIREBASE_SA_SECRET` | Secret Manager secret name for Firebase SA JSON (when Firebase ≠ GCP) |
+
+### Agent (Cloud Run Job)
+
+Set automatically by deploy script; overrides passed at execution time:
+
+| Variable | Description |
+|----------|-------------|
+| `WORKFLOW_ID` | Set by backend when triggering run |
+| `RUN_ID` | Set by backend when triggering run |
+| `OWNER_UID` | Set by backend when triggering run |
+| `GEMINI_API_KEY` | Required for Computer Use model |
+| `GCS_BUCKET` | For live screenshot streaming |
+| `FIREBASE_PROJECT_ID` | Firebase project ID |
+| `HEADLESS` | `true` in Cloud Run, `false` for local debugging |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to SA JSON when using `FIREBASE_SA_SECRET` |
+
+---
+
+## Firestore data model
+
+- `users/{userId}` – User profiles (synced on sign-in)
+- `workflows/{workflowId}` – Workflow metadata (name, status)
+- `workflows/{workflowId}/steps/{stepId}` – Workflow steps (order, action, params)
+- `workflows/{workflowId}/runs/{runId}` – Run metadata (status, lastScreenshotUrl, etc.)
+- `workflows/{workflowId}/runs/{runId}/logs/{logId}` – Run logs
+
+The backend and agent use Firebase Admin SDK and bypass Firestore rules. The frontend reads/writes via rules defined in `firestore.rules`.
+
+---
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start Next.js frontend |
+| `npm run dev:doppler` | Start Next.js frontend (with Doppler env) |
+| `npm run backend:dev` | Start FastAPI backend |
+| `npm run backend:dev:doppler` | Start FastAPI backend (with Doppler env) |
+| `npm run backend:docker` | Build and run backend in Docker |
+| `npm run deploy` | Deploy to Cloud Run (`dotenv -e backend/.env -- ./deploy.sh`) |
+
+---
+
+## Troubleshooting
+
+### 500 on `/api/users/init` or `/api/workflows`
+
+Firebase project ≠ GCP project. Configure `FIREBASE_SA_SECRET` and `FIREBASE_PROJECT_ID`; put the Firebase SA JSON in Secret Manager.
+
+### Workflow runs never start
+
+- Confirm `GEMINI_API_KEY` and `GCS_BUCKET` are set for the agent
+- Verify the backend SA can execute the agent job (`roles/run.jobsExecutorWithOverrides` or `run.invoker`)
+- Check Cloud Run Job logs for the agent
+
+### No live screenshots
+
+- Ensure `GCS_BUCKET` is set for the agent
+- Ensure the agent’s service account has **Storage Object Admin** on the bucket
+- Redeploy after changing env vars
+
+### CORS errors
+
+`FRONTEND_ORIGIN` is set from the Cloud Run frontend URL during deploy. If you use a custom domain, update CORS in the backend.
+
+### Google “sorry” / CAPTCHA pages
+
+Google often blocks automated traffic. Consider starting on a different site (e.g. DuckDuckGo) or using the `search` action instead of navigating directly to google.com.

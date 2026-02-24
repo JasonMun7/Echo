@@ -1,0 +1,39 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: echo-backend
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/echo-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: GCS_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: echo-secrets
+                  key: gcs-bucket
+            - name: FIREBASE_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: echo-secrets
+                  key: firebase-project-id
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: echo-secrets
+                  key: gemini-api-key
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
