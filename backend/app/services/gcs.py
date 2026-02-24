@@ -43,8 +43,9 @@ def generate_signed_upload_url(
     """Return a GCS v4 signed URL that allows a browser to PUT a file directly.
 
     Requires service-account credentials with the ``storage.objects.create``
-    permission (and the private key available for signing).  When
-    ``GOOGLE_APPLICATION_CREDENTIALS`` points to a service-account JSON key
+    permission (and the private key available for signing). When
+    ``ECHO_GOOGLE_APPLICATION_CREDENTIALS`` (or legacy
+    ``GOOGLE_APPLICATION_CREDENTIALS``) points to a service-account JSON key
     file that key is used; otherwise falls back to ADC (works on Cloud Run
     with Workload Identity only if the SA has iam.serviceAccounts.signBlob).
     """

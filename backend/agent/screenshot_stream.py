@@ -13,7 +13,7 @@ def upload_screenshot(screenshot_bytes: bytes, url: str) -> None:
     """Upload screenshot to GCS and update run's lastScreenshotUrl in Firestore."""
     workflow_id = os.environ.get("WORKFLOW_ID")
     run_id = os.environ.get("RUN_ID")
-    bucket_name = os.environ.get("GCS_BUCKET")
+    bucket_name = os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
     if not all((workflow_id, run_id, bucket_name)):
         return
 

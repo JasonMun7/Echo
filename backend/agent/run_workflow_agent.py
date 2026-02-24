@@ -137,11 +137,10 @@ def main():
 
     logger.info("Initializing Firebase...")
     firebase_project = os.environ.get("FIREBASE_PROJECT_ID", "")
-    cred = (
-        credentials.Certificate(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
-        if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        else credentials.ApplicationDefault()
+    sa_path = os.environ.get("ECHO_GOOGLE_APPLICATION_CREDENTIALS") or os.environ.get(
+        "GOOGLE_APPLICATION_CREDENTIALS"
     )
+    cred = credentials.Certificate(sa_path) if sa_path else credentials.ApplicationDefault()
     opts = {"projectId": firebase_project} if firebase_project else {}
     if not firebase_admin._apps:
         firebase_admin.initialize_app(cred, opts)
