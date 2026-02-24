@@ -12,6 +12,7 @@ export default function NewWorkflowPage() {
   const [video, setVideo] = useState<File | null>(null);
   const [screenshots, setScreenshots] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -20,11 +21,47 @@ export default function NewWorkflowPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    setUploadStatus(null);
+
     try {
       const formData = new FormData();
+
       if (mode === "video" && video) {
-        formData.append("video", video);
+        // ── Step 1: get a signed GCS URL so the browser uploads directly,
+        //            bypassing the Cloud Run 32 MB request-body limit.
+        setUploadStatus("Requesting upload URL…");
+        const signedRes = await apiFetch("/api/storage/signed-upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: video.name,
+            content_type: video.type || "video/mp4",
+          }),
+        });
+        if (!signedRes.ok) {
+          const d = await signedRes.json().catch(() => ({}));
+          throw new Error(d.detail || "Failed to get upload URL");
+        }
+        const { signed_url, gcs_path } = await signedRes.json();
+
+        // ── Step 2: PUT the video file directly to GCS (no backend involved).
+        setUploadStatus("Uploading video to storage…");
+        const gcsRes = await fetch(signed_url, {
+          method: "PUT",
+          headers: { "Content-Type": video.type || "video/mp4" },
+          body: video,
+        });
+        if (!gcsRes.ok) {
+          throw new Error(
+            `Storage upload failed: ${gcsRes.status} ${gcsRes.statusText}`,
+          );
+        }
+
+        // ── Step 3: tell the backend to synthesize from the GCS path.
+        setUploadStatus("Synthesizing workflow with AI…");
+        formData.append("video_gcs_path", gcs_path);
       } else if (mode === "screenshots" && screenshots.length > 0) {
+        setUploadStatus("Synthesizing workflow with AI…");
         screenshots.forEach((f) => formData.append("screenshots", f));
       } else {
         setError("Please select a video or screenshots");
@@ -46,6 +83,7 @@ export default function NewWorkflowPage() {
       setError(err instanceof Error ? err.message : "Synthesis failed");
     } finally {
       setLoading(false);
+      setUploadStatus(null);
     }
   };
 
@@ -103,11 +141,13 @@ export default function NewWorkflowPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="video/mp4,video/webm,video/quicktime"
+                accept="video/mp4,video/webm,video/quicktime,video/mov"
                 onChange={handleVideoChange}
                 className="block w-full text-sm text-[#150A35] file:mr-4 file:rounded-lg file:border-0 file:bg-[#A577FF] file:px-4 file:py-2 file:text-white"
               />
-              {video && <p className="mt-1 text-sm text-[#150A35]/70">{video.name}</p>}
+              {video && (
+                <p className="mt-1 text-sm text-[#150A35]/70">{video.name}</p>
+              )}
             </div>
           )}
 
@@ -125,7 +165,8 @@ export default function NewWorkflowPage() {
               />
               {screenshots.length > 0 && (
                 <p className="mt-1 text-sm text-[#150A35]/70">
-                  {screenshots.length} file(s): {screenshots.map((f) => f.name).join(", ")}
+                  {screenshots.length} file(s):{" "}
+                  {screenshots.map((f) => f.name).join(", ")}
                 </p>
               )}
             </div>
@@ -135,11 +176,13 @@ export default function NewWorkflowPage() {
 
           <button
             type="submit"
-            disabled={loading || (mode === "video" ? !video : screenshots.length === 0)}
+            disabled={
+              loading || (mode === "video" ? !video : screenshots.length === 0)
+            }
             className="echo-btn-primary flex h-12 w-fit items-center gap-2 disabled:opacity-50"
           >
             <IconUpload className="h-5 w-5" />
-            {loading ? "Synthesizing..." : "Create Workflow"}
+            {loading ? (uploadStatus ?? "Processing…") : "Create Workflow"}
           </button>
         </form>
       </div>

@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
-app.include_router(storage.router)
+app.include_router(storage.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(synthesize.router, prefix="/api")
 app.include_router(workflows.router, prefix="/api")
