@@ -1,0 +1,76 @@
+# Cloud Build config for Echo - builds and pushes images in parallel
+# Invoked by scripts/deploy.sh via: gcloud builds submit --config=scripts/deploy/cloudbuild.yaml
+#
+# Substitutions (passed by deploy.sh):
+#   _IMAGE_TAG    - Image tag (default: latest)
+#   _BACKEND_URL  - Backend API URL for frontend build (NEXT_PUBLIC_API_URL)
+#
+steps:
+  # Build frontend (requires _BACKEND_URL for NEXT_PUBLIC_API_URL)
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-frontend
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "--build-arg"
+      - "NEXT_PUBLIC_API_URL=${_BACKEND_URL}"
+      - "-f"
+      - "frontend/Dockerfile"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-frontend:${_IMAGE_TAG}"
+      - "frontend"
+
+  # Build backend
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-backend
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "backend/Dockerfile"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
+      - "backend"
+
+  # Build agent
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-agent
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "backend/agent/Dockerfile"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
+      - "backend/agent"
+
+  # Push images (each waits for its build)
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-frontend
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/echo-frontend:${_IMAGE_TAG}"
+    waitFor: ["build-frontend"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-backend
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
+    waitFor: ["build-backend"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-agent
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
+    waitFor: ["build-agent"]
+
+# Default substitution values (overridden by deploy.sh)
+substitutions:
+  _IMAGE_TAG: "latest"
+  _BACKEND_URL: ""
+
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: CLOUD_LOGGING_ONLY

@@ -59,7 +59,6 @@ In **APIs & Services → Enable APIs**, enable:
 - Firestore API  
 - Cloud Storage API  
 - Gemini API  
-- Secret Manager API (if using Firebase SA from different project)
 
 ### 1.3 Create a GCS bucket
 
@@ -106,22 +105,9 @@ firebase deploy --only firestore:rules
 
 Or paste the rules in **Firestore → Rules** and publish.
 
-### 2.6 Firebase vs GCP project
+### 2.6 Firebase and GCP in same project
 
-- **Same project**: Use default compute credentials; no extra setup.
-- **Different project** (e.g. Firebase `my-app`, GCP `my-app-backend`):
-  1. In Firebase Console → Project Settings → Service Accounts → **Generate new private key**
-  2. Create a Secret Manager secret:
-     ```bash
-     gcloud secrets create firebase-sa-key --data-file=path/to/your-firebase-sa.json
-     ```
-  3. Grant Cloud Run access:
-     ```bash
-     gcloud secrets add-iam-policy-binding firebase-sa-key \
-       --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-       --role="roles/secretmanager.secretAccessor"
-     ```
-  4. Use `FIREBASE_SA_SECRET=firebase-sa-key` and `FIREBASE_PROJECT_ID=your-firebase-project-id` when deploying
+Use the same GCP project for both Firebase and Cloud Run. The default compute service account will access Firebase (Auth, Firestore) and GCS via Application Default Credentials.
 
 ---
 
@@ -131,16 +117,11 @@ Or paste the rules in **Firestore → Rules** and publish.
 
 For Cloud Run, you typically use the default compute service account or a custom one.
 
-If Firebase and GCP projects match, the default compute SA is enough. Ensure it has:
+Use the default compute SA. Ensure it has:
 
 - **Firestore**: Cloud Datastore User (or Firestore roles)
 - **Storage**: Storage Object Admin (for GCS upload and signed URLs)
 - **Cloud Run Jobs**: Run Jobs Executor (for agent job execution)
-
-If you use a separate Firebase service account:
-
-- Download its JSON key and store it in Secret Manager as above
-- Grant the Firebase SA: **Storage Object Admin** on your GCS bucket (for agent screenshots)
 
 ---
 
@@ -177,7 +158,7 @@ npm install
 2. Log in: `doppler login`
 3. Link the project: `doppler setup` (select project and `dev` config)
 4. Add all env vars in the Doppler dashboard (backend + frontend; see Environment variables reference below)
-5. Place `service-account.json` in `backend/` (share securely with teammates; do not commit)
+5. For local GCP access, run `gcloud auth application-default login`
 
 **Run:**
 
@@ -189,7 +170,7 @@ npm run backend:dev:doppler
 npm run dev:doppler
 ```
 
-**For teammates:** Invite them in Doppler → Members. They run `doppler setup` once, place `service-account.json` in `backend/`, then use the scripts above. No `.env` copying.
+**For teammates:** Invite them in Doppler → Members. They run `doppler setup` once and `gcloud auth application-default login`, then use the scripts above. No `.env` copying.
 
 ### 5.3 Option B: .env files
 
@@ -216,7 +197,7 @@ cd backend
 cp .env.example .env
 ```
 
-Edit `.env` with `GOOGLE_APPLICATION_CREDENTIALS=./service-account.json`, `GCS_BUCKET`, `GEMINI_API_KEY`, `FIREBASE_PROJECT_ID`, `PROJECT_ID`, `REGION`. Place `service-account.json` in `backend/`.
+Edit `.env` with `ECHO_GCP_PROJECT_ID`, `ECHO_GCS_BUCKET`, `GEMINI_API_KEY`, `FIREBASE_PROJECT_ID`.
 
 ```bash
 pip install -r requirements.txt
@@ -254,12 +235,11 @@ Ensure these are set in `backend/.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PROJECT_ID` | Yes | GCP project ID |
-| `GCS_BUCKET` | Yes | GCS bucket name |
+| `ECHO_GCP_PROJECT_ID` | Yes | GCP project ID |
+| `ECHO_GCS_BUCKET` | Yes | GCS bucket name |
 | `GEMINI_API_KEY` | Yes | Gemini API key |
-| `FIREBASE_PROJECT_ID` | If different | Firebase project ID |
-| `FIREBASE_SA_SECRET` | If different | Secret Manager secret name for Firebase SA JSON |
-| `REGION` | No | Default `us-central1` |
+| `FIREBASE_PROJECT_ID` | No | Firebase project ID (optional if same as GCP) |
+| `ECHO_CLOUD_RUN_REGION` | No | Default `us-central1` |
 
 ### 6.2 Deploy
 
@@ -309,13 +289,11 @@ The deploy script injects `NEXT_PUBLIC_API_URL` into the frontend build. No extr
 
 | Variable | Description |
 |----------|-------------|
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON |
-| `GCS_BUCKET` | GCS bucket name |
-| `FIREBASE_PROJECT_ID` | Firebase project ID (if different from GCP) |
+| `ECHO_GCP_PROJECT_ID` | GCP project ID (for deploy) |
+| `ECHO_GCS_BUCKET` | GCS bucket name |
+| `ECHO_CLOUD_RUN_REGION` | Cloud Run region (default `us-central1`) |
+| `FIREBASE_PROJECT_ID` | Firebase project ID (optional if same as GCP) |
 | `GEMINI_API_KEY` | Gemini API key |
-| `PROJECT_ID` | GCP project ID (for deploy) |
-| `REGION` | Cloud Run region (default `us-central1`) |
-| `FIREBASE_SA_SECRET` | Secret Manager secret name for Firebase SA JSON (when Firebase ≠ GCP) |
 
 ### Agent (Cloud Run Job)
 
@@ -327,10 +305,9 @@ Set automatically by deploy script; overrides passed at execution time:
 | `RUN_ID` | Set by backend when triggering run |
 | `OWNER_UID` | Set by backend when triggering run |
 | `GEMINI_API_KEY` | Required for Computer Use model |
-| `GCS_BUCKET` | For live screenshot streaming |
+| `ECHO_GCS_BUCKET` | For live screenshot streaming |
 | `FIREBASE_PROJECT_ID` | Firebase project ID |
 | `HEADLESS` | `true` in Cloud Run, `false` for local debugging |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to SA JSON when using `FIREBASE_SA_SECRET` |
 
 ---
 
@@ -363,7 +340,7 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 
 ### 500 on `/api/users/init` or `/api/workflows`
 
-Firebase project ≠ GCP project. Configure `FIREBASE_SA_SECRET` and `FIREBASE_PROJECT_ID`; put the Firebase SA JSON in Secret Manager.
+Ensure Firebase and GCP use the same project. Verify `FIREBASE_PROJECT_ID` matches your GCP project ID.
 
 ### Workflow runs never start
 

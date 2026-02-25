@@ -25,6 +25,9 @@ backend/.venv
 # production
 /build
 
+# Cursor IDE
+.cursor/
+
 # misc
 .DS_Store
 *.pem
