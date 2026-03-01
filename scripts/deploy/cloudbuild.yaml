@@ -15,10 +15,10 @@ steps:
       - "--build-arg"
       - "NEXT_PUBLIC_API_URL=${_BACKEND_URL}"
       - "-f"
-      - "frontend/Dockerfile"
+      - "apps/web/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-frontend:${_IMAGE_TAG}"
-      - "frontend"
+      - "apps/web"
 
   # Build backend
   - name: "gcr.io/cloud-builders/docker"
