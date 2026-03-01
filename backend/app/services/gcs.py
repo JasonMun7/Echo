@@ -35,6 +35,34 @@ def delete_file(blob_name: str) -> None:
     blob.delete()
 
 
+def generate_signed_read_url(
+    blob_name: str,
+    expiration_minutes: int = 60,
+) -> str:
+    """Return a GCS v4 signed URL that allows a browser to GET a file."""
+    if GOOGLE_APPLICATION_CREDENTIALS and os.path.isfile(GOOGLE_APPLICATION_CREDENTIALS):
+        from google.oauth2 import service_account as sa_module
+
+        creds = sa_module.Credentials.from_service_account_file(
+            GOOGLE_APPLICATION_CREDENTIALS
+        )
+        client = storage.Client(credentials=creds)
+        blob = client.bucket(GCS_BUCKET).blob(blob_name)
+        return blob.generate_signed_url(
+            version="v4",
+            expiration=datetime.timedelta(minutes=expiration_minutes),
+            method="GET",
+            credentials=creds,
+        )
+    client = storage.Client()
+    blob = client.bucket(GCS_BUCKET).blob(blob_name)
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=datetime.timedelta(minutes=expiration_minutes),
+        method="GET",
+    )
+
+
 def generate_signed_upload_url(
     blob_name: str,
     content_type: str,

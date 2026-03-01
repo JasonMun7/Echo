@@ -1,3 +1,4 @@
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -27,6 +28,23 @@ async def upload(
 class SignedUploadRequest(BaseModel):
     filename: str
     content_type: str
+
+
+@router.post("/upload-recording")
+async def upload_recording(
+    video: UploadFile,
+    uid: str = Depends(get_current_uid),
+):
+    """Upload a recording via the backend (avoids GCS CORS for desktop/Electron)."""
+    try:
+        content = await video.read()
+        ext = "webm" if (video.content_type or "").find("webm") >= 0 else "mp4"
+        filename = f"recording-{int(time.time() * 1000)}.{ext}"
+        blob_name = f"uploads/{uid}/{uuid.uuid4()}/{filename}"
+        gcs_path = upload_file(blob_name, content, video.content_type or f"video/{ext}")
+        return {"gcs_path": gcs_path}
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/signed-upload-url")

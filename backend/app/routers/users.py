@@ -3,7 +3,7 @@ import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel
 
-from app.auth import get_current_user, get_firebase_app
+from app.auth import get_current_uid, get_current_user, get_firebase_app
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -62,3 +62,33 @@ async def init_user(current_user: dict = Depends(get_current_user)):
         provider=user_data["provider"],
         created=created,
     )
+
+
+@router.get("/me")
+async def get_me(uid: str = Depends(get_current_uid)):
+    """Return the current user's Firestore profile document."""
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    doc = db.collection("users").document(uid).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="User profile not found")
+    return {"uid": uid, **doc.to_dict()}
+
+
+class UserUpdateBody(BaseModel):
+    display_name: str | None = None
+    default_workflow_type: str | None = None
+
+
+@router.put("/me")
+async def update_me(body: UserUpdateBody, uid: str = Depends(get_current_uid)):
+    """Update the current user's display name or preferences."""
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    updates: dict = {"updatedAt": SERVER_TIMESTAMP}
+    if body.display_name is not None:
+        updates["displayName"] = body.display_name
+    if body.default_workflow_type is not None:
+        updates["defaultWorkflowType"] = body.default_workflow_type
+    db.collection("users").document(uid).update(updates)
+    return {"ok": True}
