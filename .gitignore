@@ -1,66 +1,133 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# =============================================================================
+# Echo — Monorepo .gitignore
+# Covers: Next.js web, Electron desktop, FastAPI backend, pnpm workspace
+# =============================================================================
 
-# dependencies
-/node_modules
-frontend/node_modules
-backend/__pycache__/
-**/__pycache__/
-*.pyc
-backend/.venv
-/.pnp
+# -----------------------------------------------------------------------------
+# Node / pnpm
+# -----------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+package-lock.json
+**/package-lock.json
 
-# testing
-/coverage
+# -----------------------------------------------------------------------------
+# Next.js (apps/web)
+# -----------------------------------------------------------------------------
+.next/
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts
+next-env.d.ts
 
-# next.js
-/.next/
-/out/
+# -----------------------------------------------------------------------------
+# Electron (apps/desktop)
+# -----------------------------------------------------------------------------
+apps/desktop/out/
+apps/desktop/dist/
 
-# production
-/build
+# -----------------------------------------------------------------------------
+# TypeScript build artifacts
+# -----------------------------------------------------------------------------
+*.tsbuildinfo
+**/*.tsbuildinfo
+packages/*/dist/
 
-# Cursor IDE
-.cursor/
+# -----------------------------------------------------------------------------
+# Python / Backend
+# -----------------------------------------------------------------------------
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+backend/.venv/
+backend/agent/.venv/
+.venv/
+*.egg-info/
+dist/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
 
-# misc
-.DS_Store
+# -----------------------------------------------------------------------------
+# Environment & secrets — NEVER commit real env files
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!apps/web/.env.local.example
+!backend/.env.example
+
+# Credentials & service account keys
+backend/service-account.json
+*service-account*.json
+*credentials*.json
 *.pem
+*.key
 
-# debug
+# -----------------------------------------------------------------------------
+# Testing & coverage
+# -----------------------------------------------------------------------------
+/coverage
+**/.coverage
+**/coverage/
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+lerna-debug.log*
 
-# env files (example files committed)
-.env*
-!.env.example
-!frontend/.env.local.example
+# -----------------------------------------------------------------------------
+# OS
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
 
-# vercel
+# -----------------------------------------------------------------------------
+# Editors & IDEs
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# Cursor IDE
+# -----------------------------------------------------------------------------
+.cursor/
+.cursorignore
+
+# -----------------------------------------------------------------------------
+# Vercel / deployment
+# -----------------------------------------------------------------------------
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# MD Files
-*.md
-
-# Secrets
-backend/service-account.json
-*.pem
-.env*
-!.env.example
-!frontend/.env.local.example
-
-# Next.js Build Output/Cache
-frontend/.next/
-node_modules/
+# -----------------------------------------------------------------------------
+# Turbo
+# -----------------------------------------------------------------------------
 .turbo/
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
+*.tgz
