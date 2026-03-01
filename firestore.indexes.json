@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "workflows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "filtered_traces",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
