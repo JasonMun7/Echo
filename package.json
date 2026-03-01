@@ -3,17 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build",
-    "start": "cd frontend && npm run start",
-    "lint": "cd frontend && npm run lint",
-    "backend:dev": "cd backend && uvicorn main:app --reload",
-    "backend:dev:doppler": "cd backend && doppler run -- uvicorn main:app --reload",
-    "dev:doppler": "cd frontend && doppler run -- npm run dev",
+    "dev": "cd apps/web && doppler run -- pnpm run dev",
+    "dev:web": "cd apps/web && doppler run -- pnpm run dev",
+    "dev:desktop": "cd apps/desktop && doppler run -- pnpm run dev",
+    "build": "cd apps/web && pnpm run build",
+    "build:web": "cd apps/web && pnpm run build",
+    "build:desktop": "cd apps/desktop && pnpm run build",
+    "start": "cd apps/web && pnpm run start",
+    "lint": "cd apps/web && pnpm run lint",
+    "dev:all": "concurrently \"pnpm run dev:web\" \"pnpm run backend:dev\"",
+    "backend:dev": "cd backend && doppler run -- uvicorn main:app --reload",
     "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend",
     "deploy": "doppler run --config prd -- ./scripts/deploy.sh"
   },
   "devDependencies": {
-    "dotenv-cli": "^11.0.0"
-  }
+    "dotenv-cli": "^11.0.0",
+    "concurrently": "^9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
 }

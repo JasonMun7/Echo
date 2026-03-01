@@ -164,10 +164,14 @@ npm install
 
 ```bash
 # Terminal 1 – backend
-npm run backend:dev:doppler
+pnpm run backend:dev
 
 # Terminal 2 – frontend
-npm run dev:doppler
+pnpm run dev
+# or web + backend together:
+pnpm run dev:all
+# or desktop app:
+pnpm run dev:desktop
 ```
 
 **For teammates:** Invite them in Doppler → Members. They run `doppler setup` once and `gcloud auth application-default login`, then use the scripts above. No `.env` copying.
@@ -186,8 +190,8 @@ cp .env.local.example .env.local
 Edit `.env.local` with your Firebase config and `NEXT_PUBLIC_API_URL=http://localhost:8000`.
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 **Backend**
@@ -244,13 +248,13 @@ Ensure these are set in `backend/.env`:
 ### 6.2 Deploy
 
 ```bash
-npm run deploy
-# or
-dotenv -e backend/.env -- ./deploy.sh
+pnpm run deploy
+# or with backend/.env:
+doppler run --config prd -- ./scripts/deploy.sh
 # or
 GEMINI_API_KEY=your-key GCS_BUCKET=your-bucket \
   FIREBASE_PROJECT_ID=your-firebase-id \
-  ./deploy.sh YOUR_GCP_PROJECT_ID us-central1
+  ./scripts/deploy.sh YOUR_GCP_PROJECT_ID us-central1
 ```
 
 The script will:
@@ -327,12 +331,13 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start Next.js frontend |
-| `npm run dev:doppler` | Start Next.js frontend (with Doppler env) |
-| `npm run backend:dev` | Start FastAPI backend |
-| `npm run backend:dev:doppler` | Start FastAPI backend (with Doppler env) |
-| `npm run backend:docker` | Build and run backend in Docker |
-| `npm run deploy` | Deploy to Cloud Run (`dotenv -e backend/.env -- ./deploy.sh`) |
+| `pnpm run dev` | Start Next.js frontend (Doppler env) |
+| `pnpm run dev:web` | Same as dev |
+| `pnpm run dev:desktop` | Start Electron desktop app (Doppler env) |
+| `pnpm run dev:all` | Start web + backend together (Doppler env) |
+| `pnpm run backend:dev` | Start FastAPI backend (Doppler env) |
+| `pnpm run backend:docker` | Build and run backend in Docker |
+| `pnpm run deploy` | Deploy to Cloud Run (uses Doppler prd) |
 
 ---
 

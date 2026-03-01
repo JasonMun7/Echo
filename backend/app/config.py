@@ -8,7 +8,12 @@ load_dotenv()
 GCS_BUCKET = os.getenv("ECHO_GCS_BUCKET") or os.getenv("GCS_BUCKET", "")
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
 # Allowed CORS origins: localhost + FRONTEND_ORIGIN (Cloud Run) or CORS_ORIGINS (comma-separated)
-_defaults = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_defaults = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",   # desktop app (Vite dev)
+    "http://127.0.0.1:5173",
+]
 _origin = os.getenv("FRONTEND_ORIGIN", "").strip()
 _extra = os.getenv("CORS_ORIGINS", "").strip()
 _origins = _defaults + ([_origin] if _origin else []) + [o.strip() for o in _extra.split(",") if o.strip()]
