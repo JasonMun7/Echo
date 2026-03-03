@@ -17,10 +17,17 @@ declare global {
         { id: string; name: string; thumbnail: string }[]
       >;
       getPrimarySourceId: () => Promise<string | null>;
+      createRun: (args: { workflowId: string; token: string }) => Promise<
+        | { runId: string; workflowId: string }
+        | { error: string }
+      >;
       runWorkflowLocal: (args: {
         steps: Array<Record<string, unknown>>;
         sourceId: string;
         workflowType?: string;
+        workflowId?: string;
+        runId?: string;
+        token?: string;
       }) => Promise<{ success: boolean; error?: string; progress?: string[] }>;
       fetchWorkflow: (args: { workflowId: string; token?: string }) => Promise<
         | {
@@ -33,6 +40,7 @@ declare global {
       authClearToken: () => Promise<void>;
       authOpenSignin: () => Promise<void>;
       onAuthTokenReceived: (callback: () => void) => void;
+      removeAuthTokenReceivedListener: () => void;
       onScreenPermissionRequired: (callback: () => void) => void;
       checkScreenPermission: () => Promise<boolean>;
       openSystemSettings: () => Promise<void>;
@@ -120,6 +128,12 @@ export default function App() {
     return t;
   }, []);
 
+  const refreshAuth = useRef<() => void>(() => {});
+  refreshAuth.current = async () => {
+    const t = await loadToken();
+    if (t) loadWorkflows();
+  };
+
   const loadWorkflows = useCallback(async () => {
     const t = token ?? (await loadToken());
     if (!t) return;
@@ -144,31 +158,31 @@ export default function App() {
     }
   }, [token, loadToken]);
 
+  // Permission screen: poll to auto-dismiss when user grants permission
   useEffect(() => {
-    window.electronAPI?.onScreenPermissionRequired?.(() => {
-      setScreenPermissionRequired(true);
-      const interval = setInterval(async () => {
-        const granted = await window.electronAPI?.checkScreenPermission?.();
-        if (granted) {
-          clearInterval(interval);
-          setScreenPermissionRequired(false);
-        }
-      }, 2000);
-      return () => clearInterval(interval);
-    });
-  }, []);
+    if (!screenPermissionRequired) return;
+    const interval = setInterval(async () => {
+      const granted = await window.electronAPI?.checkScreenPermission?.();
+      if (granted) setScreenPermissionRequired(false);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [screenPermissionRequired]);
 
   useEffect(() => {
     loadToken();
   }, [loadToken]);
 
   useEffect(() => {
-    window.electronAPI?.onAuthTokenReceived?.(() => {
-      loadToken().then((t) => {
-        if (t) loadWorkflows();
-      });
-    });
-  }, [loadToken, loadWorkflows]);
+    const handler = () => refreshAuth.current();
+    window.electronAPI?.onAuthTokenReceived?.(handler);
+    return () => window.electronAPI?.removeAuthTokenReceivedListener?.();
+  }, []);
+
+  useEffect(() => {
+    const onFocus = () => refreshAuth.current();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   useEffect(() => {
     if (token) loadWorkflows();
@@ -225,6 +239,11 @@ export default function App() {
   const startRecording = async () => {
     setRecordError("");
     setRecordedBlob(null);
+    const hasPermission = await window.electronAPI?.checkScreenPermission?.();
+    if (!hasPermission) {
+      setScreenPermissionRequired(true);
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
@@ -332,52 +351,38 @@ export default function App() {
 
   const uploadAndSynthesize = async () => {
     if (!recordedBlob || !token) return;
-    setRecordStatus("Requesting upload URL…");
+    setRecordStatus("Uploading recording…");
     setRecordError("");
     const base = API_URL.replace(/\/$/, "");
     try {
       const ext = recordedBlob.type.includes("webm") ? "webm" : "mp4";
       const filename = `recording-${Date.now()}.${ext}`;
-      const signedRes = await fetch(`${base}/api/storage/signed-upload-url`, {
+      const formData = new FormData();
+      formData.append("video", recordedBlob, filename);
+      const uploadRes = await fetch(`${base}/api/storage/upload-recording`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          filename,
-          content_type: recordedBlob.type || "video/webm",
-        }),
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
-      if (!signedRes.ok) {
-        if (signedRes.status === 401) {
+      if (!uploadRes.ok) {
+        if (uploadRes.status === 401) {
           await window.electronAPI?.authClearToken?.();
           setToken(null);
           throw new Error("Session expired. Please sign in again.");
         }
-        const d = await signedRes.json().catch(() => ({}));
+        const d = await uploadRes.json().catch(() => ({}));
         throw new Error(
-          (d as { detail?: string }).detail || "Failed to get upload URL",
+          (d as { detail?: string }).detail || "Failed to upload recording",
         );
       }
-      const { signed_url, gcs_path } = (await signedRes.json()) as {
-        signed_url: string;
-        gcs_path: string;
-      };
-      setRecordStatus("Uploading recording…");
-      const gcsRes = await fetch(signed_url, {
-        method: "PUT",
-        headers: { "Content-Type": recordedBlob.type || "video/webm" },
-        body: recordedBlob,
-      });
-      if (!gcsRes.ok) throw new Error(`Upload failed: ${gcsRes.status}`);
+      const { gcs_path } = (await uploadRes.json()) as { gcs_path: string };
       setRecordStatus("Synthesizing workflow…");
-      const formData = new FormData();
-      formData.append("video_gcs_path", gcs_path);
+      const synthFormData = new FormData();
+      synthFormData.append("video_gcs_path", gcs_path);
       const synthRes = await fetch(`${base}/api/synthesize`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        body: synthFormData,
       });
       if (!synthRes.ok) {
         const d = await synthRes.json().catch(() => ({}));
@@ -401,7 +406,12 @@ export default function App() {
   };
 
   const handleRun = async () => {
-    if (steps.length === 0) return;
+    if (steps.length === 0 || !token) return;
+    const hasPermission = await window.electronAPI?.checkScreenPermission?.();
+    if (!hasPermission) {
+      setScreenPermissionRequired(true);
+      return;
+    }
     const sourceId = await getPrimarySourceId();
     if (!sourceId) {
       setRunResult({ success: false, error: "Could not get primary display" });
@@ -411,21 +421,38 @@ export default function App() {
     setRunResult(null);
     setLiveProgress([]);
 
-    // Register real-time progress listener
     window.electronAPI?.onRunProgress((entry) => {
       setLiveProgress((prev) => [...prev, entry]);
     });
 
     try {
+      const createRes = await window.electronAPI?.createRun?.({
+        workflowId: selectedWorkflowId,
+        token,
+      });
+      if (createRes && "error" in createRes) {
+        setRunResult({
+          success: false,
+          error: createRes.error,
+          workflowId: selectedWorkflowId,
+        });
+        return;
+      }
+      const runId = createRes && "runId" in createRes ? createRes.runId : undefined;
+
       const result = await window.electronAPI?.runWorkflowLocal({
         steps,
         sourceId,
         workflowType: selectedWorkflowType,
+        workflowId: selectedWorkflowId,
+        runId,
+        token,
       });
       window.electronAPI?.removeRunProgressListener();
       setRunResult({
         ...(result ?? { success: false, error: "No response" }),
         workflowId: selectedWorkflowId,
+        runId,
       });
     } finally {
       setRunning(false);
@@ -998,7 +1025,13 @@ export default function App() {
                     padding: "4px 10px",
                     cursor: "pointer",
                   }}
-                  onClick={() => window.electronAPI?.openWebUI(`/dashboard/workflows/${runResult.workflowId}`)}
+                  onClick={() =>
+                    window.electronAPI?.openWebUI(
+                      runResult.runId
+                        ? `/dashboard/workflows/${runResult.workflowId}/runs/${runResult.runId}`
+                        : `/dashboard/workflows/${runResult.workflowId}`
+                    )
+                  }
                 >
                   <IconExternalLink style={{ width: 14, height: 14 }} />
                   View full logs

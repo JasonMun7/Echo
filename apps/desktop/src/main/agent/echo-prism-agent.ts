@@ -40,7 +40,7 @@ export interface RunWorkflowOptions {
   runId?: string;
   token?: string;
   backendUrl?: string;
-  onProgress?: (message: string) => void;
+  onProgress?: (message: string, stepNum?: number, thought?: string, action?: string) => void;
 }
 
 const MAX_RETRIES = 3;
@@ -166,16 +166,16 @@ export async function runWorkflowLocal(
       const stepNum = i + 1;
       const total = steps.length;
       const expectedOutcome = (step as unknown as Record<string, unknown>).expected_outcome as string | undefined ?? "";
-      onProgress(`Step ${stepNum}/${total}: ${step.action} — ${String(step.context).slice(0, 50)}`);
+      onProgress(`Step ${stepNum}/${total}: ${step.action} — ${String(step.context).slice(0, 50)}`, stepNum, undefined, step.action);
 
       if (isDeterministic(step)) {
         const ok = await executeStep(step);
         if (!ok) {
           const errMsg = `Direct execution failed for step ${stepNum}`;
-          onProgress(`✗ ${errMsg}`);
+          onProgress(`✗ ${errMsg}`, stepNum);
           return { success: false, error: errMsg };
         }
-        onProgress(`✓ Step ${stepNum} complete (direct)`);
+        onProgress(`✓ Step ${stepNum} complete (direct)`, stepNum);
         try {
           const ss = await operator.captureScreen(sourceId);
           const { buffer } = await compressScreenshot(ss);
@@ -304,14 +304,14 @@ export async function runWorkflowLocal(
 
         // Terminal signals — PATCH backend API and signal caller
         if (result === "finished") {
-          onProgress(`Agent signaled Finished at step ${stepNum}. Thought: ${thought}`);
+          onProgress(`Agent signaled Finished at step ${stepNum}. Thought: ${thought}`, stepNum, thought, "finished");
           await patchRunStatus(options ?? {}, "completed");
           return { success: true };
         }
 
         if (result === "calluser") {
           const reason = callUserPrompt(thought) || "Agent requested user intervention";
-          onProgress(`Agent needs user help at step ${stepNum}: ${reason}`);
+          onProgress(`Agent needs user help at step ${stepNum}: ${reason}`, stepNum, thought, "calluser");
           await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
           return { success: false, error: `calluser:${reason}` };
         }
@@ -351,20 +351,22 @@ export async function runWorkflowLocal(
 
       if (!stepSucceeded) {
         const reason = lastError || `Step ${stepNum} failed after ${MAX_RETRIES + 1} attempts`;
-        onProgress(`Agent stuck at step ${stepNum} — requesting user intervention: ${reason}`);
+        onProgress(`Agent stuck at step ${stepNum} — requesting user intervention: ${reason}`, stepNum, thought, actionStr);
         await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
         return { success: false, error: `calluser:${reason}` };
       }
 
-      onProgress(`✓ Step ${stepNum} complete (EchoPrism). Thought: ${thought.slice(0, 80)}`);
+      onProgress(`✓ Step ${stepNum} complete (EchoPrism). Thought: ${thought.slice(0, 80)}`, stepNum, thought, actionStr);
 
       // 300ms inter-step delay
       await new Promise((r) => setTimeout(r, 300));
     }
 
+    await patchRunStatus(options ?? {}, "completed");
     return { success: true };
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
+    await patchRunStatus(options ?? {}, "failed", { error: err });
     return { success: false, error: err };
   }
 }
