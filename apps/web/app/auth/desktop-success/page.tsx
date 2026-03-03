@@ -52,7 +52,7 @@ export default function DesktopSuccessPage() {
     );
   }
 
-  const desktopUrl = `echo-desktop://auth?token=${encodeURIComponent(token)}`;
+  const desktopUrl = `echo-desktop://?token=${encodeURIComponent(token)}`;
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
