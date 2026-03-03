@@ -4,8 +4,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getSources: () => ipcRenderer.invoke("get-sources"),
   getPrimarySourceId: () =>
     ipcRenderer.invoke("get-primary-source-id") as Promise<string | null>,
-  runWorkflowLocal: (args: { steps: Array<Record<string, unknown>>; sourceId: string }) =>
-    ipcRenderer.invoke("run-workflow-local", args),
+  createRun: (args: { workflowId: string; token: string }) =>
+    ipcRenderer.invoke("create-run", args),
+  runWorkflowLocal: (args: {
+    steps: Array<Record<string, unknown>>;
+    sourceId: string;
+    workflowType?: string;
+    workflowId?: string;
+    runId?: string;
+    token?: string;
+  }) => ipcRenderer.invoke("run-workflow-local", args),
   fetchWorkflow: (args: {
     workflowId: string;
     apiUrl?: string;
@@ -17,6 +25,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   authOpenSignin: () => ipcRenderer.invoke("auth-open-signin"),
   onAuthTokenReceived: (callback: () => void) => {
     ipcRenderer.on("auth-token-received", () => callback());
+  },
+  removeAuthTokenReceivedListener: () => {
+    ipcRenderer.removeAllListeners("auth-token-received");
   },
   onScreenPermissionRequired: (callback: () => void) => {
     ipcRenderer.on("screen-permission-required", () => callback());

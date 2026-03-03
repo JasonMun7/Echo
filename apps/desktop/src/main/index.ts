@@ -110,16 +110,6 @@ app.whenReady().then(async () => {
 
   createWindow();
 
-  // After window is created, check screen recording permission and notify renderer
-  if (process.platform === "darwin") {
-    // Small delay to let the renderer mount before we send the event
-    setTimeout(async () => {
-      const hasPermission = await checkScreenPermission();
-      if (!hasPermission) {
-        mainWindow?.webContents.send("screen-permission-required");
-      }
-    }, 1500);
-  }
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -203,25 +193,55 @@ ipcMain.handle("get-primary-source-id", async (): Promise<string | null> => {
   return sources[0]?.id ?? null;
 });
 
+ipcMain.handle("create-run", async (_, args: { workflowId: string; token: string }) => {
+  const { workflowId, token } = args;
+  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/api/run/${workflowId}?source=desktop`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return { error: (d as { detail?: string }).detail ?? `Create run failed: ${res.status}` };
+    }
+    const data = (await res.json()) as { run_id: string; workflow_id: string };
+    return { runId: data.run_id, workflowId: data.workflow_id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+});
+
 ipcMain.handle(
   "run-workflow-local",
   async (
     _,
-    args: { steps: Array<Record<string, unknown>>; sourceId: string; workflowType?: string }
+    args: {
+      steps: Array<Record<string, unknown>>;
+      sourceId: string;
+      workflowType?: string;
+      workflowId?: string;
+      runId?: string;
+      token?: string;
+    }
   ) => {
-    const { steps, sourceId, workflowType } = args;
+    const { steps, sourceId, workflowType, workflowId, runId, token } = args;
     if (!steps?.length || !sourceId) {
       return { success: false, error: "steps and sourceId required" };
     }
+    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
     const progress: string[] = [];
     const result = await runWorkflowLocal(
       steps as unknown as import("@echo/types").Step[],
       {
         sourceId,
         workflowType: (workflowType as import("@echo/types").WorkflowType) ?? "desktop",
+        workflowId,
+        runId,
+        token,
+        backendUrl: base,
         onProgress: (msg, stepNum, thought, action) => {
           progress.push(msg);
-          // Push real-time progress to renderer
           if (mainWindow) {
             mainWindow.webContents.send("run-progress", {
               thought: thought || msg,

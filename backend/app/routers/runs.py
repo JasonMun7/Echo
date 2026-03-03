@@ -22,6 +22,41 @@ from app.routers.workflows import _get_workflow
 router = APIRouter(tags=["runs"])
 
 
+class PatchRunBody(BaseModel):
+    status: str
+    callUserReason: str | None = None
+    error: str | None = None
+
+    class Config:
+        extra = "ignore"
+
+
+@router.patch("/workflows/{workflow_id}/runs/{run_id}")
+async def patch_run(
+    workflow_id: str,
+    run_id: str,
+    body: PatchRunBody,
+    uid: str = Depends(get_current_uid),
+):
+    """Update run status (used by desktop agent to sync progress)."""
+    wf_ref, _ = _get_workflow(uid, workflow_id)
+    run_ref = wf_ref.collection("runs").document(run_id)
+    doc = run_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Run not found")
+    updates: dict[str, Any] = {"status": body.status, "updatedAt": SERVER_TIMESTAMP}
+    if body.status == "completed":
+        updates["completedAt"] = SERVER_TIMESTAMP
+    if body.callUserReason is not None:
+        updates["callUserReason"] = body.callUserReason
+    if body.error is not None:
+        updates["error"] = body.error
+    if body.status == "failed":
+        updates["completedAt"] = SERVER_TIMESTAMP
+    run_ref.update(updates)
+    return {"ok": True}
+
+
 @router.get("/workflows/{workflow_id}/runs")
 async def list_runs(
     workflow_id: str,
@@ -55,11 +90,24 @@ async def get_run(
 @router.post("/run/{workflow_id}")
 async def create_run(
     workflow_id: str,
+    source: str | None = None,
     uid: str = Depends(get_current_uid),
 ):
+    """Create a run. If source=desktop, only create the Firestore doc (desktop runs locally)."""
     wf_ref, _ = _get_workflow(uid, workflow_id)
     run_id = str(uuid.uuid4())
     run_ref = wf_ref.collection("runs").document(run_id)
+
+    if source == "desktop":
+        run_ref.set({
+            "status": "running",
+            "owner_uid": uid,
+            "createdAt": SERVER_TIMESTAMP,
+            "confirmation_status": None,
+            "source": "desktop",
+        })
+        return {"run_id": run_id, "workflow_id": workflow_id}
+
     run_ref.set({
         "status": "pending",
         "owner_uid": uid,
