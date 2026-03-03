@@ -42,31 +42,30 @@ def generate_signed_upload_url(
 ) -> str:
     """Return a GCS v4 signed URL that allows a browser to PUT a file directly.
 
-    Requires service-account credentials with the ``storage.objects.create``
-    permission (and the private key available for signing). When
-    ``ECHO_GOOGLE_APPLICATION_CREDENTIALS`` (or legacy
-    ``GOOGLE_APPLICATION_CREDENTIALS``) points to a service-account JSON key
-    file that key is used; otherwise falls back to ADC (works on Cloud Run
-    with Workload Identity only if the SA has iam.serviceAccounts.signBlob).
+    Requires a private key for signing. Use ECHO_GOOGLE_APPLICATION_CREDENTIALS
+    pointing to a service account JSON for local dev (user creds can't sign).
+    On Cloud Run, Application Default Credentials work (compute SA can sign).
     """
-    if GOOGLE_APPLICATION_CREDENTIALS and os.path.isfile(
-        GOOGLE_APPLICATION_CREDENTIALS
-    ):
+    if GOOGLE_APPLICATION_CREDENTIALS and os.path.isfile(GOOGLE_APPLICATION_CREDENTIALS):
         from google.oauth2 import service_account as sa_module
 
-        credentials = sa_module.Credentials.from_service_account_file(
+        creds = sa_module.Credentials.from_service_account_file(
             GOOGLE_APPLICATION_CREDENTIALS
         )
-        client = storage.Client(credentials=credentials)
-    else:
-        credentials = None
-        client = storage.Client()
-
+        client = storage.Client(credentials=creds)
+        blob = client.bucket(GCS_BUCKET).blob(blob_name)
+        return blob.generate_signed_url(
+            version="v4",
+            expiration=datetime.timedelta(minutes=expiration_minutes),
+            method="PUT",
+            content_type=content_type,
+            credentials=creds,
+        )
+    client = storage.Client()
     blob = client.bucket(GCS_BUCKET).blob(blob_name)
     return blob.generate_signed_url(
         version="v4",
         expiration=datetime.timedelta(minutes=expiration_minutes),
         method="PUT",
         content_type=content_type,
-        credentials=credentials,
     )
