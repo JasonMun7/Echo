@@ -26,7 +26,6 @@ type Mode = "video" | "screenshots" | "record";
 
 export default function NewWorkflowPage() {
   const [mode, setMode] = useState<Mode>("video");
-  const [workflowName, setWorkflowName] = useState("My Workflow");
   const [video, setVideo] = useState<File | null>(null);
   const [screenshots, setScreenshots] = useState<File[]>([]);
   const [recording, setRecording] = useState(false);
@@ -61,67 +60,37 @@ export default function NewWorkflowPage() {
         }
         const ext = blob.type.includes("webm") ? "webm" : "mp4";
         const filename = `recording-${Date.now()}.${ext}`;
-        setUploadStatus("Requesting upload URL…");
-        const signedRes = await apiFetch("/api/storage/signed-upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename,
-            content_type: blob.type || "video/webm",
-          }),
-        });
-        if (!signedRes.ok) {
-          const d = await signedRes.json().catch(() => ({}));
-          throw new Error(d.detail || "Failed to get upload URL");
-        }
-        const { signed_url, gcs_path } = await signedRes.json();
         setUploadStatus("Uploading recording…");
-        const gcsRes = await fetch(signed_url, {
-          method: "PUT",
-          headers: { "Content-Type": blob.type || "video/webm" },
-          body: blob,
+        const uploadFormData = new FormData();
+        uploadFormData.append("video", blob, filename);
+        const uploadRes = await apiFetch("/api/storage/upload-recording", {
+          method: "POST",
+          body: uploadFormData,
         });
-        if (!gcsRes.ok) {
-          throw new Error(
-            `Storage upload failed: ${gcsRes.status} ${gcsRes.statusText}`,
-          );
+        if (!uploadRes.ok) {
+          const d = await uploadRes.json().catch(() => ({}));
+          throw new Error(d.detail || "Storage upload failed");
         }
+        const { gcs_path } = await uploadRes.json();
         setUploadStatus("Synthesizing workflow with AI…");
         formData.append("video_gcs_path", gcs_path);
       } else if (mode === "video" && video) {
-        // ── Step 1: get a signed GCS URL so the browser uploads directly,
-        //            bypassing the Cloud Run 32 MB request-body limit.
-        setUploadStatus("Requesting upload URL…");
-        const signedRes = await apiFetch("/api/storage/signed-upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: video.name,
-            content_type: video.type || "video/mp4",
-          }),
-        });
-        if (!signedRes.ok) {
-          const d = await signedRes.json().catch(() => ({}));
-          throw new Error(d.detail || "Failed to get upload URL");
-        }
-        const { signed_url, gcs_path } = await signedRes.json();
-
-        // ── Step 2: PUT the video file directly to GCS (no backend involved).
+        // Upload via backend to avoid GCS CORS (direct signed-URL PUT triggers preflight issues).
+        // Note: Cloud Run has a 32 MB request limit; use a smaller video or split if needed.
         setUploadStatus("Uploading video to storage…");
-        const gcsRes = await fetch(signed_url, {
-          method: "PUT",
-          headers: { "Content-Type": video.type || "video/mp4" },
-          body: video,
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", video);
+        const uploadRes = await apiFetch("/api/storage/upload", {
+          method: "POST",
+          body: uploadFormData,
         });
-        if (!gcsRes.ok) {
-          throw new Error(
-            `Storage upload failed: ${gcsRes.status} ${gcsRes.statusText}`,
-          );
+        if (!uploadRes.ok) {
+          const d = await uploadRes.json().catch(() => ({}));
+          throw new Error(d.detail || "Storage upload failed");
         }
-
-        // ── Step 3: tell the backend to synthesize from the GCS path.
+        const { path } = await uploadRes.json();
         setUploadStatus("Synthesizing workflow with AI…");
-        formData.append("video_gcs_path", gcs_path);
+        formData.append("video_gcs_path", path);
       } else if (mode === "screenshots" && screenshots.length > 0) {
         setUploadStatus("Synthesizing workflow with AI…");
         screenshots.forEach((f) => formData.append("screenshots", f));
@@ -133,7 +102,6 @@ export default function NewWorkflowPage() {
         return;
       }
 
-      formData.append("workflow_name", workflowName || "My Workflow");
       const res = await apiFetch("/api/synthesize", {
         method: "POST",
         body: formData,
@@ -232,17 +200,6 @@ export default function NewWorkflowPage() {
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          {/* Workflow name */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#150A35]">Workflow Name</label>
-            <input
-              type="text"
-              value={workflowName}
-              onChange={(e) => setWorkflowName(e.target.value)}
-              placeholder="My Workflow"
-              className="rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm text-[#150A35] placeholder:text-gray-400 focus:border-[#A577FF] focus:outline-none focus:ring-1 focus:ring-[#A577FF]/30"
-            />
-          </div>
           <div className="flex gap-4">
             <button
               type="button"
