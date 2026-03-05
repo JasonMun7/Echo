@@ -13,6 +13,7 @@ import {
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
+import { Input } from "@/components/ui/input";
 import {
   IconArrowLeft,
   IconCircleCheck,
@@ -21,7 +22,9 @@ import {
   IconUserQuestion,
   IconRefresh,
   IconBrain,
+  IconMicrophone,
 } from "@tabler/icons-react";
+import { EchoPrismVoiceModal } from "@/components/echoprisimvoice-modal";
 import { toast } from "sonner";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
@@ -62,9 +65,18 @@ export default function RunDetailPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const [dismissing, setDismissing] = useState(false);
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
   const [retrying, setRetrying] = useState(false);
   const [liveThoughts, setLiveThoughts] = useState<ThoughtEntry[]>([]);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const u = auth?.currentUser;
+    if (u) u.getIdToken().then((t) => setToken(t)).catch(() => setToken(null));
+  }, []);
 
   useEffect(() => {
     if (!db || !auth?.currentUser) return;
@@ -149,6 +161,29 @@ export default function RunDetailPage() {
     }
   };
 
+  const handleSendFeedback = async () => {
+    if (!feedbackText.trim()) return;
+    setSendingFeedback(true);
+    try {
+      const res = await apiFetch(`/api/run/${workflowId}/${runId}/calluser-feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: feedbackText.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { detail?: string }).detail || "Failed to send feedback");
+      }
+      setFeedbackText("");
+      toast.success("Feedback sent — run will resume");
+    } catch (e) {
+      console.error("Send feedback failed:", e);
+      toast.error(e instanceof Error ? e.message : "Failed to send feedback");
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
+
   const handleRetry = async () => {
     setRetrying(true);
     try {
@@ -210,15 +245,33 @@ export default function RunDetailPage() {
               {status}
             </span>
           )}
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={cancelling}
-            className="mt-2 rounded-lg border border-[#A577FF]/40 px-4 py-2 text-sm font-medium text-[#150A35] transition-colors hover:border-echo-error hover:bg-echo-error/10 hover:text-echo-error disabled:opacity-40"
-          >
-            {cancelling ? "Cancelling…" : "Cancel run"}
-          </button>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setVoiceModalOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-[#A577FF]/40 bg-[#A577FF]/10 px-4 py-2 text-sm font-medium text-[#150A35] transition-colors hover:bg-[#A577FF]/20"
+              title="Interrupt with voice"
+            >
+              <IconMicrophone className="h-4 w-4" />
+              Voice interrupt
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="rounded-lg border border-[#A577FF]/40 px-4 py-2 text-sm font-medium text-[#150A35] transition-colors hover:border-echo-error hover:bg-echo-error/10 hover:text-echo-error disabled:opacity-40"
+            >
+              {cancelling ? "Cancelling…" : "Cancel run"}
+            </button>
+          </div>
         </div>
+        <EchoPrismVoiceModal
+          isOpen={voiceModalOpen}
+          onClose={() => setVoiceModalOpen(false)}
+          token={token}
+          workflowId={workflowId}
+          runId={runId}
+        />
       </>
     );
   }
@@ -247,6 +300,24 @@ export default function RunDetailPage() {
                 <p className="text-sm text-[#150A35]/80 leading-relaxed">{reason}</p>
               </div>
             )}
+            <div className="w-full flex flex-col gap-2">
+              <label className="text-xs font-semibold text-[#150A35]">Send feedback &amp; resume</label>
+              <Input
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="e.g. Click the green button instead, or I resolved it manually"
+                className="border-[#A577FF]/30 bg-[#F5F7FC] placeholder:text-gray-400"
+                onKeyDown={(e) => e.key === "Enter" && handleSendFeedback()}
+              />
+              <button
+                type="button"
+                onClick={handleSendFeedback}
+                disabled={sendingFeedback || !feedbackText.trim()}
+                className="cursor-pointer rounded-lg bg-[#A577FF] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#8B5CF6] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {sendingFeedback ? "Sending…" : "Send feedback & resume"}
+              </button>
+            </div>
             <div className="flex items-center gap-3 mt-2">
               <button
                 type="button"

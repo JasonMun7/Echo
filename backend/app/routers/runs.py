@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 import firebase_admin.firestore
-from google.cloud.firestore import SERVER_TIMESTAMP
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 
 from app.auth import get_current_uid, get_firebase_app
 from app.routers.workflows import _get_workflow
@@ -69,6 +69,40 @@ async def list_runs(
     docs = runs_ref.order_by("createdAt", direction="DESCENDING").limit(50).stream()
     items = [{"id": d.id, **d.to_dict()} for d in docs]
     return {"runs": items}
+
+
+@router.get("/run/{workflow_id}/{run_id}/poll-signals")
+async def poll_run_signals(
+    workflow_id: str,
+    run_id: str,
+    uid: str = Depends(get_current_uid),
+):
+    """Poll for redirect/cancel/calluser_feedback. Used by desktop agent between steps. Returns and clears redirect_instruction and calluser_feedback."""
+    wf_ref, _ = _get_workflow(uid, workflow_id)
+    run_ref = wf_ref.collection("runs").document(run_id)
+    doc = run_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Run not found")
+    data = doc.to_dict() or {}
+    if data.get("owner_uid") != uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    redirect_instruction = data.get("redirect_instruction")
+    calluser_feedback = data.get("calluser_feedback")
+    cancel_requested = data.get("cancel_requested", False)
+    updates: dict[str, Any] = {"updatedAt": SERVER_TIMESTAMP}
+    if redirect_instruction is not None:
+        updates["redirect_instruction"] = DELETE_FIELD
+        updates["redirect_acknowledged_at"] = SERVER_TIMESTAMP
+    if calluser_feedback is not None:
+        updates["calluser_feedback"] = DELETE_FIELD
+        updates["calluser_feedback_ack_at"] = SERVER_TIMESTAMP
+    if updates:
+        run_ref.update(updates)
+    return {
+        "redirect_instruction": redirect_instruction,
+        "calluser_feedback": calluser_feedback,
+        "cancel_requested": cancel_requested,
+    }
 
 
 @router.get("/workflows/{workflow_id}/runs/{run_id}")
@@ -258,6 +292,37 @@ async def redirect_run(
     run_ref.update({
         "redirect_instruction": body.instruction,
         "redirect_at": SERVER_TIMESTAMP,
+    })
+    return {"ok": True}
+
+
+class CallUserFeedbackBody(BaseModel):
+    instruction: str
+
+
+@router.post("/run/{workflow_id}/{run_id}/calluser-feedback")
+async def calluser_feedback(
+    workflow_id: str,
+    run_id: str,
+    body: CallUserFeedbackBody,
+    uid: str = Depends(get_current_uid),
+):
+    """Send feedback when run is awaiting_user; stores instruction and sets status to running for agent to resume with."""
+    wf_ref, _ = _get_workflow(uid, workflow_id)
+    run_ref = wf_ref.collection("runs").document(run_id)
+    doc = run_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Run not found")
+    data = doc.to_dict() or {}
+    if data.get("owner_uid") != uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if data.get("status") != "awaiting_user":
+        raise HTTPException(status_code=400, detail="Run is not awaiting_user")
+    run_ref.update({
+        "calluser_feedback": body.instruction,
+        "calluser_feedback_at": SERVER_TIMESTAMP,
+        "status": "running",
+        "updatedAt": SERVER_TIMESTAMP,
     })
     return {"ok": True}
 

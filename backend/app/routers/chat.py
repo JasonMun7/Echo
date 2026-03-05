@@ -250,11 +250,16 @@ async def echoprisim_ws(
     websocket: WebSocket,
     token: str = Query(...),
     mode: str = Query(default="voice"),
+    workflow_id: str | None = Query(default=None),
+    run_id: str | None = Query(default=None),
 ):
     """EchoPrism WebSocket — routes to the right backend based on mode.
 
     mode=voice → Gemini Live API (AUDIO) for EchoPrismVoice modal
     mode=text  → Standard gemini-2.5-flash chat for EchoPrism Chat page
+
+    Optional workflow_id + run_id: when provided with mode=voice, the model is told
+    there is an active run and can use redirect_run for mid-run voice interrupts.
     """
     uid = _verify_token(token)
     if not uid:
@@ -277,7 +282,7 @@ async def echoprisim_ws(
     if mode == "text":
         await _text_chat_session(websocket, uid, db, client)
     else:
-        await _voice_live_session(websocket, uid, db, client)
+        await _voice_live_session(websocket, uid, db, client, workflow_id, run_id)
 
 
 async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.Client) -> None:
@@ -506,12 +511,23 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
     return {"ok": False, "error": f"Unknown tool: {name}"}
 
 
-async def _voice_live_session(websocket: WebSocket, uid: str, db, client: genai.Client) -> None:
+def _voice_system_prompt(workflow_id: str | None, run_id: str | None) -> str:
+    base = SYSTEM_PROMPT
+    if workflow_id and run_id:
+        base += f"\n\nACTIVE RUN: There is currently an active workflow run (workflow_id={workflow_id}, run_id={run_id}). When the user gives mid-run instructions (e.g. pause, stop, change what to click, do something different), immediately use redirect_run with workflow_id={workflow_id}, run_id={run_id}, and instruction set to the user's exact words."
+    return base
+
+
+async def _voice_live_session(
+    websocket: WebSocket, uid: str, db, client: genai.Client,
+    workflow_id: str | None = None, run_id: str | None = None,
+) -> None:
     """EchoPrismVoice: Gemini Live API with AUDIO modality and real-time mic streaming."""
+    system_prompt = _voice_system_prompt(workflow_id, run_id)
     config = types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         output_audio_transcription={},
-        system_instruction=SYSTEM_PROMPT,
+        system_instruction=system_prompt,
         tools=TOOLS,
     )
 

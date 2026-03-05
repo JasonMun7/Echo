@@ -3,11 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Sidebar, SidebarBody, SidebarLink, useSidebar } from "@/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarBody,
+  SidebarLink,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import {
   IconArrowLeft,
   IconBrandTabler,
-  IconList,
+  IconJumpRope,
   IconSettings,
   IconBrain,
   IconSparkles2,
@@ -60,7 +65,10 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
       setAwaitingUserCount(totalAwaiting);
     }
 
-    const q = query(collection(db, "workflows"), where("owner_uid", "==", user.uid));
+    const q = query(
+      collection(db, "workflows"),
+      where("owner_uid", "==", user.uid),
+    );
     const unsubWf = onSnapshot(q, (wfSnap) => {
       const currentIds = new Set(wfSnap.docs.map((d) => d.id));
 
@@ -83,7 +91,10 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
       wfSnap.docs.forEach((wfDoc) => {
         if (runUnsubs.has(wfDoc.id)) return;
         const runsRef = collection(db, "workflows", wfDoc.id, "runs");
-        const runQ = query(runsRef, where("status", "in", ["running", "awaiting_user"]));
+        const runQ = query(
+          runsRef,
+          where("status", "in", ["running", "awaiting_user"]),
+        );
         const unsub = onSnapshot(
           runQ,
           (snap) => {
@@ -155,7 +166,10 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
             <Skeleton className="h-5 w-36 rounded-lg" />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-xl border border-[#A577FF]/20 overflow-hidden">
+                <div
+                  key={i}
+                  className="rounded-xl border border-[#A577FF]/20 overflow-hidden"
+                >
                   <Skeleton className="h-28 w-full rounded-none" />
                   <div className="flex flex-col gap-2 p-4">
                     <Skeleton className="h-4 w-32 rounded-md" />
@@ -181,7 +195,7 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
       href: "/dashboard/workflows",
       icon: (
         <span className="relative inline-flex">
-          <IconList className="h-5 w-5 shrink-0 text-current" />
+          <IconJumpRope className="h-5 w-5 shrink-0 text-current" />
           {awaitingUserCount > 0 && (
             <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-400" />
           )}
@@ -240,7 +254,8 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
                   link={link}
                   active={
                     pathname === link.href ||
-                    (link.href !== "/dashboard" && pathname.startsWith(link.href))
+                    (link.href !== "/dashboard" &&
+                      pathname.startsWith(link.href))
                   }
                 />
               ))}
@@ -254,7 +269,10 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
                 href: "/dashboard/profile",
                 icon: (
                   <img
-                    src={user.photoURL || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
+                    src={
+                      user.photoURL ||
+                      "https://api.dicebear.com/7.x/avataaars/svg?seed=user"
+                    }
                     className="h-7 w-7 shrink-0 rounded-full"
                     width={28}
                     height={28}
@@ -267,14 +285,18 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
           </div>
         </SidebarBody>
       </Sidebar>
-      <main className="flex flex-1 flex-col overflow-auto">
-        {children}
-      </main>
+      <main className="flex flex-1 flex-col overflow-auto">{children}</main>
     </div>
   );
 }
 
-function LogoutButton({ open, onLogout }: { open: boolean; onLogout: () => void }) {
+function LogoutButton({
+  open,
+  onLogout,
+}: {
+  open: boolean;
+  onLogout: () => void;
+}) {
   const { animate } = useSidebar();
   return (
     <button
@@ -326,4 +348,3 @@ const LogoIcon = () => {
     </Link>
   );
 };
-

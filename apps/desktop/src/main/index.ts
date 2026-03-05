@@ -1,5 +1,6 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, session, shell } from "electron";
+import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, session, shell } from "electron";
 import { runWorkflowLocal } from "./agent/echo-prism-agent";
+import { createHudOverlayWindow, createHazeOverlayWindow } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
@@ -51,7 +52,42 @@ function handleAuthUrl(url: string): void {
   }
 }
 
+function handleRunUrl(url: string): void {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "echo-desktop:") return;
+    const workflowId = u.searchParams.get("workflow_id");
+    const runId = u.searchParams.get("run_id");
+    if (workflowId && runId && mainWindow) {
+      mainWindow.focus();
+      mainWindow.webContents.send("run-from-url", { workflowId, runId });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 let mainWindow: BrowserWindow | null = null;
+let hudOverlayWindow: BrowserWindow | null = null;
+let hazeOverlayWindow: BrowserWindow | null = null;
+
+/** Stored when enter-run-mode is called, used by cancel-run and send-interrupt */
+let runContext: { workflowId: string; runId: string; token: string } | null = null;
+
+function destroyOverlaysAndShowMain(): void {
+  if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+    hudOverlayWindow.destroy();
+    hudOverlayWindow = null;
+  }
+  if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
+    hazeOverlayWindow.destroy();
+    hazeOverlayWindow = null;
+  }
+  runContext = null;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -93,10 +129,128 @@ async function checkScreenPermission(): Promise<boolean> {
   }
 }
 
+// ── Mode switching IPC (Main Process as source of truth) ─────────────────────
+ipcMain.handle("enter-recording-mode", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+    if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+      hudOverlayWindow.destroy();
+    }
+    hudOverlayWindow = createHudOverlayWindow("recording");
+    hudOverlayWindow.on("closed", () => {
+      hudOverlayWindow = null;
+    });
+  }
+  return { ok: true };
+});
+
+ipcMain.handle("exit-recording-mode", () => {
+  destroyOverlaysAndShowMain();
+  return { ok: true };
+});
+
+ipcMain.handle("enter-run-mode", (_, ctx: { workflowId: string; runId: string; token: string }) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    runContext = ctx;
+    mainWindow.hide();
+    if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
+      hazeOverlayWindow.destroy();
+    }
+    if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+      hudOverlayWindow.destroy();
+    }
+    hazeOverlayWindow = createHazeOverlayWindow();
+    hazeOverlayWindow.on("closed", () => {
+      hazeOverlayWindow = null;
+    });
+    hudOverlayWindow = createHudOverlayWindow("run");
+    hudOverlayWindow.on("closed", () => {
+      hudOverlayWindow = null;
+    });
+  }
+  return { ok: true };
+});
+
+ipcMain.handle("exit-run-mode", () => {
+  destroyOverlaysAndShowMain();
+  return { ok: true };
+});
+
+// Recording commands: HUD sends, Main forwards to Main Window (owns MediaRecorder)
+ipcMain.handle("recording-pause", () => {
+  mainWindow?.webContents.send("recording-command", { action: "pause" });
+  return { ok: true };
+});
+ipcMain.handle("recording-stop", (_, duration?: number) => {
+  mainWindow?.webContents.send("recording-command", { action: "stop", duration });
+  return { ok: true };
+});
+ipcMain.handle("recording-redo", () => {
+  mainWindow?.webContents.send("recording-command", { action: "redo" });
+  return { ok: true };
+});
+ipcMain.handle("recording-discard", () => {
+  mainWindow?.webContents.send("recording-command", { action: "discard" });
+  return { ok: true };
+});
+
+// Run commands: Main Process handles via run-control and stored context
+ipcMain.handle("cancel-run", async () => {
+  if (!runContext) return { ok: false, error: "No active run" };
+  const { workflowId, runId, token } = runContext;
+  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/api/run/${workflowId}/${runId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return { ok: res.ok };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("send-interrupt", async (_, text: string) => {
+  if (!runContext || !text?.trim()) return { ok: false, error: "No run or text" };
+  const { workflowId, runId, token } = runContext;
+  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/api/run/${workflowId}/${runId}/redirect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ instruction: text.trim() }),
+    });
+    return { ok: res.ok };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("calluser-feedback", async (_, text: string) => {
+  if (!runContext || !text?.trim()) return { ok: false, error: "No run or text" };
+  const { workflowId, runId, token } = runContext;
+  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/api/run/${workflowId}/${runId}/calluser-feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ instruction: text.trim() }),
+    });
+    return { ok: res.ok };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+});
+
 app.whenReady().then(async () => {
   if (!app.isDefaultProtocolClient("echo-desktop")) {
     app.setAsDefaultProtocolClient("echo-desktop");
   }
+
+  // Fail-safe: global shortcut to recover from frozen overlays
+  globalShortcut.register("CommandOrControl+Shift+X", () => {
+    destroyOverlaysAndShowMain();
+  });
 
   // Required for getDisplayMedia() in the renderer - Electron does not support it by default
   session.defaultSession.setDisplayMediaRequestHandler(
@@ -119,8 +273,16 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+});
+
 app.on("open-url", (_event, url) => {
-  handleAuthUrl(url);
+  if (url.includes("run?")) {
+    handleRunUrl(url);
+  } else {
+    handleAuthUrl(url);
+  }
 });
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -129,7 +291,10 @@ if (!gotTheLock) {
 } else {
   app.on("second-instance", (_event, commandLine: string[]) => {
     const url = commandLine.find((a) => a.startsWith("echo-desktop://"));
-    if (url) handleAuthUrl(url);
+    if (url) {
+      if (url.includes("run?")) handleRunUrl(url);
+      else handleAuthUrl(url);
+    }
     if (mainWindow) {
       mainWindow.focus();
     }
@@ -212,6 +377,18 @@ ipcMain.handle("create-run", async (_, args: { workflowId: string; token: string
   }
 });
 
+import { requestPause, requestResume } from "./run-control";
+
+ipcMain.handle("pause-run", () => {
+  requestPause();
+  return { ok: true };
+});
+
+ipcMain.handle("resume-run", () => {
+  requestResume();
+  return { ok: true };
+});
+
 ipcMain.handle(
   "run-workflow-local",
   async (
@@ -229,6 +406,7 @@ ipcMain.handle(
     if (!steps?.length || !sourceId) {
       return { success: false, error: "steps and sourceId required" };
     }
+    requestResume();
     const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
     const progress: string[] = [];
     const result = await runWorkflowLocal(
@@ -242,12 +420,21 @@ ipcMain.handle(
         backendUrl: base,
         onProgress: (msg, stepNum, thought, action) => {
           progress.push(msg);
-          if (mainWindow) {
-            mainWindow.webContents.send("run-progress", {
-              thought: thought || msg,
-              action: action || "",
-              step: stepNum ?? 0,
-            });
+          const payload = {
+            thought: thought || msg,
+            action: action || "",
+            step: stepNum ?? 0,
+          };
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("run-progress", payload);
+          }
+          if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+            hudOverlayWindow.webContents.send("run-progress", payload);
+          }
+        },
+        onAwaitingUser: (reason) => {
+          if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+            hudOverlayWindow.webContents.send("run-awaiting-user", { reason });
           }
         },
       }

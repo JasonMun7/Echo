@@ -27,9 +27,10 @@ import {
 } from "./prompts";
 import { compressScreenshot, buildContext, CompressOptions } from "./image-utils";
 import { isDeterministic, executeStep } from "./direct-executor";
-import * as operator from "../operators/desktop-operator";
-import type { OperatorResult } from "../operators/desktop-operator";
+import * as operator from "../operators/unified-operator";
+import type { OperatorResult } from "../operators/unified-operator";
 import { perceiveScene, groundElement } from "./perception";
+import { waitIfPaused } from "../run-control";
 
 export type { Step };
 
@@ -41,6 +42,7 @@ export interface RunWorkflowOptions {
   token?: string;
   backendUrl?: string;
   onProgress?: (message: string, stepNum?: number, thought?: string, action?: string) => void;
+  onAwaitingUser?: (reason: string) => void;
 }
 
 const MAX_RETRIES = 3;
@@ -68,6 +70,39 @@ async function resolveModel(db: unknown): Promise<string> {
     }
   } catch { /* fail silently */ }
   return FALLBACK_MODEL;
+}
+
+/** Poll backend for redirect, cancel, calluser_feedback. Clears redirect and feedback on read. */
+async function pollRunSignals(opts: RunWorkflowOptions): Promise<{
+  redirectInstruction: string | null;
+  calluserFeedback: string | null;
+  cancelRequested: boolean;
+}> {
+  if (!opts.workflowId || !opts.runId || !opts.backendUrl) {
+    return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
+  }
+  try {
+    const res = await fetch(
+      `${opts.backendUrl}/api/run/${opts.workflowId}/${opts.runId}/poll-signals`,
+      {
+        headers: opts.token ? { Authorization: `Bearer ${opts.token}` } : {},
+      }
+    );
+    if (!res.ok) return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
+    const data = (await res.json()) as {
+      redirect_instruction?: string | null;
+      calluser_feedback?: string | null;
+      cancel_requested?: boolean;
+    };
+    return {
+      redirectInstruction: data.redirect_instruction ?? null,
+      calluserFeedback: data.calluser_feedback ?? null,
+      cancelRequested: data.cancel_requested ?? false,
+    };
+  } catch (e) {
+    console.warn("[echo-prism-agent] pollRunSignals failed:", e);
+    return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
+  }
 }
 
 /** PATCH the backend API to update run status. */
@@ -161,8 +196,32 @@ export async function runWorkflowLocal(
   const history: Array<{ screenshot?: Buffer; thought?: string; action?: string }> = [];
 
   try {
+    let effectiveStep = steps[0];
     for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
+      // Poll for signals between steps (skip first)
+      if (i > 0 && options) {
+        const signals = await pollRunSignals(options);
+        if (signals.cancelRequested) {
+          onProgress("Run cancelled by user", i, undefined, "cancel");
+          await patchRunStatus(options, "cancelled");
+          return { success: false, error: "Run cancelled by user" };
+        }
+        const instruction = signals.redirectInstruction ?? signals.calluserFeedback;
+        if (instruction) {
+          effectiveStep = {
+            ...steps[i],
+            context: `[User interrupt]: ${instruction}\n${String((steps[i] as { context?: string }).context ?? "")}`,
+          } as Step;
+        } else {
+          effectiveStep = steps[i];
+        }
+      } else {
+        effectiveStep = steps[i];
+      }
+
+      await waitIfPaused();
+
+      const step = effectiveStep;
       const stepNum = i + 1;
       const total = steps.length;
       const expectedOutcome = (step as unknown as Record<string, unknown>).expected_outcome as string | undefined ?? "";
@@ -186,18 +245,17 @@ export async function runWorkflowLocal(
       }
 
       // EchoPrism VLM loop for ambiguous steps
-      const instruction = stepInstruction(
-        { action: step.action, context: step.context, params: step.params as Record<string, unknown>, expected_outcome: expectedOutcome },
-        stepNum,
-        total
-      );
-
       let lastError = "";
       let thought = "";
       let actionStr = "";
       let stepSucceeded = false;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const instruction = stepInstruction(
+          { action: step.action, context: step.context, params: step.params as Record<string, unknown>, expected_outcome: expectedOutcome },
+          stepNum,
+          total
+        );
         // Fresh screenshot on every attempt
         let screenshotBuf: Buffer;
         try {
@@ -313,7 +371,23 @@ export async function runWorkflowLocal(
           const reason = callUserPrompt(thought) || "Agent requested user intervention";
           onProgress(`Agent needs user help at step ${stepNum}: ${reason}`, stepNum, thought, "calluser");
           await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
-          return { success: false, error: `calluser:${reason}` };
+          options?.onAwaitingUser?.(reason);
+          // Poll for user feedback or cancel; resume step with feedback if provided
+          if (!options) return { success: false, error: `calluser:${reason}` };
+          while (true) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const signals = await pollRunSignals(options);
+            if (signals.cancelRequested) {
+              await patchRunStatus(options, "cancelled");
+              return { success: false, error: "Run cancelled by user" };
+            }
+            if (signals.calluserFeedback) {
+              (step as { context?: string }).context = `[User feedback]: ${signals.calluserFeedback}\n${(step as { context?: string }).context ?? ""}`;
+              onProgress(`Resuming with user feedback at step ${stepNum}`, stepNum);
+              break; // Retry step with new context
+            }
+          }
+          continue; // Retry the step (same i, new context)
         }
 
         if (result === false) {
@@ -353,6 +427,7 @@ export async function runWorkflowLocal(
         const reason = lastError || `Step ${stepNum} failed after ${MAX_RETRIES + 1} attempts`;
         onProgress(`Agent stuck at step ${stepNum} — requesting user intervention: ${reason}`, stepNum, thought, actionStr);
         await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
+        options?.onAwaitingUser?.(reason);
         return { success: false, error: `calluser:${reason}` };
       }
 

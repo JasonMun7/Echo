@@ -9,10 +9,8 @@ import { apiFetch } from "@/lib/api";
 import {
   IconPlus,
   IconTrash,
-  IconBrandChrome,
-  IconDeviceLaptop,
+  IconJumpRope,
 } from "@tabler/icons-react";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Workflow {
@@ -23,22 +21,6 @@ interface Workflow {
   thumbnail_gcs_path?: string;
   createdAt: unknown;
   updatedAt: unknown;
-}
-
-function WorkflowTypeBadge({ type }: { type: "browser" | "desktop" }) {
-  return (
-    <Badge
-      variant="outline"
-      className="flex items-center gap-1 rounded-full border-[#A577FF]/30 bg-[#A577FF]/15 px-2 py-0.5 text-xs font-medium text-[#A577FF]"
-    >
-      {type === "desktop" ? (
-        <IconDeviceLaptop className="h-3 w-3" />
-      ) : (
-        <IconBrandChrome className="h-3 w-3" />
-      )}
-      {type === "desktop" ? "Desktop" : "Browser"}
-    </Badge>
-  );
 }
 
 function WorkflowThumbnail({ workflowId }: { workflowId: string }) {
@@ -113,19 +95,26 @@ export default function WorkflowsPage() {
     }
     const uid = auth.currentUser.uid;
     const q = query(collection(db, "workflows"), where("owner_uid", "==", uid));
-    const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
-        .sort((a, b) => {
-          const getTime = (x: unknown) =>
-            typeof (x as { toMillis?: () => number })?.toMillis === "function"
-              ? (x as { toMillis: () => number }).toMillis()
-              : 0;
-          return getTime(b.updatedAt) - getTime(a.updatedAt);
-        });
-      setWorkflows(list);
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
+          .sort((a, b) => {
+            const getTime = (x: unknown) =>
+              typeof (x as { toMillis?: () => number })?.toMillis === "function"
+                ? (x as { toMillis: () => number }).toMillis()
+                : 0;
+            return getTime(b.updatedAt) - getTime(a.updatedAt);
+          });
+        setWorkflows(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn("Workflows snapshot error:", err);
+        setLoading(false);
+      },
+    );
     return () => unsub();
   }, []);
 
@@ -211,11 +200,7 @@ export default function WorkflowsPage() {
                   ) : (
                     <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">
-                        {w.workflow_type === "desktop" ? (
-                          <IconDeviceLaptop className="h-6 w-6 text-[#A577FF]" />
-                        ) : (
-                          <IconBrandChrome className="h-6 w-6 text-[#A577FF]" />
-                        )}
+                        <IconJumpRope className="h-6 w-6 text-[#A577FF]" />
                       </div>
                     </div>
                   )}
@@ -226,9 +211,6 @@ export default function WorkflowsPage() {
                       {w.name ?? "Untitled workflow"}
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {w.workflow_type && (
-                        <WorkflowTypeBadge type={w.workflow_type} />
-                      )}
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           w.status === "ready" || w.status === "active"

@@ -6,7 +6,7 @@ import {
   IconMicrophoneOff,
   IconX,
   IconWaveSine,
-  IconList,
+  IconJumpRope,
   IconPlayerPlay,
   IconWand,
   IconAlertCircle,
@@ -24,6 +24,9 @@ interface EchoPrismVoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   token: string | null;
+  /** When provided, voice session knows there is an active run and can use redirect_run for interrupts */
+  workflowId?: string;
+  runId?: string;
 }
 
 type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "muted";
@@ -38,7 +41,7 @@ const SYNTHESIS_STEPS = [
 const TOOL_META: Record<string, { label: string; icon: React.ReactNode }> = {
   list_workflows: {
     label: "Listing workflows",
-    icon: <IconList className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconJumpRope className="h-3.5 w-3.5 text-[#A577FF]" />,
   },
   run_workflow: {
     label: "Starting workflow",
@@ -71,16 +74,30 @@ const TOOL_META: Record<string, { label: string; icon: React.ReactNode }> = {
 };
 
 function getToolMeta(name: string) {
-  return TOOL_META[name] ?? { label: name, icon: <IconTool className="h-3.5 w-3.5 text-[#A577FF]" /> };
+  return (
+    TOOL_META[name] ?? {
+      label: name,
+      icon: <IconTool className="h-3.5 w-3.5 text-[#A577FF]" />,
+    }
+  );
 }
 
-export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceModalProps) {
+export function EchoPrismVoiceModal({
+  isOpen,
+  onClose,
+  token,
+  workflowId,
+  runId,
+}: EchoPrismVoiceModalProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [synthesizedWorkflow, setSynthesizedWorkflow] = useState<{ id: string; name: string } | null>(null);
+  const [synthesizedWorkflow, setSynthesizedWorkflow] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Audio refs — own WS, own AudioContext for mic (16kHz) and playback (24kHz)
   const wsRef = useRef<WebSocket | null>(null);
@@ -91,7 +108,9 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const isMutedRef = useRef(false);
   const transcriptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
 
   // Keep isMutedRef in sync
   useEffect(() => {
@@ -122,7 +141,8 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
     if (!playbackCtxRef.current) {
       playbackCtxRef.current = new (
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext
       )({ sampleRate: 24000 });
       nextPlayTimeRef.current = 0;
     }
@@ -157,7 +177,8 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
       mediaStreamRef.current = stream;
       const ctx = new (
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext
       )({ sampleRate: 16000 });
       micCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
@@ -190,13 +211,24 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
         return;
       }
       try {
-        const data = JSON.parse(event.data as string) as Record<string, unknown>;
+        const data = JSON.parse(event.data as string) as Record<
+          string,
+          unknown
+        >;
 
-        if (data.type === "transcript" && typeof data.text === "string" && data.text) {
+        if (
+          data.type === "transcript" &&
+          typeof data.text === "string" &&
+          data.text
+        ) {
           setTranscript(data.text);
           // Auto-clear transcript 4s after last update
-          if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
-          transcriptTimerRef.current = setTimeout(() => setTranscript(""), 4000);
+          if (transcriptTimerRef.current)
+            clearTimeout(transcriptTimerRef.current);
+          transcriptTimerRef.current = setTimeout(
+            () => setTranscript(""),
+            4000,
+          );
         } else if (data.type === "tool_call" && typeof data.name === "string") {
           setActiveTool(data.name);
           if (data.name === "synthesize_from_description") {
@@ -236,7 +268,10 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
     setSynthesizedWorkflow(null);
     nextPlayTimeRef.current = 0;
 
-    const ws = new WebSocket(`${WS_URL}/ws/chat?token=${encodeURIComponent(token)}&mode=voice`);
+    const params = new URLSearchParams({ token, mode: "voice" });
+    if (workflowId) params.set("workflow_id", workflowId);
+    if (runId) params.set("run_id", runId);
+    const ws = new WebSocket(`${WS_URL}/ws/chat?${params.toString()}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -257,7 +292,16 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
       ws.close();
       wsRef.current = null;
     };
-  }, [isOpen, token, startMic, stopMic, handleMessage, stopAudioCheck]);
+  }, [
+    isOpen,
+    token,
+    workflowId,
+    runId,
+    startMic,
+    stopMic,
+    handleMessage,
+    stopAudioCheck,
+  ]);
 
   function toggleMute() {
     const next = !isMuted;
@@ -304,7 +348,9 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
         {/* Header — just branding, no X */}
         <div className="flex w-full items-center justify-start gap-2">
           <IconWaveSine className="h-5 w-5 text-[#A577FF]" />
-          <span className="text-sm font-semibold text-white tracking-wide">EchoPrismVoice</span>
+          <span className="text-sm font-semibold text-white tracking-wide">
+            EchoPrismVoice
+          </span>
         </div>
 
         {/* Orb + status + transcript + tool pill */}
@@ -315,7 +361,9 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
             <div
               className={cn(
                 "absolute rounded-full bg-[#A577FF]/20 transition-all duration-700",
-                voiceState === "speaking" ? "h-64 w-64 animate-ping opacity-30" : "h-52 w-52 opacity-0",
+                voiceState === "speaking"
+                  ? "h-64 w-64 animate-ping opacity-30"
+                  : "h-52 w-52 opacity-0",
               )}
             />
             {/* Mid ring — pulses when listening */}
@@ -336,7 +384,8 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
               className={cn(
                 "relative rounded-full bg-linear-to-br from-[#A577FF] to-[#7C3AED] shadow-2xl shadow-[#A577FF]/50 transition-all duration-300",
                 orbSize,
-                (voiceState === "muted" || voiceState === "idle") && "opacity-50 saturate-50",
+                (voiceState === "muted" || voiceState === "idle") &&
+                  "opacity-50 saturate-50",
               )}
             >
               <div className="absolute inset-0 rounded-full bg-linear-to-tr from-white/10 to-transparent" />
@@ -351,9 +400,24 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
                 {statusLabel}
                 {showDots && (
                   <span className="inline-flex gap-0.5 ml-1">
-                    <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+                    <span
+                      className="animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    >
+                      .
+                    </span>
+                    <span
+                      className="animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    >
+                      .
+                    </span>
+                    <span
+                      className="animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    >
+                      .
+                    </span>
                   </span>
                 )}
               </p>
@@ -362,7 +426,9 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
             {/* Transcript */}
             {transcript && !isSynthesizing && (
               <div className="w-full max-w-sm text-center">
-                <p className="text-sm text-white/70 leading-relaxed font-light">{transcript}</p>
+                <p className="text-sm text-white/70 leading-relaxed font-light">
+                  {transcript}
+                </p>
               </div>
             )}
 
@@ -382,7 +448,9 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
               <div className="flex flex-col items-center gap-3">
                 <p className="text-sm text-white/70 text-center">
                   Workflow ready:{" "}
-                  <span className="text-white font-medium">{synthesizedWorkflow.name}</span>
+                  <span className="text-white font-medium">
+                    {synthesizedWorkflow.name}
+                  </span>
                 </p>
                 <a
                   href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
@@ -417,7 +485,11 @@ export function EchoPrismVoiceModal({ isOpen, onClose, token }: EchoPrismVoiceMo
             )}
             title={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted ? <IconMicrophoneOff className="h-6 w-6" /> : <IconMicrophone className="h-6 w-6" />}
+            {isMuted ? (
+              <IconMicrophoneOff className="h-6 w-6" />
+            ) : (
+              <IconMicrophone className="h-6 w-6" />
+            )}
           </button>
         </div>
       </div>

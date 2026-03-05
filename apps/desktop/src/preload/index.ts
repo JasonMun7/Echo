@@ -29,6 +29,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeAuthTokenReceivedListener: () => {
     ipcRenderer.removeAllListeners("auth-token-received");
   },
+  onRunFromUrl: (callback: (arg: { workflowId: string; runId: string }) => void) => {
+    ipcRenderer.on("run-from-url", (_, arg) => callback(arg));
+  },
+  removeRunFromUrlListener: () => {
+    ipcRenderer.removeAllListeners("run-from-url");
+  },
   onScreenPermissionRequired: (callback: () => void) => {
     ipcRenderer.on("screen-permission-required", () => callback());
   },
@@ -40,6 +46,43 @@ contextBridge.exposeInMainWorld("electronAPI", {
       | { error: string }
     >,
   openWebUI: (path?: string) => ipcRenderer.invoke("open-web-ui", path),
+
+  // Pause / resume run
+  pauseRun: () => ipcRenderer.invoke("pause-run"),
+  resumeRun: () => ipcRenderer.invoke("resume-run"),
+
+  // Mode switching (Main Process as source of truth)
+  enterRecordingMode: () => ipcRenderer.invoke("enter-recording-mode"),
+  exitRecordingMode: () => ipcRenderer.invoke("exit-recording-mode"),
+  enterRunMode: (ctx: { workflowId: string; runId: string; token: string }) =>
+    ipcRenderer.invoke("enter-run-mode", ctx),
+  exitRunMode: () => ipcRenderer.invoke("exit-run-mode"),
+
+  // HUD recording commands (forwarded to Main Window)
+  recordingPause: () => ipcRenderer.invoke("recording-pause"),
+  recordingStop: (duration?: number) => ipcRenderer.invoke("recording-stop", duration),
+  recordingRedo: () => ipcRenderer.invoke("recording-redo"),
+  recordingDiscard: () => ipcRenderer.invoke("recording-discard"),
+
+  // HUD run commands
+  cancelRun: () => ipcRenderer.invoke("cancel-run"),
+  sendInterrupt: (text: string) => ipcRenderer.invoke("send-interrupt", text),
+  sendCallUserFeedback: (text: string) => ipcRenderer.invoke("calluser-feedback", text),
+
+  onRunAwaitingUser: (callback: (arg: { reason: string }) => void) => {
+    ipcRenderer.on("run-awaiting-user", (_, arg: { reason: string }) => callback(arg));
+  },
+  removeRunAwaitingUserListener: () => {
+    ipcRenderer.removeAllListeners("run-awaiting-user");
+  },
+
+  // Main window: receive recording commands from Main Process (forwarded from HUD)
+  onRecordingCommand: (callback: (payload: { action: string }) => void) => {
+    ipcRenderer.on("recording-command", (_, payload) => callback(payload));
+  },
+  removeRecordingCommandListener: () => {
+    ipcRenderer.removeAllListeners("recording-command");
+  },
 
   // Real-time run progress IPC
   onRunProgress: (callback: (entry: { thought: string; action: string; step: number }) => void) => {

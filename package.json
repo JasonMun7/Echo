@@ -12,13 +12,20 @@
     "start": "cd apps/web && pnpm run start",
     "lint": "cd apps/web && pnpm run lint",
     "dev:all": "concurrently \"pnpm run dev:web\" \"pnpm run backend:dev\"",
+    "dev:terminals": "./scripts/dev-all-terminals.sh",
     "backend:dev": "cd backend && doppler run -- uvicorn main:app --reload",
     "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend",
-    "deploy": "doppler run --config prd -- ./scripts/deploy.sh"
+    "deploy": "doppler run --config prd -- ./scripts/deploy.sh",
+    "test": "./scripts/test-all.sh",
+    "test:backend": "cd backend && python -m pytest ../tests/backend",
+    "test:agent": "cd apps/desktop && pnpm test",
+    "test:web": "cd apps/web && pnpm test",
+    "test:e2e": "playwright test --config tests/playwright.config.ts"
   },
   "devDependencies": {
-    "dotenv-cli": "^11.0.0",
-    "concurrently": "^9.0.0"
+    "@playwright/test": "^1.49.0",
+    "concurrently": "^9.0.0",
+    "dotenv-cli": "^11.0.0"
   },
   "packageManager": "pnpm@9.0.0"
 }

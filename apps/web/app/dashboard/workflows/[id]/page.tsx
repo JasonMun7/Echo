@@ -18,6 +18,7 @@ import {
   IconArrowLeft,
   IconPlayerPlay,
   IconList,
+  IconJumpRope,
   IconTrash,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,18 +73,32 @@ export default function WorkflowDetailPage() {
   useEffect(() => {
     if (!db || !auth?.currentUser) return;
     const wfRef = doc(db, "workflows", id);
-    const unsubWf = onSnapshot(wfRef, (snap) => {
-      if (snap.exists() && snap.data()?.owner_uid === auth?.currentUser?.uid) {
-        setWorkflow({ id: snap.id, ...snap.data() });
-      } else {
+    const unsubWf = onSnapshot(
+      wfRef,
+      (snap) => {
+        if (snap.exists() && snap.data()?.owner_uid === auth?.currentUser?.uid) {
+          setWorkflow({ id: snap.id, ...snap.data() });
+        } else {
+          setWorkflow(null);
+        }
+      },
+      (err) => {
+        console.warn("Workflow snapshot error (may be deleted):", err);
         setWorkflow(null);
-      }
-    });
+      },
+    );
     const runsRef = collection(db, "workflows", id, "runs");
     const q = query(runsRef, orderBy("createdAt", "desc"));
-    const unsubRuns = onSnapshot(q, (snap) => {
-      setRuns(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Run));
-    });
+    const unsubRuns = onSnapshot(
+      q,
+      (snap) => {
+        setRuns(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Run));
+      },
+      (err) => {
+        console.warn("Runs snapshot error (workflow may be deleted):", err);
+        setRuns([]);
+      },
+    );
     return () => {
       unsubWf();
       unsubRuns();
@@ -97,13 +112,16 @@ export default function WorkflowDetailPage() {
   const handleRun = async () => {
     setRunning(true);
     try {
-      const res = await apiFetch(`/api/run/${id}`, { method: "POST" });
+      const res = await apiFetch(`/api/run/${id}?source=desktop`, {
+        method: "POST",
+      });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.detail || "Failed to start run");
       }
       const data = await res.json();
       if (data.run_id) {
+        window.location.href = `echo-desktop://run?workflow_id=${id}&run_id=${data.run_id}`;
         router.push(`/dashboard/workflows/${id}/runs/${data.run_id}`);
       }
     } catch (e) {

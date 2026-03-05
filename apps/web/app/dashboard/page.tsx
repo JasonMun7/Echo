@@ -5,7 +5,6 @@ import Link from "next/link";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -13,8 +12,6 @@ import {
   IconJumpRope,
   IconPlus,
   IconArrowRight,
-  IconBrandChrome,
-  IconDeviceLaptop,
   IconPlayerPlay,
   IconAlertTriangle,
   IconX,
@@ -142,13 +139,6 @@ export default function DashboardPage() {
   const activeWorkflows = workflows.filter(
     (w) => w.status === "active" || w.status === "ready",
   ).length;
-  const browserWorkflows = workflows.filter(
-    (w) => w.workflow_type === "browser",
-  ).length;
-  const desktopWorkflows = workflows.filter(
-    (w) => w.workflow_type === "desktop",
-  ).length;
-
   const recentWorkflows = workflows.slice(0, 6);
 
   if (loading) {
@@ -273,18 +263,6 @@ export default function DashboardPage() {
             accent="green"
           />
           <StatCard
-            title="Browser"
-            value={browserWorkflows}
-            icon={<IconBrandChrome className="h-5 w-5 text-[#A577FF]" />}
-            accent="purple"
-          />
-          <StatCard
-            title="Desktop"
-            value={desktopWorkflows}
-            icon={<IconDeviceLaptop className="h-5 w-5 text-echo-success" />}
-            accent="green"
-          />
-          <StatCard
             title="Total Runs"
             value={totalRuns}
             icon={<IconPlayerPlay className="h-5 w-5 text-[#A577FF]" />}
@@ -398,22 +376,6 @@ function StatCard({
   );
 }
 
-function WorkflowTypeBadge({ type }: { type: "browser" | "desktop" }) {
-  return (
-    <Badge
-      variant="outline"
-      className="flex items-center gap-1 rounded-full border-[#A577FF]/30 bg-[#A577FF]/15 px-2 py-0.5 text-xs font-medium text-[#A577FF]"
-    >
-      {type === "desktop" ? (
-        <IconDeviceLaptop className="h-3 w-3" />
-      ) : (
-        <IconBrandChrome className="h-3 w-3" />
-      )}
-      {type === "desktop" ? "Desktop" : "Browser"}
-    </Badge>
-  );
-}
-
 function WorkflowThumbnail({ workflowId }: { workflowId: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -470,11 +432,7 @@ function WorkflowCard({ workflow: w }: { workflow: Workflow }) {
       ) : (
         <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#A577FF]/10">
-            {w.workflow_type === "desktop" ? (
-              <IconDeviceLaptop className="h-5 w-5 text-[#A577FF]" />
-            ) : (
-              <IconBrandChrome className="h-5 w-5 text-[#A577FF]" />
-            )}
+            <IconJumpRope className="h-5 w-5 text-[#A577FF]" />
           </div>
         </div>
       )}
@@ -484,7 +442,6 @@ function WorkflowCard({ workflow: w }: { workflow: Workflow }) {
           {w.name ?? "Untitled workflow"}
         </span>
         <div className="flex flex-wrap items-center gap-1.5">
-          {w.workflow_type && <WorkflowTypeBadge type={w.workflow_type} />}
           <span
             className={[
               "rounded-full px-2.5 py-0.5 text-xs font-medium",

@@ -13,13 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   IconApi,
@@ -34,7 +27,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [defaultType, setDefaultType] = useState("browser");
   const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
   const [notifRuns, setNotifRuns] = useState(true);
@@ -61,23 +53,6 @@ export default function SettingsPage() {
       setTimeout(() => setCopied(false), 2000);
       toast.success("Token copied to clipboard");
     });
-  }
-
-  async function saveDefaultType(value: string) {
-    setDefaultType(value);
-    try {
-      const user = auth?.currentUser;
-      if (!user) return;
-      const t = await user.getIdToken();
-      await fetch(`${API_URL}/api/users/me`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({ default_workflow_type: value }),
-      });
-      toast.success("Default workflow type saved");
-    } catch {
-      toast.error("Failed to save preference");
-    }
   }
 
   return (
@@ -119,32 +94,6 @@ export default function SettingsPage() {
               <IconApi className="h-4 w-4" />
               Open API Documentation
             </a>
-          </CardContent>
-        </Card>
-
-        {/* Workflow Preferences */}
-        <Card className="border-[#A577FF]/20">
-          <CardHeader>
-            <CardTitle className="text-base text-[#1A1A2E]">Workflow Preferences</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium text-[#1A1A2E]">Default Workflow Type</Label>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Whether new workflows default to browser or desktop automation
-                </p>
-              </div>
-              <Select value={defaultType} onValueChange={saveDefaultType}>
-                <SelectTrigger className="w-32 border-[#A577FF]/30">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="browser">Browser</SelectItem>
-                  <SelectItem value="desktop">Desktop</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </CardContent>
         </Card>
 

@@ -82,6 +82,12 @@ backend/service-account.json
 /coverage
 **/.coverage
 **/coverage/
+# Playwright
+tests/playwright-report/
+tests/test-results/
+playwright-report/
+test-results/
+blob-report/
 
 # -----------------------------------------------------------------------------
 # Logs

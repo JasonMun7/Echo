@@ -39,8 +39,7 @@ import {
   IconArrowLeft,
   IconBinaryTree2,
   IconList,
-  IconDeviceLaptop,
-  IconBrandChrome,
+  IconJumpRope,
 } from "@tabler/icons-react";
 import { WorkflowStepGraph } from "@/components/workflow-step-graph";
 import {
@@ -49,7 +48,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const BROWSER_ACTIONS = [
@@ -136,7 +134,8 @@ function ParamFields({
         <label className="block text-xs text-[#150A35]/70">
           Description
           <span className="ml-1 text-[#150A35]/40">
-            (e.g. blue &apos;Submit&apos; button in the bottom-center of the form)
+            (e.g. blue &apos;Submit&apos; button in the bottom-center of the
+            form)
           </span>
         </label>
         <input
@@ -157,7 +156,15 @@ function ParamFields({
               max={1000}
               value={(params.x as number) ?? ""}
               onChange={(e) =>
-                update("x", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
+                update(
+                  "x",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(
+                        0,
+                        Math.min(1000, parseInt(e.target.value, 10) || 0),
+                      ),
+                )
               }
               placeholder="500"
               className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
@@ -173,7 +180,15 @@ function ParamFields({
               max={1000}
               value={(params.y as number) ?? ""}
               onChange={(e) =>
-                update("y", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
+                update(
+                  "y",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(
+                        0,
+                        Math.min(1000, parseInt(e.target.value, 10) || 0),
+                      ),
+                )
               }
               placeholder="500"
               className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
@@ -282,7 +297,15 @@ function ParamFields({
               max={1000}
               value={(params.x as number) ?? ""}
               onChange={(e) =>
-                update("x", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
+                update(
+                  "x",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(
+                        0,
+                        Math.min(1000, parseInt(e.target.value, 10) || 0),
+                      ),
+                )
               }
               placeholder="500"
               className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
@@ -298,7 +321,15 @@ function ParamFields({
               max={1000}
               value={(params.y as number) ?? ""}
               onChange={(e) =>
-                update("y", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
+                update(
+                  "y",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(
+                        0,
+                        Math.min(1000, parseInt(e.target.value, 10) || 0),
+                      ),
+                )
               }
               placeholder="500"
               className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
@@ -379,9 +410,17 @@ function ParamFields({
             Args <span className="text-[#150A35]/40">(JSON object)</span>
           </label>
           <textarea
-            value={typeof params.args === "object" ? JSON.stringify(params.args, null, 2) : ((params.args as string) || "")}
+            value={
+              typeof params.args === "object"
+                ? JSON.stringify(params.args, null, 2)
+                : (params.args as string) || ""
+            }
             onChange={(e) => {
-              try { update("args", JSON.parse(e.target.value)); } catch { update("args", e.target.value); }
+              try {
+                update("args", JSON.parse(e.target.value));
+              } catch {
+                update("args", e.target.value);
+              }
             }}
             placeholder='{"channel": "general", "text": "Hello!"}'
             rows={3}
@@ -541,8 +580,9 @@ export default function WorkflowEditPage() {
   // Track the step count before an add so we can detect the new one from snapshot
   const stepCountBeforeAddRef = useRef<number>(0);
 
-  const availableActions: readonly AnyAction[] =
-    workflow?.workflow_type === "desktop" ? DESKTOP_ACTIONS : BROWSER_ACTIONS;
+  const availableActions: readonly AnyAction[] = [
+    ...new Set([...BROWSER_ACTIONS, ...DESKTOP_ACTIONS]),
+  ] as AnyAction[];
 
   useEffect(() => {
     if (!db || !auth?.currentUser) return;
@@ -672,13 +712,16 @@ export default function WorkflowEditPage() {
     isReorderingRef.current = true;
     setSteps(reordered);
     apiFetch(`/api/workflows/${id}/steps/reorder`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step_ids: reordered.map((s) => s.id),
-        }),
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        step_ids: reordered.map((s) => s.id),
+      }),
     })
-      .catch((e) => { toast.error("Failed to reorder steps"); console.error("Failed to reorder:", e); })
+      .catch((e) => {
+        toast.error("Failed to reorder steps");
+        console.error("Failed to reorder:", e);
+      })
       .finally(() => {
         isReorderingRef.current = false;
       });
@@ -790,25 +833,6 @@ export default function WorkflowEditPage() {
               placeholder="Untitled workflow"
               className="min-w-0 flex-1 truncate rounded-md bg-transparent px-2 py-1 text-2xl font-semibold text-[#150A35] outline-none ring-0 transition-all hover:bg-[#A577FF]/5 focus:bg-[#A577FF]/5 focus:ring-2 focus:ring-[#A577FF]/40"
             />
-            {/* Workflow type pill */}
-            {workflow.workflow_type && (
-              <Badge
-                className={[
-                  "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                  workflow.workflow_type === "desktop"
-                    ? "bg-[#A577FF]/15 text-[#A577FF] hover:bg-[#A577FF]/20"
-                    : "bg-echo-success/15 text-echo-success hover:bg-echo-success/20",
-                ].join(" ")}
-                variant="outline"
-              >
-                {workflow.workflow_type === "desktop" ? (
-                  <IconDeviceLaptop className="h-3 w-3" />
-                ) : (
-                  <IconBrandChrome className="h-3 w-3" />
-                )}
-                {workflow.workflow_type === "desktop" ? "Desktop" : "Browser"}
-              </Badge>
-            )}
           </div>
           <button
             type="button"
@@ -855,13 +879,13 @@ export default function WorkflowEditPage() {
               {/* Add Step → action picker dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="echo-btn-secondary flex items-center gap-2"
-            >
-              <IconPlus className="h-5 w-5" />
-              Add Step
-            </button>
+                  <button
+                    type="button"
+                    className="echo-btn-secondary flex items-center gap-2"
+                  >
+                    <IconPlus className="h-5 w-5" />
+                    Add Step
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
@@ -891,26 +915,26 @@ export default function WorkflowEditPage() {
           {/* List view */}
           {viewMode === "list" && (
             <div className="mx-2 mb-10">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={steps.map((s) => s.id)}
-              strategy={verticalListSortingStrategy}
-            >
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={steps.map((s) => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
                   <div className="flex flex-col gap-3 bg-white">
-                {steps.map((step) => (
-                  <StepCard
-                    key={step.id}
-                    step={step}
+                    {steps.map((step) => (
+                      <StepCard
+                        key={step.id}
+                        step={step}
                         availableActions={availableActions}
                         isNew={newStepId === step.id}
                         isInvalid={invalidStepIds.has(step.id)}
                         isDirty={dirtyStepIds.has(step.id)}
-                    onUpdate={(d) => handleStepUpdate(step.id, d)}
-                    onDelete={() => handleDeleteStep(step.id)}
+                        onUpdate={(d) => handleStepUpdate(step.id, d)}
+                        onDelete={() => handleDeleteStep(step.id)}
                         onContextFilled={() => setNewStepId(null)}
                         onInvalidCleared={() =>
                           setInvalidStepIds((prev) => {
@@ -919,11 +943,11 @@ export default function WorkflowEditPage() {
                             return next;
                           })
                         }
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 

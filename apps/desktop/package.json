@@ -6,19 +6,22 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@echo/types": "workspace:*",
     "@google/genai": "^1.43.0",
-    "@tabler/icons-react": "^3.37.1",
     "@nut-tree-fork/nut-js": "^4.2.6",
+    "@tabler/icons-react": "^3.37.1",
+    "playwright": "^1.58.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.0",
+    "vitest": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",

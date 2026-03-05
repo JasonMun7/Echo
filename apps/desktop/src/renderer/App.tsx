@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   IconPlayerPlay,
+  IconPlayerPause,
   IconDeviceDesktop,
   IconPlayerRecord,
   IconLogin,
@@ -8,7 +9,13 @@ import {
   IconTrash,
   IconExternalLink,
   IconRefresh,
+  IconPhoneCall,
+  IconMessageCircle,
+  IconSend,
 } from "@tabler/icons-react";
+import RecordingHud from "./RecordingHud";
+import RunHud from "./RunHud";
+import HazeOverlay from "./HazeOverlay";
 
 declare global {
   interface Window {
@@ -56,6 +63,8 @@ declare global {
         | { error: string }
       >;
       openWebUI: (path?: string) => Promise<void>;
+      pauseRun: () => Promise<{ ok: boolean }>;
+      resumeRun: () => Promise<{ ok: boolean }>;
       onRunProgress: (cb: (entry: { thought: string; action: string; step: number }) => void) => void;
       removeRunProgressListener: () => void;
       startVoiceChat: () => Promise<{ ok: boolean; error?: string }>;
@@ -64,15 +73,39 @@ declare global {
       onChatAudio: (cb: (chunk: ArrayBuffer) => void) => void;
       onChatText: (cb: (msg: { role: string; text: string }) => void) => void;
       removeChatListeners: () => void;
+      onRunFromUrl: (cb: (arg: { workflowId: string; runId: string }) => void) => void;
+      removeRunFromUrlListener: () => void;
+      enterRecordingMode: () => Promise<{ ok: boolean }>;
+      exitRecordingMode: () => Promise<{ ok: boolean }>;
+      enterRunMode: (ctx: { workflowId: string; runId: string; token: string }) => Promise<{ ok: boolean }>;
+      exitRunMode: () => Promise<{ ok: boolean }>;
+      onRecordingCommand: (cb: (payload: { action: string }) => void) => void;
+      removeRecordingCommandListener: () => void;
+      sendCallUserFeedback: (text: string) => Promise<{ ok: boolean }>;
+      onRunAwaitingUser: (cb: (arg: { reason: string }) => void) => void;
+      removeRunAwaitingUserListener: () => void;
     };
   }
+}
+
+function useWindowType(): { windowType: string; mode: string } {
+  const [params, setParams] = useState({ windowType: "", mode: "" });
+  useEffect(() => {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    const p = new URLSearchParams(search);
+    setParams({
+      windowType: p.get("windowType") ?? "",
+      mode: p.get("mode") ?? "",
+    });
+  }, []);
+  return params;
 }
 
 const API_URL =
   (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
   "http://localhost:8000";
 
-export default function App() {
+function MainWindowApp() {
   const [screenPermissionRequired, setScreenPermissionRequired] =
     useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -96,6 +129,10 @@ export default function App() {
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState("");
   const [running, setRunning] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [runPaused, setRunPaused] = useState(false);
+  const [interruptText, setInterruptText] = useState("");
+  const [sendingInterrupt, setSendingInterrupt] = useState(false);
   const [runResult, setRunResult] = useState<{
     success: boolean;
     error?: string;
@@ -108,6 +145,12 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
+  const [textChatOpen, setTextChatOpen] = useState(false);
+  const [textChatMessages, setTextChatMessages] = useState<Array<{ role: string; text: string }>>([
+    { role: "assistant", text: "Hi! I'm EchoPrism. I can help you create workflows, run automations, and manage your Echo workspace." },
+  ]);
+  const [textChatInput, setTextChatInput] = useState("");
+  const [textChatConnected, setTextChatConnected] = useState(false);
 
   const [recording, setRecording] = useState(false);
   const [recordingPaused, setRecordingPaused] = useState(false);
@@ -121,6 +164,7 @@ export default function App() {
     null,
   );
   const recordingDurationRef = useRef<number>(0);
+  const wsTextRef = useRef<WebSocket | null>(null);
 
   const loadToken = useCallback(async () => {
     const t = await window.electronAPI?.authGetToken();
@@ -189,6 +233,92 @@ export default function App() {
     else setWorkflows([]);
   }, [token, loadWorkflows]);
 
+  // Handle run-from-url (web opens desktop)
+  useEffect(() => {
+    const handler = async (arg: { workflowId: string; runId: string }) => {
+      const t = token ?? (await loadToken());
+      if (!t) return;
+      const hasPermission = await window.electronAPI?.checkScreenPermission?.();
+      if (!hasPermission) {
+        setScreenPermissionRequired(true);
+        return;
+      }
+      const result = await window.electronAPI?.fetchWorkflow?.({ workflowId: arg.workflowId, token: t });
+      if (!result || "error" in result) return;
+      const { workflow, steps } = result;
+      if (!steps?.length) return;
+      const sourceId = await getPrimarySourceId();
+      if (!sourceId) return;
+      setSelectedWorkflowId(arg.workflowId);
+      setWorkflow(workflow);
+      setSteps(steps);
+      setRunning(true);
+      setRunResult(null);
+      setLiveProgress([]);
+      setCurrentRunId(arg.runId);
+      window.electronAPI?.onRunProgress?.((entry) => setLiveProgress((prev) => [...prev, entry]));
+      try {
+        await window.electronAPI?.enterRunMode?.({
+          workflowId: arg.workflowId,
+          runId: arg.runId,
+          token: t,
+        });
+        const runResult = await window.electronAPI?.runWorkflowLocal?.({
+          steps,
+          sourceId,
+          workflowType: (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+          workflowId: arg.workflowId,
+          runId: arg.runId,
+          token: t,
+        });
+        window.electronAPI?.removeRunProgressListener?.();
+        setRunResult({
+          ...(runResult ?? { success: false, error: "No response" }),
+          workflowId: arg.workflowId,
+          runId: arg.runId,
+        });
+      } finally {
+        setRunning(false);
+        setRunPaused(false);
+        setCurrentRunId(null);
+        window.electronAPI?.removeRunProgressListener?.();
+        await window.electronAPI?.exitRunMode?.();
+      }
+    };
+    window.electronAPI?.onRunFromUrl?.(handler);
+    return () => window.electronAPI?.removeRunFromUrlListener?.();
+  }, [token, loadToken]);
+
+  // EchoPrism text chat WebSocket (mode=text)
+  useEffect(() => {
+    if (!textChatOpen || !token) return;
+    const wsUrl = API_URL.replace(/^http/, "ws");
+    const ws = new WebSocket(`${wsUrl}/ws/chat?token=${encodeURIComponent(token)}&mode=text`);
+    wsTextRef.current = ws;
+    ws.onopen = () => setTextChatConnected(true);
+    ws.onclose = () => {
+      setTextChatConnected(false);
+      wsTextRef.current = null;
+      if (textChatOpen) setTimeout(() => setTextChatConnected(false), 0);
+    };
+    ws.onerror = () => setTextChatConnected(false);
+    ws.onmessage = (e) => {
+      if (e.data instanceof Blob) return;
+      try {
+        const d = JSON.parse(e.data as string) as Record<string, unknown>;
+        if (d.type === "text" && d.text) {
+          setTextChatMessages((prev) => [...prev, { role: "assistant", text: d.text as string }]);
+        } else if (d.type === "error") {
+          setTextChatMessages((prev) => [...prev, { role: "assistant", text: `Error: ${d.text ?? "Unknown"}` }]);
+        }
+      } catch { /* ignore */ }
+    };
+    return () => {
+      ws.close();
+      wsTextRef.current = null;
+    };
+  }, [textChatOpen, token]);
+
   const handleSignIn = () => {
     window.electronAPI?.authOpenSignin?.();
   };
@@ -236,6 +366,24 @@ export default function App() {
     return (await window.electronAPI?.getPrimarySourceId?.()) ?? null;
   };
 
+  // Main window: receive recording commands from HUD (forwarded via Main Process)
+  useEffect(() => {
+    const handler = (payload: { action: string; duration?: number }) => {
+      if (payload.action === "pause") pauseResumeRecording();
+      if (payload.action === "stop") {
+        stopRecording(payload.duration);
+        window.electronAPI?.exitRecordingMode?.();
+      }
+      if (payload.action === "discard") {
+        discardRecording();
+        window.electronAPI?.exitRecordingMode?.();
+      }
+      if (payload.action === "redo") redoRecording();
+    };
+    window.electronAPI?.onRecordingCommand?.(handler);
+    return () => window.electronAPI?.removeRecordingCommandListener?.();
+  }, []);
+
   const startRecording = async () => {
     setRecordError("");
     setRecordedBlob(null);
@@ -280,6 +428,7 @@ export default function App() {
           return next;
         });
       }, 1000);
+      await window.electronAPI?.enterRecordingMode?.();
     } catch (e) {
       setRecordError(
         e instanceof Error ? e.message : "Could not start recording",
@@ -287,7 +436,7 @@ export default function App() {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = (durationFromHud?: number) => {
     if (recordingIntervalRef.current) {
       clearInterval(recordingIntervalRef.current);
       recordingIntervalRef.current = null;
@@ -295,7 +444,9 @@ export default function App() {
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
       rec.stop();
-      setRecordedDuration(recordingDuration);
+      setRecordedDuration(
+        durationFromHud ?? recordingDurationRef.current,
+      );
       setRecording(false);
       setRecordingPaused(false);
     }
@@ -341,6 +492,11 @@ export default function App() {
     setRecordedDuration(0);
     setRecordError("");
     setRecordStatus("");
+  };
+
+  const redoRecording = () => {
+    discardRecording();
+    startRecording();
   };
 
   const formatDuration = (secs: number) => {
@@ -439,6 +595,13 @@ export default function App() {
         return;
       }
       const runId = createRes && "runId" in createRes ? createRes.runId : undefined;
+      setCurrentRunId(runId ?? null);
+
+      await window.electronAPI?.enterRunMode?.({
+        workflowId: selectedWorkflowId,
+        runId: runId ?? "",
+        token,
+      });
 
       const result = await window.electronAPI?.runWorkflowLocal({
         steps,
@@ -456,7 +619,51 @@ export default function App() {
       });
     } finally {
       setRunning(false);
-      window.electronAPI?.removeRunProgressListener();
+      setRunPaused(false);
+      setCurrentRunId(null);
+      window.electronAPI?.removeRunProgressListener?.();
+      await window.electronAPI?.exitRunMode?.();
+    }
+  };
+
+  const handleCancelRun = async () => {
+    if (!selectedWorkflowId || !currentRunId || !token) return;
+    window.electronAPI?.resumeRun();
+    try {
+      const base = API_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Cancel failed");
+    } catch {
+      // Non-fatal: agent may have already finished
+    }
+  };
+
+  const sendTextChatMessage = (text: string) => {
+    if (!text.trim() || !wsTextRef.current || wsTextRef.current.readyState !== WebSocket.OPEN) return;
+    setTextChatMessages((prev) => [...prev, { role: "user", text: text.trim() }]);
+    wsTextRef.current.send(JSON.stringify({ type: "text", text: text.trim() }));
+    setTextChatInput("");
+  };
+
+  const handleInterrupt = async () => {
+    if (!interruptText.trim() || !selectedWorkflowId || !currentRunId || !token) return;
+    setSendingInterrupt(true);
+    try {
+      const base = API_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ instruction: interruptText.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to send");
+      setInterruptText("");
+    } catch {
+      // Ignore
+    } finally {
+      setSendingInterrupt(false);
     }
   };
 
@@ -634,6 +841,15 @@ export default function App() {
             <button
               type="button"
               className="echo-btn-secondary"
+              onClick={() => setTextChatOpen((o) => !o)}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <IconMessageCircle size={16} />
+              EchoPrism Chat
+            </button>
+            <button
+              type="button"
+              className="echo-btn-secondary"
               onClick={() => window.electronAPI?.openWebUI()}
             >
               <IconExternalLink
@@ -703,63 +919,7 @@ export default function App() {
             </>
           )}
 
-          {/* Active recording controls */}
-          {recording && (
-            <div className="echo-recording-bar">
-              <div
-                className={`echo-recording-dot${recordingPaused ? " paused" : ""}`}
-              />
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--echo-cetacean)",
-                  minWidth: 48,
-                }}
-              >
-                {formatDuration(recordingDuration)}
-              </span>
-              <span
-                style={{
-                  fontSize: 13,
-                  color: "var(--echo-muted)",
-                  flexGrow: 1,
-                }}
-              >
-                {recordingPaused ? "Paused" : "Recording…"}
-              </span>
-              <button
-                type="button"
-                className="echo-btn-secondary"
-                onClick={pauseResumeRecording}
-                style={{ fontSize: 13, padding: "0.35rem 0.75rem" }}
-              >
-                {recordingPaused ? "Resume" : "Pause"}
-              </button>
-              <button
-                type="button"
-                className="echo-btn-primary"
-                onClick={stopRecording}
-                style={{ fontSize: 13, padding: "0.35rem 0.75rem" }}
-              >
-                Stop
-              </button>
-              <button
-                type="button"
-                className="echo-btn-danger"
-                onClick={discardRecording}
-                style={{ padding: "0.35rem 0.75rem", fontSize: 13 }}
-              >
-                <IconTrash
-                  size={14}
-                  style={{ marginRight: 4, verticalAlign: "middle" }}
-                />
-                Discard
-              </button>
-            </div>
-          )}
-
-          {/* Review state: recording stopped, blob ready */}
+          {/* Review state: recording stopped, blob ready (main hidden during recording; HUD shows controls) */}
           {!recording && recordedBlob && (
             <div className="echo-recording-bar">
               <span
@@ -1042,27 +1202,72 @@ export default function App() {
         </section>
       </div>
 
-      {/* Border-only haze while EchoPrism is running */}
-      {running && (
-        <>
-          <div className="echo-run-haze" />
-          <div className="echo-run-haze-content">
-            <div className="echo-run-haze-spinner" />
-            <div className="echo-run-haze-label">
-              {workflow ? `Running: ${String(workflow.name || selectedWorkflowId)}` : "EchoPrism is taking control…"}
-            </div>
-            {liveProgress.length > 0 && (
-              <div style={{ marginTop: 12, padding: 12, background: "rgba(255,255,255,0.9)", borderRadius: 10, maxWidth: 400, maxHeight: 160, overflow: "auto", textAlign: "left" }}>
-                <p style={{ fontSize: 10, color: "#A577FF", fontWeight: 700, marginBottom: 6 }}>LIVE THOUGHTS</p>
-                {liveProgress.slice(-4).map((e, i) => (
-                  <div key={i} style={{ fontSize: 10, color: "#3B1F7A", marginBottom: 3 }}>
-                    Step {e.step + 1}: {e.thought.slice(0, 100)}…
-                  </div>
-                ))}
-              </div>
-            )}
+      {/* EchoPrism Chat (text) Panel */}
+      {textChatOpen && (
+        <div style={{
+          position: "fixed",
+          bottom: 80,
+          left: 20,
+          width: 340,
+          maxHeight: 480,
+          background: "white",
+          borderRadius: 16,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          border: "1px solid rgba(165,119,255,0.3)",
+          display: "flex",
+          flexDirection: "column",
+          zIndex: 1000,
+        }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(165,119,255,0.2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>
+              EchoPrism Chat
+              {textChatConnected ? <span style={{ marginLeft: 6, fontSize: 10, color: "#22c55e", fontWeight: 500 }}>• Connected</span> : <span style={{ marginLeft: 6, fontSize: 10, color: "#9ca3af" }}>Connecting…</span>}
+            </span>
+            <button onClick={() => setTextChatOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 16 }}>×</button>
           </div>
-        </>
+          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8, minHeight: 200 }}>
+            {textChatMessages.map((m, i) => (
+              <div key={i} style={{
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                background: m.role === "user" ? "#A577FF" : "#F5F3FF",
+                color: m.role === "user" ? "white" : "#150A35",
+                borderRadius: 12,
+                padding: "8px 12px",
+                fontSize: 13,
+                maxWidth: "90%",
+              }}>{m.text}</div>
+            ))}
+          </div>
+          <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(165,119,255,0.2)", display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {["List my workflows", "What can you do?", "Create a new workflow"].map((chip) => (
+              <button
+                key={chip}
+                onClick={() => sendTextChatMessage(chip)}
+                style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "1px solid rgba(165,119,255,0.4)", background: "rgba(165,119,255,0.1)", color: "#A577FF", cursor: "pointer" }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(165,119,255,0.2)", display: "flex", gap: 8 }}>
+            <input
+              value={textChatInput}
+              onChange={(e) => setTextChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendTextChatMessage(textChatInput)}
+              placeholder="Message EchoPrism…"
+              style={{ flex: 1, borderRadius: 8, border: "1px solid rgba(165,119,255,0.3)", padding: "8px 12px", fontSize: 12, outline: "none" }}
+            />
+            <button
+              type="button"
+              className="echo-btn-primary"
+              onClick={() => sendTextChatMessage(textChatInput)}
+              disabled={!textChatInput.trim() || !textChatConnected}
+              style={{ padding: "8px 14px" }}
+            >
+              <IconSend size={16} />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* EchoPrismVoice Chat Panel */}
@@ -1071,20 +1276,23 @@ export default function App() {
           position: "fixed",
           bottom: 80,
           right: 20,
-          width: 320,
-          maxHeight: 480,
+          width: 340,
+          maxHeight: 500,
           background: "white",
           borderRadius: 16,
           boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-          border: "1px solid #A577FF30",
+          border: "1px solid rgba(165,119,255,0.3)",
           display: "flex",
           flexDirection: "column",
           zIndex: 1000,
         }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #A577FF20", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>EchoPrismVoice</span>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(165,119,255,0.2)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(135deg, rgba(165,119,255,0.05), transparent)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: voiceActive ? "#22c55e" : "#9ca3af" }} />
+              <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>EchoPrismVoice</span>
+            </div>
             <button onClick={() => { setChatOpen(false); window.electronAPI?.stopVoiceChat(); setVoiceActive(false); }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 16 }}>×</button>
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 18, padding: "0 4px" }}>×</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
             {chatMessages.map((m, i) => (
@@ -1105,9 +1313,18 @@ export default function App() {
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && chatInput.trim()) {
-                  setChatMessages((prev) => [...prev, { role: "user", text: chatInput }]);
-                  window.electronAPI?.sendChatText(chatInput);
+                  const text = chatInput.trim();
+                  setChatMessages((prev) => [...prev, { role: "user", text }]);
                   setChatInput("");
+                  window.electronAPI?.sendChatText(text);
+                  if (selectedWorkflowId && currentRunId && token) {
+                    const base = API_URL.replace(/\/$/, "");
+                    fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ instruction: text }),
+                    }).catch(() => {});
+                  }
                 }
               }}
               placeholder="Type a message..."
@@ -1156,5 +1373,84 @@ export default function App() {
         <span style={{ fontSize: 22 }}>🎙️</span>
       </button>
     </>
+  );
+}
+
+export default function App() {
+  const { windowType, mode } = useWindowType();
+
+  useEffect(() => {
+    if (windowType === "hud" || windowType === "haze") {
+      document.body.style.background = "transparent";
+      return () => {
+        document.body.style.background = "";
+      };
+    }
+  }, [windowType]);
+
+  if (windowType === "hud") {
+    if (mode === "recording") {
+      return (
+        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "stretch" }}>
+          <RecordingHud />
+        </div>
+      );
+    }
+    if (mode === "run") {
+      return (
+        <RunHudWrapper />
+      );
+    }
+    return null;
+  }
+
+  if (windowType === "haze") {
+    return (
+      <div style={{ width: "100%", height: "100%" }}>
+        <HazeOverlay />
+      </div>
+    );
+  }
+
+  return <MainWindowApp />;
+}
+
+function RunHudWrapper() {
+  const [runPaused, setRunPaused] = useState(false);
+  const [liveProgress, setLiveProgress] = useState<Array<{ thought: string; action: string; step: number }>>([]);
+  const [callUserReason, setCallUserReason] = useState<string | null>(null);
+  const [isAwaitingUser, setIsAwaitingUser] = useState(false);
+
+  useEffect(() => {
+    const handler = (entry: { thought: string; action: string; step: number }) => {
+      setLiveProgress((prev) => [...prev.slice(-4), entry]);
+    };
+    window.electronAPI?.onRunProgress?.(handler);
+    return () => window.electronAPI?.removeRunProgressListener?.();
+  }, []);
+
+  useEffect(() => {
+    const handler = (arg: { reason: string }) => {
+      setCallUserReason(arg.reason);
+      setIsAwaitingUser(true);
+    };
+    window.electronAPI?.onRunAwaitingUser?.(handler);
+    return () => window.electronAPI?.removeRunAwaitingUserListener?.();
+  }, []);
+
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "stretch", minHeight: 0 }}>
+      <RunHud
+        runPaused={runPaused}
+        setRunPaused={setRunPaused}
+        liveProgress={liveProgress}
+        callUserReason={callUserReason}
+        isAwaitingUser={isAwaitingUser}
+        onCallUserFeedbackSent={() => {
+          setIsAwaitingUser(false);
+          setCallUserReason(null);
+        }}
+      />
+    </div>
   );
 }
