@@ -18,7 +18,10 @@ DESCRIPTION_MODEL = os.environ.get("ECHOPRISM_DESCRIPTION_MODEL", "gemini-3.1-pr
 TRACE_SCORING_MODEL = os.environ.get("ECHOPRISM_TRACE_SCORING_MODEL", "gemini-3.1-pro-preview")
 
 # Synthesis (Video → JSON) — multimodal for seeing UI changes
-SYNTHESIS_MODEL = os.environ.get("ECHOPRISM_SYNTHESIS_MODEL", "gemini-3-flash-preview")
+SYNTHESIS_MODEL = os.environ.get("ECHOPRISM_SYNTHESIS_MODEL", "gemini-2.5-flash")
+
+# Synthesis title generation — set to "1" to generate descriptive title from steps (adds latency)
+SYNTHESIS_GENERATE_TITLE = os.environ.get("ECHOPRISM_SYNTHESIS_GENERATE_TITLE", "").lower() in ("1", "true", "yes")
 
 # Voice — low-latency native audio
 VOICE_MODEL = os.environ.get("ECHOPRISM_VOICE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")

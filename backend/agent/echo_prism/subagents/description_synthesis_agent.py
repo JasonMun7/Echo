@@ -2,11 +2,14 @@
 EchoPrism Description-to-Workflow Subagent — synthesize workflow from natural language.
 """
 import asyncio
-
-from echo_prism.models_config import DESCRIPTION_MODEL
 import json
+import logging
 import re
 from typing import Any
+
+from echo_prism.models_config import DESCRIPTION_MODEL
+
+logger = logging.getLogger(__name__)
 
 try:
     from google.genai import types as gtypes
@@ -82,14 +85,45 @@ async def synthesize_workflow_from_description(
         config=config,
     )
 
-    raw = response.text or ""
+    raw = response.text if hasattr(response, "text") and response.text else ""
+    if not raw and response.candidates:
+        for c in response.candidates:
+            if c.content and c.content.parts:
+                for p in c.content.parts:
+                    if hasattr(p, "text") and p.text:
+                        raw += p.text
     raw = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.MULTILINE)
     raw = re.sub(r"\s*```\s*$", "", raw.strip(), flags=re.MULTILINE)
     raw = raw.strip()
 
-    data = json.loads(raw)
+    data: dict[str, Any]
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        m = re.search(r"\{[\s\S]*\}", raw)
+        extracted = m.group(0) if m else None
+        if extracted:
+            try:
+                data = json.loads(extracted)
+            except json.JSONDecodeError:
+                logger.warning("Description synthesis JSON parse failed: %s. Raw (truncated): %s", e, raw[:500])
+                return {
+                    "title": name,
+                    "workflow_type": workflow_type,
+                    "steps": [],
+                }
+        else:
+            logger.warning("Description synthesis JSON parse failed: %s. Raw (truncated): %s", e, raw[:500])
+            return {
+                "title": name,
+                "workflow_type": workflow_type,
+                "steps": [],
+            }
+
+    if not isinstance(data, dict):
+        return {"title": name, "workflow_type": workflow_type, "steps": []}
     return {
         "title": data.get("title") or name,
-        "workflow_type": data.get("workflow_type", workflow_type),
-        "steps": data.get("steps", []),
+        "workflow_type": data.get("workflow_type", workflow_type) or workflow_type,
+        "steps": data.get("steps") if isinstance(data.get("steps"), list) else [],
     }

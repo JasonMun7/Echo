@@ -15,15 +15,16 @@ from typing import Any
 
 from echo_prism.alpha.action_parser import extract_thought, parse_action
 from echo_prism.alpha.image_utils import compress_screenshot
-from echo_prism.models_config import SYNTHESIS_MODEL
+from echo_prism.models_config import DESCRIPTION_MODEL, SYNTHESIS_GENERATE_TITLE, SYNTHESIS_MODEL
 
 logger = logging.getLogger(__name__)
 
 SYNTHESIS_SYSTEM_PROMPT = """You are EchoPrism in SYNTHESIS mode. You observe screenshot frames from a user's screen recording and output the next UI action the user is performing.
 
 ## Output format (strict)
-Thought: <Visual Anchoring — describe the target element's relative position. Example: "I see the 'Search' input to the right of the logo and above the 'Trending' list at [0.452, 0.120]">
-Action: <action>(<params>)
+Output exactly two lines. DO NOT wrap in markdown code blocks (no ```). No preamble, no extra text.
+Line 1: Thought: <visual anchoring with coords>
+Line 2: Action: <action>(<params>)
 
 ## Visual Anchoring (required)
 Every Thought MUST include normalized coordinates [x, y] where x,y are in [0.000, 1.000] (0=left/top, 1=right/bottom).
@@ -43,8 +44,18 @@ Example: "I see the blue 'Submit' button in the center-bottom of the form at [0.
 - Finished() — no more actions in this frame sequence
 - CallUser(reason) — cannot determine the action
 
+## Examples
+Thought: I see the search input in the top navigation bar at [0.452, 0.065].
+Action: Click(452, 65)
+
+Thought: User is typing in the focused field at [0.502, 0.420].
+Action: Type("search query")
+
+Thought: No further UI changes; workflow appears complete.
+Action: Finished()
+
 ## Rules
-- Output ONLY Thought line then Action line. No markdown, no extra text.
+- Output ONLY the Thought line then the Action line. No markdown, no code fences, no extra text.
 - Use 3-decimal precision for coordinates in the Thought (e.g. [0.452, 0.120]).
 - Use 0-1000 integer scale for Action params (e.g. Click(452, 120) for center of screen).
 """
@@ -65,21 +76,21 @@ def _pixel_diff_ratio(prev: bytes, curr: bytes) -> float:
     return diff / min(10000, len(prev))
 
 
-def should_process_frame(prev_hash: str | None, curr_hash: str, prev_bytes: bytes | None, curr_bytes: bytes) -> bool:
-    """Frame sampling: only process if >5% change from previous."""
+def should_process_frame(prev_hash: str | None, curr_hash: str, prev_bytes: bytes | None, curr_bytes: bytes, change_threshold: float = 0.03) -> bool:
+    """Frame sampling: only process if >change_threshold visual change from previous."""
     if prev_hash is None:
         return True
     if prev_hash == curr_hash:
         return False
     if prev_bytes and curr_bytes:
         ratio = _pixel_diff_ratio(prev_bytes, curr_bytes)
-        return ratio > 0.05
+        return ratio > change_threshold
     return True
 
 
 def sample_frames(
     frames: list[bytes],
-    change_threshold: float = 0.05,
+    change_threshold: float = 0.03,
 ) -> list[tuple[int, bytes]]:
     """Filter frames to only those with >change_threshold visual change."""
     if not frames:
@@ -89,7 +100,7 @@ def sample_frames(
     prev_bytes: bytes | None = None
     for i, f in enumerate(frames):
         h = _frame_hash(f)
-        if should_process_frame(prev_hash, h, prev_bytes, f):
+        if should_process_frame(prev_hash, h, prev_bytes, f, change_threshold):
             result.append((i, f))
             prev_hash = h
             prev_bytes = f
@@ -166,6 +177,8 @@ async def synthesize_frame(
         action_str = ""
         if parsed:
             action_str = _format_action_for_workflow(parsed)
+        else:
+            logger.warning("Synthesis parse_action failed. Raw model output (first 400 chars): %s", text[:400] if text else "(empty)")
         return thought, action_str, None
     except asyncio.TimeoutError:
         return "", "", "Timeout"
@@ -288,9 +301,59 @@ def _parsed_to_workflow_step(parsed: dict, thought: str, step_index: int) -> dic
     }
 
 
+async def _generate_title_from_steps(
+    client: Any,
+    steps: list[dict],
+    model: str = DESCRIPTION_MODEL,
+) -> str | None:
+    """Generate a short descriptive title from step summaries. Returns None on failure."""
+    if not steps:
+        return None
+    summaries = []
+    for i, s in enumerate(steps[:10], 1):
+        ctx = s.get("context", "")
+        act = s.get("action", "")
+        if ctx or act:
+            summaries.append(f"{i}. {act}: {ctx[:80]}".strip(": "))
+    if not summaries:
+        return None
+    prompt = (
+        "Given these workflow steps:\n"
+        + "\n".join(summaries)
+        + '\n\nReturn ONLY a short title (3-6 words) describing what this workflow does. No quotes, no punctuation at end.'
+    )
+    try:
+        from google.genai import types as gtypes
+
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.models.generate_content,
+                model=model,
+                contents=[prompt],
+                config=gtypes.GenerateContentConfig(
+                    max_output_tokens=32,
+                    temperature=0.2,
+                ),
+            ),
+            timeout=5.0,
+        )
+        text = ""
+        if response and response.candidates:
+            for c in response.candidates:
+                if c.content and c.content.parts:
+                    for p in c.content.parts:
+                        if hasattr(p, "text") and p.text:
+                            text += p.text
+        title = text.strip().strip('"').strip("'") if text else ""
+        return title if title else None
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.debug("Title generation failed: %s", e)
+        return None
+
+
 def _create_synthesis_cache(client: Any, model: str) -> str | None:
     """Create explicit context cache for synthesis system prompt. Returns cache name or None on failure."""
-    _CACHEABLE_PREFIXES = ("gemini-1.5-pro", "gemini-1.5-flash", "gemini-3-flash", "gemini-3.1-pro")
+    _CACHEABLE_PREFIXES = ("gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-3-flash", "gemini-3.1-pro")
     if not any(model.startswith(p) for p in _CACHEABLE_PREFIXES):
         return None
     try:
@@ -320,9 +383,11 @@ async def synthesize_workflow_from_frames(
     Uses explicit context cache for the system prompt when supported — avoids re-sending ~500 tokens
     per frame (Gemini 3 Flash has 1,024 token limit; caching yields large savings).
     """
+    logger.info("Synthesis: %d frames received", len(frames))
     sampled = sample_frames(frames)
     if not sampled:
         sampled = [(i, f) for i, f in enumerate(frames)]
+    logger.info("Synthesis: %d frames after sampling (threshold=3%% change)", len(sampled))
     steps: list[dict] = []
     history_parts: list[str] = []
 
@@ -343,17 +408,28 @@ async def synthesize_workflow_from_frames(
                 continue
             parsed = parse_action(f"Action: {action_str}")
             if not parsed:
+                logger.warning("Frame %d: parse_action failed for action_str=%r", frame_i, action_str)
                 continue
             step = _parsed_to_workflow_step(parsed, thought, len(steps) + 1)
             if step.get("_signal") == "finished":
-                break
+                if steps:
+                    break
+                continue
             if step.get("_signal") == "calluser":
                 continue
             steps.append(step)
             history_parts.append(f"Step {len(steps)}: {thought} -> {action_str}")
 
+        if not steps:
+            logger.warning("Synthesis produced 0 steps from %d frames. Check logs above for parse errors or API failures.", len(sampled))
+        title = f"Synthesized workflow ({len(steps)} steps)"
+        if SYNTHESIS_GENERATE_TITLE and steps:
+            generated = await _generate_title_from_steps(client, steps, model=DESCRIPTION_MODEL)
+            if generated:
+                title = generated
+
         return {
-            "title": f"Synthesized workflow ({len(steps)} steps)",
+            "title": title,
             "workflow_type": "browser",
             "steps": steps,
         }

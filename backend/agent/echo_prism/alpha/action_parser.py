@@ -6,6 +6,19 @@ import re
 from typing import Any
 
 
+def _strip_markdown_code_fences(text: str) -> str:
+    """Strip markdown code fences so models that wrap output in ``` can still be parsed."""
+    s = text.strip()
+    for pattern in (
+        r"^```(?:[\w]*)\s*\n?(.*?)\n?```\s*$",
+        r"^```\s*\n?(.*?)\n?```\s*$",
+    ):
+        m = re.search(pattern, s, re.DOTALL | re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return s
+
+
 def parse_action(text: str) -> dict[str, Any] | None:
     """
     Extract Action: <action>(<params>) from model output.
@@ -13,9 +26,12 @@ def parse_action(text: str) -> dict[str, Any] | None:
 
     Scans line-by-line and returns the FIRST valid Action: line to avoid
     false matches on multi-line model output.
+    Handles markdown code fences and Thought/Action in any order.
     """
     if not text or not isinstance(text, str):
         return None
+
+    text = _strip_markdown_code_fences(text)
 
     # First: extract the "Action:" line by scanning line-by-line
     action_line = None
@@ -141,7 +157,9 @@ def extract_thought(text: str) -> str:
     """
     Extract the Thought (or Reflection / Action_Summary) from model output.
     Scans line-by-line so it correctly finds the first Thought: line.
+    Handles markdown code fences and Thought/Action in any order.
     """
+    text = _strip_markdown_code_fences(text)
     for line in text.splitlines():
         stripped = line.strip()
         for prefix in ("Thought:", "Reflection:", "Action_Summary:"):
