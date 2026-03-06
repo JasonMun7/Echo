@@ -130,13 +130,14 @@ async def synthesize(
             )
 
         _ensure_agent_path()
+        from echo_prism.models_config import SYNTHESIS_MODEL
         from echo_prism.subagents.synthesis_agent import synthesize_workflow_from_frames
 
         client = genai.Client(api_key=GEMINI_API_KEY)
         data = await synthesize_workflow_from_frames(
             frames_bytes,
             client,
-            model="gemini-2.5-flash",
+            model=SYNTHESIS_MODEL,
         )
         steps_data = data.get("steps", [])
 
@@ -243,11 +244,12 @@ async def synthesize_from_description_impl(
     })
 
     _ensure_agent_path()
+    from echo_prism.models_config import DESCRIPTION_MODEL
     from echo_prism.subagents.description_synthesis_agent import synthesize_workflow_from_description
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     data = await synthesize_workflow_from_description(
-        description, name, workflow_type, client, model="gemini-2.5-flash"
+        description, name, workflow_type, client, model=DESCRIPTION_MODEL
     )
     steps_data = data.get("steps", [])
 

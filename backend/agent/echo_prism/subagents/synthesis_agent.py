@@ -15,6 +15,7 @@ from typing import Any
 
 from echo_prism.alpha.action_parser import extract_thought, parse_action
 from echo_prism.alpha.image_utils import compress_screenshot
+from echo_prism.models_config import SYNTHESIS_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +102,14 @@ async def synthesize_frame(
     frame_index: int,
     total_frames: int,
     history_text: str = "",
-    model: str = "gemini-2.5-flash",
+    model: str = SYNTHESIS_MODEL,
+    cached_content: str | None = None,
 ) -> tuple[str, str | None, str | None]:
-    """Single frame synthesis. Returns (thought, action_str, error)."""
+    """Single frame synthesis. Returns (thought, action_str, error).
+
+    When cached_content is provided (explicit cache from synthesize_workflow_from_frames),
+    the system prompt is served from cache — avoids re-sending ~500 tokens per frame.
+    """
     try:
         from google.genai import types as gtypes
     except ImportError:
@@ -123,17 +129,26 @@ async def synthesize_frame(
         gtypes.Part.from_bytes(data=compressed, mime_type="image/jpeg"),
     ])
 
+    if cached_content:
+        config = gtypes.GenerateContentConfig(
+            cached_content=cached_content,
+            max_output_tokens=256,
+            temperature=0.2,
+        )
+    else:
+        config = gtypes.GenerateContentConfig(
+            system_instruction=SYNTHESIS_SYSTEM_PROMPT,
+            max_output_tokens=256,
+            temperature=0.2,
+        )
+
     try:
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 client.models.generate_content,
                 model=model,
                 contents=[gtypes.Content(role="user", parts=user_parts)],
-                config=gtypes.GenerateContentConfig(
-                    system_instruction=SYNTHESIS_SYSTEM_PROMPT,
-                    max_output_tokens=256,
-                    temperature=0.2,
-                ),
+                config=config,
             ),
             timeout=30.0,
         )
@@ -273,43 +288,79 @@ def _parsed_to_workflow_step(parsed: dict, thought: str, step_index: int) -> dic
     }
 
 
+def _create_synthesis_cache(client: Any, model: str) -> str | None:
+    """Create explicit context cache for synthesis system prompt. Returns cache name or None on failure."""
+    _CACHEABLE_PREFIXES = ("gemini-1.5-pro", "gemini-1.5-flash", "gemini-3-flash", "gemini-3.1-pro")
+    if not any(model.startswith(p) for p in _CACHEABLE_PREFIXES):
+        return None
+    try:
+        from google.genai import types as gtypes
+
+        cache = client.caches.create(
+            model=model,
+            config=gtypes.CreateCachedContentConfig(
+                system_instruction=SYNTHESIS_SYSTEM_PROMPT,
+                ttl="3600s",
+            ),
+        )
+        logger.info("Synthesis cache created: %s (%d chars)", cache.name, len(SYNTHESIS_SYSTEM_PROMPT))
+        return cache.name
+    except Exception as e:
+        logger.debug("Synthesis cache unavailable, using inline system prompt: %s", e)
+        return None
+
+
 async def synthesize_workflow_from_frames(
     frames: list[bytes],
     client: Any,
-    model: str = "gemini-2.5-flash",
+    model: str = SYNTHESIS_MODEL,
 ) -> dict:
-    """Synthesize workflow steps from a list of frame images. Returns dict with keys: title, workflow_type, steps."""
+    """Synthesize workflow steps from a list of frame images. Returns dict with keys: title, workflow_type, steps.
+
+    Uses explicit context cache for the system prompt when supported — avoids re-sending ~500 tokens
+    per frame (Gemini 3 Flash has 1,024 token limit; caching yields large savings).
+    """
     sampled = sample_frames(frames)
     if not sampled:
         sampled = [(i, f) for i, f in enumerate(frames)]
     steps: list[dict] = []
     history_parts: list[str] = []
 
-    for idx, (frame_i, frame_bytes) in enumerate(sampled):
-        thought, action_str, err = await synthesize_frame(
-            client,
-            frame_bytes,
-            idx,
-            len(sampled),
-            history_text="\n".join(history_parts[-5:]) if history_parts else "",
-            model=model,
-        )
-        if err:
-            logger.warning("Frame %d synthesis error: %s", frame_i, err)
-            continue
-        parsed = parse_action(f"Action: {action_str}")
-        if not parsed:
-            continue
-        step = _parsed_to_workflow_step(parsed, thought, len(steps) + 1)
-        if step.get("_signal") == "finished":
-            break
-        if step.get("_signal") == "calluser":
-            continue
-        steps.append(step)
-        history_parts.append(f"Step {len(steps)}: {thought} -> {action_str}")
+    cached_content = _create_synthesis_cache(client, model)
+    try:
+        for idx, (frame_i, frame_bytes) in enumerate(sampled):
+            thought, action_str, err = await synthesize_frame(
+                client,
+                frame_bytes,
+                idx,
+                len(sampled),
+                history_text="\n".join(history_parts[-5:]) if history_parts else "",
+                model=model,
+                cached_content=cached_content,
+            )
+            if err:
+                logger.warning("Frame %d synthesis error: %s", frame_i, err)
+                continue
+            parsed = parse_action(f"Action: {action_str}")
+            if not parsed:
+                continue
+            step = _parsed_to_workflow_step(parsed, thought, len(steps) + 1)
+            if step.get("_signal") == "finished":
+                break
+            if step.get("_signal") == "calluser":
+                continue
+            steps.append(step)
+            history_parts.append(f"Step {len(steps)}: {thought} -> {action_str}")
 
-    return {
-        "title": f"Synthesized workflow ({len(steps)} steps)",
-        "workflow_type": "browser",
-        "steps": steps,
-    }
+        return {
+            "title": f"Synthesized workflow ({len(steps)} steps)",
+            "workflow_type": "browser",
+            "steps": steps,
+        }
+    finally:
+        if cached_content:
+            try:
+                client.caches.delete(name=cached_content)
+                logger.debug("Synthesis cache evicted: %s", cached_content[:50])
+            except Exception as e:
+                logger.debug("Synthesis cache eviction skipped: %s", e)

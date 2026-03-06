@@ -2,6 +2,8 @@
 EchoPrism Description-to-Workflow Subagent — synthesize workflow from natural language.
 """
 import asyncio
+
+from echo_prism.models_config import DESCRIPTION_MODEL
 import json
 import re
 from typing import Any
@@ -57,7 +59,7 @@ async def synthesize_workflow_from_description(
     name: str,
     workflow_type: str,
     client: Any,
-    model: str = "gemini-2.5-flash",
+    model: str = DESCRIPTION_MODEL,
 ) -> dict:
     """
     Generate workflow steps from a natural language description.

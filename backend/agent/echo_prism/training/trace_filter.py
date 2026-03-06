@@ -24,6 +24,8 @@ Filtered trace documents are stored at:
 import asyncio
 import logging
 import os
+
+from echo_prism.models_config import TRACE_SCORING_MODEL
 import re
 from typing import Any
 
@@ -150,7 +152,7 @@ async def _vlm_score_entry(client: Any, entry: dict, sem: "asyncio.Semaphore") -
         try:
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model="gemini-2.5-flash",
+                model=TRACE_SCORING_MODEL,
                 contents=[gtypes.Content(role="user", parts=user_parts)],
                 config=gtypes.GenerateContentConfig(max_output_tokens=256),
             )

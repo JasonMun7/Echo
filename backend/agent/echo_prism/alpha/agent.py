@@ -5,7 +5,7 @@ For ambiguous steps (no selector/url): screenshot + instruction → Gemini → p
 
 Key behaviors:
 - Resolves model at run startup: uses fine-tuned global model from global_model/current if ready,
-  else falls back to gemini-2.5-flash (UI-TARS style — one shared model for all users)
+  else falls back to gemini-3.1-pro-preview (UI-TARS style — one shared model for all users)
 - Extracts Thought: text from model output for trace logging
 - Maintains (o, t, a) history; passes summaries into subsequent prompts
 - Retries up to MAX_RETRIES times on parse failure or operator False
@@ -30,6 +30,8 @@ import os
 import re
 from typing import Any, Literal
 
+from echo_prism.models_config import GROUNDING_MODEL, ORCHESTRATION_MODEL
+
 from .action_parser import extract_thought, parse_action
 from .image_utils import build_context, compress_screenshot
 from .operator import OperatorResult, PlaywrightOperator
@@ -47,8 +49,8 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 
-# Fallback model when no fine-tuned model is available
-FALLBACK_MODEL = "gemini-2.5-flash"
+# Fallback orchestration model when no fine-tuned model is available
+FALLBACK_MODEL = ORCHESTRATION_MODEL
 
 # Terminal sentinel type for callers to detect Finished/CallUser
 AgentSignal = Literal["finished", "calluser"]
@@ -112,7 +114,7 @@ def _resolve_model(owner_uid: str | None, db: Any | None) -> str:
 
 def _cache_system_prompt(client: Any, sys: str, model: str) -> str | None:
     """Upload the system prompt to Gemini context cache and return the cache name."""
-    _CACHEABLE_PREFIXES = ("gemini-1.5-pro", "gemini-1.5-flash")
+    _CACHEABLE_PREFIXES = ("gemini-1.5-pro", "gemini-1.5-flash", "gemini-3.1-pro")
     if not any(model.startswith(p) for p in _CACHEABLE_PREFIXES):
         logger.debug("Context caching skipped: model '%s' does not support it", model)
         return None
@@ -371,7 +373,7 @@ async def run_ambiguous_step(
                 logger.debug("Using prefetched scene caption (step %d)", step_index)
             elif step_action not in _SKIP_SCENE_ACTIONS:
                 compressed_for_scene = compress_screenshot(current_screenshot)
-                scene_caption = await perceive_scene(client, compressed_for_scene, "gemini-2.5-flash")
+                scene_caption = await perceive_scene(client, compressed_for_scene, GROUNDING_MODEL)
                 if scene_caption:
                     logger.debug("Scene caption (step %d): %s...", step_index, scene_caption[:100])
             else:
@@ -454,10 +456,10 @@ async def run_ambiguous_step(
                 or parsed_action_name
             )
             compressed_for_grounding = compress_screenshot(current_screenshot)
-            location = await ground_element(client, compressed_for_grounding, target_desc, "gemini-2.5-flash")
+            location = await ground_element(client, compressed_for_grounding, target_desc, GROUNDING_MODEL)
 
             if location and location.confidence == "medium" and location.box_2d:
-                refined = await zoom_and_reground(client, current_screenshot, location.box_2d, target_desc, "gemini-2.5-flash")
+                refined = await zoom_and_reground(client, current_screenshot, location.box_2d, target_desc, GROUNDING_MODEL)
                 if refined:
                     location = refined
                     logger.info("RegionFocus reground (step %d): confidence now %s at (%d, %d)",

@@ -46,13 +46,14 @@ export interface RunWorkflowOptions {
 }
 
 const MAX_RETRIES = 3;
-const FALLBACK_MODEL = "gemini-2.5-flash";
+const ORCHESTRATION_MODEL = process.env.ECHOPRISM_ORCHESTRATION_MODEL || "gemini-3.1-pro-preview";
+const GROUNDING_MODEL = process.env.ECHOPRISM_GROUNDING_MODEL || "gemini-2.5-flash-001";
 const GROUNDING_ACTIONS = new Set(["click", "doubleclick", "rightclick", "hover", "drag"]);
 
 /** Resolve fine-tuned global model from Firestore (UI-TARS style). */
 async function resolveModel(db: unknown): Promise<string> {
   try {
-    if (!db) return FALLBACK_MODEL;
+    if (!db) return ORCHESTRATION_MODEL;
     // db is the firebase-admin Firestore instance passed from the main process
     const fsDb = db as {
       collection: (c: string) => {
@@ -69,7 +70,7 @@ async function resolveModel(db: unknown): Promise<string> {
       }
     }
   } catch { /* fail silently */ }
-  return FALLBACK_MODEL;
+  return ORCHESTRATION_MODEL;
 }
 
 /** Poll backend for redirect, cancel, calluser_feedback. Clears redirect and feedback on read. */
@@ -269,7 +270,7 @@ export async function runWorkflowLocal(
         let sceneCaption = "";
         if (attempt === 0) {
           const { buffer: compressedForScene } = await compressScreenshot(screenshotBuf);
-          sceneCaption = await perceiveScene(ai, compressedForScene, FALLBACK_MODEL);
+          sceneCaption = await perceiveScene(ai, compressedForScene, GROUNDING_MODEL);
         }
 
         // Build history context
@@ -335,7 +336,7 @@ export async function runWorkflowLocal(
             step.context ??
             parsedAction;
           const { buffer: compressedForGround } = await compressScreenshot(screenshotBuf);
-          const location = await groundElement(ai, compressedForGround, targetDesc, FALLBACK_MODEL);
+          const location = await groundElement(ai, compressedForGround, targetDesc, GROUNDING_MODEL);
           if (location && (location.confidence === "high" || location.confidence === "medium")) {
             console.log(
               `[echo-prism-agent] Grounding override (step ${stepNum}, ${location.confidence}): (${location.center_x}, ${location.center_y})`

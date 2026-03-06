@@ -12,9 +12,11 @@ try:
 except ImportError:
     types = None  # type: ignore[assignment]
 
+from echo_prism.models_config import VOICE_MODEL
+
 logger = logging.getLogger(__name__)
 
-LIVE_MODEL_VOICE = "gemini-2.5-flash-native-audio-preview-12-2025"
+LIVE_MODEL_VOICE = VOICE_MODEL
 
 
 async def run_voice_session(

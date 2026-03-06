@@ -1,8 +1,8 @@
 """
 EchoPrism WebSocket endpoint: /ws/chat
-- mode=voice → Gemini Live API, gemini-2.5-flash-native-audio-preview-12-2025, AUDIO modality
+- mode=voice → Gemini Live API, gemini-live-2.5-flash-native-audio, AUDIO modality
               (EchoPrismVoice fullscreen modal — real-time mic streaming)
-- mode=text  → Standard Gemini generate_content, gemini-2.5-flash, multi-turn chat
+- mode=text  → Standard Gemini generate_content, gemini-3.1-flash-lite-preview, multi-turn chat
               (EchoPrism Chat page — text only, no Live API dependency)
 """
 import asyncio
@@ -20,13 +20,10 @@ from google.genai import types
 from google.cloud.firestore import SERVER_TIMESTAMP, FieldFilter
 
 from app.auth import get_firebase_app
-from app.config import GEMINI_API_KEY
+from app.config import CHAT_MODEL, GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
-
-# Standard model for EchoPrism Chat text sessions (same as agent/synthesis)
-CHAT_MODEL = "gemini-2.5-flash"
 
 
 def _ensure_agent_path() -> None:
@@ -148,7 +145,7 @@ async def echoprisim_ws(
     """EchoPrism WebSocket — routes to the right backend based on mode.
 
     mode=voice → Gemini Live API (AUDIO) for EchoPrismVoice modal
-    mode=text  → Standard gemini-2.5-flash chat for EchoPrism Chat page
+    mode=text  → Standard gemini-3.1-flash-lite-preview chat for EchoPrism Chat page
 
     Optional workflow_id + run_id: when provided with mode=voice, the model is told
     there is an active run and can use redirect_run for mid-run voice interrupts.
@@ -178,7 +175,7 @@ async def echoprisim_ws(
 
 
 async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.Client) -> None:
-    """EchoPrism Chat: standard gemini-2.5-flash multi-turn chat over WebSocket.
+    """EchoPrism Chat: standard gemini-3.1-flash-lite-preview multi-turn chat over WebSocket.
 
     Delegates generate_content to EchoPrism chat_agent; router handles WebSocket and tool execution.
     """

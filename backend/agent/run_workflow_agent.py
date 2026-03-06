@@ -33,6 +33,7 @@ from echo_prism.alpha.agent import (
 )
 from echo_prism.alpha.image_utils import compress_screenshot
 from echo_prism.alpha.perception import perceive_scene
+from echo_prism.models_config import GROUNDING_MODEL
 from echo_prism.alpha.prompts import WorkflowType, step_instruction, system_prompt
 
 # Total workflow execution timeout: 5 minutes
@@ -289,7 +290,7 @@ async def _run_echoprism_hybrid(
                     try:
                         from echo_prism.alpha.image_utils import compress_screenshot as _compress
                         compressed = _compress(screenshot)
-                        return await perceive_scene(client, compressed, "gemini-2.5-flash")
+                        return await perceive_scene(client, compressed, GROUNDING_MODEL)
                     except Exception:
                         return ""
 

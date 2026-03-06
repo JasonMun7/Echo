@@ -24,3 +24,6 @@ GOOGLE_APPLICATION_CREDENTIALS = os.getenv("ECHO_GOOGLE_APPLICATION_CREDENTIALS"
     "GOOGLE_APPLICATION_CREDENTIALS", ""
 )
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# EchoPrism model overrides
+CHAT_MODEL = os.getenv("ECHOPRISM_CHAT_MODEL", "gemini-3.1-flash-lite-preview")
