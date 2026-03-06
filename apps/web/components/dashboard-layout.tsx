@@ -19,6 +19,7 @@ import {
   IconTool,
   IconPlug,
   IconCalendarClock,
+  IconDatabase,
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -214,6 +215,11 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
       label: "Traces",
       href: "/dashboard/traces",
       icon: <IconBrain className="h-5 w-5 shrink-0 text-current" />,
+    },
+    {
+      label: "Datasets",
+      href: "/dashboard/datasets/create",
+      icon: <IconDatabase className="h-5 w-5 shrink-0 text-current" />,
     },
     {
       label: "MCP Tools",

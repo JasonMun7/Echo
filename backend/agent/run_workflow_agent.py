@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Echo Workflow Executor - runs via EchoPrism hybrid or ADK Computer Use agent.
+Echo Workflow Executor — runs via EchoPrism (DirectExecutor + echo_prism_agent).
 Env: WORKFLOW_ID, RUN_ID, OWNER_UID, GEMINI_API_KEY
 """
 import asyncio
@@ -22,20 +22,18 @@ except ImportError:
 import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
-from google.genai import types
 
-from agent import root_agent
 from direct_executor import execute_step, is_deterministic
-from echo_prism.echo_prism_agent import (
+from echo_prism.alpha.agent import (
     FALLBACK_MODEL,
     _cache_system_prompt,
     _get_client,
     _resolve_model,
     run_ambiguous_step,
 )
-from echo_prism.image_utils import compress_screenshot
-from echo_prism.perception import perceive_scene
-from echo_prism.prompts import WorkflowType, step_instruction, system_prompt
+from echo_prism.alpha.image_utils import compress_screenshot
+from echo_prism.alpha.perception import perceive_scene
+from echo_prism.alpha.prompts import WorkflowType, step_instruction, system_prompt
 
 # Total workflow execution timeout: 5 minutes
 WORKFLOW_TIMEOUT_SECS = 300
@@ -58,18 +56,24 @@ async def log_message(run_ref, message: str, level: str = "info", metadata: dict
 
 
 def _trigger_trace_filter(run_ref, workflow_id: str, run_id: str, db, owner_uid: str) -> None:
-    """Spawn a background daemon thread to score the completed run's trace."""
+    """Spawn a background daemon thread to score the completed run's trace and export COCO."""
     import threading
 
-    def _filter():
+    def _filter_and_export():
         try:
             import asyncio as _asyncio
-            from echo_prism.trace_filter import score_trace
+            from echo_prism.training.trace_filter import score_trace
             _asyncio.run(score_trace(run_ref, workflow_id, run_id, db, owner_uid))
+            # Export COCO trace after scoring (so we have quality/corrected_thought)
+            try:
+                from echo_prism.training.trace_coco_export import export_and_upload_coco
+                _asyncio.run(export_and_upload_coco(run_ref, workflow_id, run_id, db))
+            except Exception as coco_err:
+                logger.warning("COCO trace export failed for run %s: %s", run_id, coco_err)
         except Exception as e:
             logger.warning("Trace filter failed for run %s: %s", run_id, e)
 
-    t = threading.Thread(target=_filter, daemon=True, name=f"filter-{run_id[:8]}")
+    t = threading.Thread(target=_filter_and_export, daemon=True, name=f"filter-{run_id[:8]}")
     t.start()
 
 
@@ -82,52 +86,24 @@ def _try_upload_screenshot(screenshot_bytes: bytes, url: str) -> None:
         logger.debug("Screenshot upload skipped: %s", e)
 
 
-def _steps_to_prompt(steps: list[dict]) -> str:
-    """Convert workflow steps to a natural-language prompt for the ADK agent."""
-    lines = [
-        "Execute this workflow step by step using the browser. Complete each step before moving to the next:",
-        "",
-    ]
-    for i, step in enumerate(steps, 1):
-        action = step.get("action", "wait")
-        params = step.get("params", {})
-        context = step.get("context", "")
-        if context:
-            context = f" ({context})"
-        if action == "navigate":
-            url = params.get("url", "https://www.google.com")
-            lines.append(f"{i}. Go to {url}")
-        elif action == "open_web_browser":
-            lines.append(f"{i}. Open a web browser and go to https://www.google.com")
-        elif action == "click_at":
-            desc = params.get("description", context or "the element")
-            lines.append(f"{i}. Click {desc}")
-        elif action == "type_text_at":
-            text = params.get("text", "")
-            lines.append(f"{i}. Type '{text}' into the input{context}")
-        elif action == "scroll":
-            direction = params.get("direction", "down")
-            distance = params.get("distance", params.get("amount", 500))
-            lines.append(f"{i}. Scroll {direction} by {distance}px")
-        elif action == "wait":
-            secs = params.get("seconds", 2)
-            lines.append(f"{i}. Wait {secs} seconds")
-        elif action == "select_option":
-            value = params.get("value", "")
-            lines.append(f"{i}. Select option '{value}' in the dropdown{context}")
-        elif action == "press_key":
-            key = params.get("key", "Enter")
-            lines.append(f"{i}. Press the {key} key")
-        elif action == "wait_for_element":
-            desc = params.get("description", "the expected element")
-            lines.append(f"{i}. Wait for {desc} to appear{context}")
-        elif action == "close_web_browser":
-            lines.append(f"{i}. Close the browser")
-        else:
-            lines.append(f"{i}. {action}{context}: {params}")
-        lines.append("")
-    lines.append("When you have completed all steps, respond with 'Workflow completed successfully.'")
-    return "\n".join(lines)
+def _upload_trace_screenshot(run_ref, step_index: int, screenshot_bytes: bytes) -> str | None:
+    """Upload per-step screenshot to GCS for COCO trace export. Returns gs:// URL or None."""
+    try:
+        workflow_id = run_ref.parent.id
+        run_id = run_ref.id
+        bucket_name = os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
+        if not bucket_name:
+            return None
+        blob_name = f"traces/{workflow_id}/{run_id}/step_{step_index}.png"
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(screenshot_bytes, content_type="image/png")
+        return f"gs://{bucket_name}/{blob_name}"
+    except Exception as e:
+        logger.debug("Trace screenshot upload skipped: %s", e)
+        return None
 
 
 async def _handle_echoprism_result(
@@ -198,14 +174,14 @@ async def _handle_echoprism_result(
         return False, err or f"EchoPrism failed at step {step_index}"
 
     # result is True — step succeeded; persist thought+action in history
-    await log_message(
-        run_ref,
-        f"✓ Step {step_index} complete (EchoPrism). Thought: {(thought or '')[:100]}",
-        metadata=trace_meta,
-    )
+    # EchoPrism-Voice: update current_step for status feed (Voice reads this for TTS)
     try:
         screenshot = await page.screenshot(type="png", full_page=False)
         _try_upload_screenshot(screenshot, page.url)
+        # Upload per-step screenshot for COCO trace export
+        screenshot_url = _upload_trace_screenshot(run_ref, step_index, screenshot)
+        if screenshot_url:
+            trace_meta["screenshot_url"] = screenshot_url
         # Compress before storing in history to save memory
         history.append({
             "screenshot": compress_screenshot(screenshot),
@@ -214,6 +190,21 @@ async def _handle_echoprism_result(
         })
     except Exception:
         pass
+    # Update current_step for EchoPrism-Voice status feed
+    try:
+        await asyncio.to_thread(run_ref.update, {
+            "current_step": step_index,
+            "current_step_thought": (thought or "")[:200],
+            "current_step_action": (action_str or "")[:100],
+        })
+    except Exception:
+        pass
+
+    await log_message(
+        run_ref,
+        f"✓ Step {step_index} complete (EchoPrism). Thought: {(thought or '')[:100]}",
+        metadata=trace_meta,
+    )
 
     return None, None
 
@@ -296,7 +287,7 @@ async def _run_echoprism_hybrid(
                 async def _prefetch_scene(screenshot: bytes) -> str:
                     """Fire perceive_scene in background; returns caption or ''."""
                     try:
-                        from echo_prism.image_utils import compress_screenshot as _compress
+                        from echo_prism.alpha.image_utils import compress_screenshot as _compress
                         compressed = _compress(screenshot)
                         return await perceive_scene(client, compressed, "gemini-2.5-flash")
                     except Exception:
@@ -448,42 +439,6 @@ async def _run_echoprism_hybrid(
         return False, str(e)
 
 
-async def _run_agent(run_ref, prompt: str) -> tuple[bool, str | None]:
-    """Run the ADK Computer Use agent with the workflow prompt."""
-    try:
-        from google.adk.runners import InMemoryRunner
-
-        runner = InMemoryRunner(agent=root_agent, app_name="echo_workflow_agent")
-        try:
-            session = await runner.session_service.create_session(
-                app_name="echo_workflow_agent",
-                user_id="workflow_run",
-            )
-            await log_message(run_ref, "Computer Use agent started. Executing steps...")
-            turn = 0
-
-            async for event in runner.run_async(
-                user_id="workflow_run",
-                session_id=session.id,
-                new_message=types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=prompt)],
-                ),
-            ):
-                if event.content and event.content.parts:
-                    turn += 1
-                    await log_message(run_ref, f"--- Turn {turn} ---")
-                    for part in event.content.parts:
-                        if getattr(part, "text", None) and not getattr(part, "thought", False):
-                            await log_message(run_ref, part.text)
-        finally:
-            await runner.close()
-
-        return True, None
-    except Exception as e:
-        return False, str(e)
-
-
 def main():
     workflow_id = os.environ.get("WORKFLOW_ID")
     run_id = os.environ.get("RUN_ID")
@@ -493,7 +448,7 @@ def main():
         return 1
 
     if not os.environ.get("GEMINI_API_KEY"):
-        logger.error("GEMINI_API_KEY is required for Computer Use agent")
+        logger.error("GEMINI_API_KEY is required for EchoPrism")
         return 1
 
     logger.info("Initializing Firebase...")
@@ -521,17 +476,11 @@ def main():
     run_ref.update({"status": "running", "startedAt": SERVER_TIMESTAMP})
 
     workflow_type = workflow_doc.to_dict().get("workflow_type", "browser")
-    use_hybrid = os.getenv("ECHO_USE_ECHOPRISM", "1").lower() in ("1", "true", "yes")
 
-    if use_hybrid and steps:
-        logger.info("Starting workflow with %d steps (EchoPrism hybrid, type=%s)", len(steps), workflow_type)
-        success, error = asyncio.run(_run_echoprism_hybrid(
-            run_ref, steps, workflow_type=workflow_type, owner_uid=owner_uid, db=db
-        ))
-    else:
-        logger.info("Starting workflow with %d steps (Computer Use)", len(steps))
-        prompt = _steps_to_prompt(steps)
-        success, error = asyncio.run(_run_agent(run_ref, prompt))
+    logger.info("Starting workflow with %d steps (EchoPrism hybrid, type=%s)", len(steps), workflow_type)
+    success, error = asyncio.run(_run_echoprism_hybrid(
+        run_ref, steps, workflow_type=workflow_type, owner_uid=owner_uid, db=db
+    ))
 
     # "__finished_early__" means the agent called Finished() mid-run and already updated Firestore
     if error == "__finished_early__":

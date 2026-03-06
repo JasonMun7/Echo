@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import Link from "next/link";
 import {
   IconBrain,
   IconCircleCheck,
@@ -23,6 +24,7 @@ import {
   IconSquareCheckFilled,
   IconSquareMinusFilled,
   IconPlug,
+  IconExternalLink,
   IconInfoCircle,
   IconChevronUp,
   IconBrandSlack,
@@ -594,6 +596,14 @@ function TraceCard({
                 {badRatio}% needs correction
               </span>
             )}
+            <Link
+              href={`/dashboard/traces/${trace.id}`}
+              className="flex items-center gap-1 text-xs font-medium text-[#A577FF] hover:underline shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View COCO
+              <IconExternalLink className="h-3 w-3" />
+            </Link>
             {expanded ? (
               <IconChevronDown className="h-4 w-4 text-echo-text-muted" />
             ) : (

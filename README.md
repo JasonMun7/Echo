@@ -1,6 +1,6 @@
 # Echo
 
-**Echo** is a workflow automation platform that lets you create, edit, and run browser-based workflows. The agent uses **Gemini 2.5 Computer Use** to execute steps (navigate, click, type, scroll) in a headless browser. You can stream live screenshots while a run executes.
+**Echo** is a workflow automation platform that lets you create, edit, and run browser-based workflows. The agent uses **EchoPrism** (vision-language model) to execute steps (navigate, click, type, scroll) in a headless browser. You can stream live screenshots while a run executes.
 
 ## Tech Stack
 
@@ -8,7 +8,7 @@
 |-------|-------|
 | Frontend | Next.js 16, React 19, Tailwind CSS, Firebase Auth, Firestore |
 | Backend | FastAPI, Firebase Admin, Google Cloud Storage |
-| Agent | Google ADK, Playwright, Gemini 2.5 Computer Use (Cloud Run Job) |
+| Agent | EchoPrism, Playwright (Cloud Run Job) |
 | Deploy | Cloud Run (services + job), gcloud, Docker |
 
 ## Project Structure
@@ -21,12 +21,15 @@ echo/
 │   └── DESIGN_SYSTEM.md   # Design tokens (Cetacean Blue, Lavender, Ghost White)
 ├── backend/               # FastAPI app
 │   ├── app/               # Routers, auth, services
-│   └── agent/             # ADK workflow executor (Cloud Run Job)
+│   └── agent/             # EchoPrism workflow executor (Cloud Run Job)
 │       ├── run_workflow_agent.py
-│       ├── playwright_computer.py
 │       └── screenshot_stream.py
+├── firebase/              # Firebase config (rules, indexes)
+│   ├── firebase.json
+│   ├── firestore.rules
+│   ├── firestore.indexes.json
+│   └── storage.rules
 ├── deploy.sh              # Deploys frontend, backend, agent to Cloud Run
-├── firestore.rules        # Firestore security rules
 └── package.json           # Root scripts (dev, deploy)
 ```
 
@@ -100,10 +103,10 @@ This bucket stores workflow assets (video, screenshots) and agent screenshots fo
 From the project root:
 
 ```bash
-firebase deploy --only firestore:rules
+cd firebase && firebase deploy --only firestore:rules
 ```
 
-Or paste the rules in **Firestore → Rules** and publish.
+Or run `pnpm firebase:deploy` (see package.json scripts). Alternatively, paste the rules in **Firestore → Rules** and publish.
 
 ### 2.6 Firebase and GCP in same project
 
@@ -134,7 +137,7 @@ Use the default compute SA. Ensure it has:
 Used for:
 
 - Workflow synthesis (video/screenshots → steps)
-- Computer Use agent (workflow execution)
+- EchoPrism agent (workflow execution)
 
 ---
 
@@ -168,8 +171,6 @@ pnpm run backend:dev
 
 # Terminal 2 – frontend
 pnpm run dev
-# or web + backend together:
-pnpm run dev:all
 # or desktop app:
 pnpm run dev:desktop
 ```
@@ -308,7 +309,7 @@ Set automatically by deploy script; overrides passed at execution time:
 | `WORKFLOW_ID` | Set by backend when triggering run |
 | `RUN_ID` | Set by backend when triggering run |
 | `OWNER_UID` | Set by backend when triggering run |
-| `GEMINI_API_KEY` | Required for Computer Use model |
+| `GEMINI_API_KEY` | Required for EchoPrism |
 | `ECHO_GCS_BUCKET` | For live screenshot streaming |
 | `FIREBASE_PROJECT_ID` | Firebase project ID |
 | `HEADLESS` | `true` in Cloud Run, `false` for local debugging |
@@ -323,7 +324,7 @@ Set automatically by deploy script; overrides passed at execution time:
 - `workflows/{workflowId}/runs/{runId}` – Run metadata (status, lastScreenshotUrl, etc.)
 - `workflows/{workflowId}/runs/{runId}/logs/{logId}` – Run logs
 
-The backend and agent use Firebase Admin SDK and bypass Firestore rules. The frontend reads/writes via rules defined in `firestore.rules`.
+The backend and agent use Firebase Admin SDK and bypass Firestore rules. The frontend reads/writes via rules defined in `firebase/firestore.rules`.
 
 ---
 
@@ -332,9 +333,7 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 | Script | Description |
 |--------|-------------|
 | `pnpm run dev` | Start Next.js frontend (Doppler env) |
-| `pnpm run dev:web` | Same as dev |
 | `pnpm run dev:desktop` | Start Electron desktop app (Doppler env) |
-| `pnpm run dev:all` | Start web + backend together (Doppler env) |
 | `pnpm run backend:dev` | Start FastAPI backend (Doppler env) |
 | `pnpm run backend:docker` | Build and run backend in Docker |
 | `pnpm run deploy` | Deploy to Cloud Run (uses Doppler prd) |

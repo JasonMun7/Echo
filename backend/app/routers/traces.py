@@ -71,7 +71,7 @@ async def filter_run_trace(
         sys.path.insert(0, agent_dir)
 
     try:
-        from echo_prism.trace_filter import score_trace
+        from echo_prism.training.trace_filter import score_trace
         scored = await score_trace(run_ref, workflow_id, run_id, db, uid)
         good = sum(1 for s in scored if s.get("quality") == "good")
         bad = sum(1 for s in scored if s.get("quality") == "bad")
@@ -140,6 +140,39 @@ async def delete_trace(trace_id: str, uid: str = Depends(get_current_uid)):
         return {"ok": True, "deleted": trace_id}
     except Exception as e:
         logger.exception("Failed to delete trace: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/traces/{trace_id}/coco")
+async def get_trace_coco(trace_id: str, uid: str = Depends(get_current_uid)):
+    """
+    Fetch or generate COCO4GUI JSON for a trace.
+    trace_id format: {workflow_id}_{run_id}
+    Returns COCO4GUI JSON (images, annotations, categories).
+    """
+    db = _get_db()
+    if "_" not in trace_id:
+        raise HTTPException(status_code=400, detail="Invalid trace_id format. Use workflow_id_run_id")
+    parts = trace_id.rsplit("_", 1)
+    if len(parts) != 2:
+        raise HTTPException(status_code=400, detail="Invalid trace_id format")
+    workflow_id, run_id = parts[0], parts[1]
+    _get_workflow(uid, workflow_id)
+    run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
+    run_doc = run_ref.get()
+    if not run_doc.exists:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    agent_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "agent"))
+    if agent_dir not in sys.path:
+        sys.path.insert(0, agent_dir)
+
+    try:
+        from echo_prism.training.trace_coco_export import export_run_to_coco
+        coco = export_run_to_coco(run_ref, workflow_id, run_id, db)
+        return coco
+    except Exception as e:
+        logger.exception("COCO export failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -232,7 +265,7 @@ async def export_traces(uid: str = Depends(get_current_uid)):
     gcs_uri = f"gs://{bucket}/{gcs_blob_path}"
 
     try:
-        from echo_prism.vertex_export import create_tuning_job, export_training_data
+        from echo_prism.training.vertex_export import create_tuning_job, export_training_data
 
         example_count = await export_training_data(
             db=db,
@@ -338,7 +371,7 @@ async def poll_model_status(uid: str = Depends(get_current_uid)):
         sys.path.insert(0, agent_dir)
 
     try:
-        from echo_prism.vertex_export import get_tuning_job_status
+        from echo_prism.training.vertex_export import get_tuning_job_status
 
         job_info = await asyncio.to_thread(
             get_tuning_job_status,

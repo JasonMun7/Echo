@@ -25,125 +25,17 @@ from app.config import GEMINI_API_KEY
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
-# Live API model for EchoPrismVoice modal (AUDIO modality only)
-LIVE_MODEL_VOICE = "gemini-2.5-flash-native-audio-preview-12-2025"
 # Standard model for EchoPrism Chat text sessions (same as agent/synthesis)
 CHAT_MODEL = "gemini-2.5-flash"
 
-SYSTEM_PROMPT = """You are EchoPrism, an intelligent assistant for the Echo workflow automation platform.
 
-Your capabilities:
-- List, create, run, pause, and manage workflows
-- Start screen recordings for workflow synthesis
-- Create workflows from natural language descriptions
-- Redirect running agents with new instructions
-- Dismiss CallUser alerts when the user has resolved the issue
-- Answer questions about EchoPrism's status and capabilities
-- Execute connected app integrations (Slack, Gmail, etc.)
-
-Be concise, helpful, and proactive. When a user asks to run something, confirm with the workflow name only — never mention IDs, UUIDs, or internal identifiers in your responses.
-When a user asks to change what the agent is doing mid-run, use redirect_run with their exact instruction.
-When synthesizing from description, use the synthesize_from_description tool immediately — do not ask for confirmation first.
-
-IMPORTANT: Never reveal workflow IDs, run IDs, document IDs, or any internal identifier to the user in your text responses. Use only human-readable names. IDs are for tool calls only, not for conversation.
-
-Current session context: you have access to the user's Firestore data via tool calls.
-Always use tools to get real data — never make up workflow names."""
-
-TOOLS = [
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name="list_workflows",
-            description="List the user's workflows. Returns names and IDs.",
-            parameters=types.Schema(type="OBJECT", properties={}, required=[]),
-        ),
-        types.FunctionDeclaration(
-            name="run_workflow",
-            description="Start running a workflow by ID. Actually triggers the EchoPrism agent.",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "workflow_id": types.Schema(type="STRING", description="The workflow ID to run"),
-                    "workflow_name": types.Schema(type="STRING", description="Human-readable name for confirmation"),
-                },
-                required=["workflow_id"],
-            ),
-        ),
-        types.FunctionDeclaration(
-            name="redirect_run",
-            description="Inject a mid-run instruction for EchoPrism to follow on its next step.",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "workflow_id": types.Schema(type="STRING"),
-                    "run_id": types.Schema(type="STRING"),
-                    "instruction": types.Schema(type="STRING"),
-                },
-                required=["workflow_id", "run_id", "instruction"],
-            ),
-        ),
-        types.FunctionDeclaration(
-            name="cancel_run",
-            description="Cancel a running workflow execution.",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "workflow_id": types.Schema(type="STRING"),
-                    "run_id": types.Schema(type="STRING"),
-                },
-                required=["workflow_id", "run_id"],
-            ),
-        ),
-        types.FunctionDeclaration(
-            name="dismiss_calluser",
-            description="Dismiss a workflow run that is awaiting user input (status=awaiting_user).",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "workflow_id": types.Schema(type="STRING"),
-                    "run_id": types.Schema(type="STRING"),
-                },
-                required=["workflow_id", "run_id"],
-            ),
-        ),
-        types.FunctionDeclaration(
-            name="synthesize_from_description",
-            description="Create a new workflow from a natural language description. Generates steps using Gemini 2.5 Pro.",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "description": types.Schema(type="STRING", description="What the workflow should do"),
-                    "workflow_name": types.Schema(type="STRING", description="Name for the new workflow"),
-                    "workflow_type": types.Schema(type="STRING", description="'browser' or 'desktop'"),
-                },
-                required=["description", "workflow_name"],
-            ),
-        ),
-        types.FunctionDeclaration(
-            name="start_screen_recording",
-            description="Tell the frontend to start a screen recording for workflow synthesis.",
-            parameters=types.Schema(type="OBJECT", properties={}, required=[]),
-        ),
-        types.FunctionDeclaration(
-            name="list_integrations",
-            description="List the user's connected app integrations (Slack, Gmail, etc.)",
-            parameters=types.Schema(type="OBJECT", properties={}, required=[]),
-        ),
-        types.FunctionDeclaration(
-            name="call_integration",
-            description="Execute a connected app integration action (send Slack message, create GitHub issue, etc.).",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "integration": types.Schema(type="STRING"),
-                    "method": types.Schema(type="STRING"),
-                    "args": types.Schema(type="OBJECT"),
-                },
-                required=["integration", "method"],
-            ),
-        ),
-    ])
-]
+def _ensure_agent_path() -> None:
+    """Ensure backend/agent is on sys.path for echo_prism imports."""
+    agent_dir = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
+    )
+    if agent_dir not in sys.path:
+        sys.path.insert(0, agent_dir)
 
 
 def _trigger_run_inline(workflow_id: str, run_id: str, uid: str, run_ref) -> None:
@@ -288,17 +180,10 @@ async def echoprisim_ws(
 async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.Client) -> None:
     """EchoPrism Chat: standard gemini-2.5-flash multi-turn chat over WebSocket.
 
-    Each message from the browser triggers a generate_content call with the full
-    conversation history and function-calling support. No Live API involved.
+    Delegates generate_content to EchoPrism chat_agent; router handles WebSocket and tool execution.
     """
-    # Build the function declarations list for standard generate_content
-    fn_decls = TOOLS[0].function_declarations
-
-    gen_config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        tools=[types.Tool(function_declarations=fn_decls)],
-        temperature=0.4,
-    )
+    _ensure_agent_path()
+    from echo_prism.subagents.chat_agent import process_chat_turn
 
     history: list[types.Content] = []
 
@@ -324,43 +209,28 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
 
             history.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
 
-            # Agentic loop: keep calling generate_content until no more tool calls
+            # Agentic loop: delegate to chat_agent until no more tool calls
             while True:
-                response = await client.aio.models.generate_content(
-                    model=CHAT_MODEL,
-                    contents=history,
-                    config=gen_config,
+                text_resp, fn_calls, model_content = await process_chat_turn(
+                    history, client, CHAT_MODEL
                 )
-
-                candidate = response.candidates[0] if response.candidates else None
-                if not candidate:
-                    break
-
-                # Add the model turn to history
-                history.append(candidate.content)
-
-                # Check if there are function calls to handle
-                fn_calls = [
-                    p.function_call
-                    for p in (candidate.content.parts or [])
-                    if p.function_call
-                ]
+                if model_content:
+                    history.append(model_content)
 
                 if fn_calls:
-                    # Signal the frontend for each tool being invoked
                     for fc in fn_calls:
                         try:
                             await websocket.send_text(json.dumps({"type": "tool_call", "name": fc.name}))
                         except Exception:
                             pass
-
                         if fc.name == "synthesize_from_description":
                             try:
-                                await websocket.send_text(json.dumps({"type": "tool_call", "name": "synthesize_from_description"}))
+                                await websocket.send_text(
+                                    json.dumps({"type": "tool_call", "name": "synthesize_from_description"})
+                                )
                             except Exception:
                                 pass
 
-                    # Execute all tool calls and collect results
                     tool_parts: list[types.Part] = []
                     for fc in fn_calls:
                         args = dict(fc.args) if fc.args else {}
@@ -370,25 +240,18 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
                         except Exception as e:
                             logger.error("Tool %s failed: %s", fc.name, e)
                             result = {"ok": False, "error": str(e)}
-
                         tool_parts.append(types.Part(
                             function_response=types.FunctionResponse(
                                 name=fc.name,
+                                id=getattr(fc, "id", None),
                                 response=result,
                             )
                         ))
-
-                    # Add tool results to history and loop again
                     history.append(types.Content(role="tool", parts=tool_parts))
                     continue
 
-                # No function calls — extract and send text response
-                text_parts = [
-                    p.text for p in (candidate.content.parts or []) if p.text
-                ]
-                full_text = "".join(text_parts).strip()
-                if full_text:
-                    await websocket.send_text(json.dumps({"type": "text", "text": full_text}))
+                if text_resp:
+                    await websocket.send_text(json.dumps({"type": "text", "text": text_resp}))
                 break
 
     except WebSocketDisconnect:
@@ -512,6 +375,8 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
 
 
 def _voice_system_prompt(workflow_id: str | None, run_id: str | None) -> str:
+    _ensure_agent_path()
+    from echo_prism.subagents.chat_agent import SYSTEM_PROMPT
     base = SYSTEM_PROMPT
     if workflow_id and run_id:
         base += f"\n\nACTIVE RUN: There is currently an active workflow run (workflow_id={workflow_id}, run_id={run_id}). When the user gives mid-run instructions (e.g. pause, stop, change what to click, do something different), immediately use redirect_run with workflow_id={workflow_id}, run_id={run_id}, and instruction set to the user's exact words."
@@ -522,96 +387,25 @@ async def _voice_live_session(
     websocket: WebSocket, uid: str, db, client: genai.Client,
     workflow_id: str | None = None, run_id: str | None = None,
 ) -> None:
-    """EchoPrismVoice: Gemini Live API with AUDIO modality and real-time mic streaming."""
+    """EchoPrismVoice: Gemini Live API with AUDIO modality. Delegates to voice_agent."""
+    _ensure_agent_path()
+    from echo_prism.subagents.chat_agent import get_tools
+    from echo_prism.subagents.voice_agent import run_voice_session, LIVE_MODEL_VOICE
+
     system_prompt = _voice_system_prompt(workflow_id, run_id)
     config = types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         output_audio_transcription={},
         system_instruction=system_prompt,
-        tools=TOOLS,
+        tools=get_tools(),
     )
 
     try:
-        async with client.aio.live.connect(model=LIVE_MODEL_VOICE, config=config) as live_session:
-
-            async def recv_from_client():
-                try:
-                    while True:
-                        msg = await websocket.receive()
-                        if msg["type"] == "websocket.disconnect":
-                            break
-                        if msg["type"] == "websocket.receive":
-                            if msg.get("bytes") is not None:
-                                await live_session.send_realtime_input(
-                                    audio=types.Blob(data=msg["bytes"], mime_type="audio/pcm;rate=16000")
-                                )
-                            elif msg.get("text") is not None:
-                                try:
-                                    data = json.loads(msg["text"])
-                                    if data.get("type") == "text":
-                                        await live_session.send_client_content(
-                                            turns=types.Content(
-                                                role="user",
-                                                parts=[types.Part(text=data.get("text", ""))],
-                                            ),
-                                            turn_complete=True,
-                                        )
-                                except Exception as e:
-                                    logger.warning("voice recv_from_client parse error: %s", e)
-                except WebSocketDisconnect:
-                    pass
-                except Exception as e:
-                    logger.warning("voice recv_from_client error: %s", e)
-
-            async def recv_from_gemini():
-                while True:
-                    try:
-                        async for response in live_session.receive():
-                            if response.server_content:
-                                sc = response.server_content
-
-                                if sc.model_turn:
-                                    for part in sc.model_turn.parts:
-                                        if getattr(part, "thought", False):
-                                            continue
-                                        if part.inline_data and part.inline_data.data:
-                                            await websocket.send_bytes(part.inline_data.data)
-                                        if part.text:
-                                            await websocket.send_text(
-                                                json.dumps({"type": "text", "text": part.text})
-                                            )
-
-                                if getattr(sc, "output_transcription", None):
-                                    t = sc.output_transcription
-                                    if getattr(t, "text", None):
-                                        await websocket.send_text(
-                                            json.dumps({"type": "transcript", "text": t.text})
-                                        )
-
-                                if sc.turn_complete:
-                                    await websocket.send_text(json.dumps({"type": "turn_complete"}))
-
-                            if response.tool_call:
-                                tool_responses = await _handle_tool_call(
-                                    response.tool_call, uid, db, websocket
-                                )
-                                for tr in tool_responses:
-                                    await live_session.send_tool_response(
-                                        function_responses=tr.function_responses
-                                    )
-
-                    except WebSocketDisconnect:
-                        break
-                    except Exception as e:
-                        logger.warning("voice recv_from_gemini error: %s", e)
-                        break
-
-            await asyncio.gather(
-                recv_from_client(),
-                recv_from_gemini(),
-                return_exceptions=True,
-            )
-
+        await run_voice_session(
+            client, LIVE_MODEL_VOICE, config,
+            websocket, uid, db,
+            _handle_tool_call,
+        )
     except WebSocketDisconnect:
         logger.info("EchoPrismVoice disconnected uid=%s", uid)
     except Exception as e:
