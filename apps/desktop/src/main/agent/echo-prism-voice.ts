@@ -5,7 +5,7 @@
  */
 import { GoogleGenAI } from "@google/genai";
 
-const MODEL = process.env.ECHOPRISM_VOICE_MODEL || "gemini-live-2.5-flash-native-audio";
+const MODEL = process.env.ECHOPRISM_VOICE_MODEL || "gemini-2.5-flash-preview-native-audio-dialog";
 
 type EventCallback = (type: "audio" | "text", data: unknown) => void;
 

@@ -21,4 +21,4 @@ TRACE_SCORING_MODEL = os.environ.get("ECHOPRISM_TRACE_SCORING_MODEL", "gemini-3.
 SYNTHESIS_MODEL = os.environ.get("ECHOPRISM_SYNTHESIS_MODEL", "gemini-3-flash-preview")
 
 # Voice — low-latency native audio
-VOICE_MODEL = os.environ.get("ECHOPRISM_VOICE_MODEL", "gemini-live-2.5-flash-native-audio")
+VOICE_MODEL = os.environ.get("ECHOPRISM_VOICE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
