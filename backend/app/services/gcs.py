@@ -63,6 +63,13 @@ def generate_signed_read_url(
     )
 
 
+def list_blobs(prefix: str) -> list[str]:
+    """List blob names under the given prefix."""
+    bucket = get_bucket()
+    blobs = bucket.list_blobs(prefix=prefix)
+    return [b.name for b in blobs]
+
+
 def generate_signed_upload_url(
     blob_name: str,
     content_type: str,
