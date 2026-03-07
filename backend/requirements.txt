@@ -18,5 +18,4 @@ google-auth-oauthlib>=1.2.0
 slack-sdk>=3.27.0
 PyGithub>=2.3.0
 mcp>=1.0.0
-datasets>=2.18.0
 opencv-python-headless>=4.8.0

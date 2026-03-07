@@ -22,6 +22,10 @@ DEFAULT_CATEGORIES = [
     {"id": 5, "name": "drag", "supercategory": "interaction"},
     {"id": 6, "name": "right_click", "supercategory": "interaction"},
     {"id": 7, "name": "double_click", "supercategory": "interaction"},
+    {"id": 8, "name": "scroll", "supercategory": "interaction"},
+    {"id": 9, "name": "swipe", "supercategory": "interaction"},
+    {"id": 10, "name": "long_press", "supercategory": "interaction"},
+    {"id": 11, "name": "focus", "supercategory": "interaction"},
 ]
 
 

@@ -443,7 +443,7 @@ e. NEVER use exactly 500/500 as a guess — only if the element is genuinely in 
 STEP 3 — WRITE MAXIMALLY SPECIFIC DESCRIPTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Every "description" field must enable EchoPrism to re-locate the element from a screenshot alone. Include ALL of:
-- Element type (button, link, text input, dropdown, checkbox, icon, tab, menu item, etc.)
+- Element type (button, link, text input, dropdown, checkbox, icon, tab, menu item, toggle, avatar, badge, close button, radio button, slider, etc.)
 - Visible label text (exact, in single quotes) OR a clear visual descriptor if there is no text
 - Color or visual style if distinctive (blue, green, outlined, filled, icon-only)
 - Screen region (top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center, left sidebar, right panel, header, footer, modal, etc.)

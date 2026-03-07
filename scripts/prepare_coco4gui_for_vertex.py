@@ -2,18 +2,17 @@
 """
 Prepare custom COCO4GUI dataset for Vertex AI fine-tuning.
 
-Converts COCO4GUI JSON to Vertex SFT JSONL and uploads to GCS.
-Optionally uploads local images to GCS first.
+Outputs Vertex-native JSONL (systemInstruction + contents with fileData) for
+Vertex AI fine-tuning or concatenation with other sources.
 
 Usage:
-  # Images already in GCS:
-  python scripts/prepare_coco4gui_for_vertex.py coco4gui.json \\
-    --image-base-url gs://bucket/training/custom/images/ \\
+  # Images already in GCS (e.g. from Dataset Creator):
+  pnpm coco4gui:prepare -- path/to/annotations_coco.json \\
+    --image-base-url gs://bucket/datasets/USER_UID/data/ \\
     --output training/custom/dataset.jsonl
 
-  # Upload local images first (images next to JSON or in --images-dir):
-  python scripts/prepare_coco4gui_for_vertex.py coco4gui.json \\
-    --images-dir ./screenshots \\
+  # Upload local images first:
+  pnpm coco4gui:prepare -- path/to/coco4gui.json --images-dir ./screenshots \\
     --output training/custom/dataset.jsonl
 
 Requires: google-cloud-storage. Set ECHO_GCS_BUCKET or GCS_BUCKET.
@@ -86,6 +85,12 @@ def main():
         default="",
         help="Local dir containing images (uploads to GCS if set)",
     )
+    parser.add_argument(
+        "--format",
+        choices=["vertex", "messages"],
+        default="vertex",
+        help="Output format: vertex (default, matches Colab) or messages (legacy)",
+    )
     args = parser.parse_args()
 
     bucket = os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
@@ -130,7 +135,9 @@ def main():
         sys.exit(1)
 
     examples = []
-    for ex in coco4gui_to_vertex_examples(coco_path, image_base_url=image_base_url):
+    for ex in coco4gui_to_vertex_examples(
+        coco_path, image_base_url=image_base_url, format=args.format
+    ):
         examples.append(ex)
 
     if not examples:

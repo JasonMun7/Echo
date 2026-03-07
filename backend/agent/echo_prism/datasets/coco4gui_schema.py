@@ -4,7 +4,7 @@ COCO4GUI JSON schema — COCO-based format for GUI interaction datasets.
 Supports:
 - images with platform/application metadata
 - annotations with bbox, keypoints in 3-decimal normalized [0.000, 1.000] coords
-- categories (click, type, select, hover, drag, right_click, double_click)
+- categories (click, type, select, hover, drag, right_click, double_click, scroll, swipe, long_press, focus)
 - attributes: task_description, action_type, element_info, thought, quality, etc.
 """
 from dataclasses import dataclass, field

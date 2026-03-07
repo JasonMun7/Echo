@@ -9,8 +9,6 @@ Supports two output formats:
 2. 2026 message-based multimodal:
    {"messages": [{"role": "user", "content": [{"type": "image", "image_url": {"url": "gs://..."}}, {"type": "text", "text": "..."}]}, {"role": "model", "content": [{"type": "text", "text": "..."}]}]}
 
-prepare_combined_dataset() merges COCO4GUI + filtered_traces JSONL (GroundCUA from Colab can be added via --sources).
-
 Global model architecture (UI-TARS style):
   All users' filtered traces contribute to ONE shared dataset at:
     gs://{bucket}/training/global/dataset.jsonl
@@ -25,9 +23,6 @@ import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
-
-# Vertex AI fine-tuning requires at least this many examples
-MIN_TRAINING_EXAMPLES = 10
 
 
 def _build_training_example(step: dict, workflow_name: str) -> dict | None:
@@ -114,50 +109,6 @@ def _build_multimodal_example(step: dict, workflow_name: str) -> dict | None:
     }
 
 
-def prepare_combined_dataset(gcs_uris: list[str], output_path: str, bucket_name: str | None = None) -> int:
-    """
-    Merge multiple JSONL datasets (COCO4GUI, filtered_traces, and optionally GroundCUA from Colab) into one.
-    Each GCS URI points to a JSONL file. Writes merged result to output_path in the same bucket.
-    Returns total example count.
-    """
-    import io
-    from google.cloud import storage
-
-    _bucket = bucket_name or os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
-    if not _bucket:
-        raise ValueError("ECHO_GCS_BUCKET environment variable not set")
-    client = storage.Client()
-    bucket = client.bucket(_bucket)
-    all_examples: list[dict] = []
-
-    for uri in gcs_uris:
-        blob_name = uri.replace(f"gs://{_bucket}/", "").lstrip("/")
-        if not blob_name or blob_name == uri:
-            blob_name = uri.split("/", 3)[-1] if "gs://" in uri else uri
-        try:
-            blob = bucket.blob(blob_name)
-            data = blob.download_as_bytes().decode("utf-8")
-            for line in data.strip().split("\n"):
-                if not line:
-                    continue
-                ex = json.loads(line)
-                all_examples.append(ex)
-        except Exception as e:
-            logger.warning("Skipped %s: %s", uri, e)
-
-    if not all_examples:
-        raise ValueError("No examples to combine")
-
-    out_blob = bucket.blob(output_path.lstrip("gs://").replace(f"gs://{_bucket}/", ""))
-    buf = io.BytesIO()
-    for ex in all_examples:
-        buf.write((json.dumps(ex) + "\n").encode("utf-8"))
-    buf.seek(0)
-    out_blob.upload_from_file(buf, content_type="application/jsonl")
-    logger.info("Combined %d examples into %s", len(all_examples), output_path)
-    return len(all_examples)
-
-
 async def export_training_data(
     db: Any,
     output_gcs_path: str,
@@ -228,20 +179,38 @@ async def create_tuning_job(
     db: Any | None = None,
     project: str | None = None,
     location: str = "us-central1",
-    base_model: str = "gemini-2.5-flash-001",
+    base_model: str = "gemini-2.5-pro-001",
     example_count: int = 0,
+    *,
+    validation_dataset_uri: str | None = None,
+    epoch_count: int = 3,
+    adapter_size: int = 4,
+    learning_rate_multiplier: float = 1.0,
 ) -> str:
     """
-    Submit a Vertex AI SupervisedTuningJob for the global exported dataset.
+    Submit a Vertex AI SupervisedTuningJob.
     Persists job_name + status:training to global_model/current in Firestore.
-    All users will benefit from the resulting model endpoint.
     Returns the job resource name.
+
+    Default hyperparameters tuned for GUI grounding (6k–12k examples):
+    epochs=3, adapter_size=4, learning_rate_multiplier=1.0.
+    adapter_size: 1, 4, 8, or 16.
     """
     _project = project or os.environ.get("ECHO_GCP_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not _project:
         raise ValueError("GCP project not configured. Set ECHO_GCP_PROJECT_ID.")
 
     display_name = "echoprism-global"
+    train_kwargs: dict[str, Any] = {
+        "source_model": base_model,
+        "train_dataset": gcs_dataset_uri,
+        "tuned_model_display_name": display_name,
+        "epochs": epoch_count,
+        "adapter_size": adapter_size,
+        "learning_rate_multiplier": learning_rate_multiplier,
+    }
+    if validation_dataset_uri:
+        train_kwargs["validation_dataset"] = validation_dataset_uri
 
     try:
         import vertexai
@@ -249,11 +218,7 @@ async def create_tuning_job(
 
         vertexai.init(project=_project, location=location)
 
-        sft_job = vertex_sft.train(
-            source_model=base_model,
-            train_dataset=gcs_dataset_uri,
-            tuned_model_display_name=display_name,
-        )
+        sft_job = vertex_sft.train(**train_kwargs)
         job_name = sft_job.resource_name
         logger.info("Vertex AI global tuning job submitted: %s", job_name)
 

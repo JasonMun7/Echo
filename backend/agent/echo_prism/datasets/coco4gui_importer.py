@@ -1,8 +1,11 @@
 """
-COCO4GUI importer — load COCO4GUI JSON and convert to Vertex SFT format.
+COCO4GUI importer — load COCO4GUI JSON and convert to Vertex AI SFT format.
 
-Converts all coordinates to 3-decimal [0.000, 1.000] floats.
-Each annotation becomes a training example: image + task_description → point([x, y])
+Output format matches Vertex native schema (systemInstruction + contents with fileData)
+for Vertex AI fine-tuning.
+
+Each annotation → one JSONL line: image + task_description → point([x, y])
+Coordinates: 3-decimal [0.000, 1.000] normalized.
 """
 import json
 import logging
@@ -29,13 +32,18 @@ def coco4gui_to_vertex_examples(
     image_base_url: str = "",
     image_width_override: dict[int, int] | None = None,
     image_height_override: dict[int, int] | None = None,
+    *,
+    format: str = "vertex",
 ) -> Iterator[dict]:
     """
-    Load COCO4GUI JSON and yield Vertex 2026 message-based SFT examples.
+    Load COCO4GUI JSON and yield Vertex SFT examples.
+
+    format="vertex" (default): Vertex-native schema (systemInstruction + contents with
+      fileData) for Vertex AI fine-tuning.
+    format="messages": Legacy messages-based schema (role/content with type/image_url).
 
     Each annotation with task_description and (keypoints or bbox center) yields one example.
-
-    image_base_url: base URL or GCS prefix for images, e.g. "gs://bucket/images/"
+    image_base_url: GCS prefix for images, e.g. "gs://bucket/datasets/uid/data/"
     """
     path = Path(coco_path)
     if not path.exists():
@@ -85,17 +93,29 @@ def coco4gui_to_vertex_examples(
             continue
 
         output_text = f"point([{x_norm:.3f}, {y_norm:.3f}])"
-        image_url = f"{image_base_url.rstrip('/')}/{img.file_name}" if image_base_url else img.gcs_url or img.file_name
-        if not image_url or image_url == img.file_name:
-            # Relative path only — caller must resolve
-            image_url = img.gcs_url or f"gs://placeholder/{img.file_name}"
+        file_uri = f"{image_base_url.rstrip('/')}/{img.file_name}" if image_base_url else (img.gcs_url or f"gs://placeholder/{img.file_name}")
 
-        user_content: list[dict] = [
-            {"type": "image", "image_url": {"url": image_url}},
-            {"type": "text", "text": task_desc},
-        ]
-        messages = [
-            {"role": "user", "content": user_content},
-            {"role": "model", "content": [{"type": "text", "text": output_text}]},
-        ]
-        yield {"messages": messages}
+        if format == "vertex":
+            # Vertex-native: systemInstruction + contents with fileData (matches Colab)
+            yield {
+                "systemInstruction": {
+                    "role": "user",
+                    "parts": [{"text": "You are a GUI grounding agent. Given a screenshot and a task or instruction, locate the target GUI element and output only its center as normalized coordinates. Use the format point([x, y]) where x and y are in [0, 1] with 3 decimal places (e.g. point([0.850, 0.120])). (0, 0) is top-left, (1, 1) is bottom-right. Output nothing else—no explanation, labels, or extra text."}],
+                },
+                "contents": [
+                    {"role": "user", "parts": [{"fileData": {"mimeType": "image/png", "fileUri": file_uri}}, {"text": task_desc}]},
+                    {"role": "model", "parts": [{"text": output_text}]},
+                ],
+            }
+        else:
+            # Legacy messages format
+            user_content: list[dict] = [
+                {"type": "image", "image_url": {"url": file_uri}},
+                {"type": "text", "text": task_desc},
+            ]
+            yield {
+                "messages": [
+                    {"role": "user", "content": user_content},
+                    {"role": "model", "content": [{"type": "text", "text": output_text}]},
+                ],
+            }

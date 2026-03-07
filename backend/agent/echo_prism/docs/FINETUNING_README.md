@@ -1,113 +1,51 @@
-# EchoPrism Fine-Tuning
+# EchoPrism Custom Dataset for Fine-Tuning
 
-Vertex AI supervised fine-tuning for EchoPrism grounding and reasoning.
+Convert custom COCO4GUI annotations to Vertex-native JSONL and upload to GCS. Use the resulting JSONL in Colab to fine-tune on top of your existing GroundCUA model.
 
 ## Prerequisites
 
-- GCP project with Vertex AI API enabled
-- Doppler configured with `ECHO_GCP_PROJECT_ID`, `ECHO_GCS_BUCKET`
-- `google-cloud-aiplatform` installed
+- GCP project with Cloud Storage
+- Doppler configured with `ECHO_GCS_BUCKET`
+- `google-cloud-storage`, `Pillow` (see backend/requirements.txt)
 
-## Data Sources
+## Workflow
 
-1. **GroundCUA** — ServiceNow/GroundCUA via Colab (see below)
-2. **COCO4GUI** — Custom annotations from Dataset Creator UI
-3. **Filtered traces** — EchoPrism run traces (good/bad + corrected thought)
+### 1. Create annotations
 
-## GroundCUA (Colab)
+Use the Dataset Creator at `/dashboard/datasets/create`, then export your dataset as COCO JSON.
 
-GroundCUA is large (~50k images). Run it in Google Colab or Vertex AI Workbench:
+### 2. Prepare and upload to GCS
 
-Open [`notebooks/vertex_finetune_groundcua.ipynb`](../../notebooks/vertex_finetune_groundcua.ipynb). It:
-- Downloads GroundCUA from HuggingFace (Colab has ample disk)
-- Converts to Vertex SFT format and uploads to GCS
-- Submits the Vertex AI tuning job
-
-To merge GroundCUA with custom/traces after Colab, use `--sources`:
+All dataset images and `annotations_coco.json` live in `datasets/{uid}/data/`. Use that path as the image base URL:
 
 ```bash
-python scripts/prepare_combined_dataset.py --sources gs://BUCKET/training/groundcua/dataset.jsonl,gs://BUCKET/training/custom/dataset.jsonl --output training/combined/dataset.jsonl
+pnpm coco4gui:prepare -- path/to/annotations_coco.json \
+  --image-base-url gs://YOUR_BUCKET/datasets/YOUR_UID/data/ \
+  --output training/custom/dataset.jsonl
 ```
 
-## Workflow (Custom + Traces)
+This converts COCO4GUI to Vertex JSONL and uploads to `gs://YOUR_BUCKET/training/custom/dataset.jsonl`.
 
-### Quick start (pnpm + Doppler)
+### 3. Fine-tune in Colab
 
-```bash
-pnpm coco4gui:prepare -- path/to/coco4gui.json --images-dir path/to/images
-pnpm dataset:combined        # Merge custom
-pnpm dataset:combined:all    # Merge custom + traces
-pnpm finetune:combined       # Fine-tune
-pnpm finetune                # Or use GCS_DATASET
-```
+Use the GCS JSONL URI in your Colab fine-tuning workflow as the custom dataset on top of your GroundCUA-prepared model.
 
-### 1. Create Custom Data
+## Output Format (Vertex-native)
 
-Use the Dataset Creator UI at `/dashboard/datasets/create` to:
-
-- Upload screenshots
-- Draw bounding boxes and click points
-- Set action types and task descriptions
-- Export COCO4GUI JSON
-
-### 2. Prepare Custom COCO4GUI for Vertex
-
-```bash
-# If images are local (uploads to GCS):
-pnpm coco4gui:prepare -- path/to/coco4gui.json --images-dir path/to/images --output training/custom/dataset.jsonl
-
-# If images already in GCS:
-pnpm coco4gui:prepare -- path/to/coco4gui.json --image-base-url gs://YOUR_BUCKET/training/custom/images/
-```
-
-### 3. Combine Datasets
-
-```bash
-# Merge custom only:
-pnpm dataset:combined
-
-# Merge custom + filtered traces:
-pnpm dataset:combined:all
-
-# Merge with explicit GCS paths (incl. GroundCUA from Colab):
-python scripts/prepare_combined_dataset.py --sources gs://BUCKET/training/groundcua/dataset.jsonl,gs://BUCKET/training/custom/dataset.jsonl
-```
-
-### 4. Run Fine-Tune
-
-```bash
-pnpm finetune:combined
-
-# Or custom GCS path:
-GCS_DATASET=gs://YOUR_BUCKET/training/combined/dataset.jsonl pnpm finetune
-```
-
-Or via API:
-
-```
-POST /api/traces/export
-```
-
-### 5. Poll for Completion
-
-```
-POST /api/traces/poll-model
-```
-
-When `job_status` is `ready`, the global model is updated and all EchoPrism runs use the improved model.
-
-## Output Format
-
-Vertex 2026 message-based multimodal:
+Matches Vertex SFT schema:
 
 ```json
 {
-  "messages": [
-    {"role": "user", "content": [
-      {"type": "image", "image_url": {"url": "gs://..."}},
-      {"type": "text", "text": "Locate the 'Submit' button."}
+  "systemInstruction": {
+    "role": "user",
+    "parts": [{"text": "You are a GUI grounding agent. Given a screenshot and a task or instruction, locate the target GUI element and output only its center as normalized coordinates. Use the format point([x, y]) where x and y are in [0, 1] with 3 decimal places (e.g. point([0.850, 0.120])). (0, 0) is top-left, (1, 1) is bottom-right. Output nothing else—no explanation, labels, or extra text."}]
+  },
+  "contents": [
+    {"role": "user", "parts": [
+      {"fileData": {"mimeType": "image/png", "fileUri": "gs://bucket/..."}},
+      {"text": "Locate the 'Submit' button."}
     ]},
-    {"role": "model", "content": [{"type": "text", "text": "point([0.850, 0.120])"}]}
+    {"role": "model", "parts": [{"text": "point([0.850, 0.120])"}]}
   ]
 }
 ```

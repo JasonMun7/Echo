@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 FOLDER_DATA = "data"
-FOLDER_SEQUENCE = "sequence_data"
 
 
 def _blob_prefix(uid: str, folder: str) -> str:
@@ -52,7 +51,7 @@ async def save_image(
     req: SaveImageRequest,
     uid: str = Depends(get_current_uid),
 ):
-    """Save PNG base64 to GCS datasets/{uid}/data/ or sequence_data/."""
+    """Save PNG base64 to GCS datasets/{uid}/data/."""
     if not GCS_BUCKET:
         raise HTTPException(status_code=500, detail="GCS_BUCKET not configured")
     try:
@@ -63,7 +62,7 @@ async def save_image(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
-    folder = req.folder if req.folder in (FOLDER_DATA, FOLDER_SEQUENCE) else FOLDER_DATA
+    folder = FOLDER_DATA
     blob_name = _blob_prefix(uid, folder) + req.filename
     try:
         path = upload_file(blob_name, content, "image/png")
@@ -81,7 +80,7 @@ async def save_json(
     """Save COCO4GUI JSON to GCS."""
     if not GCS_BUCKET:
         raise HTTPException(status_code=500, detail="GCS_BUCKET not configured")
-    folder = req.folder if req.folder in (FOLDER_DATA, FOLDER_SEQUENCE) else FOLDER_DATA
+    folder = FOLDER_DATA
     blob_name = _blob_prefix(uid, folder) + req.filename
     try:
         content = json.dumps(req.data, indent=2).encode("utf-8")
@@ -97,10 +96,10 @@ async def list_datasets(
     uid: str = Depends(get_current_uid),
     folder: str = Query(FOLDER_DATA),
 ):
-    """List blobs under datasets/{uid}/data/ or sequence_data/."""
+    """List blobs under datasets/{uid}/data/."""
     if not GCS_BUCKET:
         raise HTTPException(status_code=500, detail="GCS_BUCKET not configured")
-    f = folder if folder in (FOLDER_DATA, FOLDER_SEQUENCE) else FOLDER_DATA
+    f = FOLDER_DATA
     prefix = _blob_prefix(uid, f)
     try:
         names = list_blobs(prefix)
@@ -120,7 +119,7 @@ async def load_dataset(
     """Load annotations JSON by folder and filename."""
     if not GCS_BUCKET:
         raise HTTPException(status_code=500, detail="GCS_BUCKET not configured")
-    f = folder if folder in (FOLDER_DATA, FOLDER_SEQUENCE) else FOLDER_DATA
+    f = FOLDER_DATA
     blob_name = _blob_prefix(uid, f) + filename
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -143,7 +142,7 @@ async def get_image_url(
     """Return signed URL for an image in the dataset."""
     if not GCS_BUCKET:
         raise HTTPException(status_code=500, detail="GCS_BUCKET not configured")
-    f = folder if folder in (FOLDER_DATA, FOLDER_SEQUENCE) else FOLDER_DATA
+    f = FOLDER_DATA
     blob_name = _blob_prefix(uid, f) + filename
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")

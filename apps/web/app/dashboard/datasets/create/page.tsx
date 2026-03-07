@@ -22,6 +22,7 @@ import {
   IconChevronRight,
   IconTrash,
   IconX,
+  IconDotsVertical,
 } from "@tabler/icons-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const ACTION_TYPES = [
   "click",
@@ -53,6 +61,7 @@ const ACTION_TYPES = [
   "scroll",
   "swipe",
   "long_press",
+  "focus",
 ];
 
 const ELEMENT_TYPES = [
@@ -66,6 +75,11 @@ const ELEMENT_TYPES = [
   "Text",
   "Link",
   "Dropdown",
+  "Tab",
+  "Toggle",
+  "Avatar",
+  "Badge",
+  "Close Button",
 ];
 
 const CATEGORY_MAP: Record<string, number> = {
@@ -79,6 +93,7 @@ const CATEGORY_MAP: Record<string, number> = {
   scroll: 8,
   swipe: 9,
   long_press: 10,
+  focus: 11,
 };
 
 const DEFAULT_CATEGORIES = ACTION_TYPES.map((name, i) => ({
@@ -131,6 +146,36 @@ interface DatasetImage {
 
 function round3(v: number) {
   return Math.round(v * 1000) / 1000;
+}
+
+/** Clamp value to [min, max] for coordinate rigidity. */
+function clampCoord(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+/** Clamp annotation bbox/keypoints to valid image bounds before save/export. */
+function clampAnnotation(
+  ann: { bbox?: number[]; keypoints?: number[] },
+  width: number,
+  height: number
+): { bbox?: [number, number, number, number]; keypoints?: [number, number, number] } {
+  const result: { bbox?: [number, number, number, number]; keypoints?: [number, number, number] } = {};
+  if (ann.keypoints && ann.keypoints.length >= 2) {
+    result.keypoints = [
+      clampCoord(ann.keypoints[0], 0, width),
+      clampCoord(ann.keypoints[1], 0, height),
+      (ann.keypoints[2] ?? 2) as number,
+    ];
+  }
+  if (ann.bbox && ann.bbox.length >= 4) {
+    let [x, y, w, h] = ann.bbox as [number, number, number, number];
+    x = clampCoord(x, 0, width - 1);
+    y = clampCoord(y, 0, height - 1);
+    w = Math.max(1, Math.min(w, width - x));
+    h = Math.max(1, Math.min(h, height - y));
+    result.bbox = [x, y, w, h];
+  }
+  return result;
 }
 
 function AutocompleteTextarea({
@@ -204,6 +249,8 @@ export default function DatasetCreatorPage() {
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
   const [nextFrameId, setNextFrameId] = useState(1);
   const [nextAnnotationId, setNextAnnotationId] = useState(1);
+  const nextFrameIdRef = useRef(1);
+  const nextAnnotationIdRef = useRef(1);
   const [status, setStatus] = useState("Ready");
   const [fileStatus, setFileStatus] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -240,6 +287,13 @@ export default function DatasetCreatorPage() {
       videoRef.current.srcObject = stream;
     }
   }, [stream]);
+
+  useEffect(() => {
+    nextFrameIdRef.current = nextFrameId;
+  }, [nextFrameId]);
+  useEffect(() => {
+    nextAnnotationIdRef.current = nextAnnotationId;
+  }, [nextAnnotationId]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -249,8 +303,8 @@ export default function DatasetCreatorPage() {
   };
 
   const getCoords = useCallback(
-    (clientX: number, clientY: number) => {
-      const el = containerRef.current;
+    (clientX: number, clientY: number, containerEl?: HTMLElement | null) => {
+      const el = containerEl ?? containerRef.current;
       const img = currentFrame ? { width: currentFrame.width, height: currentFrame.height } : null;
       if (!el || !img) return null;
       const imgEl = el.querySelector("img");
@@ -258,9 +312,11 @@ export default function DatasetCreatorPage() {
       const imgRect = imgEl.getBoundingClientRect();
       const scaleX = img.width / imgRect.width;
       const scaleY = img.height / imgRect.height;
+      const x = (clientX - imgRect.left) * scaleX;
+      const y = (clientY - imgRect.top) * scaleY;
       return {
-        x: (clientX - imgRect.left) * scaleX,
-        y: (clientY - imgRect.top) * scaleY,
+        x: clampCoord(x, 0, img.width),
+        y: clampCoord(y, 0, img.height),
       };
     },
     [currentFrame]
@@ -288,6 +344,30 @@ export default function DatasetCreatorPage() {
     setCurrentFrame(null);
     setSelectedAnnotation(null);
     setStatus("Stream stopped");
+  }, [stream]);
+
+  const discardAll = useCallback(() => {
+    if (!confirm("Discard all images and annotations and start over? This cannot be undone.")) return;
+    stream?.getTracks().forEach((t) => t.stop());
+    setStream(null);
+    setMode("idle");
+    setCurrentFrame(null);
+    setSelectedAnnotation(null);
+    setDataset({ images: [], annotations: [] });
+    setCurrentSequence(null);
+    setSequenceHistory([]);
+    setAppMode("capture");
+    setCurrentSampleIndex(-1);
+    setFilteredSamples([]);
+    setTaskDescriptions(new Set());
+    setSequenceTasks(new Set());
+    setNextFrameId(1);
+    setNextAnnotationId(1);
+    nextFrameIdRef.current = 1;
+    nextAnnotationIdRef.current = 1;
+    loadedSampleCache.current.clear();
+    setStatus("Ready");
+    showFileStatus("All discarded. Ready to start over.", "success");
   }, [stream]);
 
   const refreshStream = useCallback(async () => {
@@ -330,8 +410,9 @@ export default function DatasetCreatorPage() {
       if (lastFrameAnns.length > 0) prevAnn = lastFrameAnns[lastFrameAnns.length - 1] as unknown as Annotation;
     }
 
+    const frameId = nextFrameIdRef.current++;
     const frame: Frame = {
-      id: nextFrameId,
+      id: frameId,
       dataUrl,
       width: canvas.width,
       height: canvas.height,
@@ -341,14 +422,14 @@ export default function DatasetCreatorPage() {
       sequencePosition: currentSequence ? currentSequence.frames.length + 1 : undefined,
       previousAnnotation: prevAnn,
     };
-    setNextFrameId((n) => n + 1);
+    setNextFrameId(nextFrameIdRef.current);
     setCurrentFrame(frame);
     setMode("annotating");
     setStatus(`Frame ${frame.id} captured - add annotations`);
-  }, [stream, nextFrameId, currentSequence, sequenceHistory, dataset]);
+  }, [stream, currentSequence, sequenceHistory, dataset]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    const coords = getCoords(e.clientX, e.clientY);
+    const coords = getCoords(e.clientX, e.clientY, e.currentTarget as HTMLElement);
     if (!coords || !currentFrame) return;
     if (drawing === "bbox") {
       e.preventDefault();
@@ -357,8 +438,8 @@ export default function DatasetCreatorPage() {
       setPreviewBbox(null);
       attachBboxListeners();
     } else if (drawing === "point") {
-      const id = nextAnnotationId;
-      setNextAnnotationId((n) => n + 1);
+      const id = nextAnnotationIdRef.current++;
+      setNextAnnotationId(id + 1);
       const ann: Annotation = {
         id,
         keypoints: [coords.x, coords.y, 2],
@@ -385,11 +466,14 @@ export default function DatasetCreatorPage() {
         setPreviewBbox(null);
         return;
       }
-      const x1 = Math.min(st.x, coords.x);
-      const y1 = Math.min(st.y, coords.y);
-      const w = Math.max(5, Math.abs(coords.x - st.x));
-      const h = Math.max(5, Math.abs(coords.y - st.y));
-      const id = nextAnnotationId;
+      const { width: imgW, height: imgH } = currentFrame;
+      const x1 = clampCoord(Math.min(st.x, coords.x), 0, imgW - 1);
+      const y1 = clampCoord(Math.min(st.y, coords.y), 0, imgH - 1);
+      let w = Math.max(5, Math.abs(coords.x - st.x));
+      let h = Math.max(5, Math.abs(coords.y - st.y));
+      w = Math.min(w, imgW - x1);
+      h = Math.min(h, imgH - y1);
+      const id = nextAnnotationIdRef.current++;
       const ann: Annotation = {
         id,
         bbox: [x1, y1, w, h],
@@ -399,7 +483,7 @@ export default function DatasetCreatorPage() {
         element_info: "",
         custom_metadata: {},
       };
-      setNextAnnotationId((n) => n + 1);
+      setNextAnnotationId(nextAnnotationIdRef.current);
       setCurrentFrame((f) => {
         if (!f) return null;
         if (f.annotations.some((a) => a.id === id)) return f;
@@ -411,7 +495,7 @@ export default function DatasetCreatorPage() {
       setDrawing(null);
       setMode("annotating");
     },
-    [currentFrame, getCoords, nextAnnotationId]
+    [currentFrame, getCoords]
   );
 
   const attachBboxListeners = useCallback(() => {
@@ -475,10 +559,13 @@ export default function DatasetCreatorPage() {
       annotations: remaining,
     });
     if (selectedAnnotation?.id === ann.id) setSelectedAnnotation(null);
-    if (remaining.length === 0) setNextAnnotationId(1);
+    if (remaining.length === 0) {
+      nextAnnotationIdRef.current = 1;
+      setNextAnnotationId(1);
+    }
   };
 
-  const startSequence = () => {
+  const startSequence = useCallback(async () => {
     const task = prompt("Enter the overall description for this sequence:");
     if (task === null) return;
     const t = task.trim();
@@ -491,20 +578,22 @@ export default function DatasetCreatorPage() {
     });
     setSequenceHistory([]);
     setStatus("Started sequence");
-  };
+    if (!stream) await startStream();
+  }, [stream, startStream]);
 
   const endSequence = () => {
     if (!currentSequence) return;
     setCurrentSequence(null);
     setSequenceHistory([]);
     setStatus("Sequence ended");
+    switchToReview();
   };
 
   const saveCurrentFrame = async () => {
     if (!currentFrame) return;
     const ts = new Date(currentFrame.timestamp).toISOString().replace(/:/g, "-").replace(/\..+Z$/, "").replace("T", "_");
     const imageFilename = `${ts}.png`;
-    const folder = currentSequence && currentFrame.sequenceId ? "sequence_data" : "data";
+    const folder = "data";
 
     let seqId = currentFrame.sequenceId;
     if (currentSequence?.tempId && currentSequence.frames.length === 0) {
@@ -539,21 +628,27 @@ export default function DatasetCreatorPage() {
         sequence_description: currentSequence?.task,
       };
 
-      const cocoAnns = currentFrame.annotations.map((ann) => ({
-        id: ann.id,
-        image_id: currentFrame.id,
-        category_id: CATEGORY_MAP[ann.action_type] ?? 1,
-        bbox: ann.bbox,
-        keypoints: ann.keypoints,
-        area: ann.bbox ? ann.bbox[2] * ann.bbox[3] : 0,
-        iscrowd: 0,
-        attributes: {
-          task_description: ann.task_description,
-          action_type: ann.action_type,
-          element_info: ann.element_info,
-          custom_metadata: ann.custom_metadata,
-        },
-      }));
+      const clamped = currentFrame.annotations.map((ann) =>
+        clampAnnotation(ann, currentFrame.width, currentFrame.height)
+      );
+      const cocoAnns = currentFrame.annotations.map((ann, i) => {
+        const c = clamped[i];
+        return {
+          id: ann.id,
+          image_id: currentFrame.id,
+          category_id: CATEGORY_MAP[ann.action_type] ?? 1,
+          bbox: c.bbox ?? ann.bbox,
+          keypoints: c.keypoints ?? ann.keypoints,
+          area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * ann.bbox[3] : 0,
+          iscrowd: 0,
+          attributes: {
+            task_description: ann.task_description,
+            action_type: ann.action_type,
+            element_info: ann.element_info,
+            custom_metadata: ann.custom_metadata,
+          },
+        };
+      });
 
       setDataset((d) => ({
         images: [...d.images, imageEntry],
@@ -565,7 +660,7 @@ export default function DatasetCreatorPage() {
         setSequenceHistory((h) => [...h, { action: desc, timestamp: new Date().toISOString() }]);
       });
 
-      const jsonFilename = folder === "sequence_data" ? "sequence_annotations_coco.json" : "annotations_coco.json";
+      const jsonFilename = "annotations_coco.json";
       const coco = {
         info: { description: "GUI Dataset", version: "1.0", year: new Date().getFullYear(), date_created: new Date().toISOString() },
         categories: DEFAULT_CATEGORIES,
@@ -579,25 +674,121 @@ export default function DatasetCreatorPage() {
       });
       if (!jsonRes.ok) throw new Error("Failed to save JSON");
 
-      setCurrentFrame(null);
-      setSelectedAnnotation(null);
-      setMode("streaming");
-      showFileStatus(`Frame saved to ${folder}/${imageFilename}`, "success");
-      setStatus(`Frame saved with ${currentFrame.annotations.length} annotations`);
+      const annCount = currentFrame.annotations.length;
+      loadedSampleCache.current.set(currentFrame.id, currentFrame.dataUrl);
+      if (currentSequence) {
+        setCurrentFrame(null);
+        setSelectedAnnotation(null);
+        setMode("streaming");
+        showFileStatus(`Frame saved. Capture next or End Sequence.`, "success");
+        setStatus(`Frame saved with ${annCount} annotations`);
+      } else {
+        setCurrentFrame(null);
+        setSelectedAnnotation(null);
+        setMode("streaming");
+        showFileStatus(`Frame saved. View in Review/Edit.`, "success");
+        setStatus(`Frame saved with ${annCount} annotations`);
+        switchToReview([...dataset.images, imageEntry]);
+      }
     } catch (e) {
       showFileStatus(`Error: ${(e as Error).message}`, "error");
     }
   };
 
+  const getEffectiveDataset = useCallback(() => {
+    if (appMode !== "review" || !currentFrame) return { images: dataset.images, annotations: dataset.annotations };
+    const clamped = currentFrame.annotations.map((ann) =>
+      clampAnnotation(ann, currentFrame.width, currentFrame.height)
+    );
+    const cocoAnns = currentFrame.annotations.map((ann, i) => {
+      const c = clamped[i];
+      return {
+        ...ann,
+        id: ann.id,
+        image_id: currentFrame.id,
+        category_id: CATEGORY_MAP[ann.action_type] ?? 1,
+        bbox: c.bbox ?? ann.bbox,
+        keypoints: c.keypoints ?? ann.keypoints,
+        area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? (ann.bbox[2] ?? 0) * (ann.bbox[3] ?? 0) : 0,
+        iscrowd: 0,
+        attributes: {
+          task_description: ann.task_description,
+          action_type: ann.action_type,
+          element_info: ann.element_info,
+          custom_metadata: ann.custom_metadata || {},
+        },
+      };
+    });
+    const mergedAnnotations = [
+      ...dataset.annotations.filter((a) => a.image_id !== currentFrame.id),
+      ...cocoAnns.map(({ id, image_id, category_id, bbox, keypoints, area, iscrowd, attributes }) => ({
+        id,
+        image_id,
+        category_id,
+        bbox,
+        keypoints,
+        area,
+        iscrowd,
+        attributes,
+      })),
+    ];
+    const mergedImages = dataset.images.map((im) =>
+      im.id === currentFrame.id ? { ...im, application: application || im.application, platform: platform || im.platform } : im
+    );
+    return { images: mergedImages, annotations: mergedAnnotations };
+  }, [appMode, currentFrame, dataset, application, platform]);
+
   const exportDataset = async () => {
-    const hasSeq = dataset.images.some((i) => i.sequence_id);
-    const folder = hasSeq ? "sequence_data" : "data";
-    const filename = hasSeq ? "sequence_annotations_coco.json" : "annotations_coco.json";
+    const { images: effectiveImages, annotations: effectiveAnnotations } = getEffectiveDataset();
+    const folder = "data";
+    const filename = "annotations_coco.json";
+    let imagesToExport = effectiveImages;
+    let annotationsToExport = effectiveAnnotations;
+    try {
+      const loadRes = await apiFetch(
+        `/api/datasets/load?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(filename)}&t=${Date.now()}`,
+        { cache: "no-store" }
+      );
+      if (loadRes.ok) {
+        const existing = (await loadRes.json()) as {
+          images?: DatasetImage[];
+          annotations?: { id: number; image_id: number; bbox?: number[]; keypoints?: number[]; category_id: number; area?: number; iscrowd: number; attributes: AnnotationAttrs }[];
+        };
+        const rawImages = existing.images || [];
+        const rawAnnotations = existing.annotations || [];
+        const dedupedImages = Array.from(
+          new Map(rawImages.map((img) => [img.id, img])).values()
+        );
+        const dedupedAnnotations = Array.from(
+          new Map(rawAnnotations.map((ann) => [ann.id, ann])).values()
+        );
+        const currentIds = new Set(effectiveImages.map((i) => i.id));
+        const mergedImages = [
+          ...dedupedImages.filter((e) => !currentIds.has(e.id)),
+          ...effectiveImages,
+        ];
+        const mergedAnnotations = [
+          ...dedupedAnnotations.filter((a) => !currentIds.has(a.image_id)),
+          ...effectiveAnnotations,
+        ];
+        imagesToExport = mergedImages;
+        annotationsToExport = mergedAnnotations;
+      }
+    } catch {
+      // 404 or other error: use current dataset only (first-time export)
+    }
+    const imgById = Object.fromEntries(imagesToExport.map((img) => [img.id, img]));
+    const annotations = annotationsToExport.map((ann) => {
+      const img = imgById[ann.image_id];
+      if (!img) return ann;
+      const c = clampAnnotation(ann, img.width, img.height);
+      return { ...ann, bbox: c.bbox ?? ann.bbox, keypoints: c.keypoints ?? ann.keypoints };
+    });
     const coco = {
       info: { description: "GUI Dataset", version: "1.0", year: new Date().getFullYear() },
       categories: DEFAULT_CATEGORIES,
-      images: dataset.images,
-      annotations: dataset.annotations,
+      images: imagesToExport,
+      annotations,
     };
     try {
       const res = await apiFetch("/api/datasets/save-json", {
@@ -639,8 +830,12 @@ export default function DatasetCreatorPage() {
           const desc = img.sequence_description || img.sequence_task;
           if (desc) setSequenceTasks((s) => new Set(s).add(desc));
         });
-        setNextFrameId(Math.max(1, ...(data.images || []).map((i: { id: number }) => i.id)) + 1);
-        setNextAnnotationId(Math.max(1, ...(data.annotations || []).map((a: { id: number }) => a.id)) + 1);
+        const nextImgId = Math.max(1, ...(data.images || []).map((i: { id: number }) => i.id)) + 1;
+        const nextAnnId = Math.max(1, ...(data.annotations || []).map((a: { id: number }) => a.id)) + 1;
+        nextFrameIdRef.current = nextImgId;
+        nextAnnotationIdRef.current = nextAnnId;
+        setNextFrameId(nextImgId);
+        setNextAnnotationId(nextAnnId);
         showFileStatus(`Loaded ${data.images?.length || 0} images`, "success");
       } else {
         const input = document.createElement("input");
@@ -667,9 +862,10 @@ export default function DatasetCreatorPage() {
     }
   };
 
-  const switchToReview = () => {
+  const switchToReview = (imagesOverride?: DatasetImage[]) => {
     setAppMode("review");
-    const sorted = [...dataset.images].sort(
+    const images = imagesOverride ?? dataset.images;
+    const sorted = [...images].sort(
       (a, b) => new Date(a.date_captured || 0).getTime() - new Date(b.date_captured || 0).getTime()
     );
     setFilteredSamples(sorted);
@@ -678,19 +874,64 @@ export default function DatasetCreatorPage() {
   };
 
   const switchToCapture = () => {
+    if (appMode === "review" && currentFrame) {
+      persistCurrentSampleToDataset();
+    }
     setAppMode("capture");
     setCurrentSampleIndex(-1);
   };
+
+  const persistCurrentSampleToDataset = useCallback(() => {
+    if (!currentFrame) return;
+    const img = dataset.images.find((i) => i.id === currentFrame.id);
+    if (!img) return;
+    const clamped = currentFrame.annotations.map((ann) =>
+      clampAnnotation(ann, currentFrame.width, currentFrame.height)
+    );
+    const cocoAnns = currentFrame.annotations.map((ann, i) => {
+      const c = clamped[i];
+      return {
+        id: ann.id,
+        image_id: currentFrame.id,
+        category_id: CATEGORY_MAP[ann.action_type] ?? 1,
+        bbox: c.bbox ?? ann.bbox,
+        keypoints: c.keypoints ?? ann.keypoints,
+        area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
+        iscrowd: 0,
+        attributes: {
+          task_description: ann.task_description,
+          action_type: ann.action_type,
+          element_info: ann.element_info,
+          custom_metadata: ann.custom_metadata || {},
+        },
+      };
+    });
+    const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...dataset.annotations.map((a) => a.id));
+    nextAnnotationIdRef.current = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
+    setNextAnnotationId(nextAnnotationIdRef.current);
+    setDataset((d) => ({
+      ...d,
+      images: d.images.map((im) =>
+        im.id === currentFrame.id
+          ? { ...im, application: application || im.application, platform: platform || im.platform }
+          : im
+      ),
+      annotations: [...d.annotations.filter((a) => a.image_id !== currentFrame.id), ...cocoAnns],
+    }));
+  }, [currentFrame, dataset, application, platform]);
 
   const loadSample = useCallback(
     async (index: number) => {
       if (index < 0 || index >= filteredSamples.length) return;
       const sample = filteredSamples[index];
+      if (currentFrame && currentFrame.id !== sample.id) {
+        persistCurrentSampleToDataset();
+      }
       setCurrentSampleIndex(index);
       let dataUrl = loadedSampleCache.current.get(sample.id);
       if (!dataUrl) {
         try {
-          const res = await apiFetch(`/api/datasets/image?folder=${sample.sequence_id ? "sequence_data" : "data"}&file=${encodeURIComponent(sample.file_name)}`);
+          const res = await apiFetch(`/api/datasets/image?folder=data&file=${encodeURIComponent(sample.file_name)}`);
           const data = await res.json();
           const imgRes = await fetch(data.url);
           const blob = await imgRes.blob();
@@ -728,7 +969,7 @@ export default function DatasetCreatorPage() {
       setMode("annotating");
       setStatus(`Sample ${index + 1} of ${filteredSamples.length}`);
     },
-    [filteredSamples, dataset]
+    [filteredSamples, dataset, currentFrame, persistCurrentSampleToDataset]
   );
 
   useEffect(() => {
@@ -769,52 +1010,81 @@ export default function DatasetCreatorPage() {
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
       <div className="flex flex-1 flex-col min-h-0 border-r border-[#A577FF]/20">
-        <div className="flex flex-wrap gap-2 p-3 bg-[#F5F7FC] border-b border-[#A577FF]/20 items-center">
-          <Button size="sm" onClick={startStream} disabled={!!stream}>
-            <IconVideo className="h-4 w-4 mr-1" /> Start Live Capture
-          </Button>
-          <Button size="sm" variant="outline" onClick={captureFrame} disabled={!stream}>
-            <IconPhoto className="h-4 w-4 mr-1" /> Capture Frame
-          </Button>
-          <Button size="sm" variant="outline" onClick={refreshStream} disabled={!stream || !!currentFrame} title="Ctrl+R">
-            <IconArrowsMaximize className="h-4 w-4 mr-1" /> Refresh Stream
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setDrawing(drawing === "bbox" ? null : "bbox")}
-            disabled={!currentFrame}
-            className={drawing === "bbox" ? "border-[#A577FF] bg-[#A577FF]/10" : ""}
-          >
-            <IconPlus className="h-4 w-4 mr-1" /> Draw Bbox
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setDrawing(drawing === "point" ? null : "point")}
-            disabled={!currentFrame}
-            className={drawing === "point" ? "border-[#A577FF] bg-[#A577FF]/10" : ""}
-          >
-            <IconPlus className="h-4 w-4 mr-1" /> Add Point
-          </Button>
-          <Button size="sm" variant="destructive" onClick={stopStream} disabled={!stream}>
-            <IconSquare className="h-4 w-4 mr-1" /> Stop Stream
-          </Button>
-          <Button size="sm" variant="outline" onClick={loadDataset}>
-            <IconFolderOpen className="h-4 w-4 mr-1" /> Browse Dataset
-          </Button>
-          <div className="flex-1" />
-          <Button size="sm" onClick={startSequence} disabled={!!currentSequence}>
-            <IconPlayerPlay className="h-4 w-4 mr-1" /> Start Sequence
-          </Button>
-          <Button size="sm" variant="destructive" onClick={endSequence} disabled={!currentSequence}>
-            <IconPlayerStop className="h-4 w-4 mr-1" /> End Sequence
-          </Button>
-          {currentSequence && (
-            <span className="rounded-md bg-echo-success text-white px-2 py-1 text-sm">
-              Sequence: {currentSequence.id} (Frame {currentSequence.frames.length})
-            </span>
-          )}
+        <div className="flex flex-wrap items-center gap-2 p-4 bg-[#F5F7FC] border-b border-[#A577FF]/20">
+          <ButtonGroup aria-label="Capture and sequence">
+            <Button
+              size="sm"
+              onClick={stream ? stopStream : startStream}
+              variant={stream ? "destructive" : "default"}
+              className={!stream ? "bg-[#A577FF] hover:opacity-90" : undefined}
+            >
+              {stream ? (
+                <><IconSquare className="h-4 w-4 mr-1.5" /> Stop Live Capture</>
+              ) : (
+                <><IconVideo className="h-4 w-4 mr-1.5" /> Start Live Capture</>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              onClick={currentSequence ? endSequence : startSequence}
+              variant={currentSequence ? "destructive" : "outline"}
+              className={!currentSequence ? "border-[#A577FF]/40 hover:bg-[#A577FF]/10" : undefined}
+            >
+              {currentSequence ? (
+                <><IconPlayerStop className="h-4 w-4 mr-1.5" /> End Sequence</>
+              ) : (
+                <><IconPlayerPlay className="h-4 w-4 mr-1.5" /> Start Sequence</>
+              )}
+            </Button>
+            {currentSequence && (
+              <span className="rounded-lg bg-echo-success text-white px-3 py-1.5 text-sm font-medium ml-1">
+                {currentSequence.id} ({currentSequence.frames.length})
+              </span>
+            )}
+          </ButtonGroup>
+          <ButtonGroup aria-label="Capture frame">
+            <Button size="sm" variant="outline" onClick={captureFrame} disabled={!stream} className="border-[#A577FF]/40 hover:bg-[#A577FF]/10">
+              <IconPhoto className="h-4 w-4 mr-1.5" /> Capture Frame
+            </Button>
+          </ButtonGroup>
+          <ButtonGroup aria-label="Annotation tools">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDrawing(drawing === "bbox" ? null : "bbox")}
+              disabled={!currentFrame}
+              className={drawing === "bbox" ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]" : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"}
+            >
+              <IconPlus className="h-4 w-4 mr-1.5" /> Draw Bbox
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDrawing(drawing === "point" ? null : "point")}
+              disabled={!currentFrame}
+              className={drawing === "point" ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]" : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"}
+            >
+              <IconPlus className="h-4 w-4 mr-1.5" /> Add Point
+            </Button>
+          </ButtonGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="border-[#A577FF]/40 hover:bg-[#A577FF]/10" aria-label="More actions">
+                <IconDotsVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem onClick={refreshStream} disabled={!stream || !!currentFrame}>
+                <IconArrowsMaximize className="h-4 w-4" /> Refresh Stream
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={loadDataset}>
+                <IconFolderOpen className="h-4 w-4" /> Browse Dataset
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={discardAll}>
+                <IconTrash className="h-4 w-4" /> Discard All
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div ref={containerRef} className="flex-1 flex items-center justify-center bg-[#150A35]/5 overflow-auto p-4">
@@ -930,71 +1200,76 @@ export default function DatasetCreatorPage() {
         </div>
       </div>
 
-      <div className="w-[420px] flex flex-col bg-white border-l border-[#A577FF]/20 overflow-y-auto p-4 gap-4">
-        <div className="flex gap-2 bg-[#F5F7FC] rounded-lg p-1 border border-[#A577FF]/20">
-          <Button size="sm" variant={appMode === "capture" ? "default" : "ghost"} className="flex-1" onClick={switchToCapture}>
-            Live Capture
-          </Button>
-          <Button size="sm" variant={appMode === "review" ? "default" : "ghost"} className="flex-1" onClick={switchToReview}>
-            Review/Edit
-          </Button>
+      <div className="w-[420px] flex flex-col bg-white border-l border-[#A577FF]/20 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white border-b border-[#A577FF]/20">
+          <h2 className="text-base font-semibold text-[#150A35]">
+            {appMode === "capture" ? "Live Capture" : "Review/Edit"}
+          </h2>
+          {appMode === "review" && (
+            <Button size="sm" variant="ghost" className="text-sm text-[#A577FF] hover:bg-[#A577FF]/10 -mr-2" onClick={switchToCapture}>
+              ← Back to Capture
+            </Button>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-[#A577FF]/20 p-3 text-center">
-            <div className="text-2xl font-bold text-[#A577FF]">{dataset.images.length}</div>
-            <div className="text-xs text-echo-text-muted">Images</div>
-          </div>
-          <div className="rounded-lg border border-[#A577FF]/20 p-3 text-center">
-            <div className="text-2xl font-bold text-[#A577FF]">{dataset.annotations.length}</div>
-            <div className="text-xs text-echo-text-muted">Annotations</div>
-          </div>
-        </div>
-
-        {appMode === "review" && filteredSamples.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-[#150A35] mb-2">Sample Navigation</h3>
-            <div className="flex justify-between text-xs text-echo-text-muted mb-1">
-              <span>{currentSampleIndex >= 0 ? `${currentSampleIndex + 1} of ${filteredSamples.length}` : "-"}</span>
+        <div className="p-4 space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm p-4 text-center">
+              <div className="text-2xl font-bold text-[#A577FF]">{dataset.images.length}</div>
+              <div className="text-xs text-echo-text-muted mt-1">Images</div>
             </div>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" disabled={currentSampleIndex <= 0} onClick={() => setCurrentSampleIndex((i) => Math.max(0, i - 1))}>
-                <IconChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button size="sm" variant="outline" disabled={currentSampleIndex >= filteredSamples.length - 1} onClick={() => setCurrentSampleIndex((i) => Math.min(filteredSamples.length - 1, i + 1))}>
-                <IconChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm p-4 text-center">
+              <div className="text-2xl font-bold text-[#A577FF]">{dataset.annotations.length}</div>
+              <div className="text-xs text-echo-text-muted mt-1">Annotations</div>
             </div>
           </div>
-        )}
 
-        <div>
-          <h3 className="text-sm font-semibold text-[#150A35] mb-2">Frame Info</h3>
-          <div className="space-y-2">
-            <Label>Frame ID</Label>
-            <Input value={currentFrame ? `frame_${currentFrame.id}` : ""} readOnly className="bg-gray-50" />
-            <Label>Application</Label>
-            <Input value={application} onChange={(e) => setApplication(e.target.value)} placeholder="e.g., Chrome, VSCode" />
-            <Label>Platform</Label>
-            <Select value={platform} onValueChange={setPlatform}>
-              <SelectTrigger><SelectValue placeholder="Select platform" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Windows">Windows</SelectItem>
-                <SelectItem value="macOS">macOS</SelectItem>
-                <SelectItem value="Linux">Linux</SelectItem>
-                <SelectItem value="Web">Web Browser</SelectItem>
-                <SelectItem value="Mobile">Mobile</SelectItem>
-              </SelectContent>
-            </Select>
+          {appMode === "review" && filteredSamples.length > 0 && (
+            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
+              <h3 className="text-sm font-semibold text-[#150A35] mb-3">Sample Navigation</h3>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-echo-text-muted">{currentSampleIndex >= 0 ? `${currentSampleIndex + 1} of ${filteredSamples.length}` : "-"}</span>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" disabled={currentSampleIndex <= 0} onClick={() => setCurrentSampleIndex((i) => Math.max(0, i - 1))} className="border-[#A577FF]/40">
+                    <IconChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={currentSampleIndex >= filteredSamples.length - 1} onClick={() => setCurrentSampleIndex((i) => Math.min(filteredSamples.length - 1, i + 1))} className="border-[#A577FF]/40">
+                    <IconChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[#150A35]">Frame Info</h3>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-echo-text-muted">Application</Label>
+                <Input value={application} onChange={(e) => setApplication(e.target.value)} placeholder="e.g., Chrome, VSCode" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-echo-text-muted">Platform</Label>
+                <Select value={platform} onValueChange={setPlatform}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select platform" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Windows">Windows</SelectItem>
+                    <SelectItem value="macOS">macOS</SelectItem>
+                    <SelectItem value="Linux">Linux</SelectItem>
+                    <SelectItem value="Web">Web Browser</SelectItem>
+                    <SelectItem value="Mobile">Mobile</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-        </div>
 
         {currentSequence && (
-          <div>
+          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
             <h3 className="text-sm font-semibold text-[#150A35] mb-2">Sequence</h3>
             <p className="text-xs text-echo-text-muted mb-1">ID: {currentSequence.id}</p>
-            <p className="text-xs text-echo-text-muted mb-2">Frames: {currentSequence.frames.length}</p>
-            <Label>Sequence Description</Label>
+            <p className="text-xs text-echo-text-muted mb-3">Frames: {currentSequence.frames.length}</p>
+            <Label className="text-echo-text-muted">Sequence Description</Label>
             <AutocompleteTextarea
               value={currentSequence.task}
               onChange={(v) => setCurrentSequence((s) => (s ? { ...s, task: v } : null))}
@@ -1002,20 +1277,26 @@ export default function DatasetCreatorPage() {
               placeholder="Overall sequence description..."
               rows={2}
             />
-            <ScrollArea className="h-32 mt-2 border rounded-md p-2">
-              {sequenceHistory.map((h, i) => (
-                <div key={i} className="text-xs py-1 flex gap-2">
-                  <span className="rounded-full bg-[#A577FF] text-white w-5 h-5 flex items-center justify-center shrink-0">{i + 1}</span>
-                  <span>{h.action}</span>
+            <ScrollArea className="h-32 mt-2 border border-[#A577FF]/20 rounded-lg p-3 bg-white">
+              {sequenceHistory.length === 0 ? (
+                <div className="p-4 text-center text-sm text-echo-text-muted">
+                  {currentSequence.frames.length === 0 ? "No saved annotations yet" : "No annotations yet"}
                 </div>
-              ))}
+              ) : (
+                sequenceHistory.map((h, i) => (
+                  <div key={i} className="text-xs py-1 flex gap-2">
+                    <span className="rounded-full bg-[#A577FF] text-white w-5 h-5 flex items-center justify-center shrink-0">{i + 1}</span>
+                    <span>{h.action}</span>
+                  </div>
+                ))
+              )}
             </ScrollArea>
           </div>
         )}
 
-        <div>
-          <h3 className="text-sm font-semibold text-[#150A35] mb-2">Annotations</h3>
-          <ScrollArea className="h-40 border rounded-md">
+        <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
+          <h3 className="text-sm font-semibold text-[#150A35] mb-3">Annotations</h3>
+          <ScrollArea className="h-40 border border-[#A577FF]/20 rounded-lg bg-white">
             {currentFrame?.annotations.length ? (
               currentFrame.annotations.map((a, idx) => (
                 <div
@@ -1041,7 +1322,7 @@ export default function DatasetCreatorPage() {
         </div>
 
         {selectedAnnotation && (
-          <div className="border rounded-lg p-3 space-y-3">
+          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-4">
             <h3 className="text-sm font-semibold text-[#150A35]">Edit Annotation #{selectedAnnotation.id}</h3>
             <div>
               <Label>Task Description</Label>
@@ -1126,18 +1407,23 @@ export default function DatasetCreatorPage() {
           </div>
         )}
 
-        <div className="space-y-2">
-          <Button className="w-full" onClick={saveCurrentFrame} disabled={!currentFrame}>
-            Save Current Frame
-          </Button>
-          <Button className="w-full" variant="outline" onClick={exportDataset}>
-            <IconDownload className="h-4 w-4 mr-1" /> Export Full Dataset
-          </Button>
+        <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
+          {appMode === "capture" && (
+            <Button className="w-full bg-[#A577FF] hover:opacity-90" onClick={saveCurrentFrame} disabled={!currentFrame}>
+              Save Current Frame
+            </Button>
+          )}
+          {appMode === "review" && (
+            <Button className="w-full border-[#A577FF]/40 hover:bg-[#A577FF]/10" variant="outline" onClick={exportDataset}>
+              <IconDownload className="h-4 w-4 mr-1.5" /> Export Full Dataset
+            </Button>
+          )}
           {fileStatus && (
-            <div className={`rounded-lg p-2 text-sm ${fileStatus.type === "error" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+            <div className={`rounded-lg p-3 text-sm ${fileStatus.type === "error" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
               {fileStatus.msg}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
