@@ -227,6 +227,14 @@ export default function WorkflowDetailPage() {
             Status:{" "}
             <span className="font-medium">{String(workflow.status)}</span>
           </p>
+          {typeof workflow.source_recording_id === "string" && workflow.source_recording_id && (
+            <p
+              className="text-sm text-[#150A35]/60"
+              title="Recording used to create this workflow — use this to correlate with logs"
+            >
+              Source: <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs">{String(workflow.source_recording_id)}</code>
+            </p>
+          )}
 
           <div>
             <h2 className="mb-3 text-lg font-medium text-[#150A35]">

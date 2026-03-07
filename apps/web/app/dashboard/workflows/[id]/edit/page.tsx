@@ -100,6 +100,7 @@ interface Workflow {
   status: string;
   name?: string;
   workflow_type?: "browser" | "desktop";
+  source_recording_id?: string;
 }
 
 function ParamFields({
@@ -844,6 +845,15 @@ export default function WorkflowEditPage() {
             {saving ? "Saving..." : "Save & Activate"}
           </button>
         </div>
+
+        {workflow.source_recording_id && (
+          <p
+            className="text-sm text-[#150A35]/60"
+            title="Recording used to create this workflow — correlate with logs"
+          >
+            Source: <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs">{workflow.source_recording_id}</code>
+          </p>
+        )}
 
         {/* Steps section */}
         <div className="flex flex-1 flex-col gap-3 overflow-auto">

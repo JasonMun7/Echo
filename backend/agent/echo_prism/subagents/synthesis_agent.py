@@ -1,21 +1,23 @@
 """
-EchoPrism Synthesis Agent — synthesize workflow from video/screenshots using EchoPrism-style grounding.
+EchoPrism Synthesis Agent — single subagent for all workflow synthesis.
 
-Instead of raw Gemini, runs an observe→think→act loop over frames with:
-- Frame sampling (pHash/pixel-diff): only process frames with >5% change (~80% token savings)
-- Visual Anchoring Thought: "I see the 'Search' input to the right of the logo at [0.452, 0.120]"
-- Virtual operator: accepts actions, advances frame, records (frame, thought, action, coords)
-- Output: workflow JSON with 3-decimal normalized coords [0.000, 1.000]
+Supports three modes:
+1. Media (video/screenshots) → one-shot multimodal → workflow JSON (used by /api/synthesize)
+2. Video frames → observe→think→act per frame → workflow JSON
+3. Natural language description → workflow steps (JSON)
+
+Uses SYNTHESIS_MODEL (gemini-2.5-pro for media/description, gemini-2.5-flash for frame-by-frame).
 """
 import asyncio
 import hashlib
+import json
 import logging
 import re
 from typing import Any
 
 from echo_prism.alpha.action_parser import extract_thought, parse_action
 from echo_prism.alpha.image_utils import compress_screenshot
-from echo_prism.models_config import DESCRIPTION_MODEL, SYNTHESIS_GENERATE_TITLE, SYNTHESIS_MODEL
+from echo_prism.models_config import SYNTHESIS_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +116,8 @@ async def synthesize_frame(
     total_frames: int,
     history_text: str = "",
     model: str = SYNTHESIS_MODEL,
-    cached_content: str | None = None,
 ) -> tuple[str, str | None, str | None]:
-    """Single frame synthesis. Returns (thought, action_str, error).
-
-    When cached_content is provided (explicit cache from synthesize_workflow_from_frames),
-    the system prompt is served from cache — avoids re-sending ~500 tokens per frame.
-    """
+    """Single frame synthesis. Returns (thought, action_str, error)."""
     try:
         from google.genai import types as gtypes
     except ImportError:
@@ -140,18 +137,11 @@ async def synthesize_frame(
         gtypes.Part.from_bytes(data=compressed, mime_type="image/jpeg"),
     ])
 
-    if cached_content:
-        config = gtypes.GenerateContentConfig(
-            cached_content=cached_content,
-            max_output_tokens=256,
-            temperature=0.2,
-        )
-    else:
-        config = gtypes.GenerateContentConfig(
-            system_instruction=SYNTHESIS_SYSTEM_PROMPT,
-            max_output_tokens=256,
-            temperature=0.2,
-        )
+    config = gtypes.GenerateContentConfig(
+        system_instruction=SYNTHESIS_SYSTEM_PROMPT,
+        max_output_tokens=256,
+        temperature=0.2,
+    )
 
     try:
         response = await asyncio.wait_for(
@@ -304,7 +294,7 @@ def _parsed_to_workflow_step(parsed: dict, thought: str, step_index: int) -> dic
 async def _generate_title_from_steps(
     client: Any,
     steps: list[dict],
-    model: str = DESCRIPTION_MODEL,
+    model: str = SYNTHESIS_MODEL,
 ) -> str | None:
     """Generate a short descriptive title from step summaries. Returns None on failure."""
     if not steps:
@@ -329,13 +319,13 @@ async def _generate_title_from_steps(
             asyncio.to_thread(
                 client.models.generate_content,
                 model=model,
-                contents=[prompt],
+                contents=[gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=prompt)])],
                 config=gtypes.GenerateContentConfig(
                     max_output_tokens=32,
                     temperature=0.2,
                 ),
             ),
-            timeout=5.0,
+            timeout=10.0,
         )
         text = ""
         if response and response.candidates:
@@ -347,29 +337,7 @@ async def _generate_title_from_steps(
         title = text.strip().strip('"').strip("'") if text else ""
         return title if title else None
     except (asyncio.TimeoutError, Exception) as e:
-        logger.debug("Title generation failed: %s", e)
-        return None
-
-
-def _create_synthesis_cache(client: Any, model: str) -> str | None:
-    """Create explicit context cache for synthesis system prompt. Returns cache name or None on failure."""
-    _CACHEABLE_PREFIXES = ("gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-3-flash", "gemini-3.1-pro")
-    if not any(model.startswith(p) for p in _CACHEABLE_PREFIXES):
-        return None
-    try:
-        from google.genai import types as gtypes
-
-        cache = client.caches.create(
-            model=model,
-            config=gtypes.CreateCachedContentConfig(
-                system_instruction=SYNTHESIS_SYSTEM_PROMPT,
-                ttl="3600s",
-            ),
-        )
-        logger.info("Synthesis cache created: %s (%d chars)", cache.name, len(SYNTHESIS_SYSTEM_PROMPT))
-        return cache.name
-    except Exception as e:
-        logger.debug("Synthesis cache unavailable, using inline system prompt: %s", e)
+        logger.warning("Title generation failed (will use fallback): %s", e)
         return None
 
 
@@ -380,8 +348,7 @@ async def synthesize_workflow_from_frames(
 ) -> dict:
     """Synthesize workflow steps from a list of frame images. Returns dict with keys: title, workflow_type, steps.
 
-    Uses explicit context cache for the system prompt when supported — avoids re-sending ~500 tokens
-    per frame (Gemini 3 Flash has 1,024 token limit; caching yields large savings).
+    No context caching; each run is fresh to ensure actions match the current recording.
     """
     logger.info("Synthesis: %d frames received", len(frames))
     sampled = sample_frames(frames)
@@ -391,52 +358,410 @@ async def synthesize_workflow_from_frames(
     steps: list[dict] = []
     history_parts: list[str] = []
 
-    cached_content = _create_synthesis_cache(client, model)
+    for idx, (frame_i, frame_bytes) in enumerate(sampled):
+        thought, action_str, err = await synthesize_frame(
+            client,
+            frame_bytes,
+            idx,
+            len(sampled),
+            history_text="\n".join(history_parts[-5:]) if history_parts else "",
+            model=model,
+        )
+        if err:
+            logger.warning("Frame %d synthesis error: %s", frame_i, err)
+            continue
+        parsed = parse_action(f"Action: {action_str}")
+        if not parsed:
+            logger.warning("Frame %d: parse_action failed for action_str=%r", frame_i, action_str)
+            continue
+        step = _parsed_to_workflow_step(parsed, thought, len(steps) + 1)
+        if step.get("_signal") == "finished":
+            if steps:
+                break
+            continue
+        if step.get("_signal") == "calluser":
+            continue
+        steps.append(step)
+        history_parts.append(f"Step {len(steps)}: {thought} -> {action_str}")
+
+    if not steps:
+        logger.warning("Synthesis produced 0 steps from %d frames. Check logs above for parse errors or API failures.", len(sampled))
+    title = f"Synthesized workflow ({len(steps)} steps)"
+    if steps:
+        generated = await _generate_title_from_steps(client, steps, model=model)
+        if generated:
+            title = generated
+
+    return {
+        "title": title,
+        "workflow_type": "browser",
+        "steps": steps,
+    }
+
+
+# --- Media (video/images) one-shot mode ---
+
+MEDIA_SYNTHESIS_PROMPT = """You are an expert workflow extraction system designed to produce training data for a pure Vision-Language Model (VLM) UI agent called EchoPrism. EchoPrism NEVER reads the DOM — it relies entirely on visual descriptions and normalized pixel coordinates to locate and interact with UI elements. Your output must be precise enough that EchoPrism can re-locate every element purely from screenshots.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 0 — RECOGNIZE INTEGRATION OPPORTUNITIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before extracting steps, scan all frames for the following known applications:
+- Slack (slack.com, app.slack.com) → use action "api_call" with integration "slack"
+- Gmail (mail.google.com) → use action "api_call" with integration "gmail"
+- Google Sheets (docs.google.com/spreadsheets) → use action "api_call" with integration "google_sheets"
+- Google Calendar (calendar.google.com) → use action "api_call" with integration "google_calendar"
+- Notion (notion.so) → use action "api_call" with integration "notion"
+- GitHub (github.com) → use action "api_call" with integration "github"
+- Linear (linear.app) → use action "api_call" with integration "linear"
+
+When you see the user performing a simple action in one of these apps (sending a message, creating an issue, writing to a spreadsheet), prefer generating a single "api_call" step with the appropriate method and inferred args over multiple click/type steps.
+
+For api_call steps: action="api_call", params={"integration": "slack", "method": "send_message", "args": {"channel": "#general", "text": "..."}}
+Only fall back to click_at steps for these apps if the action is too complex or ambiguous to represent as an api_call.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — CLASSIFY WORKFLOW TYPE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before extracting steps, determine the workflow type:
+- "browser": Activity is primarily inside a web browser (Chrome, Safari, Firefox, Edge). Steps involve navigating URLs, clicking web elements, filling forms, selecting dropdowns.
+- "desktop": Activity involves native OS applications (Finder, terminal, desktop apps, system menus). Steps involve opening apps, hotkeys, right-clicking, double-clicking native UI.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — STUDY EVERY FRAME BEFORE WRITING COORDINATES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+For each interactive action (click_at, type_text_at, select_option, hover, right_click, double_click, drag):
+a. Identify the target element across MULTIPLE frames to confirm its position is stable.
+b. Measure the element's center in raw pixels: (pixel_x, pixel_y).
+c. Convert to normalized 0-1000 scale:
+   x = round(pixel_x / screen_width * 1000)
+   y = round(pixel_y / screen_height * 1000)
+d. Clamp x and y to [0, 1000].
+e. NEVER use exactly 500/500 as a guess — only if the element is genuinely in the exact center.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — WRITE MAXIMALLY SPECIFIC DESCRIPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Every "description" field must enable EchoPrism to re-locate the element from a screenshot alone. Include ALL of:
+- Element type (button, link, text input, dropdown, checkbox, icon, tab, menu item, etc.)
+- Visible label text (exact, in single quotes) OR a clear visual descriptor if there is no text
+- Color or visual style if distinctive (blue, green, outlined, filled, icon-only)
+- Screen region (top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center, left sidebar, right panel, header, footer, modal, etc.)
+- Any parent container or section that helps disambiguate (e.g. "inside the 'Billing' card", "in the navigation bar", "in the search results row")
+
+Examples of GOOD descriptions:
+- "blue 'Sign In' button in the bottom-center of the login modal"
+- "white 'Email' text input field with placeholder 'you@example.com' in the top-center of the login form"
+- "grey 'Country' dropdown labeled 'Select country' in the middle of the 'Shipping Address' section"
+- "red trash-can icon button in the top-right corner of the 'Item 2' card"
+- "left-sidebar 'Dashboard' menu item with a house icon, highlighted with a blue background"
+
+Examples of BAD descriptions (do NOT produce these):
+- "the button" — too vague
+- "input field" — no location or label
+- "Submit" — missing element type and region
+- "#submit-btn" — CSS selector, FORBIDDEN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{
+  "title": "<5-8 word descriptive title summarising what the workflow accomplishes>",
+  "workflow_type": "browser" | "desktop",
+  "steps": [
+    {
+      "action": "<action_type>",
+      "context": "<WHY this step is needed — purpose in the overall flow, not just what it does>",
+      "params": { ... action-specific params ... },
+      "expected_outcome": "<what is VISUALLY DIFFERENT on screen AFTER this action succeeds>"
+    }
+  ]
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BROWSER ACTIONS (use only when workflow_type is "browser")
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- navigate:
+  { "url": "https://...", "description": "Navigate to the target URL" }
+  expected_outcome: "Page loads and URL bar shows <url>"
+
+- click_at:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "description": "<maximally specific description>" }
+  expected_outcome: "<visible change: modal opens, page navigates, button highlights, etc.>"
+
+- type_text_at:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "text": "{{variable_name}}", "description": "<maximally specific description of the input field>" }
+  expected_outcome: "Text '{{variable_name}}' appears in the field"
+
+- scroll:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "direction": "down" | "up", "distance": <pixels> }
+  expected_outcome: "Page content scrolls <direction> revealing more content"
+
+- wait_for_element:
+  { "description": "<what to wait for — describe the element that must become visible or disappear>" }
+  expected_outcome: "<element description> becomes visible / loading indicator disappears"
+  USE THIS whenever waiting for a page load, navigation, API response, or content to appear. Do NOT use "wait" for these cases.
+
+- select_option:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "value": "<option_value>", "description": "<maximally specific description of the dropdown>" }
+  expected_outcome: "Dropdown shows '<option_value>' as selected"
+
+- hover:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "description": "<element> that reveals a submenu or tooltip on hover" }
+  expected_outcome: "Submenu or tooltip becomes visible"
+
+- press_key:
+  { "key": "Enter" | "Tab" | "Escape" | "ArrowDown" | etc., "description": "<why pressing this key>" }
+  expected_outcome: "<visible result: form submits, dialog closes, focus moves, etc.>"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESKTOP ACTIONS (use only when workflow_type is "desktop")
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- click_at:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "description": "<maximally specific description>" }
+  expected_outcome: "<visible change>"
+
+- right_click:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "description": "<maximally specific description>" }
+  expected_outcome: "Context menu appears with options"
+
+- double_click:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "description": "<maximally specific description>" }
+  expected_outcome: "<file opens / app launches / item is renamed>"
+
+- type_text_at:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "text": "{{variable_name}}", "description": "<maximally specific description of the input field>" }
+  expected_outcome: "Text '{{variable_name}}' appears in the field"
+
+- hotkey:
+  { "keys": ["cmd", "c"], "description": "<what this hotkey accomplishes>" }
+  expected_outcome: "<visible result>"
+
+- press_key:
+  { "key": "enter" | "escape" | "tab" | etc., "description": "<why pressing this key>" }
+  expected_outcome: "<visible result>"
+
+- scroll:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "direction": "down" | "up", "distance": <pixels> }
+  expected_outcome: "Content scrolls <direction>"
+
+- drag:
+  { "x": <int 0-1000>, "y": <int 0-1000>, "x2": <int 0-1000>, "y2": <int 0-1000>, "description": "Drag <source description> to <destination description>" }
+  expected_outcome: "<item moved / window resized>"
+
+- wait:
+  { "seconds": <int> }
+  expected_outcome: "Application completes its operation after the wait"
+
+- open_app:
+  { "appName": "<AppName>", "description": "Launch <AppName> to begin the workflow" }
+  expected_outcome: "<AppName> window opens and is in focus"
+
+- focus_app:
+  { "appName": "<AppName>", "description": "Bring <AppName> to the foreground" }
+  expected_outcome: "<AppName> window becomes the active window"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MANDATORY RULES — VIOLATIONS WILL BREAK THE AGENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. COORDINATES: Study multiple frames. Use real pixel positions converted to 0-1000 scale. Never fabricate or guess with 500/500.
+2. DESCRIPTION: Every action with a target element MUST have a maximally specific "description" (see Step 3 above). This is the ONLY way EchoPrism can find the element.
+3. EXPECTED_OUTCOME: Every step MUST include "expected_outcome" at the top level, describing the VISUAL change on screen.
+4. CONTEXT: Each "context" must explain WHY the step is needed, not just what it does. Include the workflow goal this step serves.
+5. NO SELECTORS: STRICTLY FORBIDDEN — do NOT output CSS selectors, XPath, DOM IDs, class names, or any HTML/DOM reference. This is a pure vision system.
+6. NO RISK FIELD: Do not include a "risk" field.
+7. VARIABLES: Use {{variable_name}} for any user-provided input (email, password, search terms, filenames). Use descriptive snake_case variable names (e.g. {{recipient_email}}, {{search_query}}).
+8. WAIT_FOR_ELEMENT over WAIT: For any page load, navigation, content appearing, or API response — use wait_for_element. Only use wait for fixed-duration pauses (animations, system dialogs).
+9. INSERT WAIT_FOR_ELEMENT AFTER: navigate, click_at that triggers navigation/modal/content load, press_key that submits a form, or any step that causes a visible page transition.
+10. DEDUPLICATION: Skip consecutive identical (action + params) steps.
+11. OUTPUT: ONLY valid JSON, no markdown fences, no extra text."""
+
+
+def _postprocess_steps(steps_data: list[dict]) -> tuple[list[dict], set[str]]:
+    """Clamp coords, deduplicate, extract variables. Returns (processed_steps, variables)."""
+    variables: set[str] = set()
+    processed_steps: list[dict] = []
+    prev_key: tuple | None = None
+    for s in steps_data:
+        params = dict(s.get("params", {}))
+        for coord_key in ("x", "y", "x2", "y2"):
+            if coord_key in params:
+                try:
+                    params[coord_key] = max(0, min(1000, int(float(params[coord_key]))))
+                except (TypeError, ValueError):
+                    params[coord_key] = 500
+        for val in list(params.values()) + [s.get("context", "")]:
+            if isinstance(val, str):
+                for m in re.findall(r"\{\{(\w+)\}\}", val):
+                    variables.add(m)
+        step_key = (s.get("action", ""), json.dumps(params, sort_keys=True))
+        if step_key == prev_key:
+            continue
+        prev_key = step_key
+        s_copy = dict(s)
+        s_copy["params"] = params
+        processed_steps.append(s_copy)
+    return processed_steps, variables
+
+
+async def synthesize_workflow_from_media(
+    client: Any,
+    parts: list[Any],
+    model: str = SYNTHESIS_MODEL,
+) -> dict:
+    """
+    One-shot synthesis from video or images. Caller uploads media to Gemini and passes
+    ready-to-use Part objects. Returns dict with title, workflow_type, steps, variables.
+    """
     try:
-        for idx, (frame_i, frame_bytes) in enumerate(sampled):
-            thought, action_str, err = await synthesize_frame(
-                client,
-                frame_bytes,
-                idx,
-                len(sampled),
-                history_text="\n".join(history_parts[-5:]) if history_parts else "",
-                model=model,
-                cached_content=cached_content,
-            )
-            if err:
-                logger.warning("Frame %d synthesis error: %s", frame_i, err)
-                continue
-            parsed = parse_action(f"Action: {action_str}")
-            if not parsed:
-                logger.warning("Frame %d: parse_action failed for action_str=%r", frame_i, action_str)
-                continue
-            step = _parsed_to_workflow_step(parsed, thought, len(steps) + 1)
-            if step.get("_signal") == "finished":
-                if steps:
-                    break
-                continue
-            if step.get("_signal") == "calluser":
-                continue
-            steps.append(step)
-            history_parts.append(f"Step {len(steps)}: {thought} -> {action_str}")
+        from google.genai import types as gtypes
+    except ImportError:
+        return {"title": "", "workflow_type": "browser", "steps": [], "variables": []}
 
-        if not steps:
-            logger.warning("Synthesis produced 0 steps from %d frames. Check logs above for parse errors or API failures.", len(sampled))
-        title = f"Synthesized workflow ({len(steps)} steps)"
-        if SYNTHESIS_GENERATE_TITLE and steps:
-            generated = await _generate_title_from_steps(client, steps, model=DESCRIPTION_MODEL)
-            if generated:
-                title = generated
+    contents = [
+        gtypes.Content(
+            role="user",
+            parts=[gtypes.Part.from_text(text=MEDIA_SYNTHESIS_PROMPT)] + list(parts),
+        )
+    ]
+    config = gtypes.GenerateContentConfig(
+        response_mime_type="application/json",
+        temperature=0.2,
+    )
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model=model,
+        contents=contents,
+        config=config,
+    )
+    raw = response.text if response and response.text else ""
+    if not raw and response and response.candidates:
+        for c in response.candidates:
+            if c.content and c.content.parts:
+                for p in c.content.parts:
+                    if hasattr(p, "text") and p.text:
+                        raw += p.text
+    if not raw:
+        raise ValueError("Empty response from Gemini")
+    data = json.loads(raw)
+    steps_data = data.get("steps", [])
+    processed_steps, variables = _postprocess_steps(steps_data)
+    workflow_type = data.get("workflow_type", "browser")
+    if workflow_type not in ("browser", "desktop"):
+        workflow_type = "browser"
+    return {
+        "title": data.get("title", ""),
+        "workflow_type": workflow_type,
+        "steps": processed_steps,
+        "variables": sorted(variables),
+    }
 
-        return {
-            "title": title,
-            "workflow_type": "browser",
-            "steps": steps,
-        }
-    finally:
-        if cached_content:
+
+# --- Description-to-workflow mode ---
+
+FROM_DESCRIPTION_PROMPT = """You are an expert workflow synthesis system for EchoPrism, a pure Vision-Language Model UI automation agent.
+
+Given a natural language description of a workflow, produce a structured list of steps.
+
+STEP 0 — INTEGRATION RECOGNITION:
+If the description mentions any of these apps, prefer api_call steps over click sequences:
+- Slack → action "api_call", integration "slack"
+- Gmail / email → action "api_call", integration "gmail"
+- Google Sheets / spreadsheet → action "api_call", integration "google_sheets"
+- Google Calendar → action "api_call", integration "google_calendar"
+- Notion → action "api_call", integration "notion"
+- GitHub → action "api_call", integration "github"
+- Linear → action "api_call", integration "linear"
+
+For UI actions (navigate, click, type, scroll, etc.), provide:
+- action: one of navigate | click_at | type_text_at | scroll | wait | press_key | select_option | hover
+- params: url (for navigate), description (for click_at/type_text_at), text (for type_text_at), direction+distance (for scroll), key (for press_key), value+description (for select_option)
+- context: what the user is trying to accomplish at this step
+- expected_outcome: what should be visible after this action succeeds
+
+For api_call actions, provide:
+- action: "api_call"
+- params: { integration, method, args: {} }  (args are best-guess based on description)
+- context: what API operation this represents
+
+Output ONLY valid JSON — no markdown, no code fences. Format:
+{
+  "title": "short workflow title",
+  "workflow_type": "browser" or "desktop",
+  "steps": [
+    {
+      "action": "...",
+      "context": "...",
+      "params": {},
+      "expected_outcome": "..."
+    }
+  ]
+}"""
+
+
+async def synthesize_workflow_from_description(
+    description: str,
+    name: str,
+    workflow_type: str,
+    client: Any,
+    model: str = SYNTHESIS_MODEL,
+) -> dict:
+    """
+    Generate workflow steps from a natural language description (description mode).
+
+    Returns dict with keys: title, workflow_type, steps. Uses SYNTHESIS_MODEL.
+    """
+    try:
+        from google.genai import types as gtypes
+    except ImportError:
+        return {"title": name, "workflow_type": workflow_type, "steps": []}
+
+    prompt = FROM_DESCRIPTION_PROMPT + f"\n\nWorkflow description:\n{description}"
+    contents = [
+        gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=prompt)])
+    ]
+    config = gtypes.GenerateContentConfig(
+        response_mime_type="application/json",
+        temperature=0.2,
+    )
+
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model=model,
+        contents=contents,
+        config=config,
+    )
+
+    raw = response.text if hasattr(response, "text") and response.text else ""
+    if not raw and response.candidates:
+        for c in response.candidates:
+            if c.content and c.content.parts:
+                for p in c.content.parts:
+                    if hasattr(p, "text") and p.text:
+                        raw += p.text
+    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.MULTILINE)
+    raw = re.sub(r"\s*```\s*$", "", raw.strip(), flags=re.MULTILINE)
+    raw = raw.strip()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        m = re.search(r"\{[\s\S]*\}", raw)
+        extracted = m.group(0) if m else None
+        if extracted:
             try:
-                client.caches.delete(name=cached_content)
-                logger.debug("Synthesis cache evicted: %s", cached_content[:50])
-            except Exception as e:
-                logger.debug("Synthesis cache eviction skipped: %s", e)
+                data = json.loads(extracted)
+            except json.JSONDecodeError:
+                logger.warning("Description synthesis JSON parse failed: %s. Raw (truncated): %s", e, raw[:500])
+                return {"title": name, "workflow_type": workflow_type, "steps": []}
+        else:
+            logger.warning("Description synthesis JSON parse failed: %s. Raw (truncated): %s", e, raw[:500])
+            return {"title": name, "workflow_type": workflow_type, "steps": []}
+
+    if not isinstance(data, dict):
+        return {"title": name, "workflow_type": workflow_type, "steps": []}
+    return {
+        "title": data.get("title") or name,
+        "workflow_type": data.get("workflow_type", workflow_type) or workflow_type,
+        "steps": data.get("steps") if isinstance(data.get("steps"), list) else [],
+    }

@@ -59,7 +59,10 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [synthesizedWorkflow, setSynthesizedWorkflow] = useState<{ id: string; name: string } | null>(null);
+  const [synthesizedWorkflow, setSynthesizedWorkflow] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [isDictating, setIsDictating] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -93,23 +96,29 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const addAssistantMessage = useCallback((text: string, runLink?: Message["runLink"]) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        role: "assistant" as const,
-        text,
-        timestamp: new Date(),
-        runLink,
-      },
-    ]);
-  }, []);
+  const addAssistantMessage = useCallback(
+    (text: string, runLink?: Message["runLink"]) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: "assistant" as const,
+          text,
+          timestamp: new Date(),
+          runLink,
+        },
+      ]);
+    },
+    [],
+  );
 
   const startScreenRecording = useCallback(
     async (t: string) => {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
         const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
         const chunks: Blob[] = [];
         recorder.ondataavailable = (e) => chunks.push(e.data);
@@ -117,7 +126,7 @@ export default function ChatPage() {
           stream.getTracks().forEach((tr) => tr.stop());
           const blob = new Blob(chunks, { type: "video/webm" });
           const formData = new FormData();
-          formData.append("file", blob, "recording.webm");
+          formData.append("video", blob, "recording.webm");
           formData.append("workflow_name", "Screen-Recorded Workflow");
           const resp = await fetch(`${API_URL}/api/synthesize`, {
             method: "POST",
@@ -125,21 +134,32 @@ export default function ChatPage() {
             body: formData,
           });
           if (resp.ok) {
-            const data = (await resp.json()) as { workflow_id: string; workflow_name?: string };
-            addAssistantMessage("Screen recording processed! Your workflow has been created.", {
-              workflowId: data.workflow_id,
-              runId: "",
-              name: data.workflow_name || "New Workflow",
-            });
+            const data = (await resp.json()) as {
+              workflow_id: string;
+              workflow_name?: string;
+            };
+            addAssistantMessage(
+              "Screen recording processed! Your workflow has been created.",
+              {
+                workflowId: data.workflow_id,
+                runId: "",
+                name: data.workflow_name || "New Workflow",
+              },
+            );
           }
           setIsSynthesizing(false);
         };
         setIsSynthesizing(true);
-        addAssistantMessage("Recording started. When you stop sharing, I'll synthesize the workflow.");
+        addAssistantMessage(
+          "Recording started. When you stop sharing, I'll synthesize the workflow.",
+        );
         recorder.start();
-        setTimeout(() => {
-          if (recorder.state === "recording") recorder.stop();
-        }, 5 * 60 * 1000);
+        setTimeout(
+          () => {
+            if (recorder.state === "recording") recorder.stop();
+          },
+          5 * 60 * 1000,
+        );
       } catch {
         addAssistantMessage("Screen recording was cancelled.");
       }
@@ -151,7 +171,9 @@ export default function ChatPage() {
     (t: string) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) return;
       // mode=text → TEXT modality, no audio blobs
-      const ws = new WebSocket(`${WS_URL}/ws/chat?token=${encodeURIComponent(t)}&mode=text`);
+      const ws = new WebSocket(
+        `${WS_URL}/ws/chat?token=${encodeURIComponent(t)}&mode=text`,
+      );
       wsRef.current = ws;
 
       ws.onopen = () => setIsConnected(true);
@@ -165,10 +187,19 @@ export default function ChatPage() {
         // Text-mode never sends audio blobs
         if (event.data instanceof Blob) return;
         try {
-          const data = JSON.parse(event.data as string) as Record<string, unknown>;
+          const data = JSON.parse(event.data as string) as Record<
+            string,
+            unknown
+          >;
           if (data.type === "text" && data.text) {
-            addAssistantMessage(data.text as string, data.runLink as Message["runLink"]);
-          } else if (data.type === "tool_call" && data.name === "synthesize_from_description") {
+            addAssistantMessage(
+              data.text as string,
+              data.runLink as Message["runLink"],
+            );
+          } else if (
+            data.type === "tool_call" &&
+            data.name === "synthesize_from_description"
+          ) {
             setIsSynthesizing(true);
             setSynthesizedWorkflow(null);
           } else if (data.type === "synthesis_complete") {
@@ -179,7 +210,10 @@ export default function ChatPage() {
             });
           } else if (data.type === "turn_complete") {
             // nothing to reset for text mode
-          } else if (data.type === "control" && data.action === "start_screen_recording") {
+          } else if (
+            data.type === "control" &&
+            data.action === "start_screen_recording"
+          ) {
             startScreenRecording(t);
           } else if (data.type === "error") {
             addAssistantMessage(`Error: ${data.text as string}`);
@@ -207,7 +241,12 @@ export default function ChatPage() {
   }
 
   function sendTextMessage(text: string) {
-    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (
+      !text.trim() ||
+      !wsRef.current ||
+      wsRef.current.readyState !== WebSocket.OPEN
+    )
+      return;
     addUserMessage(text);
     wsRef.current.send(JSON.stringify({ type: "text", text }));
     setInput("");
@@ -220,7 +259,9 @@ export default function ChatPage() {
       typeof window !== "undefined" &&
       (window.SpeechRecognition ||
         (
-          window as unknown as { webkitSpeechRecognition: typeof SpeechRecognition }
+          window as unknown as {
+            webkitSpeechRecognition: typeof SpeechRecognition;
+          }
         ).webkitSpeechRecognition);
 
     if (!SpeechRecognitionAPI) return;
@@ -277,7 +318,9 @@ export default function ChatPage() {
               <IconSparkles className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-[#1A1A2E]">EchoPrism</h1>
+              <h1 className="text-lg font-semibold text-[#1A1A2E]">
+                EchoPrism
+              </h1>
               <p className="text-xs text-gray-400">
                 {isConnected ? (
                   <span className="flex items-center gap-1">
@@ -355,7 +398,10 @@ export default function ChatPage() {
                     </a>
                   )}
                   <span className="text-[10px] text-gray-400">
-                    {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {msg.timestamp.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                 </div>
               </div>
@@ -369,7 +415,9 @@ export default function ChatPage() {
           <div className="border-t border-[#A577FF]/20 px-6 py-3 flex items-center justify-between gap-4">
             <p className="text-sm text-gray-600">
               Workflow ready:{" "}
-              <span className="font-medium text-[#1A1A2E]">{synthesizedWorkflow.name}</span>
+              <span className="font-medium text-[#1A1A2E]">
+                {synthesizedWorkflow.name}
+              </span>
             </p>
             <a
               href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
@@ -407,7 +455,11 @@ export default function ChatPage() {
             )}
             title={isDictating ? "Stop dictation" : "Dictate message"}
           >
-            {isDictating ? <IconPlayerStop className="h-4 w-4" /> : <IconMicrophone className="h-4 w-4" />}
+            {isDictating ? (
+              <IconPlayerStop className="h-4 w-4" />
+            ) : (
+              <IconMicrophone className="h-4 w-4" />
+            )}
           </button>
 
           <Input

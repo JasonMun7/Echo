@@ -18,6 +18,7 @@ This document describes the architecture of the Echo workflow automation agent �
 8. [Integrations](#8-integrations)
 9. [Model Configuration](#9-model-configuration)
 10. [Data Flow and Firestore](#10-data-flow-and-firestore)
+11. [File Structure Reference](#11-file-structure-reference)
 
 ---
 
@@ -191,7 +192,7 @@ flowchart LR
 ```
 
 **Models:**
-- Grounding uses `GROUNDING_MODEL` (default `gemini-2.5-flash` or fine-tuned variant).
+- Grounding uses `GROUNDING_MODEL` (default `gemini-2.5-flash-001` or fine-tuned variant).
 - Orchestration (Think step) uses `ORCHESTRATION_MODEL` (default `gemini-3.1-pro-preview`).
 
 ---
@@ -231,71 +232,25 @@ flowchart TD
 
 Subagents handle user-facing interactions and workflow creation. They are invoked by the backend routers, not by the main workflow executor.
 
-```mermaid
-flowchart TB
-    subgraph Routers ["Backend Routers"]
-        ChatRouter["/ws/chat"]
-        SynthesizeRouter["/api/synthesize"]
-    end
-
-    subgraph Subagents ["EchoPrism Subagents"]
-        ChatAgent["chat_agent"]
-        VoiceAgent["voice_agent"]
-        SynthesisAgent["synthesis_agent"]
-        DescriptionAgent["description_synthesis_agent"]
-    end
-
-    ChatRouter -->|text| ChatAgent
-    ChatRouter -->|voice| VoiceAgent
-    SynthesizeRouter -->|video| SynthesisAgent
-    SynthesizeRouter -->|description| DescriptionAgent
-```
-
 | Agent | File | Purpose |
 |-------|------|---------|
 | **Chat** | `chat_agent.py` | Text chat with function calling: list workflows, run, redirect, cancel, synthesize, integrations. |
 | **Voice** | `voice_agent.py` | Real-time voice via Gemini Live API; WebSocket bridge for TTS/STT. |
-| **Synthesis** | `synthesis_agent.py` | Video/screenshots → workflow JSON. Observe→think→act over frames; explicit context caching for system prompt. |
-| **Description Synthesis** | `description_synthesis_agent.py` | Natural language description → workflow steps (JSON). Integration recognition (Slack, Gmail, etc.). |
+| **Synthesis** | `synthesis_agent.py` | All workflow synthesis. Router delegates: video/screenshots → `synthesize_workflow_from_media` (one-shot); description → `synthesize_workflow_from_description`. Uses `ECHOPRISM_SYNTHESIS_MODEL`. Optional frame-by-frame mode via `synthesize_workflow_from_frames`. |
+
+See [subagents.md](../echo_prism/docs/subagents.md) and [synthesis-flow.md](synthesis-flow.md) for details.
 
 ---
 
 ## 7. Training Pipeline
 
-The training pipeline improves EchoPrism over time using UI-TARS self-improvement:
-
-```mermaid
-flowchart LR
-    subgraph Run ["Workflow Run"]
-        LogsNode["run logs"]
-    end
-
-    subgraph Filter ["Trace Filter"]
-        RulePass["Pass 1 Rule-based"]
-        VLMPass["Pass 2 Gemini VLM"]
-        RulePass --> VLMPass
-        LogsNode --> RulePass
-        VLMPass --> Filtered["filtered_traces"]
-    end
-
-    subgraph Export ["Export"]
-        COCONode["COCO4GUI JSON"]
-        VertexNode["Vertex JSONL"]
-        Filtered --> COCONode
-        Filtered --> VertexNode
-    end
-
-    subgraph Tuning ["Fine-Tuning"]
-        TuningJob["SupervisedTuningJob"]
-        GlobalModel["global_model"]
-        VertexNode --> TuningJob
-        TuningJob --> GlobalModel
-    end
-```
+The training pipeline improves EchoPrism over time using UI-TARS self-improvement.
 
 1. **Trace Filter** — Two-pass scoring: rule-based (errors, duplicates, etc.) then Gemini VLM for unknown steps. Produces `corrected_thought` (T+) for bad steps.
 2. **COCO Export** — Converts traces to COCO4GUI format for datasets.
 3. **Vertex Export** — Builds JSONL, uploads to GCS, submits tuning job. Updates `global_model/current` when ready.
+
+See [training.md](../echo_prism/docs/training.md) and [FINETUNING_README.md](../echo_prism/docs/FINETUNING_README.md).
 
 ---
 
@@ -303,29 +258,7 @@ flowchart LR
 
 Integrations allow workflows to call external APIs (Slack, Gmail, GitHub, etc.) via `api_call` steps. Each integration exposes an `execute(method, args, token)` function.
 
-```mermaid
-flowchart TB
-    WorkflowNode["api_call step"]
-    RouterNode{"Integration?"}
-
-    WorkflowNode --> RouterNode
-
-    RouterNode -->|slack| SlackNode["slack"]
-    RouterNode -->|gmail| GmailNode["gmail"]
-    RouterNode -->|github| GitHubNode["github"]
-    RouterNode -->|linear| LinearNode["linear"]
-    RouterNode -->|notion| NotionNode["notion"]
-    RouterNode -->|sheets| SheetsNode["google_sheets"]
-    RouterNode -->|calendar| CalendarNode["google_calendar"]
-
-    SlackNode --> ExternalAPI["External API"]
-    GmailNode --> ExternalAPI
-    GitHubNode --> ExternalAPI
-    LinearNode --> ExternalAPI
-    NotionNode --> ExternalAPI
-    SheetsNode --> ExternalAPI
-    CalendarNode --> ExternalAPI
-```
+See [integrations.md](integrations.md).
 
 ---
 
@@ -337,36 +270,14 @@ Models are configured via environment variables (see `echo_prism/models_config.p
 |-----------|---------|---------|
 | Main Agent (Alpha) | `ECHOPRISM_ORCHESTRATION_MODEL` | gemini-3.1-pro-preview |
 | Grounding | `ECHOPRISM_GROUNDING_MODEL` | gemini-2.5-flash-001 |
-| Description Synthesis | `ECHOPRISM_DESCRIPTION_MODEL` | gemini-3.1-pro-preview |
 | Trace Scoring | `ECHOPRISM_TRACE_SCORING_MODEL` | gemini-3.1-pro-preview |
-| Synthesis (Video) | `ECHOPRISM_SYNTHESIS_MODEL` | gemini-3-flash-preview |
+| Synthesis (video + description) | `ECHOPRISM_SYNTHESIS_MODEL` | gemini-3.1-pro-preview |
 | Chat | `ECHOPRISM_CHAT_MODEL` | gemini-3.1-flash-lite-preview |
 | Voice | `ECHOPRISM_VOICE_MODEL` | gemini-live-2.5-flash-native-audio |
 
 ---
 
 ## 10. Data Flow and Firestore
-
-```mermaid
-flowchart TB
-    subgraph Firestore ["Firestore Collections"]
-        WorkflowsFS["workflows"]
-        StepsFS["workflows/steps"]
-        RunsFS["runs"]
-        LogsFS["runs/logs"]
-        FilteredTracesFS["filtered_traces"]
-        GlobalModelFS["global_model"]
-    end
-
-    WorkflowsFS --> StepsFS
-    RunWorkflowFS["run_workflow_agent"] --> RunsFS
-    RunsFS --> LogsFS
-    EchoPrismFS["EchoPrism"] --> LogsFS
-    LogsFS --> TraceFilterFS["Trace Filter"]
-    TraceFilterFS --> FilteredTracesFS
-    VertexExportFS["Vertex Export"] --> GlobalModelFS
-    EchoPrismFS -->|Resolve model| GlobalModelFS
-```
 
 - **workflows** — Workflow metadata and steps.
 - **runs** — Run status, logs (thought, action, step_index, screenshots).
@@ -375,35 +286,33 @@ flowchart TB
 
 ---
 
-## File Structure Reference
+## 11. File Structure Reference
 
 ```
 backend/agent/
 ├── run_workflow_agent.py     # CLI entrypoint; orchestrates DirectExecutor + EchoPrism
 ├── direct_executor.py        # Deterministic step execution (Playwright)
 ├── screenshot_stream.py      # GCS screenshot upload for frontend
-├── ARCHITECTURE.md           # This file
-├── README.md                 # Quick reference
+├── docs/                     # Documentation
+│   ├── ARCHITECTURE.md       # This file
+│   ├── synthesis-flow.md     # Recording → synthesis flow
+│   ├── agent-overview.md     # Quick reference
+│   └── integrations.md       # App connectors
 ├── echo_prism/
 │   ├── models_config.py      # Model env vars
+│   ├── docs/                 # EchoPrism docs
+│   │   ├── echo-prism-overview.md
+│   │   ├── alpha.md
+│   │   ├── subagents.md
+│   │   ├── utils.md
+│   │   ├── datasets.md
+│   │   ├── training.md
+│   │   ├── voice_subagent.md
+│   │   └── FINETUNING_README.md
 │   ├── alpha/                # Parent agent
-│   │   ├── agent.py          # Observe → Think → Act loop
-│   │   ├── action_parser.py  # Parse Action: Click(x,y) from model output
-│   │   ├── perception.py     # perceive_scene, ground_element, zoom_and_reground
-│   │   ├── prompts.py        # System prompts
-│   │   ├── image_utils.py    # Screenshot compression
-│   │   ├── operator.py       # PlaywrightOperator
-│   │   └── ...
 │   ├── subagents/
-│   │   ├── chat_agent.py
-│   │   ├── voice_agent.py
-│   │   ├── synthesis_agent.py
-│   │   └── description_synthesis_agent.py
 │   ├── training/
-│   │   ├── trace_filter.py
-│   │   ├── trace_coco_export.py
-│   │   └── vertex_export.py
-│   ├── datasets/             # COCO4GUI schema
-│   └── utils/                # Video frames, MCP tools
+│   ├── datasets/
+│   └── utils/
 └── integrations/             # Slack, Gmail, GitHub, etc.
 ```

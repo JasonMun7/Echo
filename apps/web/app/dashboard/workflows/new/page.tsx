@@ -286,9 +286,9 @@ export default function NewWorkflowPage() {
                   <button
                     type="button"
                     onClick={stopRecordingFn}
-                  className="flex h-12 items-center gap-2 rounded-lg border border-echo-error bg-echo-error/10 px-4 text-echo-error hover:bg-echo-error/20"
-                >
-                  <span className="h-3 w-3 rounded-full bg-echo-error animate-pulse" />
+                    className="flex h-12 items-center gap-2 rounded-lg border border-echo-error bg-echo-error/10 px-4 text-echo-error hover:bg-echo-error/20"
+                  >
+                    <span className="h-3 w-3 rounded-full bg-echo-error animate-pulse" />
                     Stop Recording ({recordingDuration}s)
                   </button>
                 )}

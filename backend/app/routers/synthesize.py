@@ -1,5 +1,7 @@
 """
-POST /api/synthesize: create workflow from video or screenshots via EchoPrism-Synthesis.
+POST /api/synthesize: create workflow from video or screenshots.
+
+Delegates synthesis logic to synthesis_agent; handles HTTP, auth, GCS, Firestore.
 """
 
 import asyncio
@@ -7,10 +9,23 @@ import json
 import os
 import re
 import sys
+import time
+import tempfile
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
+
+
+def _ensure_agent_path() -> None:
+    """Ensure backend/agent is on sys.path for echo_prism imports."""
+    agent_dir = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
+    )
+    if agent_dir not in sys.path:
+        sys.path.insert(0, agent_dir)
 from google import genai
+from google.genai import types
 import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
 
@@ -21,13 +36,27 @@ from app.services.gcs import upload_file, download_file as gcs_download_file
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
 
 
-def _ensure_agent_path() -> None:
-    """Ensure backend/agent is on sys.path for echo_prism imports."""
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
+def _upload_to_gemini(content: bytes, mime_type: str) -> types.Part:
+    """Upload file to Gemini Files API and return Part for generate_content."""
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+        f.write(content)
+        path = f.name
+    try:
+        uploaded = client.files.upload(
+            file=path, config=types.UploadFileConfig(mime_type=mime_type)
+        )
+        # Poll until active
+        while getattr(uploaded.state, "name", str(uploaded.state)) == "PROCESSING":
+            time.sleep(1)
+            uploaded = client.files.get(name=uploaded.name)
+        state_name = getattr(uploaded.state, "name", str(uploaded.state))
+        if state_name != "ACTIVE":
+            raise ValueError(f"File upload failed: {state_name}")
+        uri = getattr(uploaded, "uri", None) or uploaded.name
+        return types.Part.from_uri(file_uri=uri, mime_type=mime_type)
+    finally:
+        Path(path).unlink(missing_ok=True)
 
 
 @router.post("")
@@ -38,7 +67,7 @@ async def synthesize(
     workflow_name: str | None = Form(None),
     screenshots: list[UploadFile] = File(default=[]),
 ):
-    """Create workflow from video or screenshots via EchoPrism-Synthesis.
+    """Create workflow from video or screenshots via Gemini 2.5 Pro.
 
     Video can be supplied either as a direct upload (``video`` field) **or** as
     a pre-uploaded GCS path (``video_gcs_path``).  The latter avoids the Cloud
@@ -48,6 +77,16 @@ async def synthesize(
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
 
     has_video = bool(video or video_gcs_path)
+    workflow_id = str(uuid.uuid4())
+    # Derive source_recording_id for traceability (correlate workflow ↔ recording)
+    _source_recording_id: str | None = None
+    if video_gcs_path:
+        _source_recording_id = video_gcs_path.rsplit("/", 1)[-1] if "/" in video_gcs_path else video_gcs_path
+    elif video:
+        _source_recording_id = video.filename or "video"
+    elif screenshots:
+        _sorted_ss = sorted(screenshots, key=lambda f: f.filename or "")
+        _source_recording_id = _sorted_ss[0].filename if _sorted_ss else "screenshots"
 
     # Accept video XOR screenshots
     if has_video and screenshots:
@@ -57,7 +96,6 @@ async def synthesize(
     if not has_video and not screenshots:
         raise HTTPException(status_code=400, detail="Provide video or screenshots")
 
-    workflow_id = str(uuid.uuid4())
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
 
@@ -74,9 +112,9 @@ async def synthesize(
     )
 
     try:
-        # Upload to GCS and build frames_bytes for EchoPrism synthesis
+        # Upload to GCS
         gcs_prefix = f"{uid}/{workflow_id}"
-        frames_bytes: list[bytes] = []
+        parts: list[types.Part] = []
         mime_map = {
             "video/mp4": "video/mp4",
             "image/png": "image/png",
@@ -90,10 +128,10 @@ async def synthesize(
             blob_name = f"{gcs_prefix}/{video.filename or 'video.mp4'}"
             upload_file(blob_name, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            _ensure_agent_path()
-            from echo_prism.utils.video_frames import extract_frames_from_video
-            frames_bytes = extract_frames_from_video(content, mime)
+            part = _upload_to_gemini(content, mime)
+            parts.append(part)
         elif video_gcs_path:
+            # File was uploaded directly to GCS by the browser via signed URL.
             match = re.match(r"gs://[^/]+/(.+)", video_gcs_path)
             if not match:
                 raise HTTPException(
@@ -111,9 +149,8 @@ async def synthesize(
             dest_blob = f"{gcs_prefix}/{blob_name.rsplit('/', 1)[-1]}"
             upload_file(dest_blob, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            _ensure_agent_path()
-            from echo_prism.utils.video_frames import extract_frames_from_video
-            frames_bytes = extract_frames_from_video(content, mime)
+            part = _upload_to_gemini(content, mime)
+            parts.append(part)
         else:
             sorted_screenshots = sorted(screenshots, key=lambda f: f.filename or "")
             for i, f in enumerate(sorted_screenshots):
@@ -121,60 +158,26 @@ async def synthesize(
                 ct = f.content_type or "image/png"
                 blob_name = f"{gcs_prefix}/{f.filename or f'image_{i}.png'}"
                 upload_file(blob_name, content, ct)
-                frames_bytes.append(content)
+                mime = mime_map.get(ct, "image/png")
+                part = _upload_to_gemini(content, mime)
+                parts.append(part)
 
-        if not frames_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail="No frames could be extracted from the video. Try screenshots instead.",
-            )
+        if not parts:
+            raise HTTPException(status_code=400, detail="No media to process")
 
+        # Delegate to synthesis agent (one-shot multimodal)
         _ensure_agent_path()
-        from echo_prism.models_config import SYNTHESIS_MODEL
-        from echo_prism.subagents.synthesis_agent import synthesize_workflow_from_frames
+        from echo_prism.subagents.synthesis_agent import synthesize_workflow_from_media
 
         client = genai.Client(api_key=GEMINI_API_KEY)
-        data = await synthesize_workflow_from_frames(
-            frames_bytes,
-            client,
-            model=SYNTHESIS_MODEL,
-        )
-        steps_data = data.get("steps", [])
-
-        # Post-processing: clamp coords, deduplicate, extract variables
-        variables: set[str] = set()
-        processed_steps: list[dict] = []
-        prev_key: tuple | None = None
-        for s in steps_data:
-            params = dict(s.get("params", {}))
-            # Clamp normalized coords to [0, 1000]
-            for coord_key in ("x", "y", "x2", "y2"):
-                if coord_key in params:
-                    try:
-                        params[coord_key] = max(0, min(1000, int(float(params[coord_key]))))
-                    except (TypeError, ValueError):
-                        params[coord_key] = 500
-            # Extract {{variable}} templates
-            for val in list(params.values()) + [s.get("context", "")]:
-                if isinstance(val, str):
-                    for m in re.findall(r"\{\{(\w+)\}\}", val):
-                        variables.add(m)
-            # Deduplicate consecutive identical (action, params) steps
-            step_key = (s.get("action", ""), json.dumps(params, sort_keys=True))
-            if step_key == prev_key:
-                continue
-            prev_key = step_key
-            s_copy = dict(s)
-            s_copy["params"] = params
-            processed_steps.append(s_copy)
-
-        steps_data = processed_steps
+        result = await synthesize_workflow_from_media(client, parts)
+        steps_data = result["steps"]
+        variables = result.get("variables", [])
 
         # Batch-write steps (no risk field)
         for i, s in enumerate(steps_data):
             step_id = str(uuid.uuid4())
-            step_ref = workflow_ref.collection("steps").document(step_id)
-            step_ref.set(
+            workflow_ref.collection("steps").document(step_id).set(
                 {
                     "order": i,
                     "action": s.get("action", "wait"),
@@ -184,35 +187,34 @@ async def synthesize(
                 }
             )
 
-        # User-provided name takes priority over Gemini-generated title
-        title = workflow_name or data.get("title") or f"Workflow {workflow_id[:8]}"
-        workflow_type = data.get("workflow_type", "browser")
+        title = workflow_name or result.get("title") or f"Workflow {workflow_id[:8]}"
+        workflow_type = result.get("workflow_type", "browser")
         if workflow_type not in ("browser", "desktop"):
             workflow_type = "browser"
 
-        # Store the first image/frame GCS path as a thumbnail reference
         from app.config import GCS_BUCKET as _GCS_BUCKET
+
         thumbnail_gcs_path: str | None = None
         if not has_video and screenshots:
             first_ss = sorted(screenshots, key=lambda f: f.filename or "")[0]
             blob_name_thumb = f"{gcs_prefix}/{first_ss.filename or 'image_0.png'}"
             thumbnail_gcs_path = f"gs://{_GCS_BUCKET}/{blob_name_thumb}"
-        elif has_video:
-            # Use first screenshot taken during synthesis if we stored one,
-            # otherwise leave unset — video thumbnails can be extracted later.
-            pass
 
         update_payload: dict = {
             "name": title,
             "workflow_type": workflow_type,
-                "status": "ready",
-                "updatedAt": SERVER_TIMESTAMP,
+            "status": "ready",
+            "updatedAt": SERVER_TIMESTAMP,
             "variables": sorted(variables),
-            }
+        }
+        if _source_recording_id:
+            update_payload["source_recording_id"] = _source_recording_id
         if thumbnail_gcs_path:
             update_payload["thumbnail_gcs_path"] = thumbnail_gcs_path
         workflow_ref.update(update_payload)
         return {"workflow_id": workflow_id}
+    except HTTPException:
+        raise
     except Exception as e:
         workflow_ref.update(
             {
@@ -232,47 +234,53 @@ async def synthesize_from_description_impl(
     db,
 ) -> str:
     """Generate workflow steps from a natural language description. Returns workflow_id."""
+    _ensure_agent_path()
+    from echo_prism.subagents.synthesis_agent import synthesize_workflow_from_description
+
     workflow_id = str(uuid.uuid4())
     workflow_ref = db.collection("workflows").document(workflow_id)
-    workflow_ref.set({
-        "name": name,
-        "status": "processing",
-        "owner_uid": uid,
-        "workflow_type": workflow_type if workflow_type in ("browser", "desktop") else "browser",
-        "createdAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    })
-
-    _ensure_agent_path()
-    from echo_prism.models_config import DESCRIPTION_MODEL
-    from echo_prism.subagents.description_synthesis_agent import synthesize_workflow_from_description
+    workflow_ref.set(
+        {
+            "name": name,
+            "status": "processing",
+            "owner_uid": uid,
+            "workflow_type": workflow_type
+            if workflow_type in ("browser", "desktop")
+            else "browser",
+            "createdAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
 
     client = genai.Client(api_key=GEMINI_API_KEY)
-    data = await synthesize_workflow_from_description(
-        description, name, workflow_type, client, model=DESCRIPTION_MODEL
+    result = await synthesize_workflow_from_description(
+        description, name, workflow_type, client
     )
-    steps_data = data.get("steps", [])
-
-    for i, s in enumerate(steps_data):
-        step_id = str(uuid.uuid4())
-        workflow_ref.collection("steps").document(step_id).set({
-            "order": i,
-            "action": s.get("action", "wait"),
-            "context": s.get("context", ""),
-            "params": s.get("params", {}),
-            "expected_outcome": s.get("expected_outcome", ""),
-        })
-
-    actual_type = data.get("workflow_type", workflow_type)
+    steps_data = result.get("steps", [])
+    actual_type = result.get("workflow_type", workflow_type)
     if actual_type not in ("browser", "desktop"):
         actual_type = "browser"
 
-    workflow_ref.update({
-        "name": data.get("title") or name,
-        "workflow_type": actual_type,
-        "status": "ready",
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    for i, s in enumerate(steps_data):
+        step_id = str(uuid.uuid4())
+        workflow_ref.collection("steps").document(step_id).set(
+            {
+                "order": i,
+                "action": s.get("action", "wait"),
+                "context": s.get("context", ""),
+                "params": s.get("params", {}),
+                "expected_outcome": s.get("expected_outcome", ""),
+            }
+        )
+
+    workflow_ref.update(
+        {
+            "name": result.get("title") or name,
+            "workflow_type": actual_type,
+            "status": "ready",
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return workflow_id
 
 

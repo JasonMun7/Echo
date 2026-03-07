@@ -24,10 +24,10 @@ declare global {
         { id: string; name: string; thumbnail: string }[]
       >;
       getPrimarySourceId: () => Promise<string | null>;
-      createRun: (args: { workflowId: string; token: string }) => Promise<
-        | { runId: string; workflowId: string }
-        | { error: string }
-      >;
+      createRun: (args: {
+        workflowId: string;
+        token: string;
+      }) => Promise<{ runId: string; workflowId: string } | { error: string }>;
       runWorkflowLocal: (args: {
         steps: Array<Record<string, unknown>>;
         sourceId: string;
@@ -65,7 +65,9 @@ declare global {
       openWebUI: (path?: string) => Promise<void>;
       pauseRun: () => Promise<{ ok: boolean }>;
       resumeRun: () => Promise<{ ok: boolean }>;
-      onRunProgress: (cb: (entry: { thought: string; action: string; step: number }) => void) => void;
+      onRunProgress: (
+        cb: (entry: { thought: string; action: string; step: number }) => void,
+      ) => void;
       removeRunProgressListener: () => void;
       startVoiceChat: () => Promise<{ ok: boolean; error?: string }>;
       stopVoiceChat: () => Promise<{ ok: boolean }>;
@@ -73,11 +75,17 @@ declare global {
       onChatAudio: (cb: (chunk: ArrayBuffer) => void) => void;
       onChatText: (cb: (msg: { role: string; text: string }) => void) => void;
       removeChatListeners: () => void;
-      onRunFromUrl: (cb: (arg: { workflowId: string; runId: string }) => void) => void;
+      onRunFromUrl: (
+        cb: (arg: { workflowId: string; runId: string }) => void,
+      ) => void;
       removeRunFromUrlListener: () => void;
       enterRecordingMode: () => Promise<{ ok: boolean }>;
       exitRecordingMode: () => Promise<{ ok: boolean }>;
-      enterRunMode: (ctx: { workflowId: string; runId: string; token: string }) => Promise<{ ok: boolean }>;
+      enterRunMode: (ctx: {
+        workflowId: string;
+        runId: string;
+        token: string;
+      }) => Promise<{ ok: boolean }>;
       exitRunMode: () => Promise<{ ok: boolean }>;
       onRecordingCommand: (cb: (payload: { action: string }) => void) => void;
       removeRecordingCommandListener: () => void;
@@ -140,14 +148,23 @@ function MainWindowApp() {
     runId?: string;
     workflowId?: string;
   } | null>(null);
-  const [liveProgress, setLiveProgress] = useState<Array<{ thought: string; action: string; step: number }>>([]);
-  const [chatMessages, setChatMessages] = useState<Array<{ role: string; text: string }>>([]);
+  const [liveProgress, setLiveProgress] = useState<
+    Array<{ thought: string; action: string; step: number }>
+  >([]);
+  const [chatMessages, setChatMessages] = useState<
+    Array<{ role: string; text: string }>
+  >([]);
   const [chatInput, setChatInput] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
   const [textChatOpen, setTextChatOpen] = useState(false);
-  const [textChatMessages, setTextChatMessages] = useState<Array<{ role: string; text: string }>>([
-    { role: "assistant", text: "Hi! I'm EchoPrism. I can help you create workflows, run automations, and manage your Echo workspace." },
+  const [textChatMessages, setTextChatMessages] = useState<
+    Array<{ role: string; text: string }>
+  >([
+    {
+      role: "assistant",
+      text: "Hi! I'm EchoPrism. I can help you create workflows, run automations, and manage your Echo workspace.",
+    },
   ]);
   const [textChatInput, setTextChatInput] = useState("");
   const [textChatConnected, setTextChatConnected] = useState(false);
@@ -243,7 +260,10 @@ function MainWindowApp() {
         setScreenPermissionRequired(true);
         return;
       }
-      const result = await window.electronAPI?.fetchWorkflow?.({ workflowId: arg.workflowId, token: t });
+      const result = await window.electronAPI?.fetchWorkflow?.({
+        workflowId: arg.workflowId,
+        token: t,
+      });
       if (!result || "error" in result) return;
       const { workflow, steps } = result;
       if (!steps?.length) return;
@@ -256,7 +276,9 @@ function MainWindowApp() {
       setRunResult(null);
       setLiveProgress([]);
       setCurrentRunId(arg.runId);
-      window.electronAPI?.onRunProgress?.((entry) => setLiveProgress((prev) => [...prev, entry]));
+      window.electronAPI?.onRunProgress?.((entry) =>
+        setLiveProgress((prev) => [...prev, entry]),
+      );
       try {
         await window.electronAPI?.enterRunMode?.({
           workflowId: arg.workflowId,
@@ -266,7 +288,8 @@ function MainWindowApp() {
         const runResult = await window.electronAPI?.runWorkflowLocal?.({
           steps,
           sourceId,
-          workflowType: (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+          workflowType:
+            (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
           workflowId: arg.workflowId,
           runId: arg.runId,
           token: t,
@@ -293,7 +316,9 @@ function MainWindowApp() {
   useEffect(() => {
     if (!textChatOpen || !token) return;
     const wsUrl = API_URL.replace(/^http/, "ws");
-    const ws = new WebSocket(`${wsUrl}/ws/chat?token=${encodeURIComponent(token)}&mode=text`);
+    const ws = new WebSocket(
+      `${wsUrl}/ws/chat?token=${encodeURIComponent(token)}&mode=text`,
+    );
     wsTextRef.current = ws;
     ws.onopen = () => setTextChatConnected(true);
     ws.onclose = () => {
@@ -307,11 +332,19 @@ function MainWindowApp() {
       try {
         const d = JSON.parse(e.data as string) as Record<string, unknown>;
         if (d.type === "text" && d.text) {
-          setTextChatMessages((prev) => [...prev, { role: "assistant", text: d.text as string }]);
+          setTextChatMessages((prev) => [
+            ...prev,
+            { role: "assistant", text: d.text as string },
+          ]);
         } else if (d.type === "error") {
-          setTextChatMessages((prev) => [...prev, { role: "assistant", text: `Error: ${d.text ?? "Unknown"}` }]);
+          setTextChatMessages((prev) => [
+            ...prev,
+            { role: "assistant", text: `Error: ${d.text ?? "Unknown"}` },
+          ]);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     return () => {
       ws.close();
@@ -444,9 +477,7 @@ function MainWindowApp() {
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
       rec.stop();
-      setRecordedDuration(
-        durationFromHud ?? recordingDurationRef.current,
-      );
+      setRecordedDuration(durationFromHud ?? recordingDurationRef.current);
       setRecording(false);
       setRecordingPaused(false);
     }
@@ -594,7 +625,8 @@ function MainWindowApp() {
         });
         return;
       }
-      const runId = createRes && "runId" in createRes ? createRes.runId : undefined;
+      const runId =
+        createRes && "runId" in createRes ? createRes.runId : undefined;
       setCurrentRunId(runId ?? null);
 
       await window.electronAPI?.enterRunMode?.({
@@ -631,10 +663,13 @@ function MainWindowApp() {
     window.electronAPI?.resumeRun();
     try {
       const base = API_URL.replace(/\/$/, "");
-      const res = await fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${base}/api/run/${selectedWorkflowId}/${currentRunId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (!res.ok) throw new Error("Cancel failed");
     } catch {
       // Non-fatal: agent may have already finished
@@ -642,22 +677,37 @@ function MainWindowApp() {
   };
 
   const sendTextChatMessage = (text: string) => {
-    if (!text.trim() || !wsTextRef.current || wsTextRef.current.readyState !== WebSocket.OPEN) return;
-    setTextChatMessages((prev) => [...prev, { role: "user", text: text.trim() }]);
+    if (
+      !text.trim() ||
+      !wsTextRef.current ||
+      wsTextRef.current.readyState !== WebSocket.OPEN
+    )
+      return;
+    setTextChatMessages((prev) => [
+      ...prev,
+      { role: "user", text: text.trim() },
+    ]);
     wsTextRef.current.send(JSON.stringify({ type: "text", text: text.trim() }));
     setTextChatInput("");
   };
 
   const handleInterrupt = async () => {
-    if (!interruptText.trim() || !selectedWorkflowId || !currentRunId || !token) return;
+    if (!interruptText.trim() || !selectedWorkflowId || !currentRunId || !token)
+      return;
     setSendingInterrupt(true);
     try {
       const base = API_URL.replace(/\/$/, "");
-      const res = await fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ instruction: interruptText.trim() }),
-      });
+      const res = await fetch(
+        `${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ instruction: interruptText.trim() }),
+        },
+      );
       if (!res.ok) throw new Error("Failed to send");
       setInterruptText("");
     } catch {
@@ -1130,11 +1180,32 @@ function MainWindowApp() {
           </button>
           {/* Live progress during run */}
           {running && liveProgress.length > 0 && (
-            <div style={{ marginTop: 12, padding: 12, background: "#F5F3FF", borderRadius: 8, border: "1px solid #A577FF30" }}>
-              <p style={{ fontSize: 11, color: "#A577FF", fontWeight: 600, marginBottom: 6 }}>EchoPrism thinking…</p>
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                background: "#F5F3FF",
+                borderRadius: 8,
+                border: "1px solid #A577FF30",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 11,
+                  color: "#A577FF",
+                  fontWeight: 600,
+                  marginBottom: 6,
+                }}
+              >
+                EchoPrism thinking…
+              </p>
               {liveProgress.slice(-3).map((entry, i) => (
-                <div key={i} style={{ fontSize: 11, color: "#5B3FA0", marginBottom: 3 }}>
-                  Step {entry.step + 1}: {entry.thought.slice(0, 120)}{entry.thought.length > 120 ? "…" : ""}
+                <div
+                  key={i}
+                  style={{ fontSize: 11, color: "#5B3FA0", marginBottom: 3 }}
+                >
+                  Step {entry.step + 1}: {entry.thought.slice(0, 120)}
+                  {entry.thought.length > 120 ? "…" : ""}
                 </div>
               ))}
             </div>
@@ -1189,7 +1260,7 @@ function MainWindowApp() {
                     window.electronAPI?.openWebUI(
                       runResult.runId
                         ? `/dashboard/workflows/${runResult.workflowId}/runs/${runResult.runId}`
-                        : `/dashboard/workflows/${runResult.workflowId}`
+                        : `/dashboard/workflows/${runResult.workflowId}`,
                     )
                   }
                 >
@@ -1204,58 +1275,147 @@ function MainWindowApp() {
 
       {/* EchoPrism Chat (text) Panel */}
       {textChatOpen && (
-        <div style={{
-          position: "fixed",
-          bottom: 80,
-          left: 20,
-          width: 340,
-          maxHeight: 480,
-          background: "white",
-          borderRadius: 16,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-          border: "1px solid rgba(165,119,255,0.3)",
-          display: "flex",
-          flexDirection: "column",
-          zIndex: 1000,
-        }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(165,119,255,0.2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          style={{
+            position: "fixed",
+            bottom: 80,
+            left: 20,
+            width: 340,
+            maxHeight: 480,
+            background: "white",
+            borderRadius: 16,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+            border: "1px solid rgba(165,119,255,0.3)",
+            display: "flex",
+            flexDirection: "column",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              padding: "12px 16px",
+              borderBottom: "1px solid rgba(165,119,255,0.2)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>
               EchoPrism Chat
-              {textChatConnected ? <span style={{ marginLeft: 6, fontSize: 10, color: "#22c55e", fontWeight: 500 }}>• Connected</span> : <span style={{ marginLeft: 6, fontSize: 10, color: "#9ca3af" }}>Connecting…</span>}
+              {textChatConnected ? (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 10,
+                    color: "#22c55e",
+                    fontWeight: 500,
+                  }}
+                >
+                  • Connected
+                </span>
+              ) : (
+                <span style={{ marginLeft: 6, fontSize: 10, color: "#9ca3af" }}>
+                  Connecting…
+                </span>
+              )}
             </span>
-            <button onClick={() => setTextChatOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 16 }}>×</button>
+            <button
+              onClick={() => setTextChatOpen(false)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#999",
+                fontSize: 16,
+              }}
+            >
+              ×
+            </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8, minHeight: 200 }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              minHeight: 200,
+            }}
+          >
             {textChatMessages.map((m, i) => (
-              <div key={i} style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                background: m.role === "user" ? "#A577FF" : "#F5F3FF",
-                color: m.role === "user" ? "white" : "#150A35",
-                borderRadius: 12,
-                padding: "8px 12px",
-                fontSize: 13,
-                maxWidth: "90%",
-              }}>{m.text}</div>
+              <div
+                key={i}
+                style={{
+                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                  background: m.role === "user" ? "#A577FF" : "#F5F3FF",
+                  color: m.role === "user" ? "white" : "#150A35",
+                  borderRadius: 12,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  maxWidth: "90%",
+                }}
+              >
+                {m.text}
+              </div>
             ))}
           </div>
-          <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(165,119,255,0.2)", display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {["List my workflows", "What can you do?", "Create a new workflow"].map((chip) => (
+          <div
+            style={{
+              padding: "8px 12px",
+              borderTop: "1px solid rgba(165,119,255,0.2)",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+            }}
+          >
+            {[
+              "List my workflows",
+              "What can you do?",
+              "Create a new workflow",
+            ].map((chip) => (
               <button
                 key={chip}
                 onClick={() => sendTextChatMessage(chip)}
-                style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "1px solid rgba(165,119,255,0.4)", background: "rgba(165,119,255,0.1)", color: "#A577FF", cursor: "pointer" }}
+                style={{
+                  fontSize: 11,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(165,119,255,0.4)",
+                  background: "rgba(165,119,255,0.1)",
+                  color: "#A577FF",
+                  cursor: "pointer",
+                }}
               >
                 {chip}
               </button>
             ))}
           </div>
-          <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(165,119,255,0.2)", display: "flex", gap: 8 }}>
+          <div
+            style={{
+              padding: "8px 12px",
+              borderTop: "1px solid rgba(165,119,255,0.2)",
+              display: "flex",
+              gap: 8,
+            }}
+          >
             <input
               value={textChatInput}
               onChange={(e) => setTextChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendTextChatMessage(textChatInput)}
+              onKeyDown={(e) =>
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                sendTextChatMessage(textChatInput)
+              }
               placeholder="Message EchoPrism…"
-              style={{ flex: 1, borderRadius: 8, border: "1px solid rgba(165,119,255,0.3)", padding: "8px 12px", fontSize: 12, outline: "none" }}
+              style={{
+                flex: 1,
+                borderRadius: 8,
+                border: "1px solid rgba(165,119,255,0.3)",
+                padding: "8px 12px",
+                fontSize: 12,
+                outline: "none",
+              }}
             />
             <button
               type="button"
@@ -1272,42 +1432,99 @@ function MainWindowApp() {
 
       {/* EchoPrismVoice Chat Panel */}
       {chatOpen && (
-        <div style={{
-          position: "fixed",
-          bottom: 80,
-          right: 20,
-          width: 340,
-          maxHeight: 500,
-          background: "white",
-          borderRadius: 16,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-          border: "1px solid rgba(165,119,255,0.3)",
-          display: "flex",
-          flexDirection: "column",
-          zIndex: 1000,
-        }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(165,119,255,0.2)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(135deg, rgba(165,119,255,0.05), transparent)" }}>
+        <div
+          style={{
+            position: "fixed",
+            bottom: 80,
+            right: 20,
+            width: 340,
+            maxHeight: 500,
+            background: "white",
+            borderRadius: 16,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+            border: "1px solid rgba(165,119,255,0.3)",
+            display: "flex",
+            flexDirection: "column",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              padding: "12px 16px",
+              borderBottom: "1px solid rgba(165,119,255,0.2)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background:
+                "linear-gradient(135deg, rgba(165,119,255,0.05), transparent)",
+            }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: voiceActive ? "#22c55e" : "#9ca3af" }} />
-              <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>EchoPrismVoice</span>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: voiceActive ? "#22c55e" : "#9ca3af",
+                }}
+              />
+              <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>
+                EchoPrismVoice
+              </span>
             </div>
-            <button onClick={() => { setChatOpen(false); window.electronAPI?.stopVoiceChat(); setVoiceActive(false); }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 18, padding: "0 4px" }}>×</button>
+            <button
+              onClick={() => {
+                setChatOpen(false);
+                window.electronAPI?.stopVoiceChat();
+                setVoiceActive(false);
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#999",
+                fontSize: 18,
+                padding: "0 4px",
+              }}
+            >
+              ×
+            </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
             {chatMessages.map((m, i) => (
-              <div key={i} style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                background: m.role === "user" ? "#A577FF" : "#F5F3FF",
-                color: m.role === "user" ? "white" : "#150A35",
-                borderRadius: 12,
-                padding: "6px 12px",
-                fontSize: 12,
-                maxWidth: "85%",
-              }}>{m.text}</div>
+              <div
+                key={i}
+                style={{
+                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                  background: m.role === "user" ? "#A577FF" : "#F5F3FF",
+                  color: m.role === "user" ? "white" : "#150A35",
+                  borderRadius: 12,
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  maxWidth: "85%",
+                }}
+              >
+                {m.text}
+              </div>
             ))}
           </div>
-          <div style={{ padding: "8px 12px", borderTop: "1px solid #A577FF20", display: "flex", gap: 8 }}>
+          <div
+            style={{
+              padding: "8px 12px",
+              borderTop: "1px solid #A577FF20",
+              display: "flex",
+              gap: 8,
+            }}
+          >
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -1319,16 +1536,29 @@ function MainWindowApp() {
                   window.electronAPI?.sendChatText(text);
                   if (selectedWorkflowId && currentRunId && token) {
                     const base = API_URL.replace(/\/$/, "");
-                    fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ instruction: text }),
-                    }).catch(() => {});
+                    fetch(
+                      `${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({ instruction: text }),
+                      },
+                    ).catch(() => {});
                   }
                 }
               }}
               placeholder="Type a message..."
-              style={{ flex: 1, borderRadius: 8, border: "1px solid #A577FF30", padding: "6px 10px", fontSize: 12, outline: "none" }}
+              style={{
+                flex: 1,
+                borderRadius: 8,
+                border: "1px solid #A577FF30",
+                padding: "6px 10px",
+                fontSize: 12,
+                outline: "none",
+              }}
             />
           </div>
         </div>
@@ -1391,15 +1621,20 @@ export default function App() {
   if (windowType === "hud") {
     if (mode === "recording") {
       return (
-        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "stretch" }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "stretch",
+          }}
+        >
           <RecordingHud />
         </div>
       );
     }
     if (mode === "run") {
-      return (
-        <RunHudWrapper />
-      );
+      return <RunHudWrapper />;
     }
     return null;
   }
@@ -1417,12 +1652,18 @@ export default function App() {
 
 function RunHudWrapper() {
   const [runPaused, setRunPaused] = useState(false);
-  const [liveProgress, setLiveProgress] = useState<Array<{ thought: string; action: string; step: number }>>([]);
+  const [liveProgress, setLiveProgress] = useState<
+    Array<{ thought: string; action: string; step: number }>
+  >([]);
   const [callUserReason, setCallUserReason] = useState<string | null>(null);
   const [isAwaitingUser, setIsAwaitingUser] = useState(false);
 
   useEffect(() => {
-    const handler = (entry: { thought: string; action: string; step: number }) => {
+    const handler = (entry: {
+      thought: string;
+      action: string;
+      step: number;
+    }) => {
       setLiveProgress((prev) => [...prev.slice(-4), entry]);
     };
     window.electronAPI?.onRunProgress?.(handler);
@@ -1439,7 +1680,15 @@ function RunHudWrapper() {
   }, []);
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "stretch", minHeight: 0 }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "stretch",
+        minHeight: 0,
+      }}
+    >
       <RunHud
         runPaused={runPaused}
         setRunPaused={setRunPaused}
