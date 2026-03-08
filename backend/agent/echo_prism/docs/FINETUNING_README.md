@@ -30,6 +30,11 @@ This converts COCO4GUI to Vertex JSONL and uploads to `gs://YOUR_BUCKET/training
 
 Use the GCS JSONL URI in your Colab fine-tuning workflow as the custom dataset on top of your GroundCUA-prepared model.
 
+A ready-to-use notebook is in `notebooks/gemini-flash-finetune.ipynb`:
+
+- **With GroundCUA data:** Set `USE_GROUNDCUA=True`, `PROJECT_ID`, `GCS_BUCKET`, and optionally `HF_TOKEN`. The notebook downloads ServiceNow/GroundCUA from Hugging Face, converts to Vertex SFT format, uploads to GCS, and runs fine-tuning.
+- **With existing JSONL:** Set `USE_GROUNDCUA=False` and provide `TRAIN_DATASET_URI` (e.g. from `pnpm coco4gui:prepare`).
+
 ## Output Format (Vertex-native)
 
 Matches Vertex SFT schema:

@@ -7,8 +7,11 @@ from app.routers import health, storage, users, synthesize, workflows, runs, sch
 app = FastAPI(title="Echo API", version="0.1.0")
 
 _origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
-# Fallback regex for Cloud Run frontend in case env not set
-_origin_regex = r"https://echo-frontend-[a-z0-9.-]+\.run\.app"
+
+_origin_regex = (
+    r"https://echo-frontend-[a-z0-9.-]+\.run\.app|"
+    r"http://(localhost|127\.0\.0\.1)(:[0-9]+)?"
+)
 if not _origins:
     _origins = ["http://localhost:3000", "http://127.0.0.1:3000"]  # dev defaults
 app.add_middleware(
