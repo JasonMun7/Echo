@@ -32,17 +32,17 @@ steps:
       - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
       - "backend"
 
-  # Build agent
+  # Build echo-prism-agent (Cloud Run service)
   - name: "gcr.io/cloud-builders/docker"
-    id: build-agent
+    id: build-echo-prism-agent
     args:
       - "build"
       - "--platform=linux/amd64"
       - "-f"
-      - "backend/agent/Dockerfile"
+      - "services/echo-prism-agent/Dockerfile"
       - "-t"
-      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
-      - "backend/agent"
+      - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
+      - "."
 
   # Build OmniParser (GPU service — YOLO + Florence2)
   - name: "gcr.io/cloud-builders/docker"
@@ -72,11 +72,11 @@ steps:
     waitFor: ["build-backend"]
 
   - name: "gcr.io/cloud-builders/docker"
-    id: push-agent
+    id: push-echo-prism-agent
     args:
       - "push"
-      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
-    waitFor: ["build-agent"]
+      - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
+    waitFor: ["build-echo-prism-agent"]
 
   - name: "gcr.io/cloud-builders/docker"
     id: push-omniparser

@@ -408,6 +408,7 @@ ipcMain.handle(
     }
     requestResume();
     const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+    const agentUrl = (process.env.VITE_ECHO_PRISM_AGENT_URL || base).replace(/\/$/, "");
     const progress: string[] = [];
     const result = await runWorkflowRemote(
       steps as unknown as import("@echo/types").Step[],
@@ -418,6 +419,7 @@ ipcMain.handle(
         runId,
         token,
         backendUrl: base,
+        agentWsUrl: agentUrl,
         onProgress: (msg, stepNum, thought, action) => {
           progress.push(msg);
           const payload = {

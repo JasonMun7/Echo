@@ -1,10 +1,10 @@
 """
 EchoPrism Alpha WebSocket: /api/agent/run
 
-Single canonical interface for the agent. All clients (desktop, Cloud Run Job, future) connect
-here. Alpha orchestrates subagents; returns actions for clients to execute locally (NutJS/Playwright).
+Single canonical interface for the agent. Desktop clients connect here for AI inference.
+Alpha orchestrates subagents; returns actions for clients to execute locally (NutJS/Playwright).
 
-Auth: Firebase ID token (desktop) OR job_token + workflow_id + run_id (Cloud Run Job).
+Auth: Firebase ID token (token query param).
 """
 import asyncio
 import base64
@@ -17,8 +17,6 @@ import firebase_admin
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
-from google.cloud.firestore import DELETE_FIELD
-
 from app.auth import get_firebase_app
 
 logger = logging.getLogger(__name__)
@@ -44,41 +42,6 @@ def _verify_token(token: str | None) -> str | None:
         return None
 
 
-async def _verify_job_token(
-    job_token: str | None,
-    workflow_id: str | None,
-    run_id: str | None,
-) -> tuple[str | None, str | None]:
-    """
-    Validate job_token against Firestore run doc. Returns (uid, None) on success or (None, error_msg).
-    Clears job_connect_token after first successful validation.
-    """
-    if not job_token or not workflow_id or not run_id:
-        return None, "job_token auth requires job_token, workflow_id, run_id"
-    try:
-        app = get_firebase_app()
-        db = firebase_admin.firestore.client(app)
-        run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
-        doc = run_ref.get()
-        if not doc.exists:
-            return None, "Run not found"
-        data = doc.to_dict() or {}
-        stored_token = data.get("job_connect_token")
-        if not stored_token or stored_token != job_token:
-            return None, "Invalid or expired job_token"
-        status = data.get("status", "")
-        if status not in ("running", "pending"):
-            return None, "Run is not active"
-        uid = data.get("owner_uid", "")
-        if not uid:
-            return None, "Run has no owner_uid"
-        run_ref.update({"job_connect_token": DELETE_FIELD})
-        return uid, None
-    except Exception as e:
-        logger.exception("job_token validation failed: %s", e)
-        return None, str(e)
-
-
 async def _validate_run_access(uid: str, workflow_id: str, run_id: str) -> bool:
     """Check that the run exists and belongs to the user."""
     try:
@@ -97,26 +60,16 @@ async def _validate_run_access(uid: str, workflow_id: str, run_id: str) -> bool:
 @router.websocket("/run")
 async def agent_run_ws(
     websocket: WebSocket,
-    token: str | None = Query(default=None, description="Firebase ID token (desktop)"),
-    job_token: str | None = Query(default=None, description="Job connect token (Cloud Run Job)"),
-    workflow_id: str | None = Query(default=None, description="Workflow ID (required with job_token)"),
-    run_id: str | None = Query(default=None, description="Run ID (required with job_token)"),
+    token: str | None = Query(default=None, description="Firebase ID token"),
 ):
     """
-    EchoPrism agent WebSocket. Clients send step + screenshot; backend returns action.
-    Auth: token (Firebase) OR job_token+workflow_id+run_id (Job).
+    EchoPrism agent WebSocket. Clients send step + screenshot; returns action.
+    Auth: Firebase ID token (token query param).
     Message types:
       Client -> Server: start, step, verify
       Server -> Client: thinking, action, done, error
     """
-    uid: str | None = None
-    if token:
-        uid = _verify_token(token)
-    elif job_token and workflow_id and run_id:
-        uid, job_err = await _verify_job_token(job_token, workflow_id, run_id)
-        if job_err:
-            logger.warning("job_token auth failed: %s", job_err)
-            uid = None
+    uid = _verify_token(token)
     if not uid:
         await websocket.close(code=4001)
         return

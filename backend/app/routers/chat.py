@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import sys
-import threading
 import uuid
 
 import firebase_admin.firestore
@@ -33,64 +32,6 @@ def _ensure_agent_path() -> None:
     )
     if agent_dir not in sys.path:
         sys.path.insert(0, agent_dir)
-
-
-def _trigger_run_inline(workflow_id: str, run_id: str, uid: str, run_ref) -> None:
-    """Invoke the agent via Cloud Run Job (prod) or in-process thread (local dev)."""
-    job_name = os.environ.get("RUN_JOB_NAME", "")
-    project = (
-        os.environ.get("GOOGLE_CLOUD_PROJECT")
-        or os.environ.get("GCP_PROJECT")
-        or os.environ.get("ECHO_GCP_PROJECT_ID")
-    )
-    region = os.environ.get("CLOUD_RUN_REGION") or os.environ.get("ECHO_CLOUD_RUN_REGION") or "us-central1"
-
-    if project and job_name:
-        try:
-            from google.cloud.run_v2 import JobsClient
-            from google.cloud.run_v2.types import EnvVar, RunJobRequest
-            client = JobsClient()
-            job_path = f"projects/{project}/locations/{region}/jobs/{job_name}"
-            overrides = RunJobRequest.Overrides(container_overrides=[
-                RunJobRequest.Overrides.ContainerOverride(env=[
-                    EnvVar(name="WORKFLOW_ID", value=workflow_id),
-                    EnvVar(name="RUN_ID", value=run_id),
-                    EnvVar(name="OWNER_UID", value=uid),
-                ])
-            ])
-            client.run_job(request=RunJobRequest(name=job_path, overrides=overrides))
-            run_ref.update({"status": "running"})
-        except Exception as e:
-            logger.exception("chat.py: Cloud Run Job invocation failed: %s", e)
-            run_ref.update({"status": "failed", "error": str(e)})
-    else:
-        # Local dev: run in background thread
-        _wf = workflow_id
-        _run = run_id
-        _uid = uid
-
-        def _thread():
-            os.environ["WORKFLOW_ID"] = _wf
-            os.environ["RUN_ID"] = _run
-            os.environ["OWNER_UID"] = _uid
-            agent_dir = os.path.normpath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-            )
-            if agent_dir not in sys.path:
-                sys.path.insert(0, agent_dir)
-            try:
-                from run_workflow_agent import main as agent_main  # type: ignore
-                agent_main()
-            except Exception as exc:
-                logger.exception("In-process agent failed: %s", exc)
-                try:
-                    run_ref.update({"status": "failed", "error": str(exc)})
-                except Exception:
-                    pass
-
-        t = threading.Thread(target=_thread, daemon=True, name=f"agent-{run_id[:8]}")
-        t.start()
-        run_ref.update({"status": "running"})
 
 
 async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> list[types.LiveClientToolResponse]:
@@ -294,8 +235,13 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         workflow_name = args.get("workflow_name", "")
         run_id = str(uuid.uuid4())
         run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
-        run_ref.set({"status": "pending", "owner_uid": uid, "createdAt": SERVER_TIMESTAMP, "confirmation_status": None})
-        _trigger_run_inline(workflow_id, run_id, uid, run_ref)
+        run_ref.set({
+            "status": "pending",
+            "owner_uid": uid,
+            "createdAt": SERVER_TIMESTAMP,
+            "confirmation_status": None,
+            "source": "desktop",
+        })
         try:
             await websocket.send_text(json.dumps({
                 "type": "run_started",
@@ -324,8 +270,13 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         )
         run_id = str(uuid.uuid4())
         run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
-        run_ref.set({"status": "pending", "owner_uid": uid, "createdAt": SERVER_TIMESTAMP, "confirmation_status": None})
-        _trigger_run_inline(workflow_id, run_id, uid, run_ref)
+        run_ref.set({
+            "status": "pending",
+            "owner_uid": uid,
+            "createdAt": SERVER_TIMESTAMP,
+            "confirmation_status": None,
+            "source": "desktop",
+        })
         try:
             await websocket.send_text(json.dumps({
                 "type": "run_started",
