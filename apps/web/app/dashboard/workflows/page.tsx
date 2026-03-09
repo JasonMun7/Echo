@@ -100,6 +100,7 @@ export default function WorkflowsPage() {
       (snap) => {
         const list = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
+          .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
           .sort((a, b) => {
             const getTime = (x: unknown) =>
               typeof (x as { toMillis?: () => number })?.toMillis === "function"

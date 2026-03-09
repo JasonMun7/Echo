@@ -1,18 +1,20 @@
 # EchoPrism Sub-agents
 
-Sub-agents handle user-facing interactions and workflow creation. They are invoked by the chat and synthesize routers.
+Sub-agents handle user-facing interactions, workflow creation, element localization, and execution.
 
 ## Agents
 
 | Agent | Module | Purpose |
 |-------|--------|---------|
-| **Chat** | `chat_agent.py` | Text chat with function calling (list workflows, run, redirect, synthesize, integrations) |
-| **Voice** | `voice_agent.py` | Real-time voice via Gemini Live API; WebSocket bridge for TTS/STT |
-| **Synthesis** | `synthesis_agent.py` | All workflow synthesis: (1) one-shot video/images → JSON via `synthesize_workflow_from_media` (uses `SYNTHESIS_MODEL`), (2) frame-by-frame observe→think→act via `synthesize_workflow_from_frames`, (3) natural language description → steps via `synthesize_workflow_from_description` |
+| **Chat** | `modalities/chat_agent.py` | Alpha's text modality. Function calling (list workflows, run, redirect, synthesize, integrations). |
+| **Voice** | `modalities/voice_agent.py` | Alpha's voice modality. Gemini Live API; WebSocket bridge for TTS/STT. |
+| **Synthesis** | `synthesis_agent.py` | Workflow creation: video/images → JSON, description → steps. |
+| **Locator** | `locator_agent.py` | Element localization: screenshot + description → coords. Owns `ground_element` and `refine` (RegionFocus). Swappable model (e.g., UI-TARS). |
+| **Runner** | `runner_agent.py` + `runner/operator.py` | Executes UI steps via PlaywrightOperator and api_call via integration connectors. Calls Locator when semantic actions need coords. |
 
 ## Routing
 
-- **Chat router** (`/ws/chat`): Uses Chat for text mode, Voice for `mode=voice`
+- **Chat router** (`/ws/chat`): Chat for text mode, Voice for `mode=voice`. Tools delegate to Synthesis or Runner.
 - **Synthesize router** (`/api/synthesize`): Thin HTTP layer; handles auth, GCS, Firestore. Delegates to Synthesis for:
   - Video/screenshots → `synthesize_workflow_from_media` (one-shot multimodal, uses `ECHOPRISM_SYNTHESIS_MODEL`)
   - Description → `synthesize_workflow_from_description`

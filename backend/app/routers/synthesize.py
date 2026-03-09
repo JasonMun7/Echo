@@ -232,6 +232,7 @@ async def synthesize_from_description_impl(
     description: str,
     workflow_type: str,
     db,
+    ephemeral: bool = False,
 ) -> str:
     """Generate workflow steps from a natural language description. Returns workflow_id."""
     _ensure_agent_path()
@@ -239,18 +240,19 @@ async def synthesize_from_description_impl(
 
     workflow_id = str(uuid.uuid4())
     workflow_ref = db.collection("workflows").document(workflow_id)
-    workflow_ref.set(
-        {
-            "name": name,
-            "status": "processing",
-            "owner_uid": uid,
-            "workflow_type": workflow_type
-            if workflow_type in ("browser", "desktop")
-            else "browser",
-            "createdAt": SERVER_TIMESTAMP,
-            "updatedAt": SERVER_TIMESTAMP,
-        }
-    )
+    payload: dict = {
+        "name": name,
+        "status": "processing",
+        "owner_uid": uid,
+        "workflow_type": workflow_type
+        if workflow_type in ("browser", "desktop")
+        else "browser",
+        "createdAt": SERVER_TIMESTAMP,
+        "updatedAt": SERVER_TIMESTAMP,
+    }
+    if ephemeral:
+        payload["ephemeral"] = True
+    workflow_ref.set(payload)
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     result = await synthesize_workflow_from_description(

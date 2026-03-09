@@ -14,4 +14,4 @@ App connectors for the EchoPrism `api_call` action. Each connector implements `e
 
 ## Usage
 
-The `PlaywrightOperator` and `ApiCallOperator` in `echo_prism/alpha/operator.py` route `api_call` steps to these connectors via `importlib.import_module(f"integrations.{integration}")`. Tokens are fetched from Firestore `users/{uid}/integrations/{integration}`.
+The `PlaywrightOperator` and `ApiCallOperator` in `echo_prism/subagents/runner/operator.py` route `api_call` steps to these connectors via `importlib.import_module(f"integrations.{integration}")`. Tokens are fetched from Firestore `users/{uid}/integrations/{integration}`.
