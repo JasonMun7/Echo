@@ -15,7 +15,12 @@
     "lint": "cd apps/web && pnpm run lint",
     "backend:dev": "cd backend && doppler run -- uvicorn main:app --reload",
     "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend",
-    "deploy": "doppler run --config prd -- ./scripts/deploy.sh"
+    "deploy": "doppler run --config prd -- ./scripts/deploy.sh",
+    "deploy:build": "doppler run --config prd -- ./scripts/deploy/build.sh",
+    "deploy:frontend": "doppler run --config prd -- ./scripts/deploy/deploy-frontend.sh",
+    "deploy:backend": "doppler run --config prd -- ./scripts/deploy/deploy-backend.sh",
+    "deploy:echo-prism-agent": "doppler run --config prd -- ./scripts/deploy/deploy-echo-prism-agent.sh",
+    "deploy:omniparser": "doppler run --config prd -- ./scripts/deploy/deploy-omniparser.sh"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0"

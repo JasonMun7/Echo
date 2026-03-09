@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Deploy echo-omniparser (GPU service) to Cloud Run
+# Usage: ./scripts/deploy/deploy-omniparser.sh [PROJECT_ID] [REGION]
+# Requires: images built first (run build.sh or deploy.sh)
+set -e
+
+source "$(dirname "$0")/common.sh"
+
+PROJECT_ID=${1:-$ECHO_GCP_PROJECT_ID}
+REGION=${2:-${ECHO_CLOUD_RUN_REGION:-us-central1}}
+load_config
+
+section "Deploy OmniParser (GPU)"
+step "Deploying echo-omniparser GPU service..."
+echo ""
+
+gcloud run deploy echo-omniparser \
+  --image "${IMAGE_BASE}/echo-omniparser:${IMAGE_TAG}" \
+  --region "$REGION" \
+  --platform managed \
+  --no-allow-unauthenticated \
+  --gpu=1 \
+  --gpu-type=nvidia-l4 \
+  --cpu 4 \
+  --memory 16Gi \
+  --min-instances 1 \
+  --max-instances 3 \
+  --concurrency 4 \
+  --set-env-vars "BOX_TRESHOLD=0.05,CAPTION_MODEL_NAME=florence2" \
+  --project="$PROJECT_ID"
+
+# Allow backend and echo-prism-agent to invoke OmniParser (service-to-service auth)
+BACKEND_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud run services add-iam-policy-binding echo-omniparser \
+  --region "$REGION" \
+  --member="serviceAccount:${BACKEND_SA}" \
+  --role="roles/run.invoker" \
+  --project="$PROJECT_ID" \
+  --quiet 2>/dev/null || true
+
+success "OmniParser GPU service deployed"
+echo ""
+echo -e "  ${LAVENDER}OmniParser:${R} $OMNIPARSER_URL"
+echo ""
