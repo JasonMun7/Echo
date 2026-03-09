@@ -1,0 +1,52 @@
+# OmniParser Cloud Run Dockerfile
+# GPU-enabled container with YOLO + Florence2 model weights baked in.
+#
+# Build: docker build -f OmniParser/Dockerfile.cloudrun -t echo-omniparser .
+# Run locally (CPU): docker run -p 8080:8080 echo-omniparser
+# Run locally (GPU): docker run --gpus all -p 8080:8080 echo-omniparser
+
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-dev git wget \
+    libgl1-mesa-glx libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir fastapi uvicorn
+
+# Copy OmniParser source
+COPY util/ /app/util/
+COPY omnitool/omniparserserver/ /app/omnitool/omniparserserver/
+
+# Download model weights (baked into image for fast cold starts)
+# Florence2 caption model + YOLO icon detection model
+RUN mkdir -p /app/weights/icon_detect /app/weights/icon_caption_florence
+RUN pip install --no-cache-dir huggingface_hub && \
+    python -c "from huggingface_hub import snapshot_download; \
+    snapshot_download('microsoft/OmniParser-v2.0', local_dir='/app/weights', allow_patterns=['icon_detect/*', 'icon_caption_florence/*'])"
+
+ENV PORT=8080
+
+EXPOSE 8080
+
+# Entrypoint: start OmniParser FastAPI server
+# Device auto-detects: cuda if available, else cpu
+CMD ["python", "-m", "omnitool.omniparserserver.omniparserserver", \
+     "--som_model_path", "/app/weights/icon_detect/model.pt", \
+     "--caption_model_name", "florence2", \
+     "--caption_model_path", "/app/weights/icon_caption_florence", \
+     "--device", "cuda", \
+     "--host", "0.0.0.0", \
+     "--port", "8080", \
+     "--BOX_TRESHOLD", "0.05"]
