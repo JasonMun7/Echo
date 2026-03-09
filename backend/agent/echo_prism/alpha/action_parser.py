@@ -3,6 +3,7 @@ Parse EchoPrism Action: <action>(<params>) output to operator-agnostic dict.
 Example: "Action: Click(500, 300)" -> {"action": "click", "x": 500, "y": 300}
 Example: "Action: Click(5)"        -> {"action": "click", "element_id": 5}
 """
+
 import re
 from typing import Any
 
@@ -57,7 +58,11 @@ def parse_action(text: str) -> dict[str, Any] | None:
         return None
 
     # Match ActionName(...) from the action line
-    m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)\s*\.?$", action_line, re.IGNORECASE | re.DOTALL)
+    m = re.search(
+        r"(?:Action):\s*(\w+)\s*\((.*?)\)\s*\.?$",
+        action_line,
+        re.IGNORECASE | re.DOTALL,
+    )
     if not m:
         m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
     if not m:
@@ -101,8 +106,10 @@ def parse_action(text: str) -> dict[str, Any] | None:
         # Named: Scroll(x=400, y=600, direction="down", distance=300)
         named_x = re.search(r"\bx\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
         named_y = re.search(r"\by\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
-        named_dir = re.search(r'\bdirection\s*=\s*["\']?(\w+)["\']?', args_str, re.IGNORECASE)
-        named_dist = re.search(r'\bdistance\s*=\s*(-?\d+)', args_str, re.IGNORECASE)
+        named_dir = re.search(
+            r'\bdirection\s*=\s*["\']?(\w+)["\']?', args_str, re.IGNORECASE
+        )
+        named_dist = re.search(r"\bdistance\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
         if named_x and named_y:
             result["x"] = int(named_x.group(1))
             result["y"] = int(named_y.group(1))
@@ -110,7 +117,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
             if named_dist:
                 result["distance"] = int(named_dist.group(1))
         else:
-            parts = [p.strip().strip('"\'') for p in args_str.split(",")]
+            parts = [p.strip().strip("\"'") for p in args_str.split(",")]
             if len(parts) >= 3:
                 try:
                     result["x"] = int(parts[0])
@@ -122,11 +129,17 @@ def parse_action(text: str) -> dict[str, Any] | None:
                     pass
     elif name == "type":
         # Strip outer quotes LAST, after checking for quoted content
-        content = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str
+        content = (
+            _extract_quoted(args_str)
+            if (args_str.startswith('"') or args_str.startswith("'"))
+            else args_str
+        )
         result["content"] = content or args_str
     elif name == "hotkey":
         # Hotkey("cmd", "c") or Hotkey("ctrl", "shift", "t")
-        keys = [p.strip().strip('"\'').lower() for p in args_str.split(",") if p.strip()]
+        keys = [
+            p.strip().strip("\"'").lower() for p in args_str.split(",") if p.strip()
+        ]
         result["keys"] = keys
     elif name == "wait":
         result["seconds"] = 1
@@ -136,15 +149,23 @@ def parse_action(text: str) -> dict[str, Any] | None:
         except (ValueError, TypeError):
             pass
     elif name == "presskey":
-        key = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
+        key = (
+            _extract_quoted(args_str)
+            if (args_str.startswith('"') or args_str.startswith("'"))
+            else args_str.strip()
+        )
         result["key"] = key or "enter"
     elif name == "navigate":
-        url = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
+        url = (
+            _extract_quoted(args_str)
+            if (args_str.startswith('"') or args_str.startswith("'"))
+            else args_str.strip()
+        )
         if not url:
             return None  # Empty URL is not valid
         result["url"] = url
     elif name == "selectoption":
-        parts = [p.strip().strip('"\'') for p in args_str.split(",")]
+        parts = [p.strip().strip("\"'") for p in args_str.split(",")]
         if len(parts) >= 3:
             # Positional with coords: SelectOption(x, y, value)
             try:
@@ -165,15 +186,29 @@ def parse_action(text: str) -> dict[str, Any] | None:
             if eid is not None:
                 result["element_id"] = eid
     elif name == "waitforelement":
-        desc = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
+        desc = (
+            _extract_quoted(args_str)
+            if (args_str.startswith('"') or args_str.startswith("'"))
+            else args_str.strip()
+        )
         result["description"] = desc
-        result["selector"] = "body"  # fallback visual wait — operator uses this if needed
+        result["selector"] = (
+            "body"  # fallback visual wait — operator uses this if needed
+        )
     elif name in ("openapp", "focusapp"):
-        app_name = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
+        app_name = (
+            _extract_quoted(args_str)
+            if (args_str.startswith('"') or args_str.startswith("'"))
+            else args_str.strip()
+        )
         result["appName"] = app_name
     elif name in ("finished", "calluser"):
         # Extract optional reason from string arg
-        reason = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
+        reason = (
+            _extract_quoted(args_str)
+            if (args_str.startswith('"') or args_str.startswith("'"))
+            else args_str.strip()
+        )
         if reason:
             result["reason"] = reason
     # else: unknown action — return result with just action name
@@ -192,11 +227,12 @@ def extract_thought(text: str) -> str:
         stripped = line.strip()
         for prefix in ("Thought:", "Reflection:", "Action_Summary:"):
             if stripped.lower().startswith(prefix.lower()):
-                return stripped[len(prefix):].strip()
+                return stripped[len(prefix) :].strip()
     # Fallback: regex over full text
     m = re.search(
         r"(?:Thought|Reflection|Action_Summary):\s*(.+?)(?=\nAction:|$)",
-        text, re.IGNORECASE | re.DOTALL,
+        text,
+        re.IGNORECASE | re.DOTALL,
     )
     return m.group(1).strip() if m else ""
 

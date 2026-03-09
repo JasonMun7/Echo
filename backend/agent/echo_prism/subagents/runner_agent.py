@@ -6,6 +6,7 @@ Calls Locator when semantic actions need coordinates. Used by run_workflow_agent
 
 Supports OmniParser element ID grounding (preferred) with Gemini VLM fallback.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -55,7 +56,11 @@ async def resolve_coords_for_action(
         if coords is not None:
             center_x, center_y, box_2d = coords
             elements = omniparser_result.parsed_content_list
-            label = elements[element_id].get("content", "") if element_id < len(elements) else ""
+            label = (
+                elements[element_id].get("content", "")
+                if element_id < len(elements)
+                else ""
+            )
             location = ElementLocation(
                 center_x=center_x,
                 center_y=center_y,
@@ -68,10 +73,14 @@ async def resolve_coords_for_action(
             else:
                 parsed = {**parsed, "x": center_x, "y": center_y}
             return parsed, location
-        logger.warning("OmniParser element_id %d resolution failed, falling back", element_id)
+        logger.warning(
+            "OmniParser element_id %d resolution failed, falling back", element_id
+        )
 
     # Path 2: Raw coordinates already present — pass through
-    has_coords = ("x" in parsed and "y" in parsed) or ("x1" in parsed and "y1" in parsed)
+    has_coords = ("x" in parsed and "y" in parsed) or (
+        "x1" in parsed and "y1" in parsed
+    )
     if has_coords and element_id is None:
         return parsed, None
 
@@ -113,7 +122,9 @@ async def execute_deterministic_step(
     return await direct_execute_step(page, step)
 
 
-async def _execute_api_call(step: dict[str, Any], uid: str, db: Any) -> tuple[bool, str]:
+async def _execute_api_call(
+    step: dict[str, Any], uid: str, db: Any
+) -> tuple[bool, str]:
     """Execute an api_call step via integration connectors. Runner owns integrations."""
     params = step.get("params", {})
     integration = params.get("integration", "")
@@ -131,7 +142,11 @@ async def _execute_api_call(step: dict[str, Any], uid: str, db: Any) -> tuple[bo
             .document(integration)
             .get()
         )
-        access_token = (token_doc.to_dict() or {}).get("access_token", "") if token_doc.exists else ""
+        access_token = (
+            (token_doc.to_dict() or {}).get("access_token", "")
+            if token_doc.exists
+            else ""
+        )
 
         connector = importlib.import_module(f"integrations.{integration}")
         result = await connector.execute(method, args, access_token)

@@ -8,6 +8,7 @@ Output: OmniParserResult with detected UI elements, screen_info text, and option
 Auth: Cloud Run IAM service-to-service via ID token (auto-handled by google-auth when available).
 Fallback: unauthenticated for local development.
 """
+
 from __future__ import annotations
 
 import base64
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import httpx
+
     HAS_HTTPX = True
 except ImportError:
     HAS_HTTPX = False
@@ -29,6 +31,7 @@ except ImportError:
 @dataclass
 class OmniParserResult:
     """Structured result from OmniParser /parse/ endpoint."""
+
     parsed_content_list: list[dict[str, Any]] = field(default_factory=list)
     screen_info: str = ""
     som_image_base64: str = ""
@@ -42,7 +45,7 @@ def _build_screen_info(parsed_content_list: list[dict[str, Any]]) -> str:
         etype = element.get("type", "unknown")
         content = element.get("content", "")
         if etype == "text":
-            lines.append(f"ID: {idx}, Text: \"{content}\"")
+            lines.append(f'ID: {idx}, Text: "{content}"')
         elif etype == "icon":
             lines.append(f"ID: {idx}, Icon: {content}")
         else:
@@ -64,6 +67,7 @@ def _get_id_token(url: str) -> str | None:
     try:
         import google.auth.transport.requests  # type: ignore
         import google.oauth2.id_token  # type: ignore
+
         request = google.auth.transport.requests.Request()
         return google.oauth2.id_token.fetch_id_token(request, url)
     except Exception:
@@ -146,7 +150,9 @@ async def parse_screenshot(
 
     logger.info(
         "OmniParser: %d elements detected in %.2fs (server: %.2fs)",
-        len(parsed_content_list), elapsed, server_latency,
+        len(parsed_content_list),
+        elapsed,
+        server_latency,
     )
 
     # Store in cache (evict oldest if full)
@@ -172,7 +178,11 @@ def resolve_element_coords(
     """
     elements = omniparser_result.parsed_content_list
     if element_id < 0 or element_id >= len(elements):
-        logger.warning("OmniParser element_id %d out of range (0-%d)", element_id, len(elements) - 1)
+        logger.warning(
+            "OmniParser element_id %d out of range (0-%d)",
+            element_id,
+            len(elements) - 1,
+        )
         return None
 
     element = elements[element_id]
