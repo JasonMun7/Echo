@@ -2,6 +2,7 @@
 EchoPrism system prompt and action space (UI-TARS-style).
 Output format: Thought: ... then Action: <action>(<params>)
 """
+
 from typing import Any, Literal
 
 WorkflowType = Literal["browser", "desktop"]
@@ -155,7 +156,9 @@ def system_prompt(
     """Build system prompt for EchoPrism (Observe → Think → Act).
     History summary is passed separately as a user-message part, not in the system prompt.
     """
-    action_space = DESKTOP_ACTION_SPACE if workflow_type == "desktop" else BROWSER_ACTION_SPACE
+    action_space = (
+        DESKTOP_ACTION_SPACE if workflow_type == "desktop" else BROWSER_ACTION_SPACE
+    )
     env_context = (
         "You are controlling a native desktop application. Use OS-level actions "
         "(Hotkey, OpenApp, FocusApp, RightClick, DoubleClick) as needed."
@@ -214,7 +217,9 @@ def state_transition_prompt(action_str: str = "", expected_outcome: str = "") ->
     Call with two image parts: [before_screenshot, after_screenshot].
     Response MUST end with exactly 'VERDICT: success' or 'VERDICT: failed'.
     """
-    parts = ["Compare the BEFORE and AFTER screenshots of a UI to determine if the last action succeeded.\n\n"]
+    parts = [
+        "Compare the BEFORE and AFTER screenshots of a UI to determine if the last action succeeded.\n\n"
+    ]
     if action_str:
         parts.append(f"Action taken: {action_str}\n")
     if expected_outcome:
@@ -265,9 +270,9 @@ def call_user_prompt(reason: str) -> str:
     """
     clean = reason.strip()
     if clean.lower().startswith("thought:"):
-        clean = clean[len("thought:"):].strip()
+        clean = clean[len("thought:") :].strip()
     elif clean.lower().startswith("reflection:"):
-        clean = clean[len("reflection:"):].strip()
+        clean = clean[len("reflection:") :].strip()
     return clean
 
 
@@ -291,9 +296,13 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
         desc = params.get("description", context or "the element")
         x = params.get("x")
         y = params.get("y")
-        parts.append(f"Click {desc}. Locate it visually in the screenshot and provide Click(x, y) with normalized coords.")
+        parts.append(
+            f"Click {desc}. Locate it visually in the screenshot and provide Click(x, y) with normalized coords."
+        )
         if x is not None and y is not None:
-            parts.append(f"Synthesized coordinates hint: approximately ({x}, {y}) — verify visually before clicking.")
+            parts.append(
+                f"Synthesized coordinates hint: approximately ({x}, {y}) — verify visually before clicking."
+            )
     elif action == "type_text_at":
         text = params.get("text", "")
         desc = params.get("description", "the input field")
@@ -326,7 +335,9 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
         keys = params.get("keys", [])
         desc = params.get("description", "")
         combo = "+".join(keys) if keys else "unknown"
-        parts.append(f"Press keyboard shortcut {combo}" + (f" — {desc}" if desc else ""))
+        parts.append(
+            f"Press keyboard shortcut {combo}" + (f" — {desc}" if desc else "")
+        )
     elif action == "open_app":
         app_name = params.get("appName", "")
         parts.append(f"Launch the application '{app_name}'")
@@ -355,7 +366,9 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
         y2 = params.get("y2")
         parts.append(f"Drag {desc}.")
         if all(v is not None for v in [x, y, x2, y2]):
-            parts.append(f"From approximately ({x}, {y}) to ({x2}, {y2}) — verify visually.")
+            parts.append(
+                f"From approximately ({x}, {y}) to ({x2}, {y2}) — verify visually."
+            )
     else:
         parts.append(f"{action}: {params}")
 

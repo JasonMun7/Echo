@@ -10,6 +10,7 @@ Tools:
 - locate(screenshot, description, ..., omniparser_result, element_id) -> ElementLocation | None
 - locate_by_element_id(element_id, omniparser_result) -> ElementLocation | None
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 try:
     from pydantic import BaseModel
     from google.genai import types as gtypes
+
     HAS_DEPS = True
 except ImportError:
     HAS_DEPS = False
@@ -32,14 +34,18 @@ except ImportError:
 
 
 if HAS_DEPS:
+
     class ElementLocation(BaseModel):
         """Structured output for element grounding. All coords in 0-1000 normalized space."""
+
         center_x: int
         center_y: int
-        box_2d: list[int]   # [y_min, x_min, y_max, x_max] — all values 0-1000
+        box_2d: list[int]  # [y_min, x_min, y_max, x_max] — all values 0-1000
         label: str
-        confidence: str     # "high" | "medium" | "low"
+        confidence: str  # "high" | "medium" | "low"
+
 else:
+
     class ElementLocation:  # type: ignore
         center_x: int
         center_y: int
@@ -51,6 +57,7 @@ else:
 # ---------------------------------------------------------------------------
 # OmniParser-based grounding (preferred)
 # ---------------------------------------------------------------------------
+
 
 def locate_by_element_id(
     element_id: int,
@@ -68,7 +75,9 @@ def locate_by_element_id(
 
     center_x, center_y, box_2d = coords
     elements = omniparser_result.parsed_content_list
-    label = elements[element_id].get("content", "") if element_id < len(elements) else ""
+    label = (
+        elements[element_id].get("content", "") if element_id < len(elements) else ""
+    )
 
     return ElementLocation(
         center_x=center_x,
@@ -82,6 +91,7 @@ def locate_by_element_id(
 # ---------------------------------------------------------------------------
 # Gemini VLM fallback (used when OmniParser is unavailable)
 # ---------------------------------------------------------------------------
+
 
 async def _ground_element_gemini_fallback(
     client: Any,
@@ -114,10 +124,17 @@ async def _ground_element_gemini_fallback(
             asyncio.to_thread(
                 client.models.generate_content,
                 model=model,
-                contents=[gtypes.Content(role="user", parts=[
-                    gtypes.Part.from_text(text=prompt),
-                    gtypes.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
-                ])],
+                contents=[
+                    gtypes.Content(
+                        role="user",
+                        parts=[
+                            gtypes.Part.from_text(text=prompt),
+                            gtypes.Part.from_bytes(
+                                data=img_bytes, mime_type="image/jpeg"
+                            ),
+                        ],
+                    )
+                ],
                 config=gtypes.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=ElementLocation,
@@ -141,13 +158,16 @@ async def _ground_element_gemini_fallback(
             )
         return None
     except Exception as e:
-        logger.warning("ground_element (Gemini fallback) failed for '%s': %s", description[:60], e)
+        logger.warning(
+            "ground_element (Gemini fallback) failed for '%s': %s", description[:60], e
+        )
         return None
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 async def locate(
     client: Any,
@@ -172,9 +192,17 @@ async def locate(
     if element_id is not None and omniparser_result is not None:
         location = locate_by_element_id(element_id, omniparser_result)
         if location is not None:
-            logger.info("Locator: OmniParser element %d → (%d, %d)", element_id, location.center_x, location.center_y)
+            logger.info(
+                "Locator: OmniParser element %d → (%d, %d)",
+                element_id,
+                location.center_x,
+                location.center_y,
+            )
             return location
-        logger.warning("Locator: OmniParser element_id %d lookup failed, falling back to Gemini", element_id)
+        logger.warning(
+            "Locator: OmniParser element_id %d lookup failed, falling back to Gemini",
+            element_id,
+        )
 
     # Gemini VLM fallback
     m = model or LOCATOR_MODEL

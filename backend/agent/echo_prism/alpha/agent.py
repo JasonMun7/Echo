@@ -23,7 +23,9 @@ Performance optimizations:
 - System prompt cached per workflow run via Gemini context caching
 - zoom_and_reground() for medium-confidence grounding (RegionFocus, ICCV 2025)
 """
+
 import asyncio
+import base64
 import hashlib
 import logging
 import os
@@ -62,7 +64,7 @@ _SKIP_SCENE_ACTIONS = {"navigate", "wait", "press_key", "hotkey", "scroll"}
 
 # Per-action-type settle time in seconds after operator.execute() returns True.
 _SETTLE_TIMES: dict[str, float] = {
-    "click": 1.5,       # May trigger navigation or DOM mutation
+    "click": 1.5,  # May trigger navigation or DOM mutation
     "rightclick": 0.4,
     "doubleclick": 1.0,
     "hover": 0.2,
@@ -70,8 +72,8 @@ _SETTLE_TIMES: dict[str, float] = {
     "hotkey": 0.3,
     "scroll": 0.3,
     "drag": 0.4,
-    "navigate": 2.0,    # Full page load
-    "presskey": 1.0,    # Enter often submits/navigates
+    "navigate": 2.0,  # Full page load
+    "presskey": 1.0,  # Enter often submits/navigates
     "selectoption": 0.5,
     "waitforelement": 0.0,
     "wait": 0.0,
@@ -90,8 +92,12 @@ _CLIENT: Any = None
 
 # OmniParser client (lazy import to avoid hard failure if httpx not installed)
 try:
-    from echo_prism.utils.omniparser_client import OmniParserResult, parse_screenshot as omniparser_parse
+    from echo_prism.utils.omniparser_client import (
+        OmniParserResult,
+        parse_screenshot as omniparser_parse,
+    )
     from echo_prism.models_config import OMNIPARSER_URL
+
     HAS_OMNIPARSER = bool(OMNIPARSER_URL)
 except ImportError:
     HAS_OMNIPARSER = False
@@ -135,7 +141,9 @@ def _cache_system_prompt(client: Any, sys: str, model: str) -> str | None:
         cache = client.caches.create(
             model=model,
             config=gtypes.CreateCachedContentConfig(
-                contents=[gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=sys)])],
+                contents=[
+                    gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=sys)])
+                ],
                 ttl="3600s",
             ),
         )
@@ -166,10 +174,12 @@ async def _call_gemini(
     user_parts: list[Any] = []
     if history_text:
         user_parts.append(gtypes.Part.from_text(text=history_text))
-    user_parts.extend([
-        gtypes.Part.from_text(text=instruction),
-        gtypes.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
-    ])
+    user_parts.extend(
+        [
+            gtypes.Part.from_text(text=instruction),
+            gtypes.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
+        ]
+    )
     if extra_context:
         user_parts.append(gtypes.Part.from_text(text=extra_context))
 
@@ -224,7 +234,9 @@ async def _verify_action(
     before_compressed = compress_screenshot(before_bytes, max_dim=768)
     after_compressed = compress_screenshot(after_bytes, max_dim=768)
 
-    prompt = state_transition_prompt(action_str=action_str, expected_outcome=expected_outcome)
+    prompt = state_transition_prompt(
+        action_str=action_str, expected_outcome=expected_outcome
+    )
     user_parts = [
         gtypes.Part.from_text(text=prompt),
         gtypes.Part.from_text(text="BEFORE screenshot:"),
@@ -256,11 +268,15 @@ async def _verify_action(
                             text += p.text
         description = text.strip() or "No change detected"
 
-        verdict_match = re.search(r"VERDICT:\s*(success|failed)", description, re.IGNORECASE)
+        verdict_match = re.search(
+            r"VERDICT:\s*(success|failed)", description, re.IGNORECASE
+        )
         if verdict_match:
             succeeded = verdict_match.group(1).lower() == "success"
         else:
-            logger.warning("No VERDICT found in state-transition response; assuming success")
+            logger.warning(
+                "No VERDICT found in state-transition response; assuming success"
+            )
             succeeded = True
 
         return description, succeeded
@@ -282,7 +298,9 @@ def _coord_match(a: dict, b: dict) -> bool:
     """Check if two parsed actions have coords within 5px (0-1000 scale)."""
     xa, ya = a.get("x", a.get("x1", 500)), a.get("y", a.get("y1", 500))
     xb, yb = b.get("x", b.get("x1", 500)), b.get("y", b.get("y1", 500))
-    return abs(xa - xb) <= _SYSTEM2_PX_TOLERANCE and abs(ya - yb) <= _SYSTEM2_PX_TOLERANCE
+    return (
+        abs(xa - xb) <= _SYSTEM2_PX_TOLERANCE and abs(ya - yb) <= _SYSTEM2_PX_TOLERANCE
+    )
 
 
 async def _call_gemini_n_samples(
@@ -298,9 +316,15 @@ async def _call_gemini_n_samples(
     """Run N sampled Gemini calls with temperature for diversity."""
     tasks = [
         _call_gemini(
-            client, instruction, img_bytes, sys,
-            history_text=history_text, extra_context="", model=model,
-            cached_content=cached_content, temperature=0.4,
+            client,
+            instruction,
+            img_bytes,
+            sys,
+            history_text=history_text,
+            extra_context="",
+            model=model,
+            cached_content=cached_content,
+            temperature=0.4,
         )
         for _ in range(n)
     ]
@@ -315,7 +339,9 @@ async def _call_gemini_n_samples(
     return out, None
 
 
-def _system2_consensus(samples: list[tuple[str, dict | None]]) -> tuple[str, dict] | None:
+def _system2_consensus(
+    samples: list[tuple[str, dict | None]],
+) -> tuple[str, dict] | None:
     """Find consensus: 6/8 agree within 5px."""
     valid = [(t, p) for t, p in samples if p is not None]
     if len(valid) < _SYSTEM2_MIN_AGREE:
@@ -384,16 +410,29 @@ async def run_ambiguous_step(
         screen_info = ""
         if HAS_OMNIPARSER and omniparser_parse is not None:
             try:
-                omniparser_result = await omniparser_parse(current_screenshot, OMNIPARSER_URL)
+                omniparser_result = await omniparser_parse(
+                    current_screenshot, OMNIPARSER_URL
+                )
                 if omniparser_result:
                     screen_info = omniparser_result.screen_info
-                    set_omniparser_element_count(len(omniparser_result.parsed_content_list))
-                    logger.debug("OmniParser detected %d elements (step %d, attempt %d)",
-                        len(omniparser_result.parsed_content_list), step_index, attempt + 1)
+                    set_omniparser_element_count(
+                        len(omniparser_result.parsed_content_list)
+                    )
+                    logger.debug(
+                        "OmniParser detected %d elements (step %d, attempt %d)",
+                        len(omniparser_result.parsed_content_list),
+                        step_index,
+                        attempt + 1,
+                    )
                 else:
                     set_omniparser_element_count(0)
             except Exception as e:
-                logger.warning("OmniParser call failed (step %d, attempt %d): %s", step_index, attempt + 1, e)
+                logger.warning(
+                    "OmniParser call failed (step %d, attempt %d): %s",
+                    step_index,
+                    attempt + 1,
+                    e,
+                )
                 set_omniparser_element_count(0)
         else:
             set_omniparser_element_count(0)
@@ -405,11 +444,21 @@ async def run_ambiguous_step(
                 logger.debug("Using prefetched scene caption (step %d)", step_index)
             elif step_action not in _SKIP_SCENE_ACTIONS:
                 compressed_for_scene = compress_screenshot(current_screenshot)
-                scene_caption = await perceive_scene(client, compressed_for_scene, GROUNDING_MODEL)
+                scene_caption = await perceive_scene(
+                    client, compressed_for_scene, GROUNDING_MODEL
+                )
                 if scene_caption:
-                    logger.debug("Scene caption (step %d): %s...", step_index, scene_caption[:100])
+                    logger.debug(
+                        "Scene caption (step %d): %s...",
+                        step_index,
+                        scene_caption[:100],
+                    )
             else:
-                logger.debug("Skipping perceive_scene for action '%s' (step %d)", step_action, step_index)
+                logger.debug(
+                    "Skipping perceive_scene for action '%s' (step %d)",
+                    step_action,
+                    step_index,
+                )
 
         try:
             if history:
@@ -423,6 +472,23 @@ async def run_ambiguous_step(
             img_bytes = compress_screenshot(current_screenshot)
             history_text = ""
 
+        # When OmniParser provides a SOM-annotated image (numbered bounding boxes
+        # overlaid on the screenshot), use it for the Gemini Think phase so the
+        # model can visually correlate element IDs with on-screen positions.
+        # Raw screenshots are still used for _verify_action state-transition comparison.
+        if omniparser_result and omniparser_result.som_image_base64:
+            try:
+                img_bytes = base64.b64decode(omniparser_result.som_image_base64)
+                logger.debug(
+                    "Using SOM annotated image for Gemini Think phase (step %d, attempt %d)",
+                    step_index,
+                    attempt + 1,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to decode SOM image, using raw screenshot: %s", e
+                )
+
         effective_instruction = instruction
         # Inject scene caption and detected elements into prompt context
         context_parts = []
@@ -435,18 +501,34 @@ async def run_ambiguous_step(
             effective_instruction = "\n\n".join(context_parts) + "\n\n" + instruction
 
         extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
-        use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in ("1", "true", "yes")
+        use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
-        if use_system2 and step_action in ("click", "clickat", "doubleclick", "rightclick", "hover", "drag") and attempt == 0:
+        if (
+            use_system2
+            and step_action
+            in ("click", "clickat", "doubleclick", "rightclick", "hover", "drag")
+            and attempt == 0
+        ):
             samples, samp_err = await _call_gemini_n_samples(
-                client, effective_instruction, img_bytes, sys,
-                history_text=history_text, model=model, cached_content=cached_prompt,
+                client,
+                effective_instruction,
+                img_bytes,
+                sys,
+                history_text=history_text,
+                model=model,
+                cached_content=cached_prompt,
             )
             consensus = _system2_consensus(samples) if not samp_err else None
             if consensus:
                 thought, parsed = consensus
             elif samples:
-                voice_fallback = os.environ.get("ECHO_SYSTEM2_VOICE_FALLBACK", "").lower() in ("1", "true", "yes")
+                voice_fallback = os.environ.get(
+                    "ECHO_SYSTEM2_VOICE_FALLBACK", ""
+                ).lower() in ("1", "true", "yes")
                 if voice_fallback:
                     return (
                         "calluser",
@@ -464,13 +546,22 @@ async def run_ambiguous_step(
                 continue
         else:
             raw_text, call_err = await _call_gemini(
-                client, effective_instruction, img_bytes, sys,
-                history_text=history_text, extra_context=extra_context,
-                model=model, cached_content=cached_prompt,
+                client,
+                effective_instruction,
+                img_bytes,
+                sys,
+                history_text=history_text,
+                extra_context=extra_context,
+                model=model,
+                cached_content=cached_prompt,
             )
             if call_err:
                 last_error = call_err
-                logger.warning("EchoPrism Gemini call failed (attempt %d): %s", attempt + 1, call_err)
+                logger.warning(
+                    "EchoPrism Gemini call failed (attempt %d): %s",
+                    attempt + 1,
+                    call_err,
+                )
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(1.0 * (attempt + 1))
                 continue
@@ -480,7 +571,9 @@ async def run_ambiguous_step(
 
         if not parsed:
             last_error = f"Could not parse action from model output: {raw_text[:200]}"
-            logger.warning("EchoPrism parse failed (attempt %d): %s", attempt + 1, last_error)
+            logger.warning(
+                "EchoPrism parse failed (attempt %d): %s", attempt + 1, last_error
+            )
             if attempt < MAX_RETRIES:
                 await asyncio.sleep(0.5)
             continue
@@ -489,12 +582,20 @@ async def run_ambiguous_step(
 
         # Runner owns Locator: Alpha outputs semantic action, Runner resolves coords
         parsed, location = await resolve_coords_for_action(
-            parsed, current_screenshot, client, step_data,
+            parsed,
+            current_screenshot,
+            client,
+            step_data,
             omniparser_result=omniparser_result,
         )
         if location and location.confidence in ("high", "medium"):
-            logger.info("Locator override (step %d, confidence=%s): (%d, %d)",
-                step_index, location.confidence, location.center_x, location.center_y)
+            logger.info(
+                "Locator override (step %d, confidence=%s): (%d, %d)",
+                step_index,
+                location.confidence,
+                location.center_x,
+                location.center_y,
+            )
 
         skip_keys = {"action"}
         kv = {k: v for k, v in parsed.items() if k not in skip_keys}
@@ -509,7 +610,11 @@ async def run_ambiguous_step(
             return "finished", thought, action_str, None
 
         if result == "calluser":
-            reason = call_user_prompt(thought) if thought else "Agent requested user intervention"
+            reason = (
+                call_user_prompt(thought)
+                if thought
+                else "Agent requested user intervention"
+            )
             return "calluser", thought, action_str, reason
 
         if result is True:
@@ -529,16 +634,25 @@ async def run_ambiguous_step(
             after_hash = _screenshot_hash(after_screenshot)
 
             if before_hash == after_hash:
-                logger.warning("Pixel hash unchanged (step %d, attempt %d): Screenshots identical after action",
-                    step_index, attempt + 1)
+                logger.warning(
+                    "Pixel hash unchanged (step %d, attempt %d): Screenshots identical after action",
+                    step_index,
+                    attempt + 1,
+                )
                 if attempt < MAX_RETRIES:
                     extra_wait = 1.5 * (attempt + 1)
                     await asyncio.sleep(extra_wait)
-                    retry_screenshot = await page.screenshot(type="png", full_page=False)
+                    retry_screenshot = await page.screenshot(
+                        type="png", full_page=False
+                    )
                     if _screenshot_hash(retry_screenshot) != before_hash:
                         after_screenshot = retry_screenshot
                         after_hash = _screenshot_hash(after_screenshot)
-                        logger.info("Pixel change detected after extra wait (step %d, attempt %d)", step_index, attempt + 1)
+                        logger.info(
+                            "Pixel change detected after extra wait (step %d, attempt %d)",
+                            step_index,
+                            attempt + 1,
+                        )
                     else:
                         last_error = "Screenshots identical after action — no visible change detected"
                         continue
@@ -547,28 +661,60 @@ async def run_ambiguous_step(
                     continue
 
             if location is not None and location.confidence == "high":
-                logger.info("Skipping VLM verify — grounding confidence=high + pixel hash changed (step %d)", step_index)
-                history.append({"thought": thought, "action": action_str, "screenshot": compress_screenshot(after_screenshot)})
+                logger.info(
+                    "Skipping VLM verify — grounding confidence=high + pixel hash changed (step %d)",
+                    step_index,
+                )
+                history.append(
+                    {
+                        "thought": thought,
+                        "action": action_str,
+                        "screenshot": compress_screenshot(after_screenshot),
+                    }
+                )
                 return True, thought, action_str, None
 
             transition_desc, succeeded = await _verify_action(
-                client, before_screenshot, after_screenshot,
-                action_str=action_str, expected_outcome=expected_outcome,
+                client,
+                before_screenshot,
+                after_screenshot,
+                action_str=action_str,
+                expected_outcome=expected_outcome,
             )
-            logger.info("State transition (step %d): %s", step_index, transition_desc[:120])
+            logger.info(
+                "State transition (step %d): %s", step_index, transition_desc[:120]
+            )
 
             if succeeded:
-                history.append({"thought": thought, "action": action_str, "screenshot": compress_screenshot(after_screenshot)})
+                history.append(
+                    {
+                        "thought": thought,
+                        "action": action_str,
+                        "screenshot": compress_screenshot(after_screenshot),
+                    }
+                )
                 return True, thought, action_str, None
 
             last_error = f"Action appeared to have no effect: {transition_desc[:200]}"
-            logger.warning("State-transition VERDICT: failed (attempt %d, step %d): %s", attempt + 1, step_index, last_error)
+            logger.warning(
+                "State-transition VERDICT: failed (attempt %d, step %d): %s",
+                attempt + 1,
+                step_index,
+                last_error,
+            )
             continue
 
         last_error = f"Operator returned False for action: {action_str}"
-        logger.warning("EchoPrism operator failed (attempt %d): %s", attempt + 1, last_error)
+        logger.warning(
+            "EchoPrism operator failed (attempt %d): %s", attempt + 1, last_error
+        )
 
-    return "calluser", thought, action_str, f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}"
+    return (
+        "calluser",
+        thought,
+        action_str,
+        f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}",
+    )
 
 
 # --- Remote inference (WebSocket): no execution, returns action for client to execute ---
@@ -600,7 +746,9 @@ async def run_ambiguous_step_inference(
         return False, "", "", None, "GEMINI_API_KEY not set"
 
     model = _resolve_model(owner_uid, db)
-    logger.info("EchoPrism inference step %d/%d using model: %s", step_index, total, model)
+    logger.info(
+        "EchoPrism inference step %d/%d using model: %s", step_index, total, model
+    )
 
     history = history or []
     instruction = step_instruction(step_data, step_index, total)
@@ -622,14 +770,23 @@ async def run_ambiguous_step_inference(
         screen_info = ""
         if HAS_OMNIPARSER and omniparser_parse is not None:
             try:
-                omniparser_result = await omniparser_parse(current_screenshot, OMNIPARSER_URL)
+                omniparser_result = await omniparser_parse(
+                    current_screenshot, OMNIPARSER_URL
+                )
                 if omniparser_result:
                     screen_info = omniparser_result.screen_info
-                    set_omniparser_element_count(len(omniparser_result.parsed_content_list))
+                    set_omniparser_element_count(
+                        len(omniparser_result.parsed_content_list)
+                    )
                 else:
                     set_omniparser_element_count(0)
             except Exception as e:
-                logger.warning("OmniParser call failed (inference step %d, attempt %d): %s", step_index, attempt + 1, e)
+                logger.warning(
+                    "OmniParser call failed (inference step %d, attempt %d): %s",
+                    step_index,
+                    attempt + 1,
+                    e,
+                )
                 set_omniparser_element_count(0)
         else:
             set_omniparser_element_count(0)
@@ -637,9 +794,13 @@ async def run_ambiguous_step_inference(
         scene_caption = ""
         if attempt == 0 and step_action not in _SKIP_SCENE_ACTIONS:
             compressed_for_scene = compress_screenshot(current_screenshot)
-            scene_caption = await perceive_scene(client, compressed_for_scene, GROUNDING_MODEL)
+            scene_caption = await perceive_scene(
+                client, compressed_for_scene, GROUNDING_MODEL
+            )
             if scene_caption:
-                logger.debug("Scene caption (step %d): %s...", step_index, scene_caption[:100])
+                logger.debug(
+                    "Scene caption (step %d): %s...", step_index, scene_caption[:100]
+                )
 
         try:
             if history:
@@ -653,6 +814,20 @@ async def run_ambiguous_step_inference(
             img_bytes = compress_screenshot(current_screenshot)
             history_text = ""
 
+        # SOM image override for inference path (same logic as run_ambiguous_step)
+        if omniparser_result and omniparser_result.som_image_base64:
+            try:
+                img_bytes = base64.b64decode(omniparser_result.som_image_base64)
+                logger.debug(
+                    "Using SOM annotated image for Gemini Think phase (inference step %d, attempt %d)",
+                    step_index,
+                    attempt + 1,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to decode SOM image, using raw screenshot: %s", e
+                )
+
         effective_instruction = instruction
         # Inject scene caption and detected elements into prompt context
         context_parts = []
@@ -665,18 +840,34 @@ async def run_ambiguous_step_inference(
             effective_instruction = "\n\n".join(context_parts) + "\n\n" + instruction
 
         extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
-        use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in ("1", "true", "yes")
+        use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
-        if use_system2 and step_action in ("click", "clickat", "doubleclick", "rightclick", "hover", "drag") and attempt == 0:
+        if (
+            use_system2
+            and step_action
+            in ("click", "clickat", "doubleclick", "rightclick", "hover", "drag")
+            and attempt == 0
+        ):
             samples, samp_err = await _call_gemini_n_samples(
-                client, effective_instruction, img_bytes, sys,
-                history_text=history_text, model=model, cached_content=cached_prompt,
+                client,
+                effective_instruction,
+                img_bytes,
+                sys,
+                history_text=history_text,
+                model=model,
+                cached_content=cached_prompt,
             )
             consensus = _system2_consensus(samples) if not samp_err else None
             if consensus:
                 thought, parsed = consensus
             elif samples:
-                voice_fallback = os.environ.get("ECHO_SYSTEM2_VOICE_FALLBACK", "").lower() in ("1", "true", "yes")
+                voice_fallback = os.environ.get(
+                    "ECHO_SYSTEM2_VOICE_FALLBACK", ""
+                ).lower() in ("1", "true", "yes")
                 if voice_fallback:
                     return (
                         "calluser",
@@ -694,9 +885,14 @@ async def run_ambiguous_step_inference(
                 continue
         else:
             raw_text, call_err = await _call_gemini(
-                client, effective_instruction, img_bytes, sys,
-                history_text=history_text, extra_context=extra_context,
-                model=model, cached_content=cached_prompt,
+                client,
+                effective_instruction,
+                img_bytes,
+                sys,
+                history_text=history_text,
+                extra_context=extra_context,
+                model=model,
+                cached_content=cached_prompt,
             )
             if call_err:
                 last_error = call_err
@@ -716,12 +912,20 @@ async def run_ambiguous_step_inference(
         parsed_action_name = parsed.get("action", "")
 
         parsed, location = await resolve_coords_for_action(
-            parsed, current_screenshot, client, step_data,
+            parsed,
+            current_screenshot,
+            client,
+            step_data,
             omniparser_result=omniparser_result,
         )
         if location and location.confidence in ("high", "medium"):
-            logger.info("Locator override (step %d, confidence=%s): (%d, %d)",
-                step_index, location.confidence, location.center_x, location.center_y)
+            logger.info(
+                "Locator override (step %d, confidence=%s): (%d, %d)",
+                step_index,
+                location.confidence,
+                location.center_x,
+                location.center_y,
+            )
 
         skip_keys = {"action"}
         kv = {k: v for k, v in parsed.items() if k not in skip_keys}
@@ -730,12 +934,22 @@ async def run_ambiguous_step_inference(
         if parsed_action_name == "finished":
             return "finished", thought, action_str, None, None
         if parsed_action_name == "calluser":
-            reason = call_user_prompt(thought) if thought else "Agent requested user intervention"
+            reason = (
+                call_user_prompt(thought)
+                if thought
+                else "Agent requested user intervention"
+            )
             return "calluser", thought, action_str, None, reason
 
         return True, thought, action_str, parsed, None
 
-    return "calluser", thought, action_str, None, f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}"
+    return (
+        "calluser",
+        thought,
+        action_str,
+        None,
+        f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}",
+    )
 
 
 async def verify_state_transition(
@@ -754,4 +968,6 @@ async def verify_state_transition(
         return "GEMINI_API_KEY not set", True  # assume success to avoid blocking
 
     client = _get_client(key)
-    return await _verify_action(client, before_bytes, after_bytes, action_str, expected_outcome)
+    return await _verify_action(
+        client, before_bytes, after_bytes, action_str, expected_outcome
+    )

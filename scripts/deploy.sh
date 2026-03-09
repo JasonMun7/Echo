@@ -98,7 +98,7 @@ echo ""
 # ------------------------------------------------------------------------------
 # Build & push images (Cloud Build)
 # ------------------------------------------------------------------------------
-section "Step 1/5 — Build & Push Images"
+section "Step 1/4 — Build & Push Images"
 step "Uploading source and building with Cloud Build (parallel, linux/amd64)..."
 echo ""
 
@@ -113,7 +113,7 @@ echo ""
 # ------------------------------------------------------------------------------
 # Deploy Cloud Run services
 # ------------------------------------------------------------------------------
-section "Step 2/5 — Deploy Frontend"
+section "Step 2/4 — Deploy Frontend"
 step "Deploying echo-frontend..."
 echo ""
 gcloud run deploy echo-frontend \
@@ -125,7 +125,7 @@ gcloud run deploy echo-frontend \
 success "Frontend deployed"
 echo ""
 
-section "Step 3/5 — Deploy Backend"
+section "Step 3/4 — Deploy Backend"
 BACKEND_ENV="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,CLOUD_RUN_REGION=$REGION,RUN_JOB_NAME=echo-agent,FRONTEND_ORIGIN=$FRONTEND_URL,ECHOPRISM_OMNIPARSER_URL=$OMNIPARSER_URL"
 [ -n "$ECHO_GCS_BUCKET" ]    && BACKEND_ENV="$BACKEND_ENV,ECHO_GCS_BUCKET=$ECHO_GCS_BUCKET"
 [ -n "$FIREBASE_PROJECT_ID" ] && BACKEND_ENV="$BACKEND_ENV,FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID"
@@ -144,36 +144,7 @@ gcloud run deploy echo-backend \
 success "Backend deployed"
 echo ""
 
-section "Step 4/5 — Deploy Agent Job"
-AGENT_ENV="HEADLESS=true,ECHO_API_URL=$BACKEND_URL,ECHOPRISM_OMNIPARSER_URL=$OMNIPARSER_URL"
-[ -n "$ECHO_GCS_BUCKET" ]    && AGENT_ENV="$AGENT_ENV,ECHO_GCS_BUCKET=$ECHO_GCS_BUCKET"
-[ -n "$FIREBASE_PROJECT_ID" ] && AGENT_ENV="$AGENT_ENV,FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID"
-[ -n "$GEMINI_API_KEY" ]     && AGENT_ENV="$AGENT_ENV,GEMINI_API_KEY=$GEMINI_API_KEY"
-
-step "Deploying echo-agent job..."
-echo ""
-gcloud run jobs deploy echo-agent \
-  --image "${IMAGE_BASE}/echo-agent:${IMAGE_TAG}" \
-  --region "$REGION" \
-  --set-env-vars "$AGENT_ENV" \
-  --clear-secrets \
-  --memory 2Gi \
-  --cpu 2 \
-  --max-retries 0 \
-  --project="$PROJECT_ID"
-
-BACKEND_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-gcloud run jobs add-iam-policy-binding echo-agent \
-  --region "$REGION" \
-  --member="serviceAccount:${BACKEND_SA}" \
-  --role="roles/run.invoker" \
-  --project="$PROJECT_ID" \
-  --quiet 2>/dev/null || true
-
-success "Agent job deployed"
-echo ""
-
-section "Step 5/5 — Deploy OmniParser (GPU)"
+section "Step 4/4 — Deploy OmniParser (GPU)"
 step "Deploying echo-omniparser GPU service..."
 echo ""
 gcloud run deploy echo-omniparser \
