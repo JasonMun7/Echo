@@ -47,7 +47,8 @@ export interface RunWorkflowOptions {
 
 const MAX_RETRIES = 3;
 const ORCHESTRATION_MODEL = process.env.ECHOPRISM_ORCHESTRATION_MODEL || "gemini-3.1-pro-preview";
-const GROUNDING_MODEL = process.env.ECHOPRISM_GROUNDING_MODEL || "gemini-2.5-flash-001";
+const GROUNDING_MODEL = process.env.ECHOPRISM_GROUNDING_MODEL || "gemini-3.1-pro-preview";
+const FALLBACK_MODEL = process.env.ECHOPRISM_FALLBACK_MODEL || "gemini-3.1-pro-preview";
 const GROUNDING_ACTIONS = new Set(["click", "doubleclick", "rightclick", "hover", "drag"]);
 
 /** Resolve fine-tuned global model from Firestore (UI-TARS style). */

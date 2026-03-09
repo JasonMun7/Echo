@@ -1,6 +1,8 @@
 """
-Operator abstraction for EchoPrism: Playwright (browser), PyAutoGUI (desktop).
+Operator abstraction for EchoPrism: Playwright (browser), ApiCall (integrations).
+
 Each operator implements the same interface: execute(action_dict) -> result.
+Runner owns these operators. Used by run_workflow_agent and Alpha.
 
 execute() return values:
   True          - action succeeded, continue loop
@@ -113,9 +115,6 @@ class PlaywrightOperator(BaseOperator):
                 wx, wy = self._scale(x, y)
                 await self._page.mouse.move(wx, wy)
             elif act == "waitforelement":
-                # Pure VLM system — no DOM selectors. Wait for page to settle
-                # (domcontentloaded + networkidle), then return True so EchoPrism
-                # verifies visually on the next observation.
                 try:
                     await self._page.wait_for_load_state("domcontentloaded", timeout=10000)
                 except Exception:
@@ -132,8 +131,6 @@ class PlaywrightOperator(BaseOperator):
                 x = action.get("x")
                 y = action.get("y")
                 if x is not None and y is not None:
-                    # Pure VLM: click the dropdown by coordinate, then set value on
-                    # whichever <select> element gains focus.
                     wx, wy = self._scale(int(x), int(y))
                     await self._page.mouse.click(wx, wy)
                     await asyncio.sleep(0.3)
@@ -150,7 +147,6 @@ class PlaywrightOperator(BaseOperator):
                     except Exception:
                         pass
                 else:
-                    # Fallback: DOM selector if somehow still present (legacy data)
                     selector = action.get("selector", "")
                     if selector:
                         await self._page.select_option(selector, value)
@@ -183,13 +179,12 @@ class PlaywrightOperator(BaseOperator):
             return False
 
     async def screenshot(self) -> bytes:
-        """Returns screenshot_bytes"""
         return await self._page.screenshot(type="png", full_page=False)
 
 
 class ApiCallOperator(BaseOperator):
     """Executes api_call steps by routing to the correct integration connector.
-    No screenshot or VLM needed — deterministic API execution.
+    Runner owns integrations. No screenshot or VLM needed.
     """
 
     def __init__(self, uid: str, db: Any):
@@ -197,7 +192,6 @@ class ApiCallOperator(BaseOperator):
         self._db = db
 
     async def execute(self, action: dict[str, Any]) -> OperatorResult:
-        """Execute an api_call step against a connected integration."""
         import importlib
 
         integration = action.get("integration") or action.get("params", {}).get("integration", "")
@@ -226,5 +220,4 @@ class ApiCallOperator(BaseOperator):
             return False
 
     async def screenshot(self) -> bytes:
-        """API call steps have no screenshot."""
         return b""

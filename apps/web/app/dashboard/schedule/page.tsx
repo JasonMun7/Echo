@@ -100,11 +100,13 @@ export default function SchedulePage() {
       // Load workflows
       const wfQ = query(collection(db, "workflows"), where("owner_uid", "==", user.uid));
       const wfSnap = await getDocs(wfQ);
-      const wfs: Workflow[] = wfSnap.docs.map((d) => ({
-        id: d.id,
-        name: d.data().name || "Untitled",
-        status: d.data().status || "",
-      }));
+      const wfs: Workflow[] = wfSnap.docs
+        .filter((d) => d.data().ephemeral !== true)
+        .map((d) => ({
+          id: d.id,
+          name: d.data().name || "Untitled",
+          status: d.data().status || "",
+        }));
       setWorkflows(wfs.filter((w) => w.status === "active" || w.status === "ready"));
 
       // Load schedules from workflow docs that have schedule field
