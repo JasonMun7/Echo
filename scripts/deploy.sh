@@ -73,6 +73,7 @@ PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectN
 
 BACKEND_URL="https://echo-backend-${PROJECT_NUMBER}.${REGION}.run.app"
 FRONTEND_URL="https://echo-frontend-${PROJECT_NUMBER}.${REGION}.run.app"
+OMNIPARSER_URL="https://echo-omniparser-${PROJECT_NUMBER}.${REGION}.run.app"
 IMAGE_BASE="gcr.io/${PROJECT_ID}"
 
 # ------------------------------------------------------------------------------
@@ -91,12 +92,13 @@ section "Configuration"
 echo -e "  ${MUTED}Project:${R}  ${BOLD}$PROJECT_ID${R}"
 echo -e "  ${MUTED}Region:${R}   $REGION"
 echo -e "  ${MUTED}Backend:${R}  $BACKEND_URL"
+echo -e "  ${MUTED}OmniParser:${R} $OMNIPARSER_URL"
 echo ""
 
 # ------------------------------------------------------------------------------
 # Build & push images (Cloud Build)
 # ------------------------------------------------------------------------------
-section "Step 1/4 — Build & Push Images"
+section "Step 1/5 — Build & Push Images"
 step "Uploading source and building with Cloud Build (parallel, linux/amd64)..."
 echo ""
 
@@ -111,7 +113,7 @@ echo ""
 # ------------------------------------------------------------------------------
 # Deploy Cloud Run services
 # ------------------------------------------------------------------------------
-section "Step 2/4 — Deploy Frontend"
+section "Step 2/5 — Deploy Frontend"
 step "Deploying echo-frontend..."
 echo ""
 gcloud run deploy echo-frontend \
@@ -123,8 +125,8 @@ gcloud run deploy echo-frontend \
 success "Frontend deployed"
 echo ""
 
-section "Step 3/4 — Deploy Backend"
-BACKEND_ENV="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,CLOUD_RUN_REGION=$REGION,RUN_JOB_NAME=echo-agent,FRONTEND_ORIGIN=$FRONTEND_URL"
+section "Step 3/5 — Deploy Backend"
+BACKEND_ENV="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,CLOUD_RUN_REGION=$REGION,RUN_JOB_NAME=echo-agent,FRONTEND_ORIGIN=$FRONTEND_URL,ECHOPRISM_OMNIPARSER_URL=$OMNIPARSER_URL"
 [ -n "$ECHO_GCS_BUCKET" ]    && BACKEND_ENV="$BACKEND_ENV,ECHO_GCS_BUCKET=$ECHO_GCS_BUCKET"
 [ -n "$FIREBASE_PROJECT_ID" ] && BACKEND_ENV="$BACKEND_ENV,FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID"
 [ -n "$GEMINI_API_KEY" ]     && BACKEND_ENV="$BACKEND_ENV,GEMINI_API_KEY=$GEMINI_API_KEY"
@@ -142,8 +144,8 @@ gcloud run deploy echo-backend \
 success "Backend deployed"
 echo ""
 
-section "Step 4/4 — Deploy Agent Job"
-AGENT_ENV="HEADLESS=true,ECHO_API_URL=$BACKEND_URL"
+section "Step 4/5 — Deploy Agent Job"
+AGENT_ENV="HEADLESS=true,ECHO_API_URL=$BACKEND_URL,ECHOPRISM_OMNIPARSER_URL=$OMNIPARSER_URL"
 [ -n "$ECHO_GCS_BUCKET" ]    && AGENT_ENV="$AGENT_ENV,ECHO_GCS_BUCKET=$ECHO_GCS_BUCKET"
 [ -n "$FIREBASE_PROJECT_ID" ] && AGENT_ENV="$AGENT_ENV,FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID"
 [ -n "$GEMINI_API_KEY" ]     && AGENT_ENV="$AGENT_ENV,GEMINI_API_KEY=$GEMINI_API_KEY"
@@ -171,6 +173,36 @@ gcloud run jobs add-iam-policy-binding echo-agent \
 success "Agent job deployed"
 echo ""
 
+section "Step 5/5 — Deploy OmniParser (GPU)"
+step "Deploying echo-omniparser GPU service..."
+echo ""
+gcloud run deploy echo-omniparser \
+  --image "${IMAGE_BASE}/echo-omniparser:${IMAGE_TAG}" \
+  --region "$REGION" \
+  --platform managed \
+  --no-allow-unauthenticated \
+  --gpu=1 \
+  --gpu-type=nvidia-l4 \
+  --cpu 4 \
+  --memory 16Gi \
+  --min-instances 1 \
+  --max-instances 3 \
+  --concurrency 4 \
+  --set-env-vars "BOX_TRESHOLD=0.05,CAPTION_MODEL_NAME=florence2" \
+  --project="$PROJECT_ID"
+
+# Allow backend and agent to invoke OmniParser (service-to-service auth)
+BACKEND_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud run services add-iam-policy-binding echo-omniparser \
+  --region "$REGION" \
+  --member="serviceAccount:${BACKEND_SA}" \
+  --role="roles/run.invoker" \
+  --project="$PROJECT_ID" \
+  --quiet 2>/dev/null || true
+
+success "OmniParser GPU service deployed"
+echo ""
+
 # ------------------------------------------------------------------------------
 # Done
 # ------------------------------------------------------------------------------
@@ -179,6 +211,7 @@ echo -e "  ${SUCCESS}${BOLD}All services deployed successfully!${R}"
 echo ""
 echo -e "  ${LAVENDER}Frontend:${R}  $FRONTEND_URL"
 echo -e "  ${LAVENDER}Backend:${R}   $BACKEND_URL"
+echo -e "  ${LAVENDER}OmniParser:${R} $OMNIPARSER_URL"
 echo ""
 echo -e "  ${MUTED}If you see 500 errors: ensure Firebase and GCP use the same project.${R}"
 echo ""

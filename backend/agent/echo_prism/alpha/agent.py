@@ -33,13 +33,14 @@ from typing import Any, Literal
 from echo_prism.models_config import GROUNDING_MODEL, ORCHESTRATION_MODEL
 from echo_prism.subagents.runner_agent import resolve_coords_for_action
 
-from .action_parser import extract_thought, parse_action
+from .action_parser import extract_thought, parse_action, set_omniparser_element_count
 from .image_utils import build_context, compress_screenshot
 from echo_prism.subagents.runner import OperatorResult, PlaywrightOperator
 from .perception import perceive_scene
 from .prompts import (
     WorkflowType,
     call_user_prompt,
+    detected_elements_context,
     history_summary_text,
     state_transition_prompt,
     step_instruction,
@@ -86,6 +87,17 @@ except ImportError:
 
 # Module-level cached client (created once per process)
 _CLIENT: Any = None
+
+# OmniParser client (lazy import to avoid hard failure if httpx not installed)
+try:
+    from echo_prism.utils.omniparser_client import OmniParserResult, parse_screenshot as omniparser_parse
+    from echo_prism.models_config import OMNIPARSER_URL
+    HAS_OMNIPARSER = bool(OMNIPARSER_URL)
+except ImportError:
+    HAS_OMNIPARSER = False
+    OMNIPARSER_URL = ""
+    OmniParserResult = None  # type: ignore
+    omniparser_parse = None  # type: ignore
 
 
 def _get_client(api_key: str) -> Any:
@@ -367,6 +379,25 @@ async def run_ambiguous_step(
             pass
         current_screenshot = await page.screenshot(type="png", full_page=False)
 
+        # OmniParser: detect UI elements once per attempt
+        omniparser_result = None
+        screen_info = ""
+        if HAS_OMNIPARSER and omniparser_parse is not None:
+            try:
+                omniparser_result = await omniparser_parse(current_screenshot, OMNIPARSER_URL)
+                if omniparser_result:
+                    screen_info = omniparser_result.screen_info
+                    set_omniparser_element_count(len(omniparser_result.parsed_content_list))
+                    logger.debug("OmniParser detected %d elements (step %d, attempt %d)",
+                        len(omniparser_result.parsed_content_list), step_index, attempt + 1)
+                else:
+                    set_omniparser_element_count(0)
+            except Exception as e:
+                logger.warning("OmniParser call failed (step %d, attempt %d): %s", step_index, attempt + 1, e)
+                set_omniparser_element_count(0)
+        else:
+            set_omniparser_element_count(0)
+
         scene_caption = ""
         if attempt == 0:
             if prefetched_caption is not None:
@@ -393,8 +424,15 @@ async def run_ambiguous_step(
             history_text = ""
 
         effective_instruction = instruction
+        # Inject scene caption and detected elements into prompt context
+        context_parts = []
         if scene_caption and attempt == 0:
-            effective_instruction = f"[Scene Overview]\n{scene_caption}\n\n{instruction}"
+            context_parts.append(f"[Scene Overview]\n{scene_caption}")
+        elements_ctx = detected_elements_context(screen_info)
+        if elements_ctx:
+            context_parts.append(elements_ctx)
+        if context_parts:
+            effective_instruction = "\n\n".join(context_parts) + "\n\n" + instruction
 
         extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
         use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in ("1", "true", "yes")
@@ -451,7 +489,8 @@ async def run_ambiguous_step(
 
         # Runner owns Locator: Alpha outputs semantic action, Runner resolves coords
         parsed, location = await resolve_coords_for_action(
-            parsed, current_screenshot, client, step_data
+            parsed, current_screenshot, client, step_data,
+            omniparser_result=omniparser_result,
         )
         if location and location.confidence in ("high", "medium"):
             logger.info("Locator override (step %d, confidence=%s): (%d, %d)",
@@ -578,6 +617,23 @@ async def run_ambiguous_step_inference(
     for attempt in range(MAX_RETRIES + 1):
         current_screenshot = screenshot_bytes
 
+        # OmniParser: detect UI elements once per attempt
+        omniparser_result = None
+        screen_info = ""
+        if HAS_OMNIPARSER and omniparser_parse is not None:
+            try:
+                omniparser_result = await omniparser_parse(current_screenshot, OMNIPARSER_URL)
+                if omniparser_result:
+                    screen_info = omniparser_result.screen_info
+                    set_omniparser_element_count(len(omniparser_result.parsed_content_list))
+                else:
+                    set_omniparser_element_count(0)
+            except Exception as e:
+                logger.warning("OmniParser call failed (inference step %d, attempt %d): %s", step_index, attempt + 1, e)
+                set_omniparser_element_count(0)
+        else:
+            set_omniparser_element_count(0)
+
         scene_caption = ""
         if attempt == 0 and step_action not in _SKIP_SCENE_ACTIONS:
             compressed_for_scene = compress_screenshot(current_screenshot)
@@ -598,8 +654,15 @@ async def run_ambiguous_step_inference(
             history_text = ""
 
         effective_instruction = instruction
+        # Inject scene caption and detected elements into prompt context
+        context_parts = []
         if scene_caption and attempt == 0:
-            effective_instruction = f"[Scene Overview]\n{scene_caption}\n\n{instruction}"
+            context_parts.append(f"[Scene Overview]\n{scene_caption}")
+        elements_ctx = detected_elements_context(screen_info)
+        if elements_ctx:
+            context_parts.append(elements_ctx)
+        if context_parts:
+            effective_instruction = "\n\n".join(context_parts) + "\n\n" + instruction
 
         extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
         use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in ("1", "true", "yes")
@@ -653,7 +716,8 @@ async def run_ambiguous_step_inference(
         parsed_action_name = parsed.get("action", "")
 
         parsed, location = await resolve_coords_for_action(
-            parsed, current_screenshot, client, step_data
+            parsed, current_screenshot, client, step_data,
+            omniparser_result=omniparser_result,
         )
         if location and location.confidence in ("high", "medium"):
             logger.info("Locator override (step %d, confidence=%s): (%d, %d)",

@@ -1,24 +1,24 @@
 """
 EchoPrism Locator Agent — element localization for UI automation.
 
-Separate agent for finding element coordinates from screenshots. Swappable model
-(e.g., UI-TARS). Called by Runner when semantic actions need coordinates.
+Primary path: OmniParser element ID lookup (deterministic, pixel-accurate).
+Fallback: Gemini VLM structured grounding (when OmniParser is unavailable).
+
+Called by Runner when semantic actions need coordinates.
 
 Tools:
-- locate(screenshot, description) -> ElementLocation | None
-- refine(screenshot, box_2d, description) -> ElementLocation | None  (RegionFocus)
-
-All grounding logic (ground_element, zoom_and_reground) lives here. Pure VLM — zero DOM access.
+- locate(screenshot, description, ..., omniparser_result, element_id) -> ElementLocation | None
+- locate_by_element_id(element_id, omniparser_result) -> ElementLocation | None
 """
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import logging
 from typing import Any
 
 from echo_prism.models_config import LOCATOR_MODEL
+from echo_prism.utils.omniparser_client import OmniParserResult, resolve_element_coords
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +48,51 @@ else:
         confidence: str
 
 
-async def _ground_element(
+# ---------------------------------------------------------------------------
+# OmniParser-based grounding (preferred)
+# ---------------------------------------------------------------------------
+
+def locate_by_element_id(
+    element_id: int,
+    omniparser_result: OmniParserResult,
+) -> ElementLocation | None:
+    """
+    Resolve an OmniParser element ID to an ElementLocation.
+
+    OmniParser detection is deterministic → confidence is always "high".
+    Returns None if element_id is out of range or bbox is missing.
+    """
+    coords = resolve_element_coords(element_id, omniparser_result)
+    if coords is None:
+        return None
+
+    center_x, center_y, box_2d = coords
+    elements = omniparser_result.parsed_content_list
+    label = elements[element_id].get("content", "") if element_id < len(elements) else ""
+
+    return ElementLocation(
+        center_x=center_x,
+        center_y=center_y,
+        box_2d=box_2d,
+        label=label,
+        confidence="high",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gemini VLM fallback (used when OmniParser is unavailable)
+# ---------------------------------------------------------------------------
+
+async def _ground_element_gemini_fallback(
     client: Any,
     img_bytes: bytes,
     description: str,
     model: str,
 ) -> ElementLocation | None:
     """
-    Structured element grounding via response_schema.
+    Structured element grounding via Gemini response_schema.
     Given a natural language description, returns center (x, y) and box in 0-1000 space.
+    Used as fallback when OmniParser is unavailable.
     """
     if not HAS_DEPS or not img_bytes or not description:
         return None
@@ -105,101 +141,41 @@ async def _ground_element(
             )
         return None
     except Exception as e:
-        logger.warning("ground_element failed for '%s': %s", description[:60], e)
+        logger.warning("ground_element (Gemini fallback) failed for '%s': %s", description[:60], e)
         return None
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 async def locate(
     client: Any,
     img_bytes: bytes,
     description: str,
     model: str | None = None,
+    omniparser_result: OmniParserResult | None = None,
+    element_id: int | None = None,
 ) -> ElementLocation | None:
     """
-    Locate a UI element in the screenshot by description.
+    Locate a UI element in the screenshot.
 
-    Returns ElementLocation with center_x, center_y, box_2d, confidence, label.
-    Returns None on failure. Callers should use coords only when confidence is
-    "high" or "medium".
+    Primary path (OmniParser): if element_id and omniparser_result are provided,
+    looks up the element by ID — instant, deterministic, confidence="high".
+
+    Fallback path (Gemini VLM): if OmniParser data is not available, uses Gemini
+    structured grounding with the description.
+
+    Returns ElementLocation or None on failure.
     """
+    # OmniParser path: element ID lookup
+    if element_id is not None and omniparser_result is not None:
+        location = locate_by_element_id(element_id, omniparser_result)
+        if location is not None:
+            logger.info("Locator: OmniParser element %d → (%d, %d)", element_id, location.center_x, location.center_y)
+            return location
+        logger.warning("Locator: OmniParser element_id %d lookup failed, falling back to Gemini", element_id)
+
+    # Gemini VLM fallback
     m = model or LOCATOR_MODEL
-    return await _ground_element(client, img_bytes, description, m)
-
-
-async def refine(
-    client: Any,
-    img_bytes: bytes,
-    box_2d: list[int],
-    description: str,
-    model: str | None = None,
-) -> ElementLocation | None:
-    """
-    RegionFocus refinement: zoom into the bounding box and re-ground at higher
-    resolution. Call when locate() returned confidence="medium".
-
-    Returns refined ElementLocation with coordinates mapped back to full image.
-    """
-    if not HAS_DEPS or not img_bytes or not box_2d or len(box_2d) != 4:
-        return None
-
-    try:
-        from PIL import Image  # type: ignore
-    except ImportError:
-        logger.debug("PIL not available — refine skipped")
-        return None
-
-    try:
-        img = Image.open(io.BytesIO(img_bytes))
-        W, H = img.size
-        y_min_n, x_min_n, y_max_n, x_max_n = [v / 1000.0 for v in box_2d]
-        pad = 0.20
-
-        x1 = max(0.0, x_min_n - pad) * W
-        y1 = max(0.0, y_min_n - pad) * H
-        x2 = min(1.0, x_max_n + pad) * W
-        y2 = min(1.0, y_max_n + pad) * H
-
-        cropped = img.crop((x1, y1, x2, y2))
-        crop_w = x2 - x1
-        crop_h = y2 - y1
-
-        buf = io.BytesIO()
-        cropped.convert("RGB").save(buf, format="JPEG", quality=85)
-        crop_bytes = buf.getvalue()
-
-        m = model or LOCATOR_MODEL
-        sub_location = await _ground_element(client, crop_bytes, description, m)
-        if sub_location is None:
-            return None
-
-        sub_cx = sub_location.center_x / 1000.0 * crop_w + x1
-        sub_cy = sub_location.center_y / 1000.0 * crop_h + y1
-        full_cx = int(round(sub_cx / W * 1000))
-        full_cy = int(round(sub_cy / H * 1000))
-
-        sy_min, sx_min, sy_max, sx_max = sub_location.box_2d
-        full_box = [
-            int(round((sy_min / 1000.0 * crop_h + y1) / H * 1000)),
-            int(round((sx_min / 1000.0 * crop_w + x1) / W * 1000)),
-            int(round((sy_max / 1000.0 * crop_h + y1) / H * 1000)),
-            int(round((sx_max / 1000.0 * crop_w + x1) / W * 1000)),
-        ]
-
-        if HAS_DEPS:
-            return ElementLocation(
-                center_x=full_cx,
-                center_y=full_cy,
-                box_2d=full_box,
-                label=sub_location.label,
-                confidence=sub_location.confidence,
-            )
-        obj = ElementLocation()  # type: ignore
-        obj.center_x = full_cx
-        obj.center_y = full_cy
-        obj.box_2d = full_box
-        obj.label = sub_location.label
-        obj.confidence = sub_location.confidence
-        return obj
-    except Exception as e:
-        logger.warning("refine failed for '%s': %s", description[:60], e)
-        return None
+    return await _ground_element_gemini_fallback(client, img_bytes, description, m)

@@ -1,9 +1,21 @@
 """
 Parse EchoPrism Action: <action>(<params>) output to operator-agnostic dict.
 Example: "Action: Click(500, 300)" -> {"action": "click", "x": 500, "y": 300}
+Example: "Action: Click(5)"        -> {"action": "click", "element_id": 5}
 """
 import re
 from typing import Any
+
+# Number of OmniParser-detected elements in current context.
+# Set by agent.py before calling parse_action() so single-int Click/Hover/etc.
+# can be disambiguated as element_id vs coordinate.
+_omniparser_element_count: int = 0
+
+
+def set_omniparser_element_count(count: int) -> None:
+    """Set the current number of OmniParser-detected elements for disambiguation."""
+    global _omniparser_element_count
+    _omniparser_element_count = count
 
 
 def _strip_markdown_code_fences(text: str) -> str:
@@ -60,14 +72,26 @@ def parse_action(text: str) -> dict[str, Any] | None:
         coords = _parse_coords(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
+        else:
+            eid = _parse_element_id(args_str)
+            if eid is not None:
+                result["element_id"] = eid
     elif name == "rightclick":
         coords = _parse_coords(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
+        else:
+            eid = _parse_element_id(args_str)
+            if eid is not None:
+                result["element_id"] = eid
     elif name == "doubleclick":
         coords = _parse_coords(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
+        else:
+            eid = _parse_element_id(args_str)
+            if eid is not None:
+                result["element_id"] = eid
     elif name == "drag":
         coords = _parse_coords(args_str, 4)
         if coords:
@@ -136,6 +160,10 @@ def parse_action(text: str) -> dict[str, Any] | None:
         coords = _parse_coords(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
+        else:
+            eid = _parse_element_id(args_str)
+            if eid is not None:
+                result["element_id"] = eid
     elif name == "waitforelement":
         desc = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
         result["description"] = desc
@@ -197,3 +225,25 @@ def _extract_quoted(s: str) -> str:
         # Replace all escaped quotes globally
         return re.sub(r"\\" + quote, quote, inner)
     return s[1:]
+
+
+def _parse_element_id(s: str) -> int | None:
+    """
+    Parse a single integer as an OmniParser element ID.
+    Only returns a value if:
+    - There is exactly one integer in the string
+    - _omniparser_element_count > 0 (OmniParser is active)
+    - The integer is within the valid element range
+    """
+    if _omniparser_element_count <= 0:
+        return None
+    parts = re.findall(r"-?\d+", s.strip())
+    if len(parts) != 1:
+        return None
+    try:
+        eid = int(parts[0])
+        if 0 <= eid < _omniparser_element_count:
+            return eid
+    except (ValueError, TypeError):
+        pass
+    return None

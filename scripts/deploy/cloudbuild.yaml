@@ -18,7 +18,7 @@ steps:
       - "apps/web/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-frontend:${_IMAGE_TAG}"
-      - "apps/web"
+      - "."
 
   # Build backend
   - name: "gcr.io/cloud-builders/docker"
@@ -44,6 +44,18 @@ steps:
       - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
       - "backend/agent"
 
+  # Build OmniParser (GPU service — YOLO + Florence2)
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-omniparser
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "OmniParser/Dockerfile.cloudrun"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-omniparser:${_IMAGE_TAG}"
+      - "OmniParser"
+
   # Push images (each waits for its build)
   - name: "gcr.io/cloud-builders/docker"
     id: push-frontend
@@ -65,6 +77,13 @@ steps:
       - "push"
       - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
     waitFor: ["build-agent"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-omniparser
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/echo-omniparser:${_IMAGE_TAG}"
+    waitFor: ["build-omniparser"]
 
 # Default substitution values (overridden by deploy.sh)
 substitutions:

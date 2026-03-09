@@ -22,3 +22,6 @@ SYNTHESIS_MODEL = os.environ.get("ECHOPRISM_SYNTHESIS_MODEL", "gemini-3.1-pro-pr
 
 # Voice — low-latency native audio
 VOICE_MODEL = os.environ.get("ECHOPRISM_VOICE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
+
+# OmniParser — element grounding service URL (empty = disabled, falls back to Gemini VLM grounding)
+OMNIPARSER_URL = os.environ.get("ECHOPRISM_OMNIPARSER_URL", "")

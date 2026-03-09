@@ -58,8 +58,11 @@ ADAPTABILITY_PROMPT = """
 DESKTOP_ACTION_SPACE = """
 ## Action Space — Desktop (output exactly one per turn)
 
-- Click(x, y) - Left-click at normalized coordinates (0-1000). (0,0)=top-left, (1000,1000)=bottom-right.
+- Click(element_id) - Click on a detected UI element by its ID (preferred when element list is available)
+- Click(x, y) - Left-click at normalized coordinates (0-1000). (0,0)=top-left, (1000,1000)=bottom-right. Use when target element is not in the detected list.
+- RightClick(element_id) - Right-click on a detected element by ID
 - RightClick(x, y) - Right-click at (x, y) to open context menus
+- DoubleClick(element_id) - Double-click on a detected element by ID
 - DoubleClick(x, y) - Double-click at (x, y) to open files or apps
 - Drag(x1, y1, x2, y2) - Click and drag from (x1,y1) to (x2,y2)
 - Scroll(x, y, direction, distance=300) - Scroll at (x, y); direction: up|down|left|right; distance in pixels
@@ -78,6 +81,8 @@ DESKTOP_ACTION_SPACE = """
   DO NOT call after a single failure — try at least one alternative approach first.
   reason: one sentence explaining what you tried and exactly what is blocking you.
 
+When a [Detected UI Elements] list is provided, prefer Click(element_id) for precision. Only use raw Click(x, y) when the target element is not in the detected list.
+
 CRITICAL: Output ONLY the Thought line and Action line. No markdown, no headers, no extra text before or after.
 
 Output format (strict):
@@ -85,7 +90,10 @@ Thought: <your reasoning about what to do next>
 Action: <action>(<params>)
 
 Examples:
-Thought: The search box is in the top navigation bar. I will click its center to focus it.
+Thought: The Submit button is detected as element 5. I will click it.
+Action: Click(5)
+
+Thought: The search box is in the top navigation bar but not in the detected elements list. I will click its estimated center.
 Action: Click(250, 45)
 
 Thought: I need to open the file manager. I'll double-click the Finder icon on the Dock.
@@ -98,13 +106,15 @@ Action: Scroll(500, 500, "down", 400)
 BROWSER_ACTION_SPACE = """
 ## Action Space — Browser (output exactly one per turn)
 
-- Click(x, y) - Click at normalized coordinates (0-1000). (0,0)=top-left, (1000,1000)=bottom-right.
+- Click(element_id) - Click on a detected UI element by its ID (preferred when element list is available)
+- Click(x, y) - Click at normalized coordinates (0-1000). (0,0)=top-left, (1000,1000)=bottom-right. Use when target element is not in the detected list.
 - Scroll(x, y, direction, distance=300) - Scroll at (x, y); direction: up|down|left|right
 - Type(content) - Type the specified text
 - Wait(seconds) - Pause for N seconds (max 30)
 - PressKey(key) - Press a single key e.g. PressKey("enter") or PressKey("tab")
 - Navigate(url) - Go to a URL
 - SelectOption(x, y, value) - Select a dropdown option at (x, y)
+- Hover(element_id) - Hover over a detected element by ID
 - Hover(x, y) - Hover over an element to reveal tooltips or dropdowns
 - Finished() - Mark task as complete
 - CallUser(reason) - Request human intervention. Use ONLY when:
@@ -115,6 +125,8 @@ BROWSER_ACTION_SPACE = """
   DO NOT call after a single failure — try at least one alternative approach first.
   reason: one sentence explaining what you tried and exactly what is blocking you.
 
+When a [Detected UI Elements] list is provided, prefer Click(element_id) for precision. Only use raw Click(x, y) when the target element is not in the detected list.
+
 CRITICAL: Output ONLY the Thought line and Action line. No markdown, no headers, no extra text before or after.
 
 Output format (strict):
@@ -122,7 +134,10 @@ Thought: <your reasoning about what to do next>
 Action: <action>(<params>)
 
 Examples:
-Thought: The Submit button is visible at the bottom center of the form. I will click it.
+Thought: The Submit button is detected as element 12. I will click it.
+Action: Click(12)
+
+Thought: The search field is not in the detected elements. I will click its estimated location.
 Action: Click(500, 820)
 
 Thought: I need to navigate to the login page to begin authentication.
@@ -231,6 +246,16 @@ def element_qa_prompt(question: str) -> str:
         "For coordinates, use normalized values 0-1000 where (0,0) is the top-left corner. "
         "If the element is not visible, say so explicitly."
     )
+
+
+def detected_elements_context(screen_info: str) -> str:
+    """
+    Format OmniParser-detected elements for injection into the agent prompt.
+    Returns empty string if no elements are available.
+    """
+    if not screen_info:
+        return ""
+    return f"[Detected UI Elements]\n{screen_info}"
 
 
 def call_user_prompt(reason: str) -> str:
