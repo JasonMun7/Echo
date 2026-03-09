@@ -22,7 +22,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
-import { EchoPrismVoiceModal } from "@/components/echoprisimvoice-modal";
+import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { ChatMessageContent } from "@/components/chat-message-content";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -255,6 +255,7 @@ export default function ChatPage() {
     [addAssistantMessage],
   );
 
+  const connectRef = useRef<(t: string) => void>(() => {});
   const connectWebSocket = useCallback(
     (t: string) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -267,7 +268,7 @@ export default function ChatPage() {
       ws.onopen = () => setIsConnected(true);
       ws.onclose = () => {
         setIsConnected(false);
-        setTimeout(() => connectWebSocket(t), 2000);
+        setTimeout(() => connectRef.current(t), 2000);
       };
       ws.onerror = () => setIsConnected(false);
 
@@ -330,8 +331,11 @@ export default function ChatPage() {
         }
       };
     },
-    [addAssistantMessage, startScreenRecording],
+    [addAssistantMessage, startScreenRecording, pendingRunLink],
   );
+  useEffect(() => {
+    connectRef.current = connectWebSocket;
+  }, [connectWebSocket]);
 
   useEffect(() => {
     if (token) connectWebSocket(token);

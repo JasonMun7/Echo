@@ -22,6 +22,7 @@ package-lock.json
 # Next.js (apps/web)
 # -----------------------------------------------------------------------------
 .next/
+/.next/
 apps/web/.next/
 apps/web/out/
 apps/web/next-env.d.ts

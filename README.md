@@ -15,22 +15,19 @@
 
 ```
 echo/
-├── frontend/              # Next.js app
-│   ├── app/               # App router pages
-│   ├── components/        # UI components
-│   └── DESIGN_SYSTEM.md   # Design tokens (Cetacean Blue, Lavender, Ghost White)
-├── backend/               # FastAPI app
-│   ├── app/               # Routers, auth, services
-│   └── agent/             # EchoPrism workflow executor (Cloud Run Job)
-│       ├── run_workflow_agent.py
-│       └── screenshot_stream.py
-├── firebase/              # Firebase config (rules, indexes)
-│   ├── firebase.json
-│   ├── firestore.rules
-│   ├── firestore.indexes.json
-│   └── storage.rules
-├── deploy.sh              # Deploys frontend, backend, agent to Cloud Run
-└── package.json           # Root scripts (dev, deploy)
+├── apps/
+│   ├── web/              # Next.js 16 web app
+│   │   ├── app/          # App Router pages
+│   │   ├── components/   # UI components
+│   │   ├── lib/          # Firebase, API, utils
+│   │   └── DESIGN_SYSTEM.md
+│   └── desktop/          # Electron + Vite desktop app
+├── packages/
+│   └── echo-types/       # Shared TypeScript types
+├── backend/              # FastAPI app + EchoPrism agent
+├── firebase/             # Firebase config, rules
+├── scripts/              # deploy.sh, deploy/, Python helpers
+└── package.json          # Root scripts (dev, build, deploy)
 ```
 
 ---
