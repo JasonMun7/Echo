@@ -48,6 +48,68 @@ def is_deterministic(step: dict[str, Any]) -> bool:
     return False
 
 
+def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
+    """
+    Convert a deterministic step to OperatorAction dict (0-1000 coords).
+    Used by WebSocket agent API so clients get consistent action format.
+    Returns shape compatible with PlaywrightOperator and desktop NutJS operator.
+    """
+    params = step.get("params", {})
+    action = (step.get("action") or "wait").lower().replace("_", "")
+
+    # Map step action names to operator action names
+    op_action = action
+    if action == "clickat":
+        op_action = "click"
+    elif action == "typetextat":
+        op_action = "type"
+    elif action == "presskey":
+        op_action = "presskey"  # same
+    elif action == "apicall":
+        op_action = "apicall"  # handled by runner; return for consistency
+
+    result: dict[str, Any] = {"action": op_action}
+
+    if "x" in params and params.get("x") is not None:
+        result["x"] = int(params["x"])
+    if "y" in params and params.get("y") is not None:
+        result["y"] = int(params["y"])
+    if "x1" in params and params.get("x1") is not None:
+        result["x1"] = int(params["x1"])
+    if "y1" in params and params.get("y1") is not None:
+        result["y1"] = int(params["y1"])
+    if "x2" in params and params.get("x2") is not None:
+        result["x2"] = int(params["x2"])
+    if "y2" in params and params.get("y2") is not None:
+        result["y2"] = int(params["y2"])
+    if "content" in params or "text" in params:
+        result["content"] = str(params.get("content") or params.get("text", ""))
+    if "url" in params:
+        result["url"] = str(params["url"])
+    if "key" in params:
+        result["key"] = str(params["key"])
+    if "keys" in params:
+        result["keys"] = list(params["keys"]) if isinstance(params["keys"], (list, tuple)) else [params["keys"]]
+    if "seconds" in params:
+        result["seconds"] = min(int(params["seconds"]), 60)
+    if "direction" in params:
+        result["direction"] = str(params["direction"])
+    if "distance" in params or "amount" in params:
+        result["distance"] = int(params.get("distance") or params.get("amount", 300))
+    if "selector" in params:
+        result["selector"] = str(params["selector"])
+    if "value" in params:
+        result["value"] = str(params["value"])
+    if "integration" in params:
+        result["integration"] = str(params["integration"])
+    if "method" in params:
+        result["method"] = str(params["method"])
+    if "args" in params:
+        result["args"] = params["args"]
+
+    return result
+
+
 async def execute_step(page: Any, step: dict[str, Any]) -> tuple[bool, str]:
     """
     Execute a deterministic browser step via Playwright.

@@ -1,5 +1,5 @@
 import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, session, shell } from "electron";
-import { runWorkflowLocal } from "./agent/echo-prism-agent";
+import { runWorkflowRemote } from "./agent/remote-workflow-runner";
 import { createHudOverlayWindow, createHazeOverlayWindow } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -409,7 +409,7 @@ ipcMain.handle(
     requestResume();
     const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
     const progress: string[] = [];
-    const result = await runWorkflowLocal(
+    const result = await runWorkflowRemote(
       steps as unknown as import("@echo/types").Step[],
       {
         sourceId,
@@ -478,22 +478,30 @@ ipcMain.handle(
   }
 );
 
-// ── EchoPrismVoice IPC ────────────────────────────────────────────────────────
-let voiceSession: import("./agent/echo-prism-voice").EchoPrismVoiceSession | null = null;
+// ── EchoPrismVoice IPC (uses backend /ws/chat?mode=voice) ──────────────────────
+let voiceClient: import("./agent/voice-backend-client").VoiceBackendClient | null = null;
 
 ipcMain.handle("start-voice-chat", async () => {
   try {
-    const { EchoPrismVoiceSession } = await import("./agent/echo-prism-voice");
+    const { VoiceBackendClient } = await import("./agent/voice-backend-client");
     const token = loadStoredToken() || "";
-    voiceSession = new EchoPrismVoiceSession(token, (type, data) => {
+    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+    const opts = {
+      backendUrl: base,
+      token,
+      workflowId: runContext?.workflowId,
+      runId: runContext?.runId,
+    };
+    voiceClient = new VoiceBackendClient(opts, (type, data) => {
       if (!mainWindow) return;
       if (type === "audio") {
-        mainWindow.webContents.send("chat-audio", data);
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+        mainWindow.webContents.send("chat-audio", new Uint8Array(buf));
       } else if (type === "text") {
         mainWindow.webContents.send("chat-text", { role: "assistant", text: data });
       }
     });
-    await voiceSession.start();
+    await voiceClient.start();
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -501,15 +509,21 @@ ipcMain.handle("start-voice-chat", async () => {
 });
 
 ipcMain.handle("stop-voice-chat", async () => {
-  if (voiceSession) {
-    await voiceSession.stop();
-    voiceSession = null;
+  if (voiceClient) {
+    voiceClient.stop();
+    voiceClient = null;
   }
   return { ok: true };
 });
 
 ipcMain.handle("send-chat-text", async (_, text: string) => {
-  if (!voiceSession) return { ok: false, error: "No active voice session" };
-  await voiceSession.sendText(text);
+  if (!voiceClient) return { ok: false, error: "No active voice session" };
+  voiceClient.sendText(text);
   return { ok: true };
+});
+
+ipcMain.handle("send-voice-audio", async (_, chunk: ArrayBuffer | Buffer) => {
+  if (!voiceClient) return;
+  const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+  voiceClient.sendAudio(buf);
 });
