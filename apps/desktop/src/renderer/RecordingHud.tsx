@@ -1,17 +1,6 @@
 import { useState, useEffect } from "react";
+import type { CSSProperties } from "react";
 import { IconGripVertical, IconRefresh, IconTrash } from "@tabler/icons-react";
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      recordingPause: () => Promise<unknown>;
-      recordingStop: () => Promise<unknown>;
-      recordingRedo: () => Promise<unknown>;
-      recordingDiscard: () => Promise<unknown>;
-      exitRecordingMode: () => Promise<unknown>;
-    };
-  }
-}
 
 interface RecordingHudProps {}
 
@@ -108,7 +97,7 @@ export default function RecordingHud(_props: RecordingHudProps) {
           flex: 1,
           WebkitAppRegion: "no-drag",
           appRegion: "no-drag",
-        }}
+        } as CSSProperties}
       >
         <div
           className={`echo-recording-dot${recordingPaused ? " paused" : ""}`}

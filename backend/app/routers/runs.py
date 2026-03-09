@@ -175,6 +175,8 @@ async def create_run(
         try:
             from google.cloud.run_v2 import JobsClient
             from google.cloud.run_v2.types import EnvVar, RunJobRequest
+            job_connect_token = str(uuid.uuid4())
+            run_ref.update({"job_connect_token": job_connect_token})
             client = JobsClient()
             job_path = f"projects/{project}/locations/{region}/jobs/{job_name}"
             logger.info("Invoking Cloud Run Job: %s", job_path)
@@ -196,6 +198,9 @@ async def create_run(
         logger.info("No Cloud Run job configured — running agent in-process (local dev)")
         import threading
         import sys
+
+        job_connect_token = str(uuid.uuid4())
+        run_ref.update({"job_connect_token": job_connect_token})
 
         # Capture loop vars for the closure
         _workflow_id = workflow_id

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import {
   IconGripVertical,
   IconPlayerPause,
@@ -7,19 +8,6 @@ import {
   IconBolt,
   IconBrain,
 } from "@tabler/icons-react";
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      pauseRun: () => Promise<unknown>;
-      resumeRun: () => Promise<unknown>;
-      cancelRun: () => Promise<unknown>;
-      sendInterrupt: (text: string) => Promise<unknown>;
-      sendCallUserFeedback: (text: string) => Promise<{ ok: boolean }>;
-      exitRunMode: () => Promise<unknown>;
-    };
-  }
-}
 
 interface LiveEntry {
   thought: string;
@@ -138,7 +126,7 @@ export default function RunHud({
             borderBottom: "1px solid rgba(165, 119, 255, 0.1)",
             WebkitAppRegion: "no-drag",
             appRegion: "no-drag",
-          }}
+          } as CSSProperties}
         >
           <div
             style={{
@@ -176,7 +164,7 @@ export default function RunHud({
           padding: "10px 16px",
           WebkitAppRegion: "no-drag",
           appRegion: "no-drag",
-        }}
+        } as CSSProperties}
       >
         <div
           style={{
@@ -224,7 +212,7 @@ export default function RunHud({
             borderTop: "1px solid rgba(251, 191, 36, 0.3)",
             WebkitAppRegion: "no-drag",
             appRegion: "no-drag",
-          }}
+          } as CSSProperties}
         >
           <p style={{ fontSize: 11, fontWeight: 600, color: "#150A35", margin: "0 0 8px" }}>
             EchoPrism needs your help
@@ -273,7 +261,7 @@ export default function RunHud({
           flexWrap: "wrap",
           WebkitAppRegion: "no-drag",
           appRegion: "no-drag",
-        }}
+        } as CSSProperties}
       >
         <button
           type="button"

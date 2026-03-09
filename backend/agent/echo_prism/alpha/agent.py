@@ -530,3 +530,164 @@ async def run_ambiguous_step(
         logger.warning("EchoPrism operator failed (attempt %d): %s", attempt + 1, last_error)
 
     return "calluser", thought, action_str, f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}"
+
+
+# --- Remote inference (WebSocket): no execution, returns action for client to execute ---
+
+
+async def run_ambiguous_step_inference(
+    screenshot_bytes: bytes,
+    step_data: dict[str, Any],
+    step_index: int,
+    total: int,
+    history: list[dict[str, Any]] | None = None,
+    workflow_type: WorkflowType = "browser",
+    api_key: str | None = None,
+    owner_uid: str | None = None,
+    db: Any | None = None,
+    cached_prompt: str | None = None,
+) -> tuple[bool | AgentSignal, str, str, dict[str, Any] | None, str | None]:
+    """
+    Inference-only: no execution. Returns (result, thought, action_str, parsed_action_dict, error).
+    Client executes parsed_action_dict locally, captures after screenshot, then calls verify_state_transition.
+    - result: True | "finished" | "calluser"
+    - parsed_action_dict: OperatorAction to execute (None for finished/calluser)
+    """
+    if not HAS_GENAI:
+        return False, "", "", None, "google-genai not installed"
+
+    key = api_key or os.environ.get("GEMINI_API_KEY")
+    if not key:
+        return False, "", "", None, "GEMINI_API_KEY not set"
+
+    model = _resolve_model(owner_uid, db)
+    logger.info("EchoPrism inference step %d/%d using model: %s", step_index, total, model)
+
+    history = history or []
+    instruction = step_instruction(step_data, step_index, total)
+    expected_outcome = step_data.get("expected_outcome", "")
+    step_action = (step_data.get("action") or "").lower().replace("_", "")
+
+    client = _get_client(key)
+    sys = system_prompt(instruction, workflow_type)
+
+    last_error = ""
+    thought = ""
+    action_str = ""
+
+    for attempt in range(MAX_RETRIES + 1):
+        current_screenshot = screenshot_bytes
+
+        scene_caption = ""
+        if attempt == 0 and step_action not in _SKIP_SCENE_ACTIONS:
+            compressed_for_scene = compress_screenshot(current_screenshot)
+            scene_caption = await perceive_scene(client, compressed_for_scene, GROUNDING_MODEL)
+            if scene_caption:
+                logger.debug("Scene caption (step %d): %s...", step_index, scene_caption[:100])
+
+        try:
+            if history:
+                img_bytes = compress_screenshot(current_screenshot)
+                _, summary = build_context(history, n_images=2)
+                history_text = history_summary_text(summary)
+            else:
+                img_bytes = compress_screenshot(current_screenshot)
+                history_text = ""
+        except ValueError:
+            img_bytes = compress_screenshot(current_screenshot)
+            history_text = ""
+
+        effective_instruction = instruction
+        if scene_caption and attempt == 0:
+            effective_instruction = f"[Scene Overview]\n{scene_caption}\n\n{instruction}"
+
+        extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
+        use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in ("1", "true", "yes")
+
+        if use_system2 and step_action in ("click", "clickat", "doubleclick", "rightclick", "hover", "drag") and attempt == 0:
+            samples, samp_err = await _call_gemini_n_samples(
+                client, effective_instruction, img_bytes, sys,
+                history_text=history_text, model=model, cached_content=cached_prompt,
+            )
+            consensus = _system2_consensus(samples) if not samp_err else None
+            if consensus:
+                thought, parsed = consensus
+            elif samples:
+                voice_fallback = os.environ.get("ECHO_SYSTEM2_VOICE_FALLBACK", "").lower() in ("1", "true", "yes")
+                if voice_fallback:
+                    return (
+                        "calluser",
+                        "I'm seeing a few different buttons here.",
+                        "",
+                        None,
+                        "I'm seeing a few different buttons here - which one did you mean?",
+                    )
+                thought, parsed = samples[0][0], samples[0][1]
+                if parsed is None:
+                    last_error = "System-2: no parseable consensus"
+                    continue
+            else:
+                last_error = samp_err or "System-2: no valid samples"
+                continue
+        else:
+            raw_text, call_err = await _call_gemini(
+                client, effective_instruction, img_bytes, sys,
+                history_text=history_text, extra_context=extra_context,
+                model=model, cached_content=cached_prompt,
+            )
+            if call_err:
+                last_error = call_err
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                continue
+
+            thought = extract_thought(raw_text)
+            parsed = parse_action(raw_text)
+
+        if not parsed:
+            last_error = f"Could not parse action from model output: {raw_text[:200]}"
+            if attempt < MAX_RETRIES:
+                await asyncio.sleep(0.5)
+            continue
+
+        parsed_action_name = parsed.get("action", "")
+
+        parsed, location = await resolve_coords_for_action(
+            parsed, current_screenshot, client, step_data
+        )
+        if location and location.confidence in ("high", "medium"):
+            logger.info("Locator override (step %d, confidence=%s): (%d, %d)",
+                step_index, location.confidence, location.center_x, location.center_y)
+
+        skip_keys = {"action"}
+        kv = {k: v for k, v in parsed.items() if k not in skip_keys}
+        action_str = f"{parsed_action_name}({', '.join(str(v) for v in kv.values())})"
+
+        if parsed_action_name == "finished":
+            return "finished", thought, action_str, None, None
+        if parsed_action_name == "calluser":
+            reason = call_user_prompt(thought) if thought else "Agent requested user intervention"
+            return "calluser", thought, action_str, None, reason
+
+        return True, thought, action_str, parsed, None
+
+    return "calluser", thought, action_str, None, f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}"
+
+
+async def verify_state_transition(
+    before_bytes: bytes,
+    after_bytes: bytes,
+    action_str: str = "",
+    expected_outcome: str = "",
+    api_key: str | None = None,
+) -> tuple[str, bool]:
+    """
+    Public API for state-transition verification. Used by WebSocket clients after executing an action.
+    Returns (description, succeeded).
+    """
+    key = api_key or os.environ.get("GEMINI_API_KEY")
+    if not key:
+        return "GEMINI_API_KEY not set", True  # assume success to avoid blocking
+
+    client = _get_client(key)
+    return await _verify_action(client, before_bytes, after_bytes, action_str, expected_outcome)
