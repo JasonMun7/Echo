@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir fastapi uvicorn
 
 # Copy OmniParser source
 COPY util/ /app/util/
-COPY omnitool/omniparserserver/ /app/omnitool/omniparserserver/
+COPY omniparserserver/ /app/omniparserserver/
 
 # Download model weights (baked into image for fast cold starts)
 # Florence2 caption model + YOLO icon detection model
@@ -42,7 +42,7 @@ EXPOSE 8080
 
 # Entrypoint: start OmniParser FastAPI server
 # Device auto-detects: cuda if available, else cpu
-CMD ["python", "-m", "omnitool.omniparserserver.omniparserserver", \
+CMD ["python", "-m", "omniparserserver.omniparserserver", \
      "--som_model_path", "/app/weights/icon_detect/model.pt", \
      "--caption_model_name", "florence2", \
      "--caption_model_path", "/app/weights/icon_caption_florence", \
