@@ -17,9 +17,13 @@ import {
   IconExternalLink,
   IconWaveSine,
   IconPlayerPlay,
+  IconDeviceFloppy,
+  IconTrash,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 import { EchoPrismVoiceModal } from "@/components/echoprisimvoice-modal";
+import { ChatMessageContent } from "@/components/chat-message-content";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WS_URL = API_URL.replace(/^http/, "ws");
@@ -38,6 +42,84 @@ const QUICK_CHIPS = [
   "Create a new workflow",
   "Show me my active runs",
 ];
+
+function AdhocRunCta({
+  workflowId,
+  runId,
+  name,
+  onSave,
+  onDiscard,
+}: {
+  workflowId: string;
+  runId: string;
+  name: string;
+  onSave: () => void;
+  onDiscard: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ephemeral: false }),
+      });
+      if (res.ok) onSave();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = async () => {
+    setDiscarding(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) onDiscard();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-[#A577FF]/20 px-6 py-4 flex items-center justify-between gap-4">
+      <p className="text-sm text-gray-600">
+        Run in progress:{" "}
+        <a
+          href={`/dashboard/workflows/${workflowId}/runs/${runId}`}
+          className="font-medium text-[#A577FF] hover:underline"
+        >
+          Track run: {name}
+        </a>
+      </p>
+      <div className="flex shrink-0 items-center gap-4">
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={saving || discarding}
+          className="rounded-lg bg-[#A577FF] px-4 py-2 text-white hover:opacity-90"
+        >
+          <IconDeviceFloppy className="h-3.5 w-3.5 mr-1.5" />
+          Save as workflow
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDiscard}
+          disabled={saving || discarding}
+          className="rounded-lg border-[#A577FF]/40 text-[#150A35] hover:bg-[#A577FF]/10"
+        >
+          <IconTrash className="h-3.5 w-3.5 mr-1.5" />
+          Discard
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const SYNTHESIS_STEPS = [
   { text: "Understanding your request" },
@@ -66,6 +148,12 @@ export default function ChatPage() {
   const [isDictating, setIsDictating] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [pendingRunLink, setPendingRunLink] = useState<Message["runLink"] | null>(null);
+  const [adhocWorkflow, setAdhocWorkflow] = useState<{
+    workflowId: string;
+    runId: string;
+    name: string;
+  } | null>(null);
 
   // Text-mode WS (no audio)
   const wsRef = useRef<WebSocket | null>(null);
@@ -192,16 +280,35 @@ export default function ChatPage() {
             unknown
           >;
           if (data.type === "text" && data.text) {
-            addAssistantMessage(
-              data.text as string,
-              data.runLink as Message["runLink"],
-            );
+            const runLink =
+              (data.runLink as Message["runLink"]) ?? pendingRunLink ?? undefined;
+            addAssistantMessage(data.text as string, runLink);
+            setPendingRunLink(null);
+          } else if (data.type === "run_started" && data.runLink) {
+            const rl = data.runLink as {
+              workflowId: string;
+              runId: string;
+              name: string;
+              ephemeral?: boolean;
+            };
+            setPendingRunLink({
+              workflowId: rl.workflowId,
+              runId: rl.runId,
+              name: rl.name,
+            });
+            if (rl.ephemeral) {
+              setAdhocWorkflow({
+                workflowId: rl.workflowId,
+                runId: rl.runId,
+                name: rl.name,
+              });
+            }
           } else if (
             data.type === "tool_call" &&
-            data.name === "synthesize_from_description"
+            (data.name === "synthesize_from_description" || data.name === "run_adhoc")
           ) {
             setIsSynthesizing(true);
-            setSynthesizedWorkflow(null);
+            if (data.name === "synthesize_from_description") setSynthesizedWorkflow(null);
           } else if (data.type === "synthesis_complete") {
             setIsSynthesizing(false);
             setSynthesizedWorkflow({
@@ -250,8 +357,9 @@ export default function ChatPage() {
     addUserMessage(text);
     wsRef.current.send(JSON.stringify({ type: "text", text }));
     setInput("");
-    // Clear previous synthesized workflow CTA when user sends a new message
+    // Clear previous synthesized workflow and ad-hoc CTAs when user sends a new message
     setSynthesizedWorkflow(null);
+    setAdhocWorkflow(null);
   }
 
   function toggleDictation() {
@@ -386,7 +494,7 @@ export default function ChatPage() {
                         : "bg-[#F5F3FF] text-[#1A1A2E] border border-[#A577FF]/20 rounded-tl-sm",
                     )}
                   >
-                    {msg.text}
+                    <ChatMessageContent>{msg.text}</ChatMessageContent>
                   </div>
                   {msg.runLink && msg.runLink.runId && (
                     <a
@@ -427,6 +535,17 @@ export default function ChatPage() {
               Run it
             </a>
           </div>
+        )}
+
+        {/* Ad-hoc run CTA — Save as workflow / Discard */}
+        {adhocWorkflow && !isSynthesizing && (
+          <AdhocRunCta
+            workflowId={adhocWorkflow.workflowId}
+            runId={adhocWorkflow.runId}
+            name={adhocWorkflow.name}
+            onSave={() => setAdhocWorkflow(null)}
+            onDiscard={() => setAdhocWorkflow(null)}
+          />
         )}
 
         {/* Quick chips */}

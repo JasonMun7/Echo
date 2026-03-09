@@ -23,7 +23,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
 
-from direct_executor import execute_step, is_deterministic
+from direct_executor import is_deterministic
+from echo_prism.subagents.runner_agent import execute_deterministic_step
 from echo_prism.alpha.agent import (
     FALLBACK_MODEL,
     _cache_system_prompt,
@@ -331,7 +332,7 @@ async def _run_echoprism_hybrid(
                             ok = False
                             direct_err = ""
                             for attempt in range(MAX_DIRECT_RETRIES):
-                                ok, direct_err = await execute_step(page, step)
+                                ok, direct_err = await execute_deterministic_step(step, page, owner_uid or "", db)
                                 if ok:
                                     break
                                 if attempt < MAX_DIRECT_RETRIES - 1:

@@ -39,6 +39,7 @@ class WorkflowCreate(BaseModel):
 class WorkflowUpdate(BaseModel):
     name: str | None = None
     status: str | None = None
+    ephemeral: bool | None = None
 
 
 class StepCreate(BaseModel):
@@ -67,7 +68,11 @@ async def list_workflows(uid: str = Depends(get_current_uid)):
     db = firebase_admin.firestore.client(app)
     q = db.collection("workflows").where(filter=FieldFilter("owner_uid", "==", uid))
     docs = q.stream()
-    items = [{"id": d.id, **d.to_dict()} for d in docs]
+    items = [
+        {"id": d.id, **d.to_dict()}
+        for d in docs
+        if (d.to_dict() or {}).get("ephemeral") is not True
+    ]
     return {"workflows": items}
 
 
@@ -111,6 +116,8 @@ async def update_workflow(
         update["name"] = body.name
     if body.status is not None:
         update["status"] = body.status
+    if body.ephemeral is not None:
+        update["ephemeral"] = body.ephemeral
     wf_ref.update(update)
     return {"ok": True}
 

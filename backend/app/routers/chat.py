@@ -180,7 +180,7 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
     Delegates generate_content to EchoPrism chat_agent; router handles WebSocket and tool execution.
     """
     _ensure_agent_path()
-    from echo_prism.subagents.chat_agent import process_chat_turn
+    from echo_prism.subagents.modalities.chat_agent import process_chat_turn
 
     history: list[types.Content] = []
 
@@ -296,7 +296,55 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
         run_ref.set({"status": "pending", "owner_uid": uid, "createdAt": SERVER_TIMESTAMP, "confirmation_status": None})
         _trigger_run_inline(workflow_id, run_id, uid, run_ref)
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "run_started",
+                "runLink": {
+                    "workflowId": workflow_id,
+                    "runId": run_id,
+                    "name": workflow_name or "Workflow",
+                },
+            }))
+        except Exception:
+            pass
         return {"ok": True, "run_id": run_id, "workflow_id": workflow_id, "workflow_name": workflow_name}
+
+    elif name == "run_adhoc":
+        instruction = args.get("instruction", "")
+        workflow_type = args.get("workflow_type", "browser")
+        workflow_name = args.get("workflow_name") or instruction[:50] or "Ad-hoc run"
+        from app.routers.synthesize import synthesize_from_description_impl
+        workflow_id = await synthesize_from_description_impl(
+            uid=uid,
+            name=workflow_name,
+            description=instruction,
+            workflow_type=workflow_type,
+            db=db,
+            ephemeral=True,
+        )
+        run_id = str(uuid.uuid4())
+        run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
+        run_ref.set({"status": "pending", "owner_uid": uid, "createdAt": SERVER_TIMESTAMP, "confirmation_status": None})
+        _trigger_run_inline(workflow_id, run_id, uid, run_ref)
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "run_started",
+                "runLink": {
+                    "workflowId": workflow_id,
+                    "runId": run_id,
+                    "name": workflow_name,
+                    "ephemeral": True,
+                },
+            }))
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "run_id": run_id,
+            "workflow_id": workflow_id,
+            "workflow_name": workflow_name,
+            "ephemeral": True,
+        }
 
     elif name == "synthesize_from_description":
         description = args.get("description", "")
@@ -373,7 +421,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
 
 def _voice_system_prompt(workflow_id: str | None, run_id: str | None) -> str:
     _ensure_agent_path()
-    from echo_prism.subagents.chat_agent import SYSTEM_PROMPT
+    from echo_prism.subagents.modalities.chat_agent import SYSTEM_PROMPT
     base = SYSTEM_PROMPT
     if workflow_id and run_id:
         base += f"\n\nACTIVE RUN: There is currently an active workflow run (workflow_id={workflow_id}, run_id={run_id}). When the user gives mid-run instructions (e.g. pause, stop, change what to click, do something different), immediately use redirect_run with workflow_id={workflow_id}, run_id={run_id}, and instruction set to the user's exact words."
@@ -386,8 +434,8 @@ async def _voice_live_session(
 ) -> None:
     """EchoPrismVoice: Gemini Live API with AUDIO modality. Delegates to voice_agent."""
     _ensure_agent_path()
-    from echo_prism.subagents.chat_agent import get_tools
-    from echo_prism.subagents.voice_agent import run_voice_session, LIVE_MODEL_VOICE
+    from echo_prism.subagents.modalities.chat_agent import get_tools
+    from echo_prism.subagents.modalities.voice_agent import run_voice_session, LIVE_MODEL_VOICE
 
     system_prompt = _voice_system_prompt(workflow_id, run_id)
     config = types.LiveConnectConfig(

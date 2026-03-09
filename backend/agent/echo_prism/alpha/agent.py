@@ -31,11 +31,12 @@ import re
 from typing import Any, Literal
 
 from echo_prism.models_config import GROUNDING_MODEL, ORCHESTRATION_MODEL
+from echo_prism.subagents.runner_agent import resolve_coords_for_action
 
 from .action_parser import extract_thought, parse_action
 from .image_utils import build_context, compress_screenshot
-from .operator import OperatorResult, PlaywrightOperator
-from .perception import ground_element, perceive_scene, zoom_and_reground
+from echo_prism.subagents.runner import OperatorResult, PlaywrightOperator
+from .perception import perceive_scene
 from .prompts import (
     WorkflowType,
     call_user_prompt,
@@ -448,32 +449,13 @@ async def run_ambiguous_step(
 
         parsed_action_name = parsed.get("action", "")
 
-        location = None
-        if parsed_action_name in _GROUNDING_ACTIONS:
-            target_desc = (
-                step_data.get("params", {}).get("description")
-                or step_data.get("context", "")
-                or parsed_action_name
-            )
-            compressed_for_grounding = compress_screenshot(current_screenshot)
-            location = await ground_element(client, compressed_for_grounding, target_desc, GROUNDING_MODEL)
-
-            if location and location.confidence == "medium" and location.box_2d:
-                refined = await zoom_and_reground(client, current_screenshot, location.box_2d, target_desc, GROUNDING_MODEL)
-                if refined:
-                    location = refined
-                    logger.info("RegionFocus reground (step %d): confidence now %s at (%d, %d)",
-                        step_index, location.confidence, location.center_x, location.center_y)
-
-            if location and location.confidence in ("high", "medium"):
-                logger.info("Grounding override (step %d, confidence=%s): (%d, %d)",
-                    step_index, location.confidence, location.center_x, location.center_y)
-                if "x1" in parsed:
-                    parsed["x1"] = location.center_x
-                    parsed["y1"] = location.center_y
-                else:
-                    parsed["x"] = location.center_x
-                    parsed["y"] = location.center_y
+        # Runner owns Locator: Alpha outputs semantic action, Runner resolves coords
+        parsed, location = await resolve_coords_for_action(
+            parsed, current_screenshot, client, step_data
+        )
+        if location and location.confidence in ("high", "medium"):
+            logger.info("Locator override (step %d, confidence=%s): (%d, %d)",
+                step_index, location.confidence, location.center_x, location.center_y)
 
         skip_keys = {"action"}
         kv = {k: v for k, v in parsed.items() if k not in skip_keys}

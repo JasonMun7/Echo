@@ -37,24 +37,25 @@ flowchart TB
     end
 
     subgraph Core ["Core Engine"]
-        DirectExec["DirectExecutor"]
+        RunnerNode["Runner Agent"]
         EchoPrismNode["EchoPrism Alpha"]
     end
 
     subgraph VLM ["VLM Components"]
         Perceive["perceive_scene"]
-        Ground["ground_element"]
+        LocatorNode["Locator Agent"]
         Think["Gemini Think Step"]
     end
 
-    RunWorkflowAgent --> DirectExec
+    RunWorkflowAgent --> RunnerNode
     RunWorkflowAgent --> EchoPrismNode
-    DesktopAgent --> DirectExec
+    DesktopAgent --> RunnerNode
     DesktopAgent --> EchoPrismNode
 
     EchoPrismNode --> Perceive
     EchoPrismNode --> Think
-    EchoPrismNode --> Ground
+    RunnerNode --> LocatorNode
+    EchoPrismNode --> RunnerNode
 ```
 
 ---
@@ -74,17 +75,17 @@ flowchart LR
     subgraph Loop ["Step Loop"]
         StepNode["Current Step"]
         Deterministic{"is_deterministic?"}
-        DirectNode["DirectExecutor"]
+        RunnerNode["Runner Agent"]
         EchoPrismLoop["EchoPrism"]
         StepNode --> Deterministic
-        Deterministic -->|Yes| DirectNode
+        Deterministic -->|Yes| RunnerNode
         Deterministic -->|No| EchoPrismLoop
     end
 
     subgraph PostRun ["Post-Run"]
         TraceFilterNode["Trace Filter"]
         COCOExportNode["COCO Export"]
-        DirectNode --> NextStepNode
+        RunnerNode --> NextStepNode
         EchoPrismLoop --> NextStepNode
         NextStepNode["Next Step or Done"]
         NextStepNode -->|Run Complete| TraceFilterNode
@@ -159,7 +160,7 @@ EchoPrism uses a **pure VLM** pipeline: no DOM access, only screenshots. The pip
 | Tier | Function | Purpose |
 |------|----------|---------|
 | **Tier 1** | `perceive_scene` | Dense caption of the full UI (layout, regions, elements). Used as `[Scene Overview]` in the instruction. |
-| **Tier 2** | `ground_element` | Given a natural-language description, returns center (x, y) and bounding box. Used for click-type actions. |
+| **Tier 2** | `ground_element` (Locator) | Given a natural-language description, returns center (x, y) and bounding box. Used for click-type actions. |
 | **Tier 3** | `_verify_action` | Before/after screenshots + expected outcome → Gemini judges success. |
 
 For medium-confidence grounding, EchoPrism uses **RegionFocus** (zoom into uncertain region, re-ground at higher resolution).
@@ -204,7 +205,7 @@ flowchart LR
 | **Module** | `direct_executor.py` | `echo_prism/alpha/agent.py` |
 | **LLM** | None | Gemini |
 | **When used** | Steps with selector, URL, coords, or full params | Ambiguous steps (description only) |
-| **Execution** | Playwright `page.click`, `page.fill`, etc. | Operator (PlaywrightOperator) after grounding |
+| **Execution** | Playwright `page.click`, `page.fill`, etc. | Runner's PlaywrightOperator after Locator grounding |
 | **Fallback** | If DirectExecutor fails after retries → hand off to EchoPrism | — |
 
 ```mermaid
@@ -230,13 +231,15 @@ flowchart TD
 
 ## 6. Subagents
 
-Subagents handle user-facing interactions and workflow creation. They are invoked by the backend routers, not by the main workflow executor.
+Subagents handle user-facing interactions, workflow creation, element localization, and execution.
 
 | Agent | File | Purpose |
 |-------|------|---------|
-| **Chat** | `chat_agent.py` | Text chat with function calling: list workflows, run, redirect, cancel, synthesize, integrations. |
-| **Voice** | `voice_agent.py` | Real-time voice via Gemini Live API; WebSocket bridge for TTS/STT. |
-| **Synthesis** | `synthesis_agent.py` | All workflow synthesis. Router delegates: video/screenshots → `synthesize_workflow_from_media` (one-shot); description → `synthesize_workflow_from_description`. Uses `ECHOPRISM_SYNTHESIS_MODEL`. Optional frame-by-frame mode via `synthesize_workflow_from_frames`. |
+| **Chat** | `modalities/chat_agent.py` | Alpha's text modality. Function calling: list workflows, run, redirect, cancel, synthesize, integrations. |
+| **Voice** | `modalities/voice_agent.py` | Alpha's voice modality. Gemini Live API; WebSocket bridge for TTS/STT. |
+| **Synthesis** | `synthesis_agent.py` | Workflow creation from video/screenshots/description. |
+| **Locator** | `locator_agent.py` | Element localization: screenshot + description → coords. Swappable model (e.g., UI-TARS). |
+| **Runner** | `runner_agent.py` | Executes deterministic UI steps (Playwright) and api_call steps (integrations). Calls Locator when semantic actions need coords. |
 
 See [subagents.md](../echo_prism/docs/subagents.md) and [synthesis-flow.md](synthesis-flow.md) for details.
 
@@ -256,7 +259,7 @@ See [training.md](../echo_prism/docs/training.md) and [FINETUNING_README.md](../
 
 ## 8. Integrations
 
-Integrations allow workflows to call external APIs (Slack, Gmail, GitHub, etc.) via `api_call` steps. Each integration exposes an `execute(method, args, token)` function.
+Integrations allow workflows to call external APIs (Slack, Gmail, GitHub, etc.) via `api_call` steps. The Runner agent executes api_call steps; each integration exposes an `execute(method, args, token)` function.
 
 See [integrations.md](integrations.md).
 
@@ -269,7 +272,7 @@ Models are configured via environment variables (see `echo_prism/models_config.p
 | Component | Env Var | Default |
 |-----------|---------|---------|
 | Main Agent (Alpha) | `ECHOPRISM_ORCHESTRATION_MODEL` | gemini-3.1-pro-preview |
-| Grounding | `ECHOPRISM_GROUNDING_MODEL` | gemini-2.5-flash-001 |
+| Grounding / Locator | `ECHOPRISM_GROUNDING_MODEL`, `ECHOPRISM_LOCATOR_MODEL` | gemini-2.5-flash-001 |
 | Trace Scoring | `ECHOPRISM_TRACE_SCORING_MODEL` | gemini-3.1-pro-preview |
 | Synthesis (video + description) | `ECHOPRISM_SYNTHESIS_MODEL` | gemini-3.1-pro-preview |
 | Chat | `ECHOPRISM_CHAT_MODEL` | gemini-3.1-flash-lite-preview |
@@ -290,8 +293,8 @@ Models are configured via environment variables (see `echo_prism/models_config.p
 
 ```
 backend/agent/
-├── run_workflow_agent.py     # CLI entrypoint; orchestrates DirectExecutor + EchoPrism
-├── direct_executor.py        # Deterministic step execution (Playwright)
+├── run_workflow_agent.py     # CLI entrypoint; orchestrates Runner + EchoPrism Alpha
+├── direct_executor.py        # Low-level deterministic UI execution (used by Runner)
 ├── screenshot_stream.py      # GCS screenshot upload for frontend
 ├── docs/                     # Documentation
 │   ├── ARCHITECTURE.md       # This file

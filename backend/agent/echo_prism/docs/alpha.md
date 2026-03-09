@@ -1,19 +1,16 @@
-# Echo Prism Alpha — Parent Agent
+# Echo Prism Alpha — Brain
 
-Echo Prism Alpha is the core Observe → Think → Act agent that executes workflow steps in a browser.
+Alpha is the core Observe → Think → Act agent. It reasons about screenshots and outputs semantic actions. Runner resolves coords via Locator and executes.
 
 ## Modules
 
-- **agent.py** — Main agent loop: `run_ambiguous_step()`, Gemini calls, retries, state verification
+- **agent.py** — Main loop: `run_ambiguous_step()`, Gemini calls, retries, state verification. Delegates coord resolution to Runner.
 - **action_parser.py** — Parses `Action: <action>(<params>)` and `Thought:` from model output
-- **operator.py** — PlaywrightOperator (browser) and ApiCallOperator (integrations)
-- **perception.py** — 3-tier VLM: `perceive_scene`, `ground_element`, `zoom_and_reground` (RegionFocus)
+- **Operator** — PlaywrightOperator, ApiCallOperator live in `subagents/runner/operator.py` (Runner owns execution)
+- **perception.py** — `perceive_scene` (Tier 1); Locator agent wraps `ground_element` / `zoom_and_reground`
 - **prompts.py** — System prompt, action spaces (browser/desktop), adaptability, step instructions
 - **image_utils.py** — Screenshot compression, context building, coordinate scaling
 
-## Grounding
+## Element Localization (Locator)
 
-Element grounding lives in `perception.py`:
-- **Tier 1** (`perceive_scene`): Dense caption of the full UI
-- **Tier 2** (`ground_element`): Structured coordinates for a described element
-- **RegionFocus** (`zoom_and_reground`): Zoom into uncertain regions and re-ground at higher detail (ICCV 2025)
+Element localization is handled by the Locator subagent (`subagents/locator_agent.py`). Runner calls Locator when semantic actions need coordinates. Locator owns `ground_element` and `refine` (RegionFocus) — all grounding logic lives in Locator.

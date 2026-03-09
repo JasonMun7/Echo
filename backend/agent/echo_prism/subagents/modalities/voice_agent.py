@@ -1,6 +1,8 @@
 """
-EchoPrism-Voice Subagent — Gemini Live API session for real-time voice chat.
-Owns the Live API client usage; router provides WebSocket bridge and tool execution.
+EchoPrism Voice — Alpha's voice modality layer.
+
+Voice is the root agent for audio; it IS Alpha for the voice interface.
+Uses same tools as Chat (via get_tools). Router provides WebSocket bridge and tool execution.
 """
 import asyncio
 import json
