@@ -24,7 +24,7 @@ import {
   IconBrain,
   IconMicrophone,
 } from "@tabler/icons-react";
-import { EchoPrismVoiceModal } from "@/components/echoprisimvoice-modal";
+import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { toast } from "sonner";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
