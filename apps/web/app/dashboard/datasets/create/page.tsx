@@ -1016,7 +1016,7 @@ export default function DatasetCreatorPage() {
               size="sm"
               onClick={stream ? stopStream : startStream}
               variant={stream ? "destructive" : "default"}
-              className={!stream ? "bg-[#A577FF] hover:opacity-90" : undefined}
+              className={!stream ? "echo-btn-primary" : undefined}
             >
               {stream ? (
                 <><IconSquare className="h-4 w-4 mr-1.5" /> Stop Live Capture</>
@@ -1028,7 +1028,7 @@ export default function DatasetCreatorPage() {
               size="sm"
               onClick={currentSequence ? endSequence : startSequence}
               variant={currentSequence ? "destructive" : "outline"}
-              className={!currentSequence ? "border-[#A577FF]/40 hover:bg-[#A577FF]/10" : undefined}
+              className={!currentSequence ? "echo-btn-secondary" : undefined}
             >
               {currentSequence ? (
                 <><IconPlayerStop className="h-4 w-4 mr-1.5" /> End Sequence</>
@@ -1043,7 +1043,7 @@ export default function DatasetCreatorPage() {
             )}
           </ButtonGroup>
           <ButtonGroup aria-label="Capture frame">
-            <Button size="sm" variant="outline" onClick={captureFrame} disabled={!stream} className="border-[#A577FF]/40 hover:bg-[#A577FF]/10">
+            <Button size="sm" variant="outline" onClick={captureFrame} disabled={!stream} className="echo-btn-secondary">
               <IconPhoto className="h-4 w-4 mr-1.5" /> Capture Frame
             </Button>
           </ButtonGroup>
@@ -1069,7 +1069,7 @@ export default function DatasetCreatorPage() {
           </ButtonGroup>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="border-[#A577FF]/40 hover:bg-[#A577FF]/10" aria-label="More actions">
+              <Button size="sm" variant="outline" className="echo-btn-secondary" aria-label="More actions">
                 <IconDotsVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1230,10 +1230,10 @@ export default function DatasetCreatorPage() {
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-echo-text-muted">{currentSampleIndex >= 0 ? `${currentSampleIndex + 1} of ${filteredSamples.length}` : "-"}</span>
                 <div className="flex gap-1">
-                  <Button size="sm" variant="outline" disabled={currentSampleIndex <= 0} onClick={() => setCurrentSampleIndex((i) => Math.max(0, i - 1))} className="border-[#A577FF]/40">
+                  <Button size="sm" variant="outline" disabled={currentSampleIndex <= 0} onClick={() => setCurrentSampleIndex((i) => Math.max(0, i - 1))} className="echo-btn-secondary">
                     <IconChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" disabled={currentSampleIndex >= filteredSamples.length - 1} onClick={() => setCurrentSampleIndex((i) => Math.min(filteredSamples.length - 1, i + 1))} className="border-[#A577FF]/40">
+                  <Button size="sm" variant="outline" disabled={currentSampleIndex >= filteredSamples.length - 1} onClick={() => setCurrentSampleIndex((i) => Math.min(filteredSamples.length - 1, i + 1))} className="echo-btn-secondary">
                     <IconChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1409,12 +1409,12 @@ export default function DatasetCreatorPage() {
 
         <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
           {appMode === "capture" && (
-            <Button className="w-full bg-[#A577FF] hover:opacity-90" onClick={saveCurrentFrame} disabled={!currentFrame}>
+            <Button className="echo-btn-primary w-full" onClick={saveCurrentFrame} disabled={!currentFrame}>
               Save Current Frame
             </Button>
           )}
           {appMode === "review" && (
-            <Button className="w-full border-[#A577FF]/40 hover:bg-[#A577FF]/10" variant="outline" onClick={exportDataset}>
+            <Button className="echo-btn-secondary w-full" variant="outline" onClick={exportDataset}>
               <IconDownload className="h-4 w-4 mr-1.5" /> Export Full Dataset
             </Button>
           )}

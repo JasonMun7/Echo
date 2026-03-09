@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -19,6 +20,7 @@
   --color-echo-error: #ef4444;
   --color-echo-text: #150A35;
   --color-echo-text-muted: #6b7280;
+  --color-echo-cyan: #21C4DD;
   --color-echo-border: rgba(165, 119, 255, 0.2);
   --color-echo-surface: #F5F7FC;
   --shadow-echo-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -294,5 +296,26 @@
   }
   .echo-gradient-dramatic {
     background: linear-gradient(to right, #0d0620, #A577FF);
+  }
+  .echo-gradient-secondary {
+    background: linear-gradient(to right, #150A35, #21C4DD);
+  }
+  .echo-gradient-cyan-lavender {
+    background: linear-gradient(to right, #21C4DD, #A577FF);
+  }
+  .echo-glass-light {
+    @apply bg-white/12 backdrop-blur-md border border-white/20;
+  }
+  .echo-glass-dark {
+    @apply bg-[#150A35]/8 backdrop-blur-md border border-[#A577FF]/15;
+  }
+  .echo-glass-card {
+    @apply rounded-lg border border-[#A577FF]/15 bg-[#150A35]/8 backdrop-blur-md shadow-sm;
+  }
+  .echo-btn-secondary-accent {
+    @apply cursor-pointer rounded-lg border border-[#21C4DD]/40 bg-[#F5F7FC] px-5 py-2.5 font-medium text-[#21C4DD] transition-colors hover:bg-[#21C4DD]/10;
+  }
+  .echo-btn-cyan-lavender {
+    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
   }
 }

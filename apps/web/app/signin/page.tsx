@@ -1,13 +1,11 @@
-import { Suspense } from "react";
-import SignInForm from "@/components/sign-in-form";
-import { LoaderFive } from "@/components/ui/loader";
+import { redirect } from "next/navigation";
 
-export default function SignInPage() {
-  return (
-    <div className="flex h-screen w-full min-h-screen items-center justify-center bg-[#F5F7FC] px-4">
-      <Suspense fallback={<LoaderFive text="Loading…" />}>
-        <SignInForm />
-      </Suspense>
-    </div>
-  );
+export default async function SignInRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const desktop = params?.desktop === "1" ? "?desktop=1" : "";
+  redirect(`/sign-in${desktop}`);
 }
