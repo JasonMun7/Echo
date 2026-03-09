@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Sidebar,
   SidebarBody,
@@ -330,9 +331,16 @@ const Logo = () => {
   return (
     <Link
       href="/dashboard"
-      className="relative z-20 flex cursor-pointer items-center space-x-2 py-1 text-sm font-normal text-white"
+      className="relative z-20 flex cursor-pointer items-center gap-2 py-1 text-sm font-normal text-white"
     >
-      <div className="h-5 w-6 shrink-0 rounded-tl-lg rounded-tr-sm rounded-br-lg rounded-bl-sm bg-[#A577FF]" />
+      <Image
+        src="/echo_logo.png"
+        alt="Echo"
+        width={56}
+        height={56}
+        className="size-14 shrink-0 object-contain"
+        style={{ aspectRatio: "1" }}
+      />
       <motion.span
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -348,9 +356,16 @@ const LogoIcon = () => {
   return (
     <Link
       href="/dashboard"
-      className="relative z-20 flex cursor-pointer items-center space-x-2 py-1 text-sm font-normal text-white"
+      className="relative z-20 flex cursor-pointer items-center justify-center py-1"
     >
-      <div className="h-5 w-6 shrink-0 rounded-tl-lg rounded-tr-sm rounded-br-lg rounded-bl-sm bg-[#A577FF]" />
+      <Image
+        src="/echo_logo.png"
+        alt="Echo"
+        width={48}
+        height={48}
+        className="size-12 shrink-0 object-contain"
+        style={{ aspectRatio: "1" }}
+      />
     </Link>
   );
 };

@@ -206,7 +206,7 @@ Use consistent spacing scale:
 
 ```html
 <button
-  class="rounded-lg bg-[#A577FF] px-5 py-2.5 font-medium text-white hover:opacity-90"
+  class="rounded-lg bg-linear-to-r from-[#A577FF] to-[#150A35] px-5 py-2.5 font-medium text-white hover:opacity-95"
 ></button>
 ```
 
@@ -233,6 +233,18 @@ Use consistent spacing scale:
   class="rounded-lg border border-[#21C4DD]/40 bg-[#F5F7FC] px-5 py-2.5 font-medium text-[#21C4DD] hover:bg-[#21C4DD]/10"
 ></button>
 ```
+
+**Dual-accent gradient** (Cyan → Lavender; use `.echo-btn-cyan-lavender` or):
+
+```html
+<button
+  class="rounded-lg bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-5 py-2.5 font-medium text-white hover:opacity-95"
+></button>
+```
+
+**Hover border gradient** — Use `HoverBorderGradient` from `@/components/ui/hover-border-gradient` for CTAs with an animated Cyan→Lavender border. Pair with `echo-hover-border-*` classes.
+
+**Stateful button** — Use `StatefulButton` from `@/components/ui/stateful-button` for actions with loading and success states (e.g., form submit). Styled with Echo primary (Lavender) by default.
 
 ### Cards
 
@@ -332,10 +344,11 @@ Design tokens are defined in `@theme inline`:
 | `.echo-glass-card`          | Glassmorphism card                         |
 | `.echo-glass-light`         | Light glass on dark backgrounds            |
 | `.echo-glass-dark`          | Dark glass on light backgrounds            |
-| `.echo-btn-primary`         | Primary Lavender button                    |
-| `.echo-btn-secondary`       | Secondary outline button                   |
-| `.echo-btn-secondary-accent`| Secondary accent (Cyan) outline button      |
+| `.echo-btn-primary`         | Primary Lavender gradient button           |
+| `.echo-btn-secondary`       | Secondary outline (Lavender) button        |
+| `.echo-btn-secondary-accent`| Secondary accent (Cyan) outline button     |
 | `.echo-btn-gradient`        | Gradient button (Lavender → Cetacean Blue) |
+| `.echo-btn-cyan-lavender`   | Dual-accent gradient (Cyan → Lavender)     |
 | `.echo-gradient-dark`       | Dark gradient background                   |
 | `.echo-gradient-dramatic`   | Dramatic gradient background               |
 | `.echo-gradient-secondary`  | Secondary gradient (Cetacean Blue → Cyan)  |

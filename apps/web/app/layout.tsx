@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="light h-full" suppressHydrationWarning>
       <body className={`${inter.className} h-full min-h-screen`}>
         <AuthProvider>{children}</AuthProvider>
         <Toaster richColors position="top-right" />

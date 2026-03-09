@@ -219,7 +219,7 @@ export default function IntegrationsPage() {
                       size="sm"
                       onClick={() => connectIntegration(integration.id)}
                       disabled={connecting === integration.id}
-                      className="h-7 text-xs bg-linear-to-r from-[#A577FF] to-[#7C3AED] text-white hover:opacity-90"
+                      className="echo-btn-primary h-7 text-xs"
                     >
                       <IconExternalLink className="mr-1 h-3 w-3" />
                       {connecting === integration.id ? "Connecting..." : "Connect"}
