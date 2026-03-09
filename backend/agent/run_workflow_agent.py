@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Echo Workflow Executor — runs via EchoPrism (DirectExecutor + echo_prism_agent).
-Env: WORKFLOW_ID, RUN_ID, OWNER_UID, GEMINI_API_KEY
+Echo Workflow Executor — Cloud Run Job (browser).
+
+Runs via WebSocket agent API: connects to backend, sends screenshots, receives actions.
+Uses Playwright for capture/execute. No in-process agent.
+Env: WORKFLOW_ID, RUN_ID, OWNER_UID, ECHO_API_URL (or BACKEND_URL), GEMINI_API_KEY
 """
 import asyncio
+import base64
+import json
 import logging
 import os
 import sys
@@ -24,29 +29,15 @@ from firebase_admin import credentials, firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
 
 from direct_executor import is_deterministic
-from echo_prism.subagents.runner_agent import execute_deterministic_step
-from echo_prism.alpha.agent import (
-    FALLBACK_MODEL,
-    _cache_system_prompt,
-    _get_client,
-    _resolve_model,
-    run_ambiguous_step,
-)
 from echo_prism.alpha.image_utils import compress_screenshot
-from echo_prism.alpha.perception import perceive_scene
-from echo_prism.models_config import GROUNDING_MODEL
-from echo_prism.alpha.prompts import WorkflowType, step_instruction, system_prompt
+from echo_prism.subagents.runner.operator import PlaywrightOperator
 
 # Total workflow execution timeout: 5 minutes
 WORKFLOW_TIMEOUT_SECS = 300
 
 
 async def log_message(run_ref, message: str, level: str = "info", metadata: dict | None = None):
-    """Append a log entry to runs/{run_id}/logs (non-blocking via asyncio.to_thread).
-
-    metadata: optional dict of structured fields (e.g. thought, action, step_index)
-    for trace logging (o, t, a) per step.
-    """
+    """Append a log entry to runs/{run_id}/logs (non-blocking via asyncio.to_thread)."""
     entry: dict = {
         "message": message,
         "timestamp": SERVER_TIMESTAMP,
@@ -66,7 +57,6 @@ def _trigger_trace_filter(run_ref, workflow_id: str, run_id: str, db, owner_uid:
             import asyncio as _asyncio
             from echo_prism.training.trace_filter import score_trace
             _asyncio.run(score_trace(run_ref, workflow_id, run_id, db, owner_uid))
-            # Export COCO trace after scoring (so we have quality/corrected_thought)
             try:
                 from echo_prism.training.trace_coco_export import export_and_upload_coco
                 _asyncio.run(export_and_upload_coco(run_ref, workflow_id, run_id, db))
@@ -108,113 +98,8 @@ def _upload_trace_screenshot(run_ref, step_index: int, screenshot_bytes: bytes) 
         return None
 
 
-async def _handle_echoprism_result(
-    result,
-    err: str | None,
-    thought: str | None,
-    action_str: str | None,
-    step_index: int,
-    run_ref,
-    page,
-    ctx,
-    browser,
-    history: list[dict],
-) -> tuple[bool | None, str | None]:
-    """
-    Handle the return value from run_ambiguous_step.
-
-    Returns:
-        (None, None)        — step succeeded, continue loop
-        (True, sentinel)    — step signaled early termination (finished/calluser), break loop
-        (False, error)      — step failed permanently, break loop
-    """
-    trace_meta: dict = {
-        "step_index": step_index,
-        "thought": thought or "",
-        "action": action_str or "",
-        "trace": True,
-    }
-
-    if result == "finished":
-        await log_message(
-            run_ref,
-            f"Agent signaled Finished at step {step_index}. Thought: {thought}",
-            metadata=trace_meta,
-        )
-        await asyncio.to_thread(
-            run_ref.update,
-            {"status": "completed", "completedAt": SERVER_TIMESTAMP},
-        )
-        await log_message(run_ref, "Workflow completed successfully (agent Finished signal)")
-        return True, "__finished_early__"
-
-    if result == "calluser":
-        reason = err or "Agent requested user intervention"
-        await log_message(
-            run_ref,
-            f"Agent needs user help at step {step_index}: {reason}",
-            level="warn",
-            metadata={**trace_meta, "callUserReason": reason},
-        )
-        await asyncio.to_thread(
-            run_ref.update,
-            {
-                "status": "awaiting_user",
-                "callUserReason": reason,
-                "pausedAt": SERVER_TIMESTAMP,
-            },
-        )
-        return True, f"__calluser__:{reason}"
-
-    if result is False:
-        await log_message(
-            run_ref,
-            f"✗ Step {step_index} failed: {err}",
-            level="error",
-            metadata={**trace_meta, "error": err},
-        )
-        return False, err or f"EchoPrism failed at step {step_index}"
-
-    # result is True — step succeeded; persist thought+action in history
-    # EchoPrism-Voice: update current_step for status feed (Voice reads this for TTS)
-    try:
-        screenshot = await page.screenshot(type="png", full_page=False)
-        _try_upload_screenshot(screenshot, page.url)
-        # Upload per-step screenshot for COCO trace export
-        screenshot_url = _upload_trace_screenshot(run_ref, step_index, screenshot)
-        if screenshot_url:
-            trace_meta["screenshot_url"] = screenshot_url
-        # Compress before storing in history to save memory
-        history.append({
-            "screenshot": compress_screenshot(screenshot),
-            "thought": thought or "",
-            "action": action_str or "",
-        })
-    except Exception:
-        pass
-    # Update current_step for EchoPrism-Voice status feed
-    try:
-        await asyncio.to_thread(run_ref.update, {
-            "current_step": step_index,
-            "current_step_thought": (thought or "")[:200],
-            "current_step_action": (action_str or "")[:100],
-        })
-    except Exception:
-        pass
-
-    await log_message(
-        run_ref,
-        f"✓ Step {step_index} complete (EchoPrism). Thought: {(thought or '')[:100]}",
-        metadata=trace_meta,
-    )
-
-    return None, None
-
-
 async def _check_run_signals(run_ref) -> tuple[str | None, bool]:
-    """Poll Firestore for redirect instruction or cancel request.
-    Called between steps. Returns (redirect_instruction or None, cancel_requested bool).
-    """
+    """Poll Firestore for redirect instruction or cancel request."""
     snap = await asyncio.to_thread(run_ref.get)
     data = snap.to_dict() or {}
     cancel = data.get("cancel_requested", False)
@@ -227,218 +112,262 @@ async def _check_run_signals(run_ref) -> tuple[str | None, bool]:
     return redirect, cancel
 
 
-async def _run_echoprism_hybrid(
+def _step_to_backend_format(step: dict) -> dict:
+    return {
+        "action": step.get("action", ""),
+        "params": step.get("params", {}),
+        "context": step.get("context", ""),
+        "expected_outcome": step.get("expected_outcome", ""),
+    }
+
+
+async def _run_workflow_websocket(
     run_ref,
     steps: list[dict],
-    workflow_type: str = "browser",
-    owner_uid: str | None = None,
-    db=None,
+    workflow_type: str,
+    owner_uid: str,
+    db,
+    backend_url: str,
+    job_connect_token: str,
 ) -> tuple[bool, str | None]:
     """
-    Run workflow using DirectExecutor for deterministic steps, EchoPrism for ambiguous.
-
+    Run workflow via WebSocket agent API.
     Returns (success, error_or_calluser_reason).
-    Side effects:
-      - Logs structured (thought, action, step_index) trace entries to Firestore
-      - Uploads screenshots to GCS via screenshot_stream after each EchoPrism step
-      - Updates run status to "awaiting_user" + callUserReason when agent signals CallUser
-
-    Performance optimizations applied here:
-      - System prompt context cache: uploaded once, referenced via cache name on every call
-      - Speculative prefetch: perceive_scene() for the next step is fired as an asyncio.Task
-        during operator.execute() + verification of the current step, hiding 2-4s of Tier 1
-        latency on most steps (effectively making perceive_scene free in the happy path)
     """
+    import websockets
     from playwright.async_api import async_playwright
 
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    client = _get_client(api_key) if api_key else None
+    backend_steps = [_step_to_backend_format(s) for s in steps]
+    ws_base = backend_url.replace("http://", "ws://").replace("https://", "wss://")
+    ws_url = f"{ws_base}/api/agent/run?job_token={job_connect_token}&workflow_id={run_ref.parent.parent.id}&run_id={run_ref.id}"
+    workflow_id = run_ref.parent.parent.id
+    run_id = run_ref.id
 
+    history: list[dict] = []
+    total = len(steps)
     browser = None
-    ctx = None
+    page = None
+
     try:
         async with async_playwright() as p:
+            headless = os.environ.get("HEADLESS", "true").lower() in ("1", "true", "yes")
             browser = await p.chromium.launch(
-                headless=False,
+                headless=headless,
                 args=["--disable-blink-features=AutomationControlled", "--disable-gpu"],
             )
-            try:
-                ctx = await browser.new_context()
-                page = await ctx.new_page()
-                await page.set_viewport_size({"width": 1280, "height": 936})
-                await page.goto("https://www.google.com")
+            ctx = await browser.new_context()
+            page = await ctx.new_page()
+            await page.set_viewport_size({"width": 1280, "height": 936})
+            await page.goto("https://www.google.com")
 
-                # Cache the system prompt once for the whole workflow run.
-                # All steps share the same system prompt (same workflow_type + action space).
-                # With 10 steps × 3 retries = up to 30 calls, this saves ~45k tokens.
-                cached_prompt: str | None = None
-                model = _resolve_model(owner_uid, db)
-                if client and steps:
-                    first_step = steps[0]
-                    sys = system_prompt(step_instruction(first_step, 1, len(steps)), workflow_type)  # type: ignore[arg-type]
-                    cached_prompt = _cache_system_prompt(client, sys, model)
-                    if cached_prompt:
-                        logger.info("System prompt context cache active for this run: %s", cached_prompt)
-                    else:
-                        logger.debug("Context cache not available — system prompt will be sent inline")
+            operator = PlaywrightOperator(page)
 
-                # (o, t, a) history for multi-step context
-                history: list[dict] = []
-                total = len(steps)
+            async with websockets.connect(ws_url, ping_interval=30, ping_timeout=10) as ws:
 
-                async def _prefetch_scene(screenshot: bytes) -> str:
-                    """Fire perceive_scene in background; returns caption or ''."""
-                    try:
-                        from echo_prism.alpha.image_utils import compress_screenshot as _compress
-                        compressed = _compress(screenshot)
-                        return await perceive_scene(client, compressed, GROUNDING_MODEL)
-                    except Exception:
-                        return ""
+                async def _send(msg: dict) -> None:
+                    await ws.send(json.dumps(msg))
 
-                async def _run_steps():
-                    prefetch_task: asyncio.Task | None = None
-                    prefetched_caption: str | None = None
+                async def _receive() -> dict:
+                    raw = await ws.recv()
+                    return json.loads(raw)
 
-                    for i, step in enumerate(steps, 1):
-                        # Inter-step signal poll: check for cancel or mid-run redirect
-                        if i > 1:
-                            redirect, cancel = await _check_run_signals(run_ref)
-                            if cancel:
-                                await log_message(run_ref, "Run cancelled by user request")
-                                await asyncio.to_thread(run_ref.update, {
-                                    "status": "cancelled",
-                                    "completedAt": SERVER_TIMESTAMP,
-                                })
-                                return True, "__cancelled__"
-                            if redirect:
-                                await log_message(run_ref, f"Redirect received: {redirect}", level="info")
-                                step = {**step, "context": f"[User redirect]: {redirect}\n{step.get('context', '')}"}
+                await _send({
+                    "type": "start",
+                    "workflow_id": workflow_id,
+                    "run_id": run_id,
+                    "workflow_type": workflow_type,
+                    "steps": backend_steps,
+                })
 
-                        step_label = f"Step {i}/{total}: {step.get('action', '')} — {step.get('context', '')[:60]}"
-                        await log_message(run_ref, step_label)
+                msg = await _receive()
+                if msg.get("type") == "error":
+                    return False, msg.get("message", "Agent error")
+                if msg.get("type") != "ready":
+                    return False, "Unexpected agent response"
 
-                        # Collect prefetched caption from previous iteration (if any)
-                        if prefetch_task is not None:
+                for i in range(total):
+                    redirect, cancel = await _check_run_signals(run_ref)
+                    if cancel:
+                        await log_message(run_ref, "Run cancelled by user request")
+                        await asyncio.to_thread(run_ref.update, {
+                            "status": "cancelled",
+                            "completedAt": SERVER_TIMESTAMP,
+                        })
+                        return True, "__cancelled__"
+                    if redirect and i > 0:
+                        await log_message(run_ref, f"Redirect received: {redirect}")
+                        steps[i] = {**steps[i], "context": f"[User redirect]: {redirect}\n{steps[i].get('context', '')}"}
+                        backend_steps[i] = _step_to_backend_format(steps[i])
+
+                    step = steps[i]
+                    step_index = i + 1
+                    step_label = f"Step {step_index}/{total}: {step.get('action', '')} — {step.get('context', '')[:60]}"
+                    await log_message(run_ref, step_label)
+
+                    deterministic = is_deterministic(step)
+                    last_error = ""
+                    step_succeeded = False
+
+                    for attempt in range(4):
+                        screenshot_b64: str | None = None
+                        if not deterministic:
                             try:
-                                prefetched_caption = await prefetch_task
-                            except Exception:
-                                prefetched_caption = None
-                            prefetch_task = None
-                        else:
-                            prefetched_caption = None
+                                screenshot_bytes = await page.screenshot(type="png", full_page=False)
+                                screenshot_b64 = base64.b64encode(screenshot_bytes).decode("ascii")
+                            except Exception as e:
+                                last_error = f"Screenshot failed: {e}"
+                                break
 
-                        if is_deterministic(step):
-                            MAX_DIRECT_RETRIES = 3
-                            ok = False
-                            direct_err = ""
-                            for attempt in range(MAX_DIRECT_RETRIES):
-                                ok, direct_err = await execute_deterministic_step(step, page, owner_uid or "", db)
-                                if ok:
+                        payload: dict = {
+                            "type": "step",
+                            "step_index": i,
+                            "step": backend_steps[i],
+                            "history_summary": "",
+                            "last_error": last_error or "",
+                        }
+                        if screenshot_b64:
+                            payload["screenshot_b64"] = screenshot_b64
+
+                        await _send(payload)
+
+                        while True:
+                            msg = await _receive()
+                            if msg.get("type") == "thinking":
+                                await log_message(run_ref, msg.get("thought", ""), metadata={"step_index": i})
+                                continue
+                            break
+
+                        if msg.get("type") == "error":
+                            last_error = msg.get("message", "Agent error")
+                            if attempt < 3:
+                                await asyncio.sleep(0.5 * (2 ** attempt))
+                            continue
+
+                        if msg.get("type") == "action":
+                            signal = msg.get("signal", "")
+                            thought = msg.get("thought", "")
+
+                            if signal == "finished":
+                                await log_message(run_ref, f"Agent signaled Finished at step {step_index}. Thought: {thought}")
+                                await asyncio.to_thread(run_ref.update, {"status": "completed", "completedAt": SERVER_TIMESTAMP})
+                                return True, "__finished_early__"
+
+                            if signal == "calluser":
+                                reason = msg.get("reason", "Agent needs user intervention")
+                                await log_message(run_ref, f"Agent needs user help at step {step_index}: {reason}", level="warn")
+                                await asyncio.to_thread(run_ref.update, {
+                                    "status": "awaiting_user",
+                                    "callUserReason": reason,
+                                    "pausedAt": SERVER_TIMESTAMP,
+                                })
+                                return True, f"__calluser__:{reason}"
+
+                            if signal == "step_done":
+                                step_succeeded = True
+                                break
+
+                            if signal == "execute" and msg.get("action"):
+                                action = msg["action"]
+                                try:
+                                    exec_result = await operator.execute(action)
+                                except Exception as e:
+                                    last_error = str(e)
+                                    if attempt < 3:
+                                        await asyncio.sleep(0.5 * (2 ** attempt))
+                                    continue
+
+                                if exec_result == "finished":
+                                    await asyncio.to_thread(run_ref.update, {"status": "completed", "completedAt": SERVER_TIMESTAMP})
+                                    return True, "__finished_early__"
+                                if exec_result == "calluser":
+                                    await asyncio.to_thread(run_ref.update, {
+                                        "status": "awaiting_user",
+                                        "callUserReason": "Operator returned calluser",
+                                        "pausedAt": SERVER_TIMESTAMP,
+                                    })
+                                    return True, "__calluser__:Operator returned calluser"
+                                if exec_result is False:
+                                    last_error = "Operator returned false"
+                                    if attempt < 3:
+                                        await asyncio.sleep(0.5 * (2 ** attempt))
+                                    continue
+
+                                if deterministic:
+                                    step_succeeded = True
                                     break
-                                if attempt < MAX_DIRECT_RETRIES - 1:
-                                    wait_secs = 2 ** attempt
-                                    await log_message(
-                                        run_ref,
-                                        f"Direct retry {attempt + 1}/{MAX_DIRECT_RETRIES} for step {i} "
-                                        f"({step.get('action')}): {direct_err}",
-                                        level="warn",
-                                    )
-                                    await asyncio.sleep(wait_secs)
 
-                            if ok:
-                                await log_message(run_ref, f"✓ Step {i} complete (direct)")
+                                before_b64 = screenshot_b64
+                                await asyncio.sleep(1)
                                 try:
-                                    screenshot = await page.screenshot(type="png", full_page=False)
-                                    _try_upload_screenshot(screenshot, page.url)
-                                    history.append({"screenshot": compress_screenshot(screenshot)})
-
-                                    # Speculative prefetch: while we have some idle time after
-                                    # a direct step succeeds, kick off scene understanding for
-                                    # the next EchoPrism step in the background.
-                                    if client and i < total and not is_deterministic(steps[i]):
-                                        prefetch_task = asyncio.create_task(_prefetch_scene(screenshot))
+                                    after_bytes = await page.screenshot(type="png", full_page=False)
+                                    after_b64 = base64.b64encode(after_bytes).decode("ascii")
                                 except Exception:
-                                    pass
-                            else:
-                                # All direct retries exhausted — hand off to EchoPrism
-                                await log_message(
-                                    run_ref,
-                                    f"Direct failed after {MAX_DIRECT_RETRIES} retries for step {i} "
-                                    f"— falling back to EchoPrism. Last error: {direct_err}",
-                                    level="warn",
-                                )
-                                result, thought, action_str, err = await run_ambiguous_step(
-                                    page, step, i, total, history,
-                                    workflow_type=workflow_type,  # type: ignore[arg-type]
-                                    owner_uid=owner_uid,
-                                    db=db,
-                                    cached_prompt=cached_prompt,
-                                    prefetched_caption=prefetched_caption,
-                                )
-                                status, signal = await _handle_echoprism_result(
-                                    result, err, thought, action_str, i, run_ref, page, ctx, browser, history
-                                )
-                                if status is not None:
-                                    return status, signal
+                                    after_b64 = before_b64 or ""
 
-                                # Speculative prefetch for next step after EchoPrism finishes
-                                if client and i < total and not is_deterministic(steps[i]):
-                                    try:
-                                        after_ss = await page.screenshot(type="png", full_page=False)
-                                        prefetch_task = asyncio.create_task(_prefetch_scene(after_ss))
-                                    except Exception:
-                                        pass
+                                action_str = msg.get("action_str", "")
+                                expected = steps[i].get("expected_outcome", "")
 
-                        else:
-                            result, thought, action_str, err = await run_ambiguous_step(
-                                page, step, i, total, history,
-                                workflow_type=workflow_type,  # type: ignore[arg-type]
-                                owner_uid=owner_uid,
-                                db=db,
-                                cached_prompt=cached_prompt,
-                                prefetched_caption=prefetched_caption,
-                            )
-                            status, signal = await _handle_echoprism_result(
-                                result, err, thought, action_str, i, run_ref, page, ctx, browser, history
-                            )
-                            if status is not None:
-                                return status, signal
+                                await _send({
+                                    "type": "verify",
+                                    "before_b64": before_b64,
+                                    "after_b64": after_b64,
+                                    "action_str": action_str,
+                                    "expected_outcome": expected,
+                                })
 
-                            # Speculative prefetch for next step
-                            if client and i < total and not is_deterministic(steps[i]):
-                                try:
-                                    after_ss = await page.screenshot(type="png", full_page=False)
-                                    prefetch_task = asyncio.create_task(_prefetch_scene(after_ss))
-                                except Exception:
-                                    pass
+                                while True:
+                                    vmsg = await _receive()
+                                    if vmsg.get("type") == "thinking":
+                                        continue
+                                    break
 
-                    # Cancel any outstanding prefetch task at end of workflow
-                    if prefetch_task is not None:
-                        prefetch_task.cancel()
+                                if vmsg.get("type") == "verify_result" and vmsg.get("succeeded"):
+                                    step_succeeded = True
+                                    break
+                                last_error = vmsg.get("description", "Verification failed")
+                                if attempt < 3:
+                                    await asyncio.sleep(0.5 * (2 ** attempt))
+                                    continue
 
-                    return True, None
+                        if step_succeeded:
+                            break
 
-                # Apply 5-minute total workflow timeout
-                result_pair = await asyncio.wait_for(_run_steps(), timeout=WORKFLOW_TIMEOUT_SECS)
-                return result_pair
+                    if not step_succeeded:
+                        reason = last_error or f"Step {step_index} failed"
+                        await log_message(run_ref, f"Stuck at step {step_index} — requesting user intervention: {reason}", level="warn")
+                        await asyncio.to_thread(run_ref.update, {
+                            "status": "awaiting_user",
+                            "callUserReason": reason,
+                            "pausedAt": SERVER_TIMESTAMP,
+                        })
+                        return True, f"__calluser__:{reason}"
 
-            finally:
-                if ctx:
+                    await log_message(run_ref, f"✓ Step {step_index} complete")
                     try:
-                        await ctx.close()
+                        screenshot = await page.screenshot(type="png", full_page=False)
+                        _try_upload_screenshot(screenshot, page.url)
+                        _upload_trace_screenshot(run_ref, i, screenshot)
+                        history.append({"screenshot": compress_screenshot(screenshot)})
                     except Exception:
                         pass
-                if browser:
-                    try:
-                        await browser.close()
-                    except Exception:
-                        pass
+                    await asyncio.sleep(0.3)
+
+            await ctx.close()
+
     except asyncio.TimeoutError:
         logger.error("Workflow execution timed out after %ds", WORKFLOW_TIMEOUT_SECS)
         return False, f"Workflow timed out after {WORKFLOW_TIMEOUT_SECS}s"
     except Exception as e:
-        logger.exception("EchoPrism hybrid execution failed: %s", e)
+        logger.exception("WebSocket workflow failed: %s", e)
         return False, str(e)
+    finally:
+        if browser:
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+    return True, None
 
 
 def main():
@@ -449,9 +378,12 @@ def main():
         logger.error("Missing WORKFLOW_ID, RUN_ID, or OWNER_UID")
         return 1
 
-    if not os.environ.get("GEMINI_API_KEY"):
-        logger.error("GEMINI_API_KEY is required for EchoPrism")
-        return 1
+    backend_url = (
+        os.environ.get("ECHO_API_URL")
+        or os.environ.get("BACKEND_URL")
+        or "http://localhost:8000"
+    )
+    logger.info("Backend URL: %s", backend_url)
 
     logger.info("Initializing Firebase...")
     firebase_project = os.environ.get("FIREBASE_PROJECT_ID", "")
@@ -472,6 +404,14 @@ def main():
         run_ref.update({"status": "failed", "error": "Workflow not found or access denied"})
         return 1
 
+    run_doc = run_ref.get()
+    run_data = run_doc.to_dict() or {}
+    job_connect_token = run_data.get("job_connect_token")
+    if not job_connect_token:
+        logger.error("job_connect_token not found in run doc — run may have been started without it")
+        run_ref.update({"status": "failed", "error": "job_connect_token not found"})
+        return 1
+
     steps_snap = workflow_ref.collection("steps").order_by("order").stream()
     steps = [{"id": s.id, **s.to_dict()} for s in steps_snap]
 
@@ -479,19 +419,30 @@ def main():
 
     workflow_type = workflow_doc.to_dict().get("workflow_type", "browser")
 
-    logger.info("Starting workflow with %d steps (EchoPrism hybrid, type=%s)", len(steps), workflow_type)
-    success, error = asyncio.run(_run_echoprism_hybrid(
-        run_ref, steps, workflow_type=workflow_type, owner_uid=owner_uid, db=db
+    logger.info("Starting workflow with %d steps (WebSocket agent, type=%s)", len(steps), workflow_type)
+
+    success, error = asyncio.run(asyncio.wait_for(
+        _run_workflow_websocket(
+            run_ref, steps,
+            workflow_type=workflow_type,
+            owner_uid=owner_uid,
+            db=db,
+            backend_url=backend_url,
+            job_connect_token=job_connect_token,
+        ),
+        timeout=WORKFLOW_TIMEOUT_SECS,
     ))
 
-    # "__finished_early__" means the agent called Finished() mid-run and already updated Firestore
     if error == "__finished_early__":
         _trigger_trace_filter(run_ref, workflow_id, run_id, db, owner_uid)
         return 0
 
-    # "__calluser__:reason" means the run is now awaiting_user — Firestore already updated
     if isinstance(error, str) and error.startswith("__calluser__:"):
         logger.info("Run paused awaiting user: %s", error[len("__calluser__:"):])
+        _trigger_trace_filter(run_ref, workflow_id, run_id, db, owner_uid)
+        return 0
+
+    if isinstance(error, str) and error == "__cancelled__":
         _trigger_trace_filter(run_ref, workflow_id, run_id, db, owner_uid)
         return 0
 

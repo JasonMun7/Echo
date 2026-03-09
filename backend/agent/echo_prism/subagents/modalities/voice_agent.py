@@ -42,12 +42,14 @@ async def run_voice_session(
 
     try:
         async with client.aio.live.connect(model=model, config=config) as live_session:
+            disconnected = asyncio.Event()
 
             async def recv_from_client():
                 try:
                     while True:
                         msg = await websocket.receive()
                         if msg["type"] == "websocket.disconnect":
+                            disconnected.set()
                             break
                         if msg["type"] == "websocket.receive":
                             if msg.get("bytes") is not None:
@@ -73,13 +75,36 @@ async def run_voice_session(
                                         "voice recv_from_client parse error: %s", e
                                     )
                 except Exception as e:
+                    disconnected.set()
                     if "disconnect" not in str(e).lower():
                         logger.warning("voice recv_from_client error: %s", e)
+
+            async def _send_bytes(data: bytes) -> bool:
+                if disconnected.is_set():
+                    return False
+                try:
+                    await websocket.send_bytes(data)
+                    return True
+                except Exception:
+                    disconnected.set()
+                    return False
+
+            async def _send_text(text: str) -> bool:
+                if disconnected.is_set():
+                    return False
+                try:
+                    await websocket.send_text(text)
+                    return True
+                except Exception:
+                    disconnected.set()
+                    return False
 
             async def recv_from_gemini():
                 while True:
                     try:
                         async for response in live_session.receive():
+                            if disconnected.is_set():
+                                return
                             if response.server_content:
                                 sc = response.server_content
                                 if sc.model_turn:
@@ -87,21 +112,25 @@ async def run_voice_session(
                                         if getattr(part, "thought", False):
                                             continue
                                         if part.inline_data and part.inline_data.data:
-                                            await websocket.send_bytes(part.inline_data.data)
+                                            if not await _send_bytes(part.inline_data.data):
+                                                return
                                         if part.text:
-                                            await websocket.send_text(
+                                            if not await _send_text(
                                                 json.dumps({"type": "text", "text": part.text})
-                                            )
+                                            ):
+                                                return
                                 if getattr(sc, "output_transcription", None):
                                     t = sc.output_transcription
                                     if getattr(t, "text", None):
-                                        await websocket.send_text(
+                                        if not await _send_text(
                                             json.dumps({"type": "transcript", "text": t.text})
-                                        )
+                                        ):
+                                            return
                                 if sc.turn_complete:
-                                    await websocket.send_text(
+                                    if not await _send_text(
                                         json.dumps({"type": "turn_complete"})
-                                    )
+                                    ):
+                                        return
                             if response.tool_call:
                                 tool_responses = await handle_tool_call(
                                     response.tool_call, uid, db, websocket
@@ -111,7 +140,8 @@ async def run_voice_session(
                                         function_responses=tr.function_responses
                                     )
                     except Exception as e:
-                        logger.warning("voice recv_from_gemini error: %s", e)
+                        if not disconnected.is_set():
+                            logger.warning("voice recv_from_gemini error: %s", e)
                         break
 
             await asyncio.gather(

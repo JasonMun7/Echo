@@ -94,6 +94,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   startVoiceChat: () => ipcRenderer.invoke("start-voice-chat"),
   stopVoiceChat: () => ipcRenderer.invoke("stop-voice-chat"),
   sendChatText: (text: string) => ipcRenderer.invoke("send-chat-text", text),
+  sendVoiceAudio: (chunk: ArrayBuffer) => ipcRenderer.invoke("send-voice-audio", chunk),
   onChatAudio: (cb: (chunk: ArrayBuffer) => void) => {
     ipcRenderer.on("chat-audio", (_, buf) => cb(buf));
   },

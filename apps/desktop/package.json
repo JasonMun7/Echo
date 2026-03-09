@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@echo/types": "workspace:*",
-    "@google/genai": "^1.43.0",
+    "ws": "^8.18.0",
     "@nut-tree-fork/nut-js": "^4.2.6",
     "@tabler/icons-react": "^3.37.1",
     "playwright": "^1.58.2",
@@ -19,6 +19,7 @@
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@types/ws": "^8.5.10",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@types/react": "^19",

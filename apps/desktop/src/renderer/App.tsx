@@ -11,9 +11,11 @@ import {
   IconRefresh,
   IconPhoneCall,
   IconMessageCircle,
+  IconWaveSine,
   IconSend,
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
+import { EchoPrismVoiceModal } from "./EchoPrismVoiceModal";
 import RunHud from "./RunHud";
 import HazeOverlay from "./HazeOverlay";
 
@@ -65,6 +67,8 @@ declare global {
       openWebUI: (path?: string) => Promise<void>;
       pauseRun: () => Promise<{ ok: boolean }>;
       resumeRun: () => Promise<{ ok: boolean }>;
+      cancelRun: () => Promise<void>;
+      sendInterrupt: (text: string) => Promise<void>;
       onRunProgress: (
         cb: (entry: { thought: string; action: string; step: number }) => void,
       ) => void;
@@ -72,6 +76,7 @@ declare global {
       startVoiceChat: () => Promise<{ ok: boolean; error?: string }>;
       stopVoiceChat: () => Promise<{ ok: boolean }>;
       sendChatText: (text: string) => Promise<{ ok: boolean; error?: string }>;
+      sendVoiceAudio: (chunk: ArrayBuffer) => Promise<void>;
       onChatAudio: (cb: (chunk: ArrayBuffer) => void) => void;
       onChatText: (cb: (msg: { role: string; text: string }) => void) => void;
       removeChatListeners: () => void;
@@ -89,6 +94,10 @@ declare global {
       exitRunMode: () => Promise<{ ok: boolean }>;
       onRecordingCommand: (cb: (payload: { action: string }) => void) => void;
       removeRecordingCommandListener: () => void;
+      recordingPause: () => Promise<void>;
+      recordingStop: (duration?: number) => Promise<void>;
+      recordingRedo: () => Promise<void>;
+      recordingDiscard: () => Promise<void>;
       sendCallUserFeedback: (text: string) => Promise<{ ok: boolean }>;
       onRunAwaitingUser: (cb: (arg: { reason: string }) => void) => void;
       removeRunAwaitingUserListener: () => void;
@@ -151,12 +160,7 @@ function MainWindowApp() {
   const [liveProgress, setLiveProgress] = useState<
     Array<{ thought: string; action: string; step: number }>
   >([]);
-  const [chatMessages, setChatMessages] = useState<
-    Array<{ role: string; text: string }>
-  >([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatOpen, setChatOpen] = useState(false);
-  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [textChatOpen, setTextChatOpen] = useState(false);
   const [textChatMessages, setTextChatMessages] = useState<
     Array<{ role: string; text: string }>
@@ -182,6 +186,78 @@ function MainWindowApp() {
   );
   const recordingDurationRef = useRef<number>(0);
   const wsTextRef = useRef<WebSocket | null>(null);
+
+  // EchoPrismVoice: mic + TTS playback
+  const voiceMediaStreamRef = useRef<MediaStream | null>(null);
+  const voiceMicCtxRef = useRef<AudioContext | null>(null);
+  const voiceProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const voicePlaybackCtxRef = useRef<AudioContext | null>(null);
+  const voiceNextPlayTimeRef = useRef<number>(0);
+
+  const playVoicePcm = useCallback((chunk: ArrayBuffer | Uint8Array) => {
+    const AudioContextClass =
+      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!voicePlaybackCtxRef.current) {
+      voicePlaybackCtxRef.current = new AudioContextClass({ sampleRate: 24000 });
+      voiceNextPlayTimeRef.current = 0;
+    }
+    const ctx = voicePlaybackCtxRef.current;
+    const bytes = chunk instanceof ArrayBuffer ? new Uint8Array(chunk) : new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    const numSamples = bytes.length >> 1;
+    const pcmData = new Int16Array(numSamples);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i = 0; i < numSamples; i++) pcmData[i] = view.getInt16(i << 1, true);
+    const floatData = new Float32Array(pcmData.length);
+    for (let i = 0; i < pcmData.length; i++) floatData[i] = pcmData[i] / 32768;
+    const FADE_SAMPLES = Math.min(48, floatData.length >> 1);
+    for (let i = 0; i < FADE_SAMPLES; i++) {
+      floatData[i] *= i / FADE_SAMPLES;
+      floatData[floatData.length - 1 - i] *= i / FADE_SAMPLES;
+    }
+    const buffer = ctx.createBuffer(1, floatData.length, 24000);
+    buffer.copyToChannel(floatData, 0);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    const startAt = Math.max(ctx.currentTime, voiceNextPlayTimeRef.current);
+    source.start(startAt);
+    voiceNextPlayTimeRef.current = startAt + buffer.duration;
+  }, []);
+
+  const stopVoiceMic = useCallback(() => {
+    voiceProcessorRef.current?.disconnect();
+    voiceProcessorRef.current = null;
+    voiceMediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    voiceMediaStreamRef.current = null;
+    voiceMicCtxRef.current?.close().catch(() => {});
+    voiceMicCtxRef.current = null;
+  }, []);
+
+  const startVoiceMic = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceMediaStreamRef.current = stream;
+      const AudioContextClass =
+        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioContextClass({ sampleRate: 16000 });
+      voiceMicCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      voiceProcessorRef.current = processor;
+      processor.onaudioprocess = (e) => {
+        const float32 = e.inputBuffer.getChannelData(0);
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          int16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+        }
+        window.electronAPI?.sendVoiceAudio?.(int16.buffer as ArrayBuffer);
+      };
+      source.connect(processor);
+      processor.connect(ctx.destination);
+    } catch (err) {
+      console.error("EchoPrismVoice: mic access denied", err);
+    }
+  }, []);
 
   const loadToken = useCallback(async () => {
     const t = await window.electronAPI?.authGetToken();
@@ -276,7 +352,7 @@ function MainWindowApp() {
       setRunResult(null);
       setLiveProgress([]);
       setCurrentRunId(arg.runId);
-      window.electronAPI?.onRunProgress?.((entry) =>
+      window.electronAPI?.onRunProgress?.((entry: { thought: string; action: string; step: number }) =>
         setLiveProgress((prev) => [...prev, entry]),
       );
       try {
@@ -608,7 +684,7 @@ function MainWindowApp() {
     setRunResult(null);
     setLiveProgress([]);
 
-    window.electronAPI?.onRunProgress((entry) => {
+    window.electronAPI?.onRunProgress((entry: { thought: string; action: string; step: number }) => {
       setLiveProgress((prev) => [...prev, entry]);
     });
 
@@ -888,6 +964,15 @@ function MainWindowApp() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="echo-btn-secondary"
+              onClick={() => setVoiceModalOpen(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <IconWaveSine size={16} />
+              EchoPrism Voice
+            </button>
             <button
               type="button"
               className="echo-btn-secondary"
@@ -1430,158 +1515,24 @@ function MainWindowApp() {
         </div>
       )}
 
-      {/* EchoPrismVoice Chat Panel */}
-      {chatOpen && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 80,
-            right: 20,
-            width: 340,
-            maxHeight: 500,
-            background: "white",
-            borderRadius: 16,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-            border: "1px solid rgba(165,119,255,0.3)",
-            display: "flex",
-            flexDirection: "column",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              padding: "12px 16px",
-              borderBottom: "1px solid rgba(165,119,255,0.2)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              background:
-                "linear-gradient(135deg, rgba(165,119,255,0.05), transparent)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: voiceActive ? "#22c55e" : "#9ca3af",
-                }}
-              />
-              <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>
-                EchoPrismVoice
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                setChatOpen(false);
-                window.electronAPI?.stopVoiceChat();
-                setVoiceActive(false);
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#999",
-                fontSize: 18,
-                padding: "0 4px",
-              }}
-            >
-              ×
-            </button>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: 12,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
-            {chatMessages.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  background: m.role === "user" ? "#A577FF" : "#F5F3FF",
-                  color: m.role === "user" ? "white" : "#150A35",
-                  borderRadius: 12,
-                  padding: "6px 12px",
-                  fontSize: 12,
-                  maxWidth: "85%",
-                }}
-              >
-                {m.text}
-              </div>
-            ))}
-          </div>
-          <div
-            style={{
-              padding: "8px 12px",
-              borderTop: "1px solid #A577FF20",
-              display: "flex",
-              gap: 8,
-            }}
-          >
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && chatInput.trim()) {
-                  const text = chatInput.trim();
-                  setChatMessages((prev) => [...prev, { role: "user", text }]);
-                  setChatInput("");
-                  window.electronAPI?.sendChatText(text);
-                  if (selectedWorkflowId && currentRunId && token) {
-                    const base = API_URL.replace(/\/$/, "");
-                    fetch(
-                      `${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`,
-                      {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({ instruction: text }),
-                      },
-                    ).catch(() => {});
-                  }
-                }
-              }}
-              placeholder="Type a message..."
-              style={{
-                flex: 1,
-                borderRadius: 8,
-                border: "1px solid #A577FF30",
-                padding: "6px 10px",
-                fontSize: 12,
-                outline: "none",
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* EchoPrism Voice fullscreen modal */}
+      <EchoPrismVoiceModal
+        isOpen={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        token={token}
+        onStartVoice={() => window.electronAPI?.startVoiceChat?.() ?? Promise.resolve({ ok: false, error: "No API" })}
+        onStopVoice={() => window.electronAPI?.stopVoiceChat?.()}
+        onChatText={(cb) => window.electronAPI?.onChatText?.(cb)}
+        onChatAudio={(cb) => window.electronAPI?.onChatAudio?.(cb)}
+        onRemoveChatListeners={() => window.electronAPI?.removeChatListeners?.()}
+        playPcm={playVoicePcm}
+        startMic={startVoiceMic}
+        stopMic={stopVoiceMic}
+      />
 
-      {/* Floating EchoPrismVoice button */}
+      {/* Floating EchoPrism Voice button */}
       <button
-        onClick={async () => {
-          if (!chatOpen) {
-            setChatOpen(true);
-            if (!voiceActive) {
-              const result = await window.electronAPI?.startVoiceChat();
-              if (result?.ok) {
-                setVoiceActive(true);
-                window.electronAPI?.onChatText((msg) => {
-                  setChatMessages((prev) => [...prev, msg]);
-                });
-              }
-            }
-          } else {
-            setChatOpen(false);
-          }
-        }}
+        onClick={() => setVoiceModalOpen(true)}
         style={{
           position: "fixed",
           bottom: 24,
@@ -1598,9 +1549,9 @@ function MainWindowApp() {
           boxShadow: "0 4px 16px rgba(165,119,255,0.4)",
           zIndex: 999,
         }}
-        title="EchoPrismVoice"
+        title="EchoPrism Voice"
       >
-        <span style={{ fontSize: 22 }}>🎙️</span>
+        <IconWaveSine size={22} color="white" />
       </button>
     </>
   );
