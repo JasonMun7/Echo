@@ -259,13 +259,15 @@ export function EchoPrismVoiceModal({
   useEffect(() => {
     if (!isOpen || !token) return;
 
-    // Reset state
-    setVoiceState("listening");
-    setIsMuted(false);
-    setTranscript("");
-    setActiveTool(null);
-    setIsSynthesizing(false);
-    setSynthesizedWorkflow(null);
+    // Reset state asynchronously to avoid cascading renders
+    queueMicrotask(() => {
+      setVoiceState("listening");
+      setIsMuted(false);
+      setTranscript("");
+      setActiveTool(null);
+      setIsSynthesizing(false);
+      setSynthesizedWorkflow(null);
+    });
     nextPlayTimeRef.current = 0;
 
     const params = new URLSearchParams({ token, mode: "voice" });

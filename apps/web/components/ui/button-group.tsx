@@ -55,8 +55,9 @@ function ButtonGroupText({
   ...props
 }: React.ComponentProps<"span"> & { asChild?: boolean }) {
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<{ className?: string }>, {
-      className: cn("text-sm text-muted-foreground px-2", (children as React.ReactElement).props?.className),
+    const child = children as React.ReactElement<{ className?: string }>;
+    return React.cloneElement(child, {
+      className: cn("text-sm text-muted-foreground px-2", child.props?.className),
     });
   }
   return (
