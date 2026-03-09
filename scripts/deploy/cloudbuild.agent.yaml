@@ -1,0 +1,21 @@
+# Cloud Build: echo-agent
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-agent
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "backend/agent/Dockerfile"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
+      - "backend/agent"
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-agent
+    args: ["push", "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"]
+    waitFor: ["build-agent"]
+substitutions:
+  _IMAGE_TAG: "latest"
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: CLOUD_LOGGING_ONLY
