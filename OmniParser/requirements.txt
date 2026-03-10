@@ -14,8 +14,8 @@ dill
 accelerate
 timm
 einops==0.8.0
-paddlepaddle
-paddleocr
+paddlepaddle-gpu==2.6.1
+paddleocr==2.7.0.3
 ruff==0.6.7
 pre-commit==3.8.0
 pytest==8.3.3
