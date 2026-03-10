@@ -1,0 +1,21 @@
+# Cloud Build: echo-backend
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-backend
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "backend/Dockerfile"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
+      - "backend"
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-backend
+    args: ["push", "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"]
+    waitFor: ["build-backend"]
+substitutions:
+  _IMAGE_TAG: "latest"
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: CLOUD_LOGGING_ONLY
