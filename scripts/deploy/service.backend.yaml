@@ -18,12 +18,12 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            - name: GCS_BUCKET
+            - name: ECHO_GCS_BUCKET
               valueFrom:
                 secretKeyRef:
                   name: echo-secrets
                   key: gcs-bucket
-            - name: FIREBASE_PROJECT_ID
+            - name: ECHO_GCP_PROJECT_ID
               valueFrom:
                 secretKeyRef:
                   name: echo-secrets

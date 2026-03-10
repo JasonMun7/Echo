@@ -122,8 +122,8 @@ const API_URL =
   (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
   "http://localhost:8000";
 const AGENT_URL =
-  (import.meta as { env?: { VITE_ECHO_PRISM_AGENT_URL?: string } }).env
-    ?.VITE_ECHO_PRISM_AGENT_URL ?? API_URL;
+  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
+    ?.VITE_ECHO_AGENT_URL ?? API_URL;
 
 function MainWindowApp() {
   const [screenPermissionRequired, setScreenPermissionRequired] =

@@ -170,7 +170,12 @@ pnpm run backend:dev
 pnpm run dev
 # or desktop app:
 pnpm run dev:desktop
+
+# Terminal 3 (optional) – EchoPrism Agent (chat, voice, synthesis)
+pnpm run echo-prism-agent:dev
 ```
+
+When running EchoPrism Agent locally, set `NEXT_PUBLIC_ECHO_AGENT_URL` (web) and `VITE_ECHO_AGENT_URL` (desktop) to `http://localhost:8081` in Doppler.
 
 **For teammates:** Invite them in Doppler → Members. They run `doppler setup` once and `gcloud auth application-default login`, then use the scripts above. No `.env` copying.
 
@@ -199,7 +204,7 @@ cd backend
 cp .env.example .env
 ```
 
-Edit `.env` with `ECHO_GCP_PROJECT_ID`, `ECHO_GCS_BUCKET`, `GEMINI_API_KEY`, `FIREBASE_PROJECT_ID`.
+Edit `.env` with `ECHO_GCP_PROJECT_ID`, `ECHO_GCS_BUCKET`, `GEMINI_API_KEY`.
 
 ```bash
 pip install -r requirements.txt
@@ -222,7 +227,7 @@ Run manually (for debugging):
 
 ```bash
 WORKFLOW_ID=xxx RUN_ID=yyy OWNER_UID=zzz GEMINI_API_KEY=your-key \
-  GCS_BUCKET=your-bucket python run_workflow_agent.py
+  ECHO_GCS_BUCKET=your-bucket python run_workflow_agent.py
 ```
 
 Set `HEADLESS=false` to see the browser.
@@ -240,7 +245,6 @@ Ensure these are set in `backend/.env`:
 | `ECHO_GCP_PROJECT_ID` | Yes | GCP project ID |
 | `ECHO_GCS_BUCKET` | Yes | GCS bucket name |
 | `GEMINI_API_KEY` | Yes | Gemini API key |
-| `FIREBASE_PROJECT_ID` | No | Firebase project ID (optional if same as GCP) |
 | `ECHO_CLOUD_RUN_REGION` | No | Default `us-central1` |
 
 ### 6.2 Deploy
@@ -250,8 +254,7 @@ pnpm run deploy
 # or with backend/.env:
 doppler run --config prd -- ./scripts/deploy.sh
 # or
-GEMINI_API_KEY=your-key GCS_BUCKET=your-bucket \
-  FIREBASE_PROJECT_ID=your-firebase-id \
+GEMINI_API_KEY=your-key ECHO_GCS_BUCKET=your-bucket \
   ./scripts/deploy.sh YOUR_GCP_PROJECT_ID us-central1
 ```
 
@@ -269,47 +272,17 @@ The script will:
 - Frontend URL: `https://echo-frontend-{PROJECT_NUMBER}.{REGION}.run.app`  
 - Backend URL: `https://echo-backend-{PROJECT_NUMBER}.{REGION}.run.app`  
 
-The deploy script injects `NEXT_PUBLIC_API_URL` into the frontend build. No extra config needed for production.
+The deploy script injects `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_ECHO_AGENT_URL` into the frontend build. No extra config needed for production.
 
 ---
 
 ## Environment variables reference
 
-### Frontend (`.env.local`)
+See [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) for the canonical list. Summary:
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase config |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase config |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase app ID |
-| `NEXT_PUBLIC_API_URL` | Backend API URL (e.g. `http://localhost:8000` or Cloud Run URL) |
-
-### Backend (`.env`)
-
-| Variable | Description |
-|----------|-------------|
-| `ECHO_GCP_PROJECT_ID` | GCP project ID (for deploy) |
-| `ECHO_GCS_BUCKET` | GCS bucket name |
-| `ECHO_CLOUD_RUN_REGION` | Cloud Run region (default `us-central1`) |
-| `FIREBASE_PROJECT_ID` | Firebase project ID (optional if same as GCP) |
-| `GEMINI_API_KEY` | Gemini API key |
-
-### Agent (Cloud Run Job)
-
-Set automatically by deploy script; overrides passed at execution time:
-
-| Variable | Description |
-|----------|-------------|
-| `WORKFLOW_ID` | Set by backend when triggering run |
-| `RUN_ID` | Set by backend when triggering run |
-| `OWNER_UID` | Set by backend when triggering run |
-| `GEMINI_API_KEY` | Required for EchoPrism |
-| `ECHO_GCS_BUCKET` | For live screenshot streaming |
-| `FIREBASE_PROJECT_ID` | Firebase project ID |
-| `HEADLESS` | `true` in Cloud Run, `false` for local debugging |
+- **Shared (Backend + EchoPrism):** `ECHO_GCS_BUCKET`, `ECHO_GCP_PROJECT_ID`, `GEMINI_API_KEY`, `ECHOPRISM_OMNIPARSER_URL`, `GOOGLE_APPLICATION_CREDENTIALS`
+- **Frontend (web):** `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ECHO_AGENT_URL`, `NEXT_PUBLIC_FIREBASE_*`
+- **Desktop:** `VITE_API_URL`, `VITE_ECHO_AGENT_URL`
 
 ---
 
@@ -332,6 +305,7 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 | `pnpm run dev` | Start Next.js frontend (Doppler env) |
 | `pnpm run dev:desktop` | Start Electron desktop app (Doppler env) |
 | `pnpm run backend:dev` | Start FastAPI backend (Doppler env) |
+| `pnpm run echo-prism-agent:dev` | Start EchoPrism Agent locally (port 8081, Doppler env) |
 | `pnpm run backend:docker` | Build and run backend in Docker |
 | `pnpm run deploy` | Deploy to Cloud Run (uses Doppler prd) |
 
@@ -341,17 +315,17 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 
 ### 500 on `/api/users/init` or `/api/workflows`
 
-Ensure Firebase and GCP use the same project. Verify `FIREBASE_PROJECT_ID` matches your GCP project ID.
+Ensure Firebase and GCP use the same project. Verify `ECHO_GCP_PROJECT_ID` is set correctly.
 
 ### Workflow runs never start
 
-- Confirm `GEMINI_API_KEY` and `GCS_BUCKET` are set for the agent
+- Confirm `GEMINI_API_KEY` and `ECHO_GCS_BUCKET` are set for the agent
 - Verify the backend SA can execute the agent job (`roles/run.jobsExecutorWithOverrides` or `run.invoker`)
 - Check Cloud Run Job logs for the agent
 
 ### No live screenshots
 
-- Ensure `GCS_BUCKET` is set for the agent
+- Ensure `ECHO_GCS_BUCKET` is set for the agent
 - Ensure the agent’s service account has **Storage Object Admin** on the bucket
 - Redeploy after changing env vars
 

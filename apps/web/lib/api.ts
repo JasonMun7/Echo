@@ -2,7 +2,7 @@ import { auth } from "./firebase";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 /** Agent service URL for chat, voice, synthesis — falls back to API if not set */
-export const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL || API_URL;
+export const AGENT_URL = process.env.NEXT_PUBLIC_ECHO_AGENT_URL || API_URL;
 
 export async function apiFetch(
   path: string,

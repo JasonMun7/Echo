@@ -1,12 +1,12 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Prefer Echo-specific env vars (ECHO_*) but fall back to legacy names for
-# backwards compatibility with older deployments.
-GCS_BUCKET = os.getenv("ECHO_GCS_BUCKET") or os.getenv("GCS_BUCKET", "")
-FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
+GCS_BUCKET = os.getenv("ECHO_GCS_BUCKET", "")
+ECHO_GCP_PROJECT_ID = os.getenv("ECHO_GCP_PROJECT_ID", "")
 # Allowed CORS origins: localhost + FRONTEND_ORIGIN (Cloud Run) or CORS_ORIGINS (comma-separated)
 _defaults = [
     "http://localhost:3000",
@@ -20,9 +20,18 @@ _origins = _defaults + ([_origin] if _origin else []) + [o.strip() for o in _ext
 CORS_ORIGINS = ",".join(_origins)
 # Optional: path to service account JSON. Needed for GCS signed URLs and Firebase when using
 # gcloud auth application-default login (user creds can't sign). Leave unset on Cloud Run (uses ADC).
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("ECHO_GOOGLE_APPLICATION_CREDENTIALS") or os.getenv(
-    "GOOGLE_APPLICATION_CREDENTIALS", ""
-)
+# Resolve relative paths against backend/ so EchoPrism Agent (running from EchoPrismAgent/) finds it.
+_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+if _creds and not os.path.isabs(_creds):
+    _creds_path = Path(_creds)
+    if not _creds_path.is_file():
+        _backend_dir = Path(__file__).resolve().parent.parent
+        _alt = _backend_dir / _creds
+        if _alt.is_file():
+            _creds = str(_alt)
+GOOGLE_APPLICATION_CREDENTIALS = _creds
+if _creds:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _creds
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # EchoPrism model overrides

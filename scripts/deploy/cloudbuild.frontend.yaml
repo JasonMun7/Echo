@@ -1,5 +1,5 @@
 # Cloud Build: echo-frontend
-# Requires _BACKEND_URL for NEXT_PUBLIC_API_URL, _AGENT_URL for NEXT_PUBLIC_AGENT_URL
+# Requires _BACKEND_URL for NEXT_PUBLIC_API_URL, _AGENT_URL for NEXT_PUBLIC_ECHO_AGENT_URL
 steps:
   - name: "gcr.io/cloud-builders/docker"
     id: build-frontend
@@ -9,7 +9,7 @@ steps:
       - "--build-arg"
       - "NEXT_PUBLIC_API_URL=${_BACKEND_URL}"
       - "--build-arg"
-      - "NEXT_PUBLIC_AGENT_URL=${_AGENT_URL}"
+      - "NEXT_PUBLIC_ECHO_AGENT_URL=${_AGENT_URL}"
       - "-f"
       - "apps/web/Dockerfile"
       - "-t"

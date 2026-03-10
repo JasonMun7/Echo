@@ -4,7 +4,7 @@
 # Substitutions (passed by deploy.sh):
 #   _IMAGE_TAG    - Image tag (default: latest)
 #   _BACKEND_URL  - Backend API URL for frontend build (NEXT_PUBLIC_API_URL)
-#   _AGENT_URL    - Agent service URL for frontend build (NEXT_PUBLIC_AGENT_URL)
+#   _AGENT_URL    - Agent service URL for frontend build (NEXT_PUBLIC_ECHO_AGENT_URL)
 #
 steps:
   # Build frontend (requires _BACKEND_URL, _AGENT_URL)
@@ -16,7 +16,7 @@ steps:
       - "--build-arg"
       - "NEXT_PUBLIC_API_URL=${_BACKEND_URL}"
       - "--build-arg"
-      - "NEXT_PUBLIC_AGENT_URL=${_AGENT_URL}"
+      - "NEXT_PUBLIC_ECHO_AGENT_URL=${_AGENT_URL}"
       - "-f"
       - "apps/web/Dockerfile"
       - "-t"

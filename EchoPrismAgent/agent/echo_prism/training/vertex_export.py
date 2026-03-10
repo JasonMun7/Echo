@@ -153,7 +153,7 @@ async def export_training_data(
     jsonl_bytes.seek(0)
 
     # Upload to GCS
-    _bucket_name = bucket_name or os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
+    _bucket_name = bucket_name or os.environ.get("ECHO_GCS_BUCKET")
     if not _bucket_name:
         raise ValueError("ECHO_GCS_BUCKET environment variable not set")
 
@@ -196,7 +196,7 @@ async def create_tuning_job(
     epochs=3, adapter_size=4, learning_rate_multiplier=1.0.
     adapter_size: 1, 4, 8, or 16.
     """
-    _project = project or os.environ.get("ECHO_GCP_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    _project = project or os.environ.get("ECHO_GCP_PROJECT_ID")
     if not _project:
         raise ValueError("GCP project not configured. Set ECHO_GCP_PROJECT_ID.")
 
@@ -257,7 +257,7 @@ def get_tuning_job_status(job_name: str, project: str | None = None, location: s
     Check the current status of a Vertex AI SupervisedTuningJob.
     Returns a dict with keys: state, tuned_model_endpoint_name (if completed).
     """
-    _project = project or os.environ.get("ECHO_GCP_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    _project = project or os.environ.get("ECHO_GCP_PROJECT_ID")
 
     try:
         import vertexai

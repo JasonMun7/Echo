@@ -217,7 +217,7 @@ async def export_traces(uid: str = Depends(get_current_uid)):
     db = _get_db()
     _ensure_agent_path()
 
-    bucket = os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
+    bucket = os.environ.get("ECHO_GCS_BUCKET")
     if not bucket:
         raise HTTPException(status_code=500, detail="ECHO_GCS_BUCKET not configured")
 

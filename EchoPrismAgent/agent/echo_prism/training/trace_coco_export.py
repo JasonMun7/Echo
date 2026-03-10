@@ -57,7 +57,7 @@ def export_run_to_coco(
     bucket_name: str | None = None,
 ) -> dict:
     """Export a run's trace to COCO4GUI format. Returns the COCO4GUI dict."""
-    bucket = bucket_name or os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
+    bucket = bucket_name or os.environ.get("ECHO_GCS_BUCKET")
     gcs_base = f"gs://{bucket}" if bucket else ""
 
     logs_ref = run_ref.collection("logs")
@@ -161,9 +161,9 @@ async def export_and_upload_coco(
     """Export trace to COCO4GUI and upload to GCS. Returns GCS path."""
     coco = export_run_to_coco(run_ref, workflow_id, run_id, db, bucket_name)
     blob_name = f"traces/{workflow_id}/{run_id}/trace_coco.json"
-    bucket = bucket_name or os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
+    bucket = bucket_name or os.environ.get("ECHO_GCS_BUCKET")
     if not bucket:
-        raise ValueError("ECHO_GCS_BUCKET or GCS_BUCKET not set")
+        raise ValueError("ECHO_GCS_BUCKET not set")
 
     try:
         from google.cloud import storage

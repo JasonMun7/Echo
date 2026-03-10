@@ -15,7 +15,7 @@ _service_root = Path(__file__).resolve().parent
 _backend = _service_root / "backend"
 _agent_dir = _service_root / "agent"
 if not _backend.exists():
-    _backend = _service_root.parent.parent / "backend"
+    _backend = _service_root.parent / "backend"
 if not _agent_dir.exists():
     _agent_dir = _backend / "agent"
 if _backend.exists():
