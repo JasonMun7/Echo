@@ -9,7 +9,7 @@ source "$(dirname "$0")/common.sh"
 BUILD_FIRST=
 [ "$1" = "--build" ] && { BUILD_FIRST=1; shift; }
 PROJECT_ID=${1:-$ECHO_GCP_PROJECT_ID}
-REGION=${2:-${ECHO_CLOUD_RUN_REGION:-us-central1}}
+REGION=${2:-${ECHO_OMNIPARSER_REGION:-us-east4}}
 load_config
 
 if [ -n "$BUILD_FIRST" ]; then
@@ -35,11 +35,12 @@ gcloud run deploy echo-omniparser \
   --no-allow-unauthenticated \
   --gpu=1 \
   --gpu-type=nvidia-l4 \
+  --no-gpu-zonal-redundancy \
   --cpu 4 \
   --memory 16Gi \
   --min-instances 1 \
-  --max-instances 3 \
-  --concurrency 4 \
+  --max-instances 1 \
+  --concurrency 1 \
   --set-env-vars "BOX_TRESHOLD=0.05,CAPTION_MODEL_NAME=florence2" \
   --project="$PROJECT_ID"
 
