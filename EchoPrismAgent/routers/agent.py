@@ -6,17 +6,17 @@ Alpha orchestrates subagents; returns actions for clients to execute locally (Nu
 
 Auth: Firebase ID token (token query param).
 """
-import asyncio
 import base64
 import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 import firebase_admin
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from firebase_admin import auth as firebase_auth
-from firebase_admin import credentials
+
 from app.auth import get_firebase_app
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,14 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 def _ensure_agent_path() -> None:
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
+    """Ensure agent (echo_prism, direct_executor) is on sys.path."""
+    base = Path(__file__).resolve().parent.parent
+    agent_dir = base / "agent" if (base / "agent").exists() else base / "backend" / "agent"
+    if not agent_dir.exists():
+        agent_dir = base.parent.parent / "backend" / "agent"
+    agent_dir = agent_dir.resolve()
+    if agent_dir.exists() and str(agent_dir) not in sys.path:
+        sys.path.insert(0, str(agent_dir))
 
 
 def _verify_token(token: str | None) -> str | None:
@@ -151,11 +154,9 @@ async def agent_run_ws(
                     await send({"type": "error", "message": "step requires step"})
                     continue
 
-                # Deterministic: no screenshot needed
                 if is_deterministic(step):
                     action = (step.get("action") or "").lower().replace("_", "")
                     if action == "apicall" or step.get("action") == "api_call":
-                        # api_call needs Firestore integration tokens — execute server-side
                         ok, err = await execute_api_call(step, uid, db)
                         if ok:
                             await send({
@@ -175,7 +176,6 @@ async def agent_run_ws(
                         })
                     continue
 
-                # Ambiguous: need screenshot
                 if not screenshot_b64:
                     await send({"type": "error", "message": "Ambiguous step requires screenshot_b64"})
                     continue

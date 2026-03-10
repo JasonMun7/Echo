@@ -19,7 +19,7 @@ if [ -n "$BUILD_FIRST" ]; then
   gcloud builds submit . \
     --config=scripts/deploy/cloudbuild.frontend.yaml \
     --project="$PROJECT_ID" \
-    --substitutions="_IMAGE_TAG=$IMAGE_TAG,_BACKEND_URL=$BACKEND_URL"
+    --substitutions="_IMAGE_TAG=$IMAGE_TAG,_BACKEND_URL=$BACKEND_URL,_AGENT_URL=$ECHO_PRISM_AGENT_URL"
   success "Frontend image built and pushed"
   echo ""
 fi

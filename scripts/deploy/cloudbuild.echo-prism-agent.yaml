@@ -6,7 +6,7 @@ steps:
       - "build"
       - "--platform=linux/amd64"
       - "-f"
-      - "services/echo-prism-agent/Dockerfile"
+      - "EchoPrismAgent/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
       - "."

@@ -16,7 +16,7 @@ echo ""
 gcloud builds submit . \
   --config=scripts/deploy/cloudbuild.yaml \
   --project="$PROJECT_ID" \
-  --substitutions="_IMAGE_TAG=$IMAGE_TAG,_BACKEND_URL=$BACKEND_URL"
+  --substitutions="_IMAGE_TAG=$IMAGE_TAG,_BACKEND_URL=$BACKEND_URL,_AGENT_URL=$ECHO_PRISM_AGENT_URL"
 
 success "Images built and pushed to gcr.io/$PROJECT_ID"
 echo ""

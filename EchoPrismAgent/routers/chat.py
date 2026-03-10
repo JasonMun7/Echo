@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 import uuid
+from pathlib import Path
 
 import firebase_admin.firestore
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -26,12 +27,15 @@ router = APIRouter(tags=["chat"])
 
 
 def _ensure_agent_path() -> None:
-    """Ensure backend/agent is on sys.path for echo_prism imports."""
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
+    """Ensure agent (echo_prism, etc.) is on sys.path."""
+    # Docker: base=/app, agent at /app/agent | Local: base=EchoPrismAgent, agent at base/agent or backend/agent
+    base = Path(__file__).resolve().parent.parent
+    agent_dir = base / "agent" if (base / "agent").exists() else base / "backend" / "agent"
+    if not agent_dir.exists():
+        agent_dir = base.parent.parent / "backend" / "agent"
+    agent_dir = agent_dir.resolve()
+    if agent_dir.exists() and str(agent_dir) not in sys.path:
+        sys.path.insert(0, str(agent_dir))
 
 
 async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> list[types.LiveClientToolResponse]:
@@ -258,8 +262,8 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
     elif name == "run_adhoc":
         instruction = args.get("instruction", "")
         workflow_type = args.get("workflow_type", "browser")
-        workflow_name = args.get("workflow_name") or instruction[:50] or "Ad-hoc run"
-        from app.routers.synthesize import synthesize_from_description_impl
+        workflow_name = args.get("workflow_name", "") or instruction[:50] or "Ad-hoc run"
+        from routers.synthesize import synthesize_from_description_impl
         workflow_id = await synthesize_from_description_impl(
             uid=uid,
             name=workflow_name,
@@ -301,7 +305,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         description = args.get("description", "")
         workflow_name = args.get("workflow_name", "New Workflow")
         workflow_type = args.get("workflow_type", "browser")
-        from app.routers.synthesize import synthesize_from_description_impl
+        from routers.synthesize import synthesize_from_description_impl
         wf_id = await synthesize_from_description_impl(
             uid=uid, name=workflow_name, description=description, workflow_type=workflow_type, db=db,
         )
@@ -347,7 +351,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
     elif name == "list_integrations":
         docs = db.collection("users").document(uid).collection("integrations").stream()
         integrations = [
-            _sanitize({"name": d.id, **{k: v for k, v in d.to_dict().items() if k != "access_token"}})
+            _sanitize({"name": d.id, **{k: v for k, v in (d.to_dict() or {}).items() if k != "access_token"}})
             for d in docs
         ]
         return {"integrations": integrations}
@@ -361,7 +365,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             return {"ok": False, "error": f"Integration '{integration}' not connected"}
         token_data = token_doc.to_dict() or {}
         try:
-            mod = __import__(f"app.integrations.{integration}", fromlist=["call"])
+            mod = __import__(f"agent.integrations.{integration}", fromlist=["call"])
             result = await mod.call(method=method, access_token=token_data.get("access_token", ""), args=call_args)
             return {"ok": True, "result": result}
         except Exception as e:

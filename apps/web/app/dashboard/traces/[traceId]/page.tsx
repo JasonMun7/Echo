@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { agentFetch } from "@/lib/api";
 import { IconArrowLeft } from "@tabler/icons-react";
 
 interface COCOImage {
@@ -41,7 +41,7 @@ export default function TraceViewerPage() {
 
   useEffect(() => {
     if (!traceId) return;
-    apiFetch(`/api/traces/${traceId}/coco`)
+    agentFetch(`/api/traces/${traceId}/coco`)
       .then((r) => r.json())
       .then(setCoco)
       .catch((e) => setError(String(e)))

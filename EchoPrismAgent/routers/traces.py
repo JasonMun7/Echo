@@ -1,30 +1,18 @@
 """
 Trace endpoints for EchoPrism Learning from Prior Experience.
+Moved to agent service (uses echo_prism training modules).
 
 POST /api/workflows/{workflow_id}/runs/{run_id}/filter
-  — Trigger Gemini-based trace scoring for a specific run.
-    Stores results in filtered_traces/{workflow_id}_{run_id}.
-
 GET /api/traces
-  — List all filtered trace documents for the authenticated user.
-    Returns metadata + per-step quality counts.
-
 POST /api/traces/export
-  — Export ALL filtered traces (all users) as Vertex AI SFT dataset (JSONL → GCS),
-    then submit a SupervisedTuningJob. Persists job to global_model/current.
-    Returns job_name + example_count.
-
 GET /api/traces/model-status
-  — Returns current global_model/current doc (job status + tuned_model_id if ready).
-    Shared across all users — one global EchoPrism model for everyone.
-
 POST /api/traces/poll-model
-  — Checks Vertex AI job state. If completed, writes tuned_model_id to global_model/current.
 """
 import asyncio
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,13 +29,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["traces"])
 
 
+def _ensure_agent_path() -> None:
+    base = Path(__file__).resolve().parent.parent
+    agent_dir = base / "agent" if (base / "agent").exists() else base / "backend" / "agent"
+    if not agent_dir.exists():
+        agent_dir = base.parent.parent / "backend" / "agent"
+    agent_dir = agent_dir.resolve()
+    if agent_dir.exists() and str(agent_dir) not in sys.path:
+        sys.path.insert(0, str(agent_dir))
+
+
 def _get_db():
     return firebase_admin.firestore.client(get_firebase_app())
 
-
-# ---------------------------------------------------------------------------
-# POST /api/workflows/{workflow_id}/runs/{run_id}/filter
-# ---------------------------------------------------------------------------
 
 @router.post("/workflows/{workflow_id}/runs/{run_id}/filter")
 async def filter_run_trace(
@@ -56,20 +50,14 @@ async def filter_run_trace(
     uid: str = Depends(get_current_uid),
 ):
     """Trigger Gemini-based scoring for a completed run's trace."""
-    _get_workflow(uid, workflow_id)  # ownership check
+    _get_workflow(uid, workflow_id)
     db = _get_db()
     run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
     run_doc = run_ref.get()
     if not run_doc.exists:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    # Add agent dir to sys.path so trace_filter can be imported
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
-
+    _ensure_agent_path()
     try:
         from echo_prism.training.trace_filter import score_trace
         scored = await score_trace(run_ref, workflow_id, run_id, db, uid)
@@ -86,10 +74,6 @@ async def filter_run_trace(
         logger.exception("Trace filter failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ---------------------------------------------------------------------------
-# GET /api/traces
-# ---------------------------------------------------------------------------
 
 @router.get("/traces")
 async def list_traces(uid: str = Depends(get_current_uid)):
@@ -126,14 +110,13 @@ class ReviewStepBody(BaseModel):
 
 @router.delete("/traces/{trace_id}")
 async def delete_trace(trace_id: str, uid: str = Depends(get_current_uid)):
-    """Delete a filtered trace document and all its steps."""
+    """Delete a filtered trace document."""
     db = _get_db()
     ft_ref = db.collection("filtered_traces").document(trace_id)
     ft_doc = ft_ref.get()
     if not ft_doc.exists or (ft_doc.to_dict() or {}).get("owner_uid") != uid:
         raise HTTPException(status_code=404, detail="Trace not found")
     try:
-        # Delete all steps in the subcollection first
         for step_doc in ft_ref.collection("steps").stream():
             step_doc.reference.delete()
         ft_ref.delete()
@@ -145,11 +128,7 @@ async def delete_trace(trace_id: str, uid: str = Depends(get_current_uid)):
 
 @router.get("/traces/{trace_id}/coco")
 async def get_trace_coco(trace_id: str, uid: str = Depends(get_current_uid)):
-    """
-    Fetch or generate COCO4GUI JSON for a trace.
-    trace_id format: {workflow_id}_{run_id}
-    Returns COCO4GUI JSON (images, annotations, categories).
-    """
+    """Fetch or generate COCO4GUI JSON for a trace."""
     db = _get_db()
     if "_" not in trace_id:
         raise HTTPException(status_code=400, detail="Invalid trace_id format. Use workflow_id_run_id")
@@ -163,10 +142,7 @@ async def get_trace_coco(trace_id: str, uid: str = Depends(get_current_uid)):
     if not run_doc.exists:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    agent_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "agent"))
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
-
+    _ensure_agent_path()
     try:
         from echo_prism.training.trace_coco_export import export_run_to_coco
         coco = export_run_to_coco(run_ref, workflow_id, run_id, db)
@@ -178,7 +154,7 @@ async def get_trace_coco(trace_id: str, uid: str = Depends(get_current_uid)):
 
 @router.get("/traces/{trace_id}/steps")
 async def list_trace_steps(trace_id: str, uid: str = Depends(get_current_uid)):
-    """List scored steps for a specific filtered trace document."""
+    """List scored steps for a specific filtered trace."""
     db = _get_db()
     ft_ref = db.collection("filtered_traces").document(trace_id)
     ft_doc = ft_ref.get()
@@ -198,8 +174,8 @@ async def list_trace_steps(trace_id: str, uid: str = Depends(get_current_uid)):
             "vlm_reason": data.get("vlm_reason", ""),
             "corrected_thought": data.get("corrected_thought", ""),
             "error": data.get("error", ""),
-            "human_quality": data.get("human_quality", None),
-            "human_corrected_thought": data.get("human_corrected_thought", None),
+            "human_quality": data.get("human_quality"),
+            "human_corrected_thought": data.get("human_corrected_thought"),
             "reviewed": data.get("reviewed", False),
         })
     steps.sort(key=lambda x: x.get("step_index") or 0)
@@ -213,11 +189,7 @@ async def review_trace_step(
     body: ReviewStepBody,
     uid: str = Depends(get_current_uid),
 ):
-    """
-    Submit a human review decision for a scored trace step.
-    Sets human_quality (approved/rejected), human_corrected_thought, and marks reviewed=True.
-    These values take priority over Gemini's auto-scores during fine-tuning export.
-    """
+    """Submit a human review decision for a scored trace step."""
     db = _get_db()
     ft_ref = db.collection("filtered_traces").document(trace_id)
     ft_doc = ft_ref.get()
@@ -239,28 +211,16 @@ async def review_trace_step(
     return {"ok": True, "step_id": step_id, **update_payload}
 
 
-# ---------------------------------------------------------------------------
-# POST /api/traces/export
-# ---------------------------------------------------------------------------
-
 @router.post("/traces/export")
 async def export_traces(uid: str = Depends(get_current_uid)):
-    """
-    Export filtered traces as a Vertex AI SFT dataset and submit a tuning job.
-    Returns {job_name, gcs_path, example_count}.
-    """
+    """Export filtered traces as Vertex AI SFT dataset and submit tuning job."""
     db = _get_db()
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
+    _ensure_agent_path()
 
     bucket = os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
     if not bucket:
         raise HTTPException(status_code=500, detail="ECHO_GCS_BUCKET not configured")
 
-    # Global shared dataset — all users' traces combined
     gcs_blob_path = "training/global/dataset.jsonl"
     gcs_uri = f"gs://{bucket}/{gcs_blob_path}"
 
@@ -303,17 +263,9 @@ async def export_traces(uid: str = Depends(get_current_uid)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---------------------------------------------------------------------------
-# GET /api/traces/model-status
-# ---------------------------------------------------------------------------
-
 @router.get("/traces/model-status")
 async def get_model_status(uid: str = Depends(get_current_uid)):
-    """
-    Return the current fine-tuning job state from global_model/current.
-    This is a shared global model — all users see the same status.
-    Possible job_status values: "training" | "ready" | "failed" | null (no job yet).
-    """
+    """Return current fine-tuning job state from global_model/current."""
     db = _get_db()
     doc = db.collection("global_model").document("current").get()
     if not doc.exists:
@@ -332,18 +284,9 @@ async def get_model_status(uid: str = Depends(get_current_uid)):
     }
 
 
-# ---------------------------------------------------------------------------
-# POST /api/traces/poll-model
-# ---------------------------------------------------------------------------
-
 @router.post("/traces/poll-model")
 async def poll_model_status(uid: str = Depends(get_current_uid)):
-    """
-    Check the Vertex AI tuning job status from global_model/current.
-    If the job has completed, writes tuned_model_id to global_model/current and marks status:ready.
-    All users automatically benefit — no per-user model document needed.
-    Returns updated model status.
-    """
+    """Check Vertex AI tuning job status and update global_model/current."""
     db = _get_db()
     doc_ref = db.collection("global_model").document("current")
     doc = doc_ref.get()
@@ -364,12 +307,7 @@ async def poll_model_status(uid: str = Depends(get_current_uid)):
             "message": "Global model already ready.",
         }
 
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
-
+    _ensure_agent_path()
     try:
         from echo_prism.training.vertex_export import get_tuning_job_status
 
@@ -383,7 +321,6 @@ async def poll_model_status(uid: str = Depends(get_current_uid)):
         state = job_info.get("state", "")
         tuned_model_endpoint = job_info.get("tuned_model_endpoint_name")
 
-        # Vertex AI job states: JOB_STATE_SUCCEEDED, JOB_STATE_FAILED, JOB_STATE_RUNNING, etc.
         if "SUCCEEDED" in state and tuned_model_endpoint:
             doc_ref.update({
                 "job_status": "ready",
@@ -395,7 +332,7 @@ async def poll_model_status(uid: str = Depends(get_current_uid)):
                 "ok": True,
                 "job_status": "ready",
                 "tuned_model_id": tuned_model_endpoint,
-                "message": "Fine-tuning complete. All EchoPrism users will now use the improved global model.",
+                "message": "Fine-tuning complete.",
             }
         elif "FAILED" in state or "CANCELLED" in state:
             doc_ref.update({"job_status": "failed", "completed_at": SERVER_TIMESTAMP})
@@ -410,7 +347,7 @@ async def poll_model_status(uid: str = Depends(get_current_uid)):
                 "ok": True,
                 "job_status": "training",
                 "tuned_model_id": None,
-                "message": f"Job still in progress (state: {state}). Check back later.",
+                "message": f"Job still in progress (state: {state}).",
             }
     except ImportError as e:
         raise HTTPException(status_code=500, detail=str(e))

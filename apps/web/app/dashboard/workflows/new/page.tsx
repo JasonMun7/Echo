@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, agentFetch } from "@/lib/api";
 import {
   IconUpload,
   IconPhoto,
@@ -102,7 +102,7 @@ export default function NewWorkflowPage() {
         return;
       }
 
-      const res = await apiFetch("/api/synthesize", {
+      const res = await agentFetch("/api/synthesize", {
         method: "POST",
         body: formData,
       });

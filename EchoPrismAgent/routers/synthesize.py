@@ -3,9 +3,6 @@ POST /api/synthesize: create workflow from video or screenshots.
 
 Delegates synthesis logic to synthesis_agent; handles HTTP, auth, GCS, Firestore.
 """
-
-import asyncio
-import json
 import os
 import re
 import sys
@@ -14,26 +11,29 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
-
-
-def _ensure_agent_path() -> None:
-    """Ensure backend/agent is on sys.path for echo_prism imports."""
-    agent_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-    )
-    if agent_dir not in sys.path:
-        sys.path.insert(0, agent_dir)
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from google import genai
 from google.genai import types
 import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
+from pydantic import BaseModel as PydanticBaseModel
 
 from app.auth import get_current_uid, get_firebase_app
 from app.config import GEMINI_API_KEY
 from app.services.gcs import upload_file, download_file as gcs_download_file
 
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
+
+
+def _ensure_agent_path() -> None:
+    """Ensure agent (echo_prism) is on sys.path."""
+    base = Path(__file__).resolve().parent.parent
+    agent_dir = base / "agent" if (base / "agent").exists() else base / "backend" / "agent"
+    if not agent_dir.exists():
+        agent_dir = base.parent.parent / "backend" / "agent"
+    agent_dir = agent_dir.resolve()
+    if agent_dir.exists() and str(agent_dir) not in sys.path:
+        sys.path.insert(0, str(agent_dir))
 
 
 def _upload_to_gemini(content: bytes, mime_type: str) -> types.Part:
@@ -78,7 +78,6 @@ async def synthesize(
 
     has_video = bool(video or video_gcs_path)
     workflow_id = str(uuid.uuid4())
-    # Derive source_recording_id for traceability (correlate workflow ↔ recording)
     _source_recording_id: str | None = None
     if video_gcs_path:
         _source_recording_id = video_gcs_path.rsplit("/", 1)[-1] if "/" in video_gcs_path else video_gcs_path
@@ -88,7 +87,6 @@ async def synthesize(
         _sorted_ss = sorted(screenshots, key=lambda f: f.filename or "")
         _source_recording_id = _sorted_ss[0].filename if _sorted_ss else "screenshots"
 
-    # Accept video XOR screenshots
     if has_video and screenshots:
         raise HTTPException(
             status_code=400, detail="Provide either video or screenshots, not both"
@@ -99,7 +97,6 @@ async def synthesize(
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
 
-    # Create workflow doc (processing)
     workflow_ref = db.collection("workflows").document(workflow_id)
     workflow_ref.set(
         {
@@ -112,7 +109,6 @@ async def synthesize(
     )
 
     try:
-        # Upload to GCS
         gcs_prefix = f"{uid}/{workflow_id}"
         parts: list[types.Part] = []
         mime_map = {
@@ -131,7 +127,6 @@ async def synthesize(
             part = _upload_to_gemini(content, mime)
             parts.append(part)
         elif video_gcs_path:
-            # File was uploaded directly to GCS by the browser via signed URL.
             match = re.match(r"gs://[^/]+/(.+)", video_gcs_path)
             if not match:
                 raise HTTPException(
@@ -165,7 +160,6 @@ async def synthesize(
         if not parts:
             raise HTTPException(status_code=400, detail="No media to process")
 
-        # Delegate to synthesis agent (one-shot multimodal)
         _ensure_agent_path()
         from echo_prism.subagents.synthesis_agent import synthesize_workflow_from_media
 
@@ -174,7 +168,6 @@ async def synthesize(
         steps_data = result["steps"]
         variables = result.get("variables", [])
 
-        # Batch-write steps (no risk field)
         for i, s in enumerate(steps_data):
             step_id = str(uuid.uuid4())
             workflow_ref.collection("steps").document(step_id).set(
@@ -284,9 +277,6 @@ async def synthesize_from_description_impl(
         }
     )
     return workflow_id
-
-
-from pydantic import BaseModel as PydanticBaseModel
 
 
 class DescriptionSynthesisRequest(PydanticBaseModel):

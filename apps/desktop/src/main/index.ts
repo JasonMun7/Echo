@@ -487,9 +487,9 @@ ipcMain.handle("start-voice-chat", async () => {
   try {
     const { VoiceBackendClient } = await import("./agent/voice-backend-client");
     const token = loadStoredToken() || "";
-    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+    const agentBase = (process.env.VITE_ECHO_PRISM_AGENT_URL || process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
     const opts = {
-      backendUrl: base,
+      backendUrl: agentBase,
       token,
       workflowId: runContext?.workflowId,
       runId: runContext?.runId,
