@@ -12,12 +12,14 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 from typing import Any
 
 from echo_prism.alpha.action_parser import extract_thought, parse_action
 from echo_prism.alpha.image_utils import compress_screenshot
 from echo_prism.models_config import SYNTHESIS_MODEL
+from echo_prism.utils.omniparser_client import parse_screenshot as omniparser_parse, OmniParserResult
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +100,52 @@ def sample_frames(
     if not frames:
         return []
     result: list[tuple[int, bytes]] = []
+
+
+def _snap_to_nearest_element(
+    x: int, y: int, omniparser_result: OmniParserResult | None, snap_radius: int = 60,
+) -> tuple[int, int, str]:
+    """Snap (x, y) to the center of the nearest OmniParser-detected element bbox.
+
+    Returns (snapped_x, snapped_y, element_label). If no element is within snap_radius
+    or no OmniParser result, returns original coords with empty label.
+    Coordinates are in 0-1000 normalized space.
+    """
+    if not omniparser_result or not omniparser_result.parsed_content_list:
+        return x, y, ""
+
+    best_dist = float("inf")
+    best_cx, best_cy = x, y
+    best_label = ""
+
+    for elem in omniparser_result.parsed_content_list:
+        bbox = elem.get("bbox")
+        if not bbox or len(bbox) != 4:
+            continue
+        x_min, y_min, x_max, y_max = [float(v) for v in bbox]
+        cx = int((x_min + x_max) / 2 * 1000)
+        cy = int((y_min + y_max) / 2 * 1000)
+        dist = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+        if dist < best_dist:
+            best_dist = dist
+            best_cx, best_cy = cx, cy
+            best_label = elem.get("content", "")
+
+    if best_dist <= snap_radius:
+        return best_cx, best_cy, best_label
+    return x, y, ""
+
+
+async def _get_omniparser_for_frame(frame_bytes: bytes) -> OmniParserResult | None:
+    """Call OmniParser for a synthesis frame if configured."""
+    url = os.environ.get("OMNIPARSER_URL", "")
+    if not url:
+        return None
+    try:
+        return await omniparser_parse(frame_bytes, url, timeout=20.0, use_cache=True)
+    except Exception as e:
+        logger.debug("OmniParser unavailable for synthesis frame: %s", e)
+        return None
     prev_hash: str | None = None
     prev_bytes: bytes | None = None
     for i, f in enumerate(frames):
@@ -116,8 +164,13 @@ async def synthesize_frame(
     total_frames: int,
     history_text: str = "",
     model: str = SYNTHESIS_MODEL,
+    omniparser_result: OmniParserResult | None = None,
 ) -> tuple[str, str | None, str | None]:
-    """Single frame synthesis. Returns (thought, action_str, error)."""
+    """Single frame synthesis. Returns (thought, action_str, error).
+
+    When omniparser_result is provided, detected elements are injected as
+    additional context and action coordinates are snapped to the nearest element.
+    """
     try:
         from google.genai import types as gtypes
     except ImportError:
@@ -128,6 +181,14 @@ async def synthesize_frame(
         "What UI action is the user performing in this screenshot? "
         "Output Thought (with visual anchoring coords) and Action."
     )
+
+    # Inject OmniParser-detected elements for grounding
+    if omniparser_result and omniparser_result.screen_info:
+        instruction += (
+            f"\n\n[Detected UI Elements]\n{omniparser_result.screen_info}\n"
+            "Use element positions to ground your coordinates precisely."
+        )
+
     compressed = compress_screenshot(frame_bytes, max_dim=1024)
     user_parts = []
     if history_text:
@@ -166,6 +227,19 @@ async def synthesize_frame(
         parsed = parse_action(text)
         action_str = ""
         if parsed:
+            # Snap coordinates to nearest OmniParser element for precision
+            if omniparser_result and "x" in parsed and "y" in parsed:
+                orig_x, orig_y = int(parsed["x"]), int(parsed["y"])
+                snapped_x, snapped_y, label = _snap_to_nearest_element(
+                    orig_x, orig_y, omniparser_result
+                )
+                if (snapped_x, snapped_y) != (orig_x, orig_y):
+                    logger.debug(
+                        "Synthesis snap: (%d,%d) -> (%d,%d) [%s]",
+                        orig_x, orig_y, snapped_x, snapped_y, label[:40],
+                    )
+                    parsed["x"] = snapped_x
+                    parsed["y"] = snapped_y
             action_str = _format_action_for_workflow(parsed)
         else:
             logger.warning("Synthesis parse_action failed. Raw model output (first 400 chars): %s", text[:400] if text else "(empty)")
@@ -359,6 +433,9 @@ async def synthesize_workflow_from_frames(
     history_parts: list[str] = []
 
     for idx, (frame_i, frame_bytes) in enumerate(sampled):
+        # Get OmniParser elements for this frame (best-effort, non-blocking on failure)
+        omni_result = await _get_omniparser_for_frame(frame_bytes)
+
         thought, action_str, err = await synthesize_frame(
             client,
             frame_bytes,
@@ -366,6 +443,7 @@ async def synthesize_workflow_from_frames(
             len(sampled),
             history_text="\n".join(history_parts[-5:]) if history_parts else "",
             model=model,
+            omniparser_result=omni_result,
         )
         if err:
             logger.warning("Frame %d synthesis error: %s", frame_i, err)

@@ -253,14 +253,22 @@ def element_qa_prompt(question: str) -> str:
     )
 
 
-def detected_elements_context(screen_info: str) -> str:
+def detected_elements_context(screen_info: str, element_count: int = 0) -> str:
     """
     Format OmniParser-detected elements for injection into the agent prompt.
+    Includes element count for VLM context and disambiguation guidance.
     Returns empty string if no elements are available.
     """
     if not screen_info:
         return ""
-    return f"[Detected UI Elements]\n{screen_info}"
+    header = "[Detected UI Elements]"
+    if element_count > 0:
+        header += f" ({element_count} elements detected)"
+    return (
+        f"{header}\n{screen_info}\n\n"
+        "Tip: When multiple elements share similar labels, use their ID, size, and "
+        "position to disambiguate. Prefer clicking by element_id for precision."
+    )
 
 
 def call_user_prompt(reason: str) -> str:

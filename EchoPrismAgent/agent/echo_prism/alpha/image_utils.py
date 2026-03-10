@@ -1,12 +1,17 @@
 """
 Token optimization for screenshot-heavy workloads.
-- Resize/downscale to max dimension
-- JPEG compression
+- Smart resize maintaining aspect ratio within VLM-optimal ranges (adapted from UI-TARS)
+- Dynamic detail level selection based on pixel count
+- WebP compression (falls back to JPEG)
 - Observation window (last N screenshots)
 - Text summaries for older steps
 """
 import io
+import logging
+import math
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Pillow is commonly available; fallback to no-op if not
 try:
@@ -16,36 +21,145 @@ try:
 except ImportError:
     HAS_PIL = False
 
+# --- UI-TARS Smart Resize Constants ---
+# These ensure consistent coordinate scaling for VLM input.
+MIN_PIXELS = 300 * 300        # Don't shrink below this
+MAX_PIXELS = 1024 * 1024      # Don't exceed this (matches VLM context windows)
+MAX_RATIO = 4.0               # Max aspect ratio before padding
+RESIZE_FACTOR = 28            # Round dimensions to this factor (VLM patch size)
+
+# --- Detail level thresholds (adapted from UI-TARS) ---
+LOW_DETAIL_MAX_PIXELS = 1024 * 1024      # ≤ this → low detail
+HIGH_DETAIL_MAX_PIXELS = 2048 * 1960     # ≤ this → high detail
+
+
+def smart_resize(
+    width: int,
+    height: int,
+    factor: int = RESIZE_FACTOR,
+    min_pixels: int = MIN_PIXELS,
+    max_pixels: int = MAX_PIXELS,
+    max_ratio: float = MAX_RATIO,
+) -> tuple[int, int]:
+    """
+    Compute optimal resize dimensions for VLM input (adapted from UI-TARS smartResizeForV15).
+
+    Maintains aspect ratio, rounds to factor multiples, and constrains within
+    min/max pixel ranges. This ensures the VLM receives consistently-sized images
+    which improves coordinate prediction accuracy.
+
+    Returns (new_width, new_height) — both multiples of `factor`.
+    """
+    if width <= 0 or height <= 0:
+        return width, height
+
+    # Enforce maximum aspect ratio
+    ratio = max(width, height) / min(width, height) if min(width, height) > 0 else 1.0
+    if ratio > max_ratio:
+        if width > height:
+            width = int(height * max_ratio)
+        else:
+            height = int(width * max_ratio)
+
+    # Scale to fit within min/max pixel bounds
+    total = width * height
+    if total > max_pixels:
+        scale = math.sqrt(max_pixels / total)
+        width = int(width * scale)
+        height = int(height * scale)
+    elif total < min_pixels:
+        scale = math.sqrt(min_pixels / total)
+        width = int(width * scale)
+        height = int(height * scale)
+
+    # Round to nearest factor multiple
+    new_w = max(factor, round(width / factor) * factor)
+    new_h = max(factor, round(height / factor) * factor)
+
+    return new_w, new_h
+
+
+def get_detail_level(width: int, height: int) -> str:
+    """
+    Select VLM detail level based on image pixel count (adapted from UI-TARS).
+
+    Returns:
+        'low'  — for images ≤ 1024×1024 (faster, fewer tokens)
+        'high' — for images ≤ 2048×1960 (more detail)
+        'auto' — for larger images
+    """
+    pixels = width * height
+    if pixels <= LOW_DETAIL_MAX_PIXELS:
+        return "low"
+    if pixels <= HIGH_DETAIL_MAX_PIXELS:
+        return "high"
+    return "auto"
+
 
 def compress_screenshot(
     data: bytes,
     max_dim: int = 1280,
     quality: int = 85,
     format: str = "JPEG",
+    use_smart_resize: bool = True,
 ) -> bytes:
     """
-    Resize screenshot to max dimension and compress as JPEG.
-    Preserves aspect ratio. Returns bytes.
-    Use max_dim=768 for state-transition verify screenshots (halves token cost).
+    Resize screenshot and compress for VLM input.
+
+    When use_smart_resize=True (default), uses UI-TARS-style smart resizing that
+    maintains aspect ratio within VLM-optimal pixel ranges and rounds to patch
+    size multiples. This produces more accurate coordinate predictions.
+
+    When use_smart_resize=False, falls back to simple max-dimension capping.
+
+    Uses WebP format when available for 50-70% better compression than JPEG.
+    Falls back to JPEG if WebP encoding fails.
     """
     if not HAS_PIL or not data:
         return data
 
     try:
         img = Image.open(io.BytesIO(data))
-        # Unconditional RGB convert — handles RGBA, P, L, and other modes
         img = img.convert("RGB")
         w, h = img.size
-        if w > max_dim or h > max_dim:
-            scale = min(max_dim / w, max_dim / h)
-            new_w = int(w * scale)
-            new_h = int(h * scale)
-            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        if use_smart_resize:
+            new_w, new_h = smart_resize(w, h)
+            if (new_w, new_h) != (w, h):
+                img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                logger.debug(
+                    "compress_screenshot: %dx%d → %dx%d (smart_resize)",
+                    w, h, new_w, new_h,
+                )
+            else:
+                logger.debug("compress_screenshot: %dx%d (no resize needed)", w, h)
+        else:
+            if w > max_dim or h > max_dim:
+                scale = min(max_dim / w, max_dim / h)
+                new_w = int(w * scale)
+                new_h = int(h * scale)
+                img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
         buf = io.BytesIO()
-        img.save(buf, format=format, quality=quality)
+        # Try WebP first for better compression, fall back to JPEG
+        try:
+            img.save(buf, format="WEBP", quality=80)
+            result = buf.getvalue()
+            if len(result) > 0:
+                return result
+        except Exception:
+            pass
+
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
         return buf.getvalue()
     except Exception:
         return data
+
+
+def compress_screenshot_for_verify(data: bytes) -> bytes:
+    """Compress screenshot specifically for state-transition verification (smaller)."""
+    return compress_screenshot(data, max_dim=768, use_smart_resize=False)
 
 
 def build_context(

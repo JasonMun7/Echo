@@ -1,8 +1,12 @@
 /**
  * Desktop operator – nut-js + desktopCapturer for EchoPrism (Electron).
  * Screenshots via desktopCapturer; mouse/keyboard via nut-js.
+ *
+ * DPI/HiDPI-aware: uses logical pixels for mouse movement (nut-js on macOS
+ * operates in logical space) and physical pixels for screenshot capture.
+ * Adapted from UI-TARS NutJSElectronOperator coordinate pipeline.
  */
-import { desktopCapturer, screen as electronScreen, shell } from "electron";
+import { clipboard, desktopCapturer, screen as electronScreen, shell } from "electron";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import {
@@ -19,37 +23,86 @@ import type { OperatorAction } from "@echo/types";
 
 const COORD_SCALE = 1000;
 
+/** Delay in ms between mouse movement and click for OS to settle. */
+const MOUSE_MOVE_DELAY_MS = 100;
+
 export type OperatorResult = boolean | "finished" | "calluser";
 
+interface ScreenInfo {
+  /** Logical pixels — used for mouse positioning (nut-js). */
+  logicalWidth: number;
+  logicalHeight: number;
+  /** Physical pixels — used for screenshot capture. */
+  physicalWidth: number;
+  physicalHeight: number;
+  /** Device pixel ratio (e.g. 2 on Retina). */
+  scaleFactor: number;
+}
+
 // Cache screen dimensions at module level — refreshed on first call and cached
-let _screenSize: { width: number; height: number } | null = null;
-function getScreenSize(): { width: number; height: number } {
-  if (!_screenSize) {
+let _screenInfo: ScreenInfo | null = null;
+function getScreenInfo(): ScreenInfo {
+  if (!_screenInfo) {
     const primary = electronScreen.getPrimaryDisplay();
-    _screenSize = { width: primary.size.width, height: primary.size.height };
+    // On macOS, nut-js operates in screen points (logical pixels) and
+    // Electron's NativeImage.toPNG() already returns the physical backing store.
+    // Using scaleFactor=1 on macOS matches UI-TARS's proven coordinate pipeline.
+    const scaleFactor = process.platform === "darwin" ? 1 : (primary.scaleFactor || 1);
+    _screenInfo = {
+      logicalWidth: primary.size.width,
+      logicalHeight: primary.size.height,
+      physicalWidth: Math.round(primary.size.width * scaleFactor),
+      physicalHeight: Math.round(primary.size.height * scaleFactor),
+      scaleFactor,
+    };
+    console.log(
+      `[desktop-operator] Screen: ${_screenInfo.logicalWidth}x${_screenInfo.logicalHeight} logical, ` +
+      `${_screenInfo.physicalWidth}x${_screenInfo.physicalHeight} physical, ` +
+      `scaleFactor=${scaleFactor} (platform=${process.platform}, raw=${primary.scaleFactor})`
+    );
   }
-  return _screenSize;
+  return _screenInfo;
+}
+
+/** Backwards-compatible: returns logical size for existing callers. */
+function getScreenSize(): { width: number; height: number } {
+  const info = getScreenInfo();
+  return { width: info.logicalWidth, height: info.logicalHeight };
 }
 
 /**
- * Scale normalized coordinates (0-1000) to actual screen pixels.
+ * Scale normalized coordinates (0-1000) to logical screen pixels.
+ * nut-js on macOS uses logical coordinates for mouse movement.
+ * On Windows/Linux, logical == physical when scaleFactor is 1.
  */
 function scaleCoords(x: number, y: number): { x: number; y: number } {
-  const { width, height } = getScreenSize();
-  const wx = Math.round((x * width) / COORD_SCALE);
-  const wy = Math.round((y * height) / COORD_SCALE);
+  const { logicalWidth, logicalHeight } = getScreenInfo();
+  const wx = Math.round((x * logicalWidth) / COORD_SCALE);
+  const wy = Math.round((y * logicalHeight) / COORD_SCALE);
+  if (process.env.ECHO_DEBUG_COORDS) {
+    console.log(
+      `[desktop-operator] scaleCoords: (${x}, ${y}) / 1000 → (${wx}, ${wy}) px ` +
+      `(screen ${logicalWidth}x${logicalHeight})`
+    );
+  }
   return { x: wx, y: wy };
 }
 
 /**
- * Capture screenshot of a specific source (screen or window).
+ * Capture screenshot at the display's full physical resolution.
+ * Uses actual display dimensions × scaleFactor instead of hardcoded 1920×1080.
  * Retries up to 3 times with increasing delays.
  */
 export async function captureScreen(sourceId: string): Promise<Buffer> {
+  const { logicalWidth, logicalHeight } = getScreenInfo();
+
   const attempt = async (): Promise<Buffer | null> => {
+    // Use "screen" only (not "window") to ensure we get the full display.
+    // Use logical dimensions — on macOS, Electron NativeImage.toPNG() already
+    // returns the full physical backing-store resolution regardless of thumbnailSize.
     const sources = await desktopCapturer.getSources({
-      types: ["screen", "window"],
-      thumbnailSize: { width: 1920, height: 1080 },
+      types: ["screen"],
+      thumbnailSize: { width: logicalWidth, height: logicalHeight },
     });
     const src = sources.find((s) => s.id === sourceId);
     if (!src?.thumbnail) return null;
@@ -73,41 +126,63 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
       "On macOS, grant Screen Recording permission to this app in System Settings → Privacy & Security → Screen Recording, then restart."
     );
   }
+  if (process.env.ECHO_DEBUG_COORDS) {
+    console.log(
+      `[desktop-operator] captureScreen: source=${sourceId}, png=${buf.length} bytes`
+    );
+  }
   return buf;
 }
 
 /**
- * Move mouse to (x, y) and left-click. Coords in 0-1000 space.
+ * Move mouse to (x, y), wait for OS to settle, then left-click.
+ * The 100ms delay prevents race conditions where click registers before
+ * the OS finishes processing the mouse movement.
  */
 export async function click(x: number, y: number): Promise<void> {
   const { x: wx, y: wy } = scaleCoords(x, y);
+  console.log(`[desktop-operator] click: norm=(${x}, ${y}) → pixel=(${wx}, ${wy})`);
   await mouse.setPosition(new Point(wx, wy));
+  await sleep(MOUSE_MOVE_DELAY_MS);
   await mouse.leftClick();
 }
 
 /**
- * Double-click at (x, y).
+ * Double-click at (x, y) with precision delay.
  */
 export async function doubleClick(x: number, y: number): Promise<void> {
   const { x: wx, y: wy } = scaleCoords(x, y);
   await mouse.setPosition(new Point(wx, wy));
+  await sleep(MOUSE_MOVE_DELAY_MS);
   await mouse.doubleClick(Button.LEFT);
 }
 
 /**
- * Right-click at (x, y).
+ * Right-click at (x, y) with precision delay.
  */
 export async function rightClick(x: number, y: number): Promise<void> {
   const { x: wx, y: wy } = scaleCoords(x, y);
   await mouse.setPosition(new Point(wx, wy));
+  await sleep(MOUSE_MOVE_DELAY_MS);
   await mouse.rightClick();
 }
 
 /**
  * Type text via keyboard.
+ * On Windows, uses clipboard + Ctrl+V for reliability (avoids character loss).
+ * On macOS/Linux, uses direct keyboard.type().
  */
 export async function typeText(text: string): Promise<void> {
-  await keyboard.type(text);
+  if (process.platform === "win32" && text.length > 1) {
+    clipboard.writeText(text);
+    await keyboard.pressKey(Key.LeftControl);
+    await keyboard.pressKey(Key.V);
+    await keyboard.releaseKey(Key.V);
+    await keyboard.releaseKey(Key.LeftControl);
+    await sleep(50);
+  } else {
+    await keyboard.type(text);
+  }
 }
 
 /**
@@ -256,11 +331,21 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
     } else if (act === "drag") {
       const { x: wx1, y: wy1 } = scaleCoords(Number(action.x1 ?? 0), Number(action.y1 ?? 0));
       const { x: wx2, y: wy2 } = scaleCoords(Number(action.x2 ?? 0), Number(action.y2 ?? 0));
+      // Smooth drag: move to start, press, interpolate through midpoints, release
       await mouse.setPosition(new Point(wx1, wy1));
+      await sleep(MOUSE_MOVE_DELAY_MS);
       await mouse.pressButton(Button.LEFT);
-      await sleep(80);
-      await mouse.setPosition(new Point(wx2, wy2));
-      await sleep(80);
+      await sleep(100);
+      // Interpolate 5 intermediate points for smooth path
+      const DRAG_STEPS = 5;
+      for (let i = 1; i <= DRAG_STEPS; i++) {
+        const t = i / DRAG_STEPS;
+        const ix = Math.round(wx1 + (wx2 - wx1) * t);
+        const iy = Math.round(wy1 + (wy2 - wy1) * t);
+        await mouse.setPosition(new Point(ix, iy));
+        await sleep(50);
+      }
+      await sleep(100);
       await mouse.releaseButton(Button.LEFT);
     } else if (act === "type") {
       await typeText(String(action.content ?? ""));
