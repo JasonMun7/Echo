@@ -15,10 +15,10 @@ import {
   IconBrandSlack,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { AGENT_URL } from "@/lib/api";
 import { MultiStepLoader } from "@/components/ui/multi-step-loader";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const WS_URL = API_URL.replace(/^http/, "ws");
+const WS_URL = AGENT_URL.replace(/^http/, "ws");
 
 interface EchoPrismVoiceModalProps {
   isOpen: boolean;

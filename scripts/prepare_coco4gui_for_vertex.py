@@ -15,7 +15,7 @@ Usage:
   pnpm coco4gui:prepare -- path/to/coco4gui.json --images-dir ./screenshots \\
     --output training/custom/dataset.jsonl
 
-Requires: google-cloud-storage. Set ECHO_GCS_BUCKET or GCS_BUCKET.
+Requires: google-cloud-storage. Set ECHO_GCS_BUCKET.
 """
 import argparse
 import io
@@ -93,9 +93,9 @@ def main():
     )
     args = parser.parse_args()
 
-    bucket = os.environ.get("ECHO_GCS_BUCKET") or os.environ.get("GCS_BUCKET")
+    bucket = os.environ.get("ECHO_GCS_BUCKET")
     if not bucket:
-        logger.error("Set ECHO_GCS_BUCKET or GCS_BUCKET")
+        logger.error("Set ECHO_GCS_BUCKET")
         sys.exit(1)
 
     coco_path = Path(args.coco_path)

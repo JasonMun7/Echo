@@ -4,9 +4,10 @@
 # Substitutions (passed by deploy.sh):
 #   _IMAGE_TAG    - Image tag (default: latest)
 #   _BACKEND_URL  - Backend API URL for frontend build (NEXT_PUBLIC_API_URL)
+#   _AGENT_URL    - Agent service URL for frontend build (NEXT_PUBLIC_ECHO_AGENT_URL)
 #
 steps:
-  # Build frontend (requires _BACKEND_URL for NEXT_PUBLIC_API_URL)
+  # Build frontend (requires _BACKEND_URL, _AGENT_URL)
   - name: "gcr.io/cloud-builders/docker"
     id: build-frontend
     args:
@@ -14,11 +15,13 @@ steps:
       - "--platform=linux/amd64"
       - "--build-arg"
       - "NEXT_PUBLIC_API_URL=${_BACKEND_URL}"
+      - "--build-arg"
+      - "NEXT_PUBLIC_ECHO_AGENT_URL=${_AGENT_URL}"
       - "-f"
       - "apps/web/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-frontend:${_IMAGE_TAG}"
-      - "apps/web"
+      - "."
 
   # Build backend
   - name: "gcr.io/cloud-builders/docker"
@@ -32,17 +35,29 @@ steps:
       - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
       - "backend"
 
-  # Build agent
+  # Build echo-prism-agent (Cloud Run service)
   - name: "gcr.io/cloud-builders/docker"
-    id: build-agent
+    id: build-echo-prism-agent
     args:
       - "build"
       - "--platform=linux/amd64"
       - "-f"
-      - "backend/agent/Dockerfile"
+      - "EchoPrismAgent/Dockerfile"
       - "-t"
-      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
-      - "backend/agent"
+      - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
+      - "."
+
+  # Build OmniParser (GPU service — YOLO + Florence2)
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-omniparser
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "OmniParser/Dockerfile.cloudrun"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-omniparser:${_IMAGE_TAG}"
+      - "OmniParser"
 
   # Push images (each waits for its build)
   - name: "gcr.io/cloud-builders/docker"
@@ -60,16 +75,24 @@ steps:
     waitFor: ["build-backend"]
 
   - name: "gcr.io/cloud-builders/docker"
-    id: push-agent
+    id: push-echo-prism-agent
     args:
       - "push"
-      - "gcr.io/$PROJECT_ID/echo-agent:${_IMAGE_TAG}"
-    waitFor: ["build-agent"]
+      - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
+    waitFor: ["build-echo-prism-agent"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-omniparser
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/echo-omniparser:${_IMAGE_TAG}"
+    waitFor: ["build-omniparser"]
 
 # Default substitution values (overridden by deploy.sh)
 substitutions:
   _IMAGE_TAG: "latest"
   _BACKEND_URL: ""
+  _AGENT_URL: ""
 
 options:
   machineType: "E2_HIGHCPU_8"

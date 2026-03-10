@@ -122,6 +122,9 @@ function useWindowType(): { windowType: string; mode: string } {
 const API_URL =
   (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
   "http://localhost:8000";
+const AGENT_URL =
+  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
+    ?.VITE_ECHO_AGENT_URL ?? API_URL;
 
 function MainWindowApp() {
   const [screenPermissionRequired, setScreenPermissionRequired] =
@@ -392,7 +395,7 @@ function MainWindowApp() {
   // EchoPrism text chat WebSocket (mode=text)
   useEffect(() => {
     if (!textChatOpen || !token) return;
-    const wsUrl = API_URL.replace(/^http/, "ws");
+    const wsUrl = AGENT_URL.replace(/^http/, "ws");
     const ws = new WebSocket(
       `${wsUrl}/ws/chat?token=${encodeURIComponent(token)}&mode=text`,
     );
@@ -427,7 +430,7 @@ function MainWindowApp() {
       ws.close();
       wsTextRef.current = null;
     };
-  }, [textChatOpen, token]);
+  }, [textChatOpen, token, AGENT_URL]);
 
   const handleSignIn = () => {
     window.electronAPI?.authOpenSignin?.();
@@ -617,13 +620,14 @@ function MainWindowApp() {
     if (!recordedBlob || !token) return;
     setRecordStatus("Uploading recording…");
     setRecordError("");
-    const base = API_URL.replace(/\/$/, "");
+    const apiBase = API_URL.replace(/\/$/, "");
+    const agentBase = AGENT_URL.replace(/\/$/, "");
     try {
       const ext = recordedBlob.type.includes("webm") ? "webm" : "mp4";
       const filename = `recording-${Date.now()}.${ext}`;
       const formData = new FormData();
       formData.append("video", recordedBlob, filename);
-      const uploadRes = await fetch(`${base}/api/storage/upload-recording`, {
+      const uploadRes = await fetch(`${apiBase}/api/storage/upload-recording`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -643,7 +647,7 @@ function MainWindowApp() {
       setRecordStatus("Synthesizing workflow…");
       const synthFormData = new FormData();
       synthFormData.append("video_gcs_path", gcs_path);
-      const synthRes = await fetch(`${base}/api/synthesize`, {
+      const synthRes = await fetch(`${agentBase}/api/synthesize`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: synthFormData,
