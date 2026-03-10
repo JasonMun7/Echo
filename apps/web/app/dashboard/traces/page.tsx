@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { agentFetch } from "@/lib/api";
 import Link from "next/link";
 import {
   IconBrain,
@@ -302,7 +302,7 @@ function StepRow({
   }) => {
     setSaving(true);
     try {
-      await apiFetch(`/api/traces/${traceId}/steps/${step.id}`, {
+      await agentFetch(`/api/traces/${traceId}/steps/${step.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -529,7 +529,7 @@ function TraceCard({
     if (!expanded && steps.length === 0) {
       setLoadingSteps(true);
       try {
-        const res = await apiFetch(`/api/traces/${trace.id}/steps`);
+        const res = await agentFetch(`/api/traces/${trace.id}/steps`);
         const data = await res.json();
         setSteps(data.steps || []);
       } catch {
@@ -660,13 +660,13 @@ export default function TracesPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
-    apiFetch("/api/traces")
+    agentFetch("/api/traces")
       .then((r) => r.json())
       .then((d) => setTraces(d.traces || []))
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    apiFetch("/api/traces/model-status")
+    agentFetch("/api/traces/model-status")
       .then((r) => r.json())
       .then((d) => setModelStatus(d))
       .catch(() => {});
@@ -677,13 +677,13 @@ export default function TracesPage() {
     setExportError("");
     setExportResult(null);
     try {
-      const res = await apiFetch("/api/traces/export", { method: "POST" });
+      const res = await agentFetch("/api/traces/export", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         setExportError(data.detail || "Export failed");
       } else {
         setExportResult(data);
-        apiFetch("/api/traces/model-status")
+        agentFetch("/api/traces/model-status")
           .then((r) => r.json())
           .then((d) => setModelStatus(d))
           .catch(() => {});
@@ -698,9 +698,9 @@ export default function TracesPage() {
   const handlePollModel = async () => {
     setPolling(true);
     try {
-      const res = await apiFetch("/api/traces/poll-model", { method: "POST" });
+      const res = await agentFetch("/api/traces/poll-model", { method: "POST" });
       await res.json();
-      const statusRes = await apiFetch("/api/traces/model-status");
+      const statusRes = await agentFetch("/api/traces/model-status");
       const statusData = await statusRes.json();
       setModelStatus(statusData);
     } catch {
@@ -737,7 +737,7 @@ export default function TracesPage() {
     setBulkDeleting(true);
     const ids = Array.from(selectedIds);
     await Promise.all(
-      ids.map((id) => apiFetch(`/api/traces/${id}`, { method: "DELETE" }).catch(() => {}))
+      ids.map((id) => agentFetch(`/api/traces/${id}`, { method: "DELETE" }).catch(() => {}))
     );
     setTraces((prev) => prev.filter((t) => !selectedIds.has(t.id)));
     setSelectedIds(new Set());

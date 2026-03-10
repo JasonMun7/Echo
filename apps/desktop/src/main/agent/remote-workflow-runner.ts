@@ -19,6 +19,7 @@ export interface RunWorkflowRemoteOptions {
   runId?: string;
   token?: string;
   backendUrl?: string;
+  agentWsUrl?: string;
   onProgress?: (message: string, stepNum?: number, thought?: string, action?: string) => void;
   onAwaitingUser?: (reason: string) => void;
 }
@@ -100,8 +101,8 @@ export async function runWorkflowRemote(
   if (!options?.backendUrl) return { success: false, error: "backendUrl required" };
   if (!options?.token) return { success: false, error: "token required for WebSocket auth" };
 
-  const wsBase = options.backendUrl.replace(/^http/, "ws");
-  const wsUrl = `${wsBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
+  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
+  const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
 
   const backendSteps = steps.map((s) => stepToBackendFormat(s));
 

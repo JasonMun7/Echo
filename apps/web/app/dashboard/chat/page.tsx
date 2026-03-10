@@ -21,12 +21,12 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, agentFetch, AGENT_URL } from "@/lib/api";
 import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { ChatMessageContent } from "@/components/chat-message-content";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const WS_URL = API_URL.replace(/^http/, "ws");
+const WS_URL = AGENT_URL.replace(/^http/, "ws");
 
 interface Message {
   id: string;
@@ -216,9 +216,8 @@ export default function ChatPage() {
           const formData = new FormData();
           formData.append("video", blob, "recording.webm");
           formData.append("workflow_name", "Screen-Recorded Workflow");
-          const resp = await fetch(`${API_URL}/api/synthesize`, {
+          const resp = await agentFetch("/api/synthesize", {
             method: "POST",
-            headers: { Authorization: `Bearer ${t}` },
             body: formData,
           });
           if (resp.ok) {

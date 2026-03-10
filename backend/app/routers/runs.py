@@ -5,7 +5,6 @@ DELETE /api/run/{workflow_id}/{run_id}, POST /api/run/{workflow_id}/{run_id}/red
 POST /api/run/{workflow_id}/{run_id}/dismiss
 """
 import logging
-import os
 import uuid
 from typing import Any
 
@@ -127,110 +126,22 @@ async def create_run(
     source: str | None = None,
     uid: str = Depends(get_current_uid),
 ):
-    """Create a run. If source=desktop, only create the Firestore doc (desktop runs locally)."""
+    """Create a run. Only source=desktop is supported (desktop runs locally)."""
+    if source != "desktop":
+        raise HTTPException(
+            status_code=400,
+            detail="Only source=desktop is supported. Provide ?source=desktop",
+        )
     wf_ref, _ = _get_workflow(uid, workflow_id)
     run_id = str(uuid.uuid4())
     run_ref = wf_ref.collection("runs").document(run_id)
-
-    if source == "desktop":
-        run_ref.set({
-            "status": "running",
-            "owner_uid": uid,
-            "createdAt": SERVER_TIMESTAMP,
-            "confirmation_status": None,
-            "source": "desktop",
-        })
-        return {"run_id": run_id, "workflow_id": workflow_id}
-
     run_ref.set({
-        "status": "pending",
+        "status": "running",
         "owner_uid": uid,
         "createdAt": SERVER_TIMESTAMP,
         "confirmation_status": None,
+        "source": "desktop",
     })
-
-    # Trigger Cloud Run Job when available; fall back to in-process execution for local dev
-    job_name = os.environ.get("RUN_JOB_NAME", "")
-    project = (
-        os.environ.get("GOOGLE_CLOUD_PROJECT")
-        or os.environ.get("GCP_PROJECT")
-        or os.environ.get("ECHO_GCP_PROJECT_ID")
-    )
-    region = (
-        os.environ.get("CLOUD_RUN_REGION")
-        or os.environ.get("ECHO_CLOUD_RUN_REGION")
-        or "us-central1"
-    )
-    logger.info(
-        "create_run: project=%s region=%s job_name=%s workflow_id=%s run_id=%s",
-        project or "(none)",
-        region,
-        job_name or "(none)",
-        workflow_id,
-        run_id,
-    )
-
-    if project and job_name:
-        # --- Cloud Run Job path (production) ---
-        try:
-            from google.cloud.run_v2 import JobsClient
-            from google.cloud.run_v2.types import EnvVar, RunJobRequest
-            job_connect_token = str(uuid.uuid4())
-            run_ref.update({"job_connect_token": job_connect_token})
-            client = JobsClient()
-            job_path = f"projects/{project}/locations/{region}/jobs/{job_name}"
-            logger.info("Invoking Cloud Run Job: %s", job_path)
-            overrides = RunJobRequest.Overrides(container_overrides=[
-                RunJobRequest.Overrides.ContainerOverride(env=[
-                    EnvVar(name="WORKFLOW_ID", value=workflow_id),
-                    EnvVar(name="RUN_ID", value=run_id),
-                    EnvVar(name="OWNER_UID", value=uid),
-                ])
-            ])
-            client.run_job(request=RunJobRequest(name=job_path, overrides=overrides))
-            run_ref.update({"status": "running"})
-            logger.info("Job invoked successfully, run status updated to running")
-        except Exception as e:
-            logger.exception("Failed to invoke job: %s", e)
-            run_ref.update({"status": "failed", "error": str(e)})
-    else:
-        # --- Local dev path: run the agent in a background thread ---
-        logger.info("No Cloud Run job configured — running agent in-process (local dev)")
-        import threading
-        import sys
-
-        job_connect_token = str(uuid.uuid4())
-        run_ref.update({"job_connect_token": job_connect_token})
-
-        # Capture loop vars for the closure
-        _workflow_id = workflow_id
-        _run_id = run_id
-        _uid = uid
-
-        def _run_in_thread():
-            # Set env vars for this run (safe for single-run-at-a-time local dev)
-            os.environ["WORKFLOW_ID"] = _workflow_id
-            os.environ["RUN_ID"] = _run_id
-            os.environ["OWNER_UID"] = _uid
-            # Add backend/agent to sys.path so imports resolve
-            agent_dir = os.path.normpath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "agent")
-            )
-            if agent_dir not in sys.path:
-                sys.path.insert(0, agent_dir)
-            try:
-                from run_workflow_agent import main as agent_main
-                agent_main()
-            except Exception as exc:
-                logger.exception("In-process agent failed: %s", exc)
-                try:
-                    run_ref.update({"status": "failed", "error": str(exc)})
-                except Exception:
-                    pass
-
-        t = threading.Thread(target=_run_in_thread, daemon=True, name=f"agent-{run_id[:8]}")
-        t.start()
-
     return {"run_id": run_id, "workflow_id": workflow_id}
 
 

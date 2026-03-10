@@ -3,6 +3,7 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "..", ".."),
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
