@@ -18,6 +18,7 @@ import RecordingHud from "./RecordingHud";
 import { EchoPrismVoiceModal } from "./EchoPrismVoiceModal";
 import RunHud from "./RunHud";
 import HazeOverlay from "./HazeOverlay";
+import echoLogo from "./assets/echo_logo.png";
 
 declare global {
   interface Window {
@@ -907,16 +908,32 @@ function MainWindowApp() {
   if (!token) {
     return (
       <div style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
-        <h1
+        <div
           style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "#150A35",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
             marginBottom: 8,
           }}
         >
-          Echo Desktop
-        </h1>
+          <img
+            src={echoLogo}
+            alt="Echo"
+            width={56}
+            height={56}
+            style={{ width: 56, height: 56, objectFit: "contain" }}
+          />
+          <h1
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: 600,
+              color: "#150A35",
+              margin: 0,
+            }}
+          >
+            Echo Desktop
+          </h1>
+        </div>
         <p style={{ color: "#6b7280", marginBottom: 24, fontSize: 14 }}>
           Sign in to access your workflows and run them locally.
         </p>
@@ -952,20 +969,30 @@ function MainWindowApp() {
             marginBottom: 24,
           }}
         >
-          <div>
-            <h1
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: 600,
-                color: "#150A35",
-                marginBottom: 4,
-              }}
-            >
-              Echo Desktop
-            </h1>
-            <p style={{ color: "#6b7280", fontSize: 14 }}>
-              Signed in · EchoPrism workflow automation
-            </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <img
+              src={echoLogo}
+              alt="Echo"
+              width={56}
+              height={56}
+              style={{ width: 56, height: 56, objectFit: "contain" }}
+            />
+            <div>
+              <h1
+                style={{
+                  fontSize: "1.5rem",
+                  fontWeight: 600,
+                  color: "#150A35",
+                  marginBottom: 4,
+                  marginTop: 0,
+                }}
+              >
+                Echo Desktop
+              </h1>
+            <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>
+                Signed in · EchoPrism workflow automation
+              </p>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button

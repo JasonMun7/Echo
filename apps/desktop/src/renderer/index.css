@@ -1,8 +1,9 @@
-/* Echo Design System - Cetacean Blue, Lavender, Ghost White */
+/* Echo Design System - Cetacean Blue, Lavender, Ghost White, Cyan */
 :root {
   --echo-cetacean: #150A35;
   --echo-lavender: #A577FF;
   --echo-ghost: #F5F7FC;
+  --echo-cyan: #21C4DD;
   --echo-success: #22c55e;
   --echo-error: #ef4444;
   --echo-muted: #6b7280;
@@ -34,7 +35,7 @@ body {
 .echo-btn-primary {
   cursor: pointer;
   border-radius: 0.5rem;
-  background: linear-gradient(to right, #150A35, #A577FF);
+  background: linear-gradient(to right, #A577FF, #150A35);
   padding: 0.625rem 1.25rem;
   font-weight: 500;
   color: white;
@@ -64,6 +65,36 @@ body {
 
 .echo-btn-secondary:hover {
   background: rgba(165, 119, 255, 0.1);
+}
+
+.echo-btn-secondary-accent {
+  cursor: pointer;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(33, 196, 221, 0.4);
+  background: var(--echo-ghost);
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  color: var(--echo-cyan);
+  transition: background 0.2s;
+}
+
+.echo-btn-secondary-accent:hover {
+  background: rgba(33, 196, 221, 0.1);
+}
+
+.echo-btn-cyan-lavender {
+  cursor: pointer;
+  border-radius: 0.5rem;
+  background: linear-gradient(to right, #21C4DD, #A577FF);
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  color: white;
+  border: none;
+  transition: opacity 0.2s;
+}
+
+.echo-btn-cyan-lavender:hover:not(:disabled) {
+  opacity: 0.95;
 }
 
 .echo-btn-danger {

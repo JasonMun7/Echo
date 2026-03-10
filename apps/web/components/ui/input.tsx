@@ -3,19 +3,39 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useMotionTemplate, useMotionValue, motion } from "motion/react";
 
-export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
+export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  /** "echo" = Lavender→Cyan gradient hover; "plain" = no gradient */
+  variant?: "default" | "echo" | "plain";
+};
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    const radius = 100; // change this to increase the rdaius of the hover effect
+  ({ className, type, variant = "default", ...props }, ref) => {
+    const radius = variant === "echo" ? 50 : variant === "plain" ? 0 : 100;
     const [visible, setVisible] = React.useState(false);
 
     const mouseX = useMotionValue(0);
     const mouseY = useMotionValue(0);
 
+    const gradientColors =
+      variant === "echo"
+        ? "#A577FF 0%, #21C4DD 50%, transparent 80%"
+        : variant === "plain"
+          ? "transparent"
+          : "#3b82f6 0%, transparent 80%";
+
+    const gradientSize =
+      variant === "echo"
+        ? visible
+          ? "55px 22px ellipse"
+          : "0px 0px ellipse"
+        : variant === "plain"
+          ? "0px circle"
+          : visible
+            ? radius + "px circle"
+            : "0px circle";
+
     function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent<HTMLDivElement>) {
       const { left, top } = currentTarget.getBoundingClientRect();
-
       mouseX.set(clientX - left);
       mouseY.set(clientY - top);
     }
@@ -24,9 +44,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         style={{
           background: useMotionTemplate`
         radial-gradient(
-          ${visible ? radius + "px" : "0px"} circle at ${mouseX}px ${mouseY}px,
-          #3b82f6,
-          transparent 80%
+          ${gradientSize} at ${mouseX}px ${mouseY}px,
+          ${gradientColors}
         )
       `,
         }}
