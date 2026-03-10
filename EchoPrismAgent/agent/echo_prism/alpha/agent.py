@@ -36,7 +36,7 @@ from echo_prism.models_config import GROUNDING_MODEL, ORCHESTRATION_MODEL
 from echo_prism.subagents.runner_agent import resolve_coords_for_action
 
 from .action_parser import extract_thought, parse_action, set_omniparser_element_count
-from .image_utils import build_context, compress_screenshot
+from .image_utils import build_context, compress_screenshot, compress_screenshot_for_verify
 from echo_prism.subagents.runner import OperatorResult, PlaywrightOperator
 from .perception import perceive_scene
 from .prompts import (
@@ -231,8 +231,8 @@ async def _verify_action(
     expected_outcome: str = "",
 ) -> tuple[str, bool]:
     """State-transition perception: compare before/after screenshots."""
-    before_compressed = compress_screenshot(before_bytes, max_dim=768)
-    after_compressed = compress_screenshot(after_bytes, max_dim=768)
+    before_compressed = compress_screenshot_for_verify(before_bytes)
+    after_compressed = compress_screenshot_for_verify(after_bytes)
 
     prompt = state_transition_prompt(
         action_str=action_str, expected_outcome=expected_outcome
@@ -494,7 +494,8 @@ async def run_ambiguous_step(
         context_parts = []
         if scene_caption and attempt == 0:
             context_parts.append(f"[Scene Overview]\n{scene_caption}")
-        elements_ctx = detected_elements_context(screen_info)
+        elem_count = len(omniparser_result.parsed_content_list) if omniparser_result else 0
+        elements_ctx = detected_elements_context(screen_info, element_count=elem_count)
         if elements_ctx:
             context_parts.append(elements_ctx)
         if context_parts:
@@ -568,6 +569,10 @@ async def run_ambiguous_step(
 
             thought = extract_thought(raw_text)
             parsed = parse_action(raw_text)
+            logger.info(
+                "VLM raw output (step %d, attempt %d): %s",
+                step_index, attempt + 1, (raw_text or "")[:300],
+            )
 
         if not parsed:
             last_error = f"Could not parse action from model output: {raw_text[:200]}"
@@ -833,7 +838,8 @@ async def run_ambiguous_step_inference(
         context_parts = []
         if scene_caption and attempt == 0:
             context_parts.append(f"[Scene Overview]\n{scene_caption}")
-        elements_ctx = detected_elements_context(screen_info)
+        elem_count = len(omniparser_result.parsed_content_list) if omniparser_result else 0
+        elements_ctx = detected_elements_context(screen_info, element_count=elem_count)
         if elements_ctx:
             context_parts.append(elements_ctx)
         if context_parts:
@@ -902,6 +908,10 @@ async def run_ambiguous_step_inference(
 
             thought = extract_thought(raw_text)
             parsed = parse_action(raw_text)
+            logger.info(
+                "VLM raw output (inference step %d, attempt %d): %s",
+                step_index, attempt + 1, (raw_text or "")[:300],
+            )
 
         if not parsed:
             last_error = f"Could not parse action from model output: {raw_text[:200]}"
