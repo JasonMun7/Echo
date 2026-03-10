@@ -5,12 +5,11 @@
 # Usage: ./scripts/deploy.sh [PROJECT_ID] [REGION]
 # Or set ECHO_GCP_PROJECT_ID, ECHO_CLOUD_RUN_REGION (via Doppler prd) and run: npm run deploy
 #
-# To deploy only specific services:
-#   ./scripts/deploy/build.sh [PROJECT_ID] [REGION]   # build images first
-#   ./scripts/deploy/deploy-frontend.sh [PROJECT_ID] [REGION]
-#   ./scripts/deploy/deploy-backend.sh [PROJECT_ID] [REGION]
-#   ./scripts/deploy/deploy-echo-prism-agent.sh [PROJECT_ID] [REGION]
-#   ./scripts/deploy/deploy-omniparser.sh [PROJECT_ID] [REGION]
+# To deploy only specific services (each builds its image first):
+#   ./scripts/deploy/deploy-frontend.sh --build [PROJECT_ID] [REGION]
+#   ./scripts/deploy/deploy-backend.sh --build [PROJECT_ID] [REGION]
+#   ./scripts/deploy/deploy-echo-prism-agent.sh --build [PROJECT_ID] [REGION]
+#   ./scripts/deploy/deploy-omniparser.sh --build [PROJECT_ID] [REGION]
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

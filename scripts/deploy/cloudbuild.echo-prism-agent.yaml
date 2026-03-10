@@ -1,0 +1,21 @@
+# Cloud Build: echo-prism-agent (Cloud Run service)
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-echo-prism-agent
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "services/echo-prism-agent/Dockerfile"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
+      - "."
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-echo-prism-agent
+    args: ["push", "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"]
+    waitFor: ["build-echo-prism-agent"]
+substitutions:
+  _IMAGE_TAG: "latest"
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: CLOUD_LOGGING_ONLY
