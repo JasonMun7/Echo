@@ -38,18 +38,42 @@ class OmniParserResult:
     latency: float = 0.0
 
 
-def _build_screen_info(parsed_content_list: list[dict[str, Any]]) -> str:
-    """Build a human-readable element list for injection into Gemini prompts."""
+DEFAULT_CONFIDENCE_THRESHOLD = 0.15
+
+
+def _build_screen_info(
+    parsed_content_list: list[dict[str, Any]],
+    confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+) -> str:
+    """Build a human-readable element list for injection into Gemini prompts.
+
+    Filters out low-confidence detections and includes bounding-box dimensions
+    to help the VLM disambiguate similarly-labelled elements.
+    """
     lines: list[str] = []
     for idx, element in enumerate(parsed_content_list):
+        # Skip low-confidence detections to reduce noise
+        confidence = element.get("confidence", 1.0)
+        if confidence < confidence_threshold:
+            continue
+
         etype = element.get("type", "unknown")
         content = element.get("content", "")
+
+        # Compute element size from bbox for disambiguation
+        bbox = element.get("bbox")
+        size_hint = ""
+        if bbox and len(bbox) == 4:
+            w = abs(bbox[2] - bbox[0])
+            h = abs(bbox[3] - bbox[1])
+            size_hint = f", size: {w:.0%}x{h:.0%}"
+
         if etype == "text":
-            lines.append(f'ID: {idx}, Text: "{content}"')
+            lines.append(f'ID: {idx}, Text: "{content}"{size_hint}')
         elif etype == "icon":
-            lines.append(f"ID: {idx}, Icon: {content}")
+            lines.append(f"ID: {idx}, Icon: {content}{size_hint}")
         else:
-            lines.append(f"ID: {idx}, {etype}: {content}")
+            lines.append(f"ID: {idx}, {etype}: {content}{size_hint}")
     return "\n".join(lines)
 
 
@@ -77,8 +101,10 @@ def _get_id_token(url: str) -> str | None:
 async def parse_screenshot(
     img_bytes: bytes,
     omniparser_url: str,
-    timeout: float = 15.0,
+    timeout: float = 30.0,
     use_cache: bool = True,
+    confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+    retry_on_failure: bool = True,
 ) -> OmniParserResult | None:
     """
     Call OmniParser /parse/ endpoint with a screenshot.
@@ -86,8 +112,10 @@ async def parse_screenshot(
     Args:
         img_bytes: Raw screenshot bytes (PNG or JPEG).
         omniparser_url: Base URL of the OmniParser service (e.g. "https://omniparser-xxx.run.app").
-        timeout: Request timeout in seconds.
+        timeout: Request timeout in seconds. Default increased to 30s to handle Cloud Run cold starts.
         use_cache: If True, cache results keyed by screenshot hash.
+        confidence_threshold: Filter out elements below this confidence.
+        retry_on_failure: If True, retry once with reduced image resolution on timeout/failure.
 
     Returns:
         OmniParserResult on success, None on failure.
@@ -108,12 +136,60 @@ async def parse_screenshot(
         logger.debug("OmniParser cache hit")
         return _cache[key]
 
-    # Encode screenshot as base64
+    result = await _do_parse_request(img_bytes, omniparser_url, timeout, confidence_threshold)
+
+    # Retry with reduced resolution on failure
+    if result is None and retry_on_failure:
+        reduced = _reduce_image_resolution(img_bytes, max_dim=1280)
+        if reduced is not None and reduced != img_bytes:
+            logger.info("OmniParser retrying with reduced resolution (max_dim=1280)")
+            result = await _do_parse_request(reduced, omniparser_url, timeout + 10, confidence_threshold)
+
+    if result is None:
+        return None
+
+    # Store in cache (evict oldest if full)
+    if use_cache:
+        if len(_cache) >= _CACHE_MAX_SIZE:
+            oldest_key = next(iter(_cache))
+            del _cache[oldest_key]
+        _cache[key] = result
+
+    return result
+
+
+def _reduce_image_resolution(img_bytes: bytes, max_dim: int = 1280) -> bytes | None:
+    """Downscale image to max_dim on longest side for retry. Returns None on error."""
+    try:
+        from PIL import Image
+        import io
+
+        img = Image.open(io.BytesIO(img_bytes))
+        w, h = img.size
+        if max(w, h) <= max_dim:
+            return None  # Already small enough, no point retrying same size
+        scale = max_dim / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning("Failed to reduce image resolution: %s", e)
+        return None
+
+
+async def _do_parse_request(
+    img_bytes: bytes,
+    omniparser_url: str,
+    timeout: float,
+    confidence_threshold: float,
+) -> OmniParserResult | None:
+    """Execute a single OmniParser HTTP request."""
     image_b64 = base64.b64encode(img_bytes).decode("utf-8")
     url = omniparser_url.rstrip("/") + "/parse/"
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    # Try Cloud Run IAM auth
     id_token = _get_id_token(omniparser_url)
     if id_token:
         headers["Authorization"] = f"Bearer {id_token}"
@@ -131,13 +207,16 @@ async def parse_screenshot(
     except httpx.TimeoutException:
         logger.warning("OmniParser request timed out after %.1fs", timeout)
         return None
+    except httpx.HTTPStatusError as e:
+        logger.warning("OmniParser HTTP %d: %s", e.response.status_code, e.response.text[:200])
+        return None
     except Exception as e:
         logger.warning("OmniParser request failed: %s", e)
         return None
 
     elapsed = time.monotonic() - start
     parsed_content_list = data.get("parsed_content_list", [])
-    screen_info = _build_screen_info(parsed_content_list)
+    screen_info = _build_screen_info(parsed_content_list, confidence_threshold)
     som_image_base64 = data.get("som_image_base64", "")
     server_latency = data.get("latency", 0.0)
 
@@ -149,18 +228,12 @@ async def parse_screenshot(
     )
 
     logger.info(
-        "OmniParser: %d elements detected in %.2fs (server: %.2fs)",
+        "OmniParser: %d elements detected (%d after confidence filter) in %.2fs (server: %.2fs)",
         len(parsed_content_list),
+        screen_info.count("\n") + (1 if screen_info else 0),
         elapsed,
         server_latency,
     )
-
-    # Store in cache (evict oldest if full)
-    if use_cache:
-        if len(_cache) >= _CACHE_MAX_SIZE:
-            oldest_key = next(iter(_cache))
-            del _cache[oldest_key]
-        _cache[key] = result
 
     return result
 

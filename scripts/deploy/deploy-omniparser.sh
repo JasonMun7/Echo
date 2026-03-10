@@ -16,7 +16,7 @@ if [ -n "$BUILD_FIRST" ]; then
   section "Build OmniParser Image"
   step "Building echo-omniparser with Cloud Build..."
   echo ""
-  gcloud builds submit . \
+  gcloud builds submit OmniParser \
     --config=scripts/deploy/cloudbuild.omniparser.yaml \
     --project="$PROJECT_ID" \
     --substitutions="_IMAGE_TAG=$IMAGE_TAG"
@@ -41,6 +41,8 @@ gcloud run deploy echo-omniparser \
   --min-instances 1 \
   --max-instances 1 \
   --concurrency 1 \
+  --timeout 60 \
+  --cpu-boost \
   --set-env-vars "BOX_TRESHOLD=0.05,CAPTION_MODEL_NAME=florence2" \
   --project="$PROJECT_ID"
 

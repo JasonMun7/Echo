@@ -1,7 +1,8 @@
 # OmniParser Cloud Run Dockerfile
 # GPU-enabled container with YOLO + Florence2 model weights baked in.
 #
-# Build: docker build -f OmniParser/Dockerfile.cloudrun -t echo-omniparser .
+# Build (from OmniParser dir):
+#   docker build -f Dockerfile.cloudrun -t echo-omniparser .
 # Run locally (CPU): docker run -p 8080:8080 echo-omniparser
 # Run locally (GPU): docker run --gpus all -p 8080:8080 echo-omniparser
 
@@ -23,18 +24,29 @@ WORKDIR /app
 # Install Python dependencies
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir fastapi uvicorn
 
 # Copy OmniParser source
 COPY util/ /app/util/
 COPY omniparserserver/ /app/omniparserserver/
 
-# Download model weights (baked into image for fast cold starts)
-# Florence2 caption model + YOLO icon detection model
-RUN mkdir -p /app/weights/icon_detect /app/weights/icon_caption_florence
-RUN pip install --no-cache-dir huggingface_hub && \
-    python -c "from huggingface_hub import snapshot_download; \
-    snapshot_download('microsoft/OmniParser-v2.0', local_dir='/app/weights', allow_patterns=['icon_detect/*', 'icon_caption_florence/*'])"
+# Copy pre-downloaded model weights (avoids HuggingFace download at build time)
+COPY weights/icon_detect/ /app/weights/icon_detect/
+COPY weights/icon_caption_florence/ /app/weights/icon_caption_florence/
+
+# Pre-cache the Florence-2 processor and remote code so startup doesn't need network
+RUN python -c "\
+from transformers import AutoProcessor, AutoModelForCausalLM; \
+import torch; \
+processor = AutoProcessor.from_pretrained('microsoft/Florence-2-base', trust_remote_code=True); \
+model = AutoModelForCausalLM.from_pretrained('/app/weights/icon_caption_florence', torch_dtype=torch.float32, trust_remote_code=True); \
+del model, processor; \
+print('Florence2 processor and remote code cached successfully')"
+
+# Pre-download EasyOCR detection + recognition models so startup is offline
+RUN python -c "\
+import easyocr; \
+reader = easyocr.Reader(['en'], gpu=False); \
+print('EasyOCR models cached successfully')"
 
 ENV PORT=8080
 
