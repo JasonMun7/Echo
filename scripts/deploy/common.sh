@@ -9,9 +9,12 @@ set -e
 # ------------------------------------------------------------------------------
 export R="\033[0m"
 export BOLD="\033[1m"
-export CETACEAN="\033[38;2;21;10;53m"
-export LAVENDER="\033[38;2;165;119;255m"
-export GHOST="\033[38;2;245;247;252m"
+# Primary (Design System)
+export CETACEAN="\033[38;2;21;10;53m"     # #150A35 Primary Dark
+export LAVENDER="\033[38;2;165;119;255m"  # #A577FF Primary Accent
+export GHOST="\033[38;2;245;247;252m"     # #F5F7FC Surface
+export CYAN="\033[38;2;33;196;221m"       # #21C4DD Secondary
+# Semantic
 export SUCCESS="\033[38;2;34;197;94m"
 export ERROR="\033[38;2;239;68;68m"
 export MUTED="\033[38;2;107;114;128m"
@@ -77,7 +80,7 @@ load_config() {
   export IMAGE_BASE="gcr.io/${PROJECT_ID}"
 }
 
-# Echo header (optional)
+# Echo header (always shown when common.sh is sourced)
 echo_header() {
   echo ""
   echo -e "${CETACEAN}${BOLD}"
@@ -89,3 +92,4 @@ echo_header() {
   echo "  ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ "
   echo -e "${R}"
 }
+echo_header
