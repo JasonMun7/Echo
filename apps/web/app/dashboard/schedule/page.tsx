@@ -186,7 +186,7 @@ export default function SchedulePage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-linear-to-r from-[#A577FF] to-[#7C3AED] text-white hover:opacity-90">
+            <Button className="echo-btn-primary">
               <IconPlus className="mr-2 h-4 w-4" />
               New Schedule
             </Button>
@@ -267,7 +267,7 @@ export default function SchedulePage() {
               <Button
                 onClick={createSchedule}
                 disabled={!selectedWorkflow || (!cronPreset && !customCron) || saving}
-                className="bg-linear-to-r from-[#A577FF] to-[#7C3AED] text-white hover:opacity-90"
+                className="echo-btn-primary"
               >
                 {saving ? "Saving..." : "Create Schedule"}
               </Button>
