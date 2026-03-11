@@ -6,8 +6,38 @@ Hosts:
   - /api/synthesize — Workflow synthesis (video, images, description)
   - /api/agent/run — Runner WebSocket (screenshot → action)
 """
+import logging
 import sys
 from pathlib import Path
+
+# Configure logging early so all modules inherit a visible level.
+# Set to INFO by default; override with ECHO_LOG_LEVEL env var.
+import os as _os
+_log_level = getattr(logging, _os.environ.get("ECHO_LOG_LEVEL", "INFO").upper(), logging.INFO)
+logging.basicConfig(
+    level=_log_level,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stderr,
+)
+
+# Resolve GOOGLE_APPLICATION_CREDENTIALS early — Doppler sets a relative path
+# (e.g. "service-account.json") which resolves from the repo root (echo/) but
+# uvicorn may run from EchoPrismAgent/. Search common locations.
+_sa = _os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+if _sa and not _os.path.isabs(_sa) and not _os.path.isfile(_sa):
+    for _candidate in [
+        _os.path.join("..", _sa),            # repo root (echo/) from EchoPrismAgent/
+        _os.path.join("..", "backend", _sa),  # legacy backend/ location
+        _os.path.join("backend", _sa),
+    ]:
+        if _os.path.isfile(_candidate):
+            _os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _os.path.abspath(_candidate)
+            logging.getLogger(__name__).info(
+                "Resolved GOOGLE_APPLICATION_CREDENTIALS -> %s",
+                _os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
+            )
+            break
 
 # Ensure backend (app) and agent are on path
 # Docker: /app/backend, /app/agent | Local: repo root

@@ -158,9 +158,20 @@ def parse_action(text: str) -> dict[str, Any] | None:
             break
 
     if not action_line:
-        return None
+        # Fallback: look for ActionName(...) anywhere in text without "Action:" prefix
+        fb = re.search(
+            r"\b(Click|RightClick|DoubleClick|ClickAndType|Drag|Scroll|Type|Hotkey|Wait|PressKey|Navigate|OpenApp|FocusApp|Finished|CallUser|Hover|SelectOption)\s*\((.*?)\)",
+            text,
+            re.IGNORECASE,
+        )
+        if fb:
+            action_line = f"Action: {fb.group(1)}({fb.group(2)})"
+            logger.debug("Recovered action from text without Action: prefix: %s", action_line[:120])
+        else:
+            logger.debug("No Action: line found in VLM output")
+            return None
 
-    # Match ActionName(...) from the action line
+    # Match ActionName(...) from the action line — allow optional space before parens
     m = re.search(
         r"(?:Action):\s*(\w+)\s*\((.*?)\)\s*\.?$",
         action_line,
@@ -169,6 +180,20 @@ def parse_action(text: str) -> dict[str, Any] | None:
     if not m:
         m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
     if not m:
+        # Try: "Action: Click 500, 300" (no parens)
+        m = re.search(r"(?:Action):\s*(Click|RightClick|DoubleClick|Hover)\s+([\d,\s]+)$", action_line, re.IGNORECASE)
+        if m:
+            # Wrap the coords so downstream parsing works
+            action_line = f"Action: {m.group(1)}({m.group(2)})"
+            m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
+    if not m:
+        # Try: "Action: OpenApp IntelliJ IDEA" (no parens, string arg)
+        m = re.search(r'(?:Action):\s*(OpenApp|FocusApp|PressKey|Navigate)\s+["\']?(.+?)["\']?\s*$', action_line, re.IGNORECASE)
+        if m:
+            action_line = f'Action: {m.group(1)}("{m.group(2)}")'
+            m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
+    if not m:
+        logger.debug("Could not match ActionName(params) in: %s", action_line[:200])
         return None
 
     name = m.group(1).strip().lower()
@@ -200,6 +225,21 @@ def parse_action(text: str) -> dict[str, Any] | None:
             eid = _parse_element_id(args_str)
             if eid is not None:
                 result["element_id"] = eid
+    elif name == "clickandtype":
+        # ClickAndType(element_id, "text") or ClickAndType(x, y, "text")
+        # Extract the quoted text content (last quoted string argument)
+        content_m = re.search(r'["\']([^"\']*)["\']', args_str)
+        content = content_m.group(1) if content_m else ""
+        # Remove the text content portion to parse coords/element_id
+        coord_part = args_str[:content_m.start()].rstrip(", ") if content_m else args_str
+        coords = _parse_coords_multi(coord_part, 2)
+        if coords:
+            result["x"], result["y"] = coords[0], coords[1]
+        else:
+            eid = _parse_element_id(coord_part)
+            if eid is not None:
+                result["element_id"] = eid
+        result["content"] = content
     elif name == "drag":
         # Try named params first (start_box / end_box from UI-TARS format)
         start_m = re.search(r"start_box\s*=\s*['\"]?(.+?)['\"]?\s*(?:,\s*end_box|$)", args_str, re.IGNORECASE)

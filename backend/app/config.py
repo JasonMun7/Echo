@@ -26,9 +26,12 @@ if _creds and not os.path.isabs(_creds):
     _creds_path = Path(_creds)
     if not _creds_path.is_file():
         _backend_dir = Path(__file__).resolve().parent.parent
-        _alt = _backend_dir / _creds
-        if _alt.is_file():
-            _creds = str(_alt)
+        # Check project root (../ from backend/) first, then backend/ itself
+        for _search_dir in [_backend_dir.parent, _backend_dir]:
+            _alt = _search_dir / _creds
+            if _alt.is_file():
+                _creds = str(_alt)
+                break
 GOOGLE_APPLICATION_CREDENTIALS = _creds
 if _creds:
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _creds

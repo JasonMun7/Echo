@@ -156,6 +156,12 @@ async def agent_run_ws(
 
                 if is_deterministic(step):
                     action = (step.get("action") or "").lower().replace("_", "")
+                    logger.info(
+                        "WS step %d: deterministic %r, params=%s",
+                        step_index,
+                        step.get("action"),
+                        step.get("params", {}),
+                    )
                     if action == "apicall" or step.get("action") == "api_call":
                         ok, err = await execute_api_call(step, uid, db)
                         if ok:
@@ -168,6 +174,11 @@ async def agent_run_ws(
                             await send({"type": "error", "message": err or "api_call failed"})
                     else:
                         action_dict = step_to_action(step)
+                        logger.info(
+                            "WS step %d: execute action=%s",
+                            step_index,
+                            action_dict,
+                        )
                         await send({
                             "type": "action",
                             "action": action_dict,
@@ -198,6 +209,7 @@ async def agent_run_ws(
                     owner_uid=uid,
                     db=db,
                     cached_prompt=cached_prompt,
+                    last_error_from_client=last_error,
                 )
 
                 if result == "finished":
