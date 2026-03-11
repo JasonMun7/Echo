@@ -11,12 +11,16 @@ ECHO_GCP_PROJECT_ID = os.getenv("ECHO_GCP_PROJECT_ID", "")
 _defaults = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",   # desktop app (Vite dev)
+    "http://localhost:5173",  # desktop app (Vite dev)
     "http://127.0.0.1:5173",
 ]
 _origin = os.getenv("FRONTEND_ORIGIN", "").strip()
 _extra = os.getenv("CORS_ORIGINS", "").strip()
-_origins = _defaults + ([_origin] if _origin else []) + [o.strip() for o in _extra.split(",") if o.strip()]
+_origins = (
+    _defaults
+    + ([_origin] if _origin else [])
+    + [o.strip() for o in _extra.split(",") if o.strip()]
+)
 CORS_ORIGINS = ",".join(_origins)
 # Optional: path to service account JSON. Needed for GCS signed URLs and Firebase when using
 # gcloud auth application-default login (user creds can't sign). Leave unset on Cloud Run (uses ADC).

@@ -10,23 +10,26 @@
   },
   "dependencies": {
     "@echo/types": "workspace:*",
-    "ws": "^8.18.0",
     "@nut-tree-fork/nut-js": "^4.2.6",
     "@tabler/icons-react": "^3.37.1",
+    "motion": "^12.35.2",
+    "ogl": "^1.0.11",
     "playwright": "^1.58.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.10",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.5.10",
     "@vitejs/plugin-react": "^4.0.0",
     "electron": "^33.0.0",
     "electron-vite": "^2.3.0",
+    "shadcn": "^4.0.3",
     "typescript": "^5",
     "vite": "^5.0.0"
   }

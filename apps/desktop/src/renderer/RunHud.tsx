@@ -85,9 +85,9 @@ export default function RunHud({
         minHeight: "100%",
         boxSizing: "border-box",
         borderRadius: 12,
-        background: "rgba(245, 247, 252, 0.98)",
+        background: "var(--echo-surface-solid)",
         border: "1px solid rgba(165, 119, 255, 0.2)",
-        boxShadow: "0 4px 24px rgba(21, 10, 53, 0.12)",
+        boxShadow: "var(--echo-card-shadow)",
         overflow: "hidden",
       }}
     >
@@ -111,7 +111,7 @@ export default function RunHud({
           style={{
             fontSize: 14,
             fontWeight: 700,
-            color: "#150A35",
+            color: "var(--echo-text)",
           }}
         >
           EchoPrism
@@ -146,7 +146,7 @@ export default function RunHud({
             style={{
               fontSize: 11,
               fontFamily: "monospace",
-              color: "#150A35",
+              color: "var(--echo-text)",
               wordBreak: "break-all",
             }}
           >
@@ -181,7 +181,7 @@ export default function RunHud({
           Thought
         </div>
         {thoughts.length === 0 ? (
-          <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>
+          <p style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0 }}>
             EchoPrism is taking control…
           </p>
         ) : (
@@ -190,12 +190,12 @@ export default function RunHud({
               key={i}
               style={{
                 fontSize: 11,
-                color: "#150A35",
+                color: "var(--echo-text)",
                 marginBottom: 8,
                 lineHeight: 1.5,
               }}
             >
-              <span style={{ color: "#9ca3af" }}>Step {e.step + 1}: </span>
+              <span style={{ color: "var(--echo-text-secondary)" }}>Step {e.step + 1}: </span>
               {e.thought.slice(0, 150)}
               {e.thought.length > 150 ? "…" : ""}
             </div>
@@ -214,10 +214,10 @@ export default function RunHud({
             appRegion: "no-drag",
           } as CSSProperties}
         >
-          <p style={{ fontSize: 11, fontWeight: 600, color: "#150A35", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--echo-text)", margin: "0 0 8px" }}>
             EchoPrism needs your help
           </p>
-          <p style={{ fontSize: 10, color: "#6b7280", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 10, color: "var(--echo-text-secondary)", margin: "0 0 8px" }}>
             {callUserReason}
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -234,8 +234,8 @@ export default function RunHud({
                 padding: "8px 12px",
                 fontSize: 12,
                 outline: "none",
-                background: "white",
-                color: "#150A35",
+                background: "var(--echo-input-bg)",
+                color: "var(--echo-text)",
               }}
             />
             <button
@@ -269,8 +269,8 @@ export default function RunHud({
           style={{
             ...btnSecondary,
             border: "1px solid rgba(165, 119, 255, 0.4)",
-            background: "#F5F7FC",
-            color: "#150A35",
+            background: "var(--echo-input-bg)",
+            color: "var(--echo-text)",
           }}
         >
           {runPaused ? <IconPlayerPlay size={14} /> : <IconPlayerPause size={14} />}
@@ -292,8 +292,8 @@ export default function RunHud({
             padding: "8px 12px",
             fontSize: 12,
             outline: "none",
-            background: "white",
-            color: "#150A35",
+            background: "var(--echo-input-bg)",
+            color: "var(--echo-text)",
           }}
         />
         <button
@@ -326,7 +326,7 @@ const btnBase = {
 const btnSecondary = { ...btnBase };
 const btnPrimary = {
   ...btnBase,
-  background: "linear-gradient(to right, #150A35, #A577FF)",
+  background: "linear-gradient(to right, #7C3AED, #A577FF)",
   color: "white",
 };
 const btnDanger = {
