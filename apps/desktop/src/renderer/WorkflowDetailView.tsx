@@ -133,7 +133,7 @@ export default function WorkflowDetailView({
         >
           <IconArrowLeft size={18} /> Back
         </button>
-        <p style={{ color: "#6b7280", fontSize: 14 }}>Loading workflow…</p>
+        <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>Loading workflow…</p>
       </div>
     );
   }
@@ -187,7 +187,7 @@ export default function WorkflowDetailView({
             style={{
               background: "none",
               border: "none",
-              color: "var(--echo-cetacean)",
+              color: "var(--echo-text)",
               opacity: 0.7,
               display: "flex",
               alignItems: "center",
@@ -200,7 +200,7 @@ export default function WorkflowDetailView({
             style={{
               fontSize: "1.5rem",
               fontWeight: 600,
-              color: "var(--echo-cetacean)",
+              color: "var(--echo-text)",
               margin: 0,
             }}
           >
@@ -249,7 +249,7 @@ export default function WorkflowDetailView({
       {/* Info card */}
       <section className="echo-card" style={{ padding: 20, marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, color: "var(--echo-cetacean)" }}>
+          <span style={{ fontSize: 14, color: "var(--echo-text)" }}>
             Status:{" "}
             <strong
               style={{
@@ -284,11 +284,11 @@ export default function WorkflowDetailView({
           )}
         </div>
         {workflow.source_recording_id && (
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>
+          <p style={{ fontSize: 13, color: "var(--echo-text-secondary)", marginTop: 8 }}>
             Source:{" "}
             <code
               style={{
-                background: "rgba(21,10,53,0.05)",
+                background: "rgba(165,119,255,0.08)",
                 padding: "1px 6px",
                 borderRadius: 4,
                 fontSize: 12,
@@ -307,7 +307,7 @@ export default function WorkflowDetailView({
           style={{
             fontSize: "1rem",
             fontWeight: 600,
-            color: "var(--echo-cetacean)",
+            color: "var(--echo-text)",
             marginBottom: 12,
             marginTop: 0,
           }}
@@ -315,7 +315,7 @@ export default function WorkflowDetailView({
           Steps ({steps.length})
         </h3>
         {steps.length === 0 ? (
-          <p style={{ color: "#6b7280", fontSize: 14 }}>No steps defined.</p>
+          <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>No steps defined.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {steps.map((step, i) => (
@@ -328,7 +328,7 @@ export default function WorkflowDetailView({
                   padding: 12,
                   borderRadius: 8,
                   border: "1px solid rgba(165,119,255,0.15)",
-                  background: "rgba(245,247,252,0.5)",
+                  background: "var(--echo-surface)",
                 }}
               >
                 <span
@@ -368,7 +368,7 @@ export default function WorkflowDetailView({
                     <p
                       style={{
                         fontSize: 13,
-                        color: "var(--echo-cetacean)",
+                        color: "var(--echo-text)",
                         margin: "4px 0 0",
                         lineHeight: 1.4,
                       }}
@@ -381,7 +381,7 @@ export default function WorkflowDetailView({
                       style={{
                         marginTop: 6,
                         fontSize: 11,
-                        color: "#6b7280",
+                        color: "var(--echo-text-secondary)",
                         fontFamily: "monospace",
                       }}
                     >
@@ -392,7 +392,7 @@ export default function WorkflowDetailView({
                             key={k}
                             style={{
                               display: "inline-block",
-                              background: "rgba(0,0,0,0.04)",
+                              background: "rgba(165,119,255,0.1)",
                               padding: "1px 6px",
                               borderRadius: 3,
                               marginRight: 4,

@@ -169,11 +169,11 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
   const selectStyle: React.CSSProperties = {
     width: "100%",
     borderRadius: 6,
-    border: "1px solid rgba(165,119,255,0.4)",
-    background: "white",
+    border: "1px solid var(--echo-input-border)",
+    background: "var(--echo-input-bg)",
     padding: "8px 10px",
     fontSize: 13,
-    color: "var(--echo-cetacean)",
+    color: "var(--echo-text)",
     outline: "none",
   };
 
@@ -193,15 +193,15 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
           <button
             type="button"
             onClick={onBack}
-            style={{ background: "none", border: "none", color: "var(--echo-cetacean)", opacity: 0.7, display: "flex", alignItems: "center", padding: 4 }}
+            style={{ background: "none", border: "none", color: "var(--echo-text)", opacity: 0.7, display: "flex", alignItems: "center", padding: 4 }}
           >
             <IconArrowLeft size={20} />
           </button>
           <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--echo-cetacean)", margin: 0 }}>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--echo-text)", margin: 0 }}>
               Scheduled Runs
             </h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>
+            <p style={{ fontSize: 13, color: "var(--echo-text-secondary)", margin: 0 }}>
               Automatically run workflows on a schedule.
             </p>
           </div>
@@ -243,13 +243,13 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
       {/* Create form */}
       {showCreate && (
         <section className="echo-card" style={{ padding: 20, marginBottom: 20 }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--echo-cetacean)", marginTop: 0, marginBottom: 16 }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--echo-text)", marginTop: 0, marginBottom: 16 }}>
             Create Schedule
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {/* Workflow picker */}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "rgba(21,10,53,0.7)", marginBottom: 4 }}>Workflow</label>
+              <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Workflow</label>
               <select value={selectedWorkflow} onChange={(e) => setSelectedWorkflow(e.target.value)} style={selectStyle}>
                 <option value="">Select a workflow…</option>
                 {activeWorkflows.map((w) => (
@@ -257,7 +257,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
                 ))}
               </select>
               {activeWorkflows.length === 0 && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                <p style={{ fontSize: 12, color: "var(--echo-text-secondary)", marginTop: 4 }}>
                   No active workflows available. Activate a workflow first.
                 </p>
               )}
@@ -265,7 +265,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
 
             {/* Frequency */}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "rgba(21,10,53,0.7)", marginBottom: 4 }}>Frequency</label>
+              <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Frequency</label>
               <select value={cronPreset} onChange={(e) => setCronPreset(e.target.value)} style={selectStyle}>
                 {CRON_PRESETS.map((p) => (
                   <option key={p.label} value={p.value}>{p.label}</option>
@@ -276,7 +276,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
             {/* Custom cron */}
             {cronPreset === "__custom__" && (
               <div>
-                <label style={{ display: "block", fontSize: 12, color: "rgba(21,10,53,0.7)", marginBottom: 4 }}>Custom Cron Expression</label>
+                <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Custom Cron Expression</label>
                 <input
                   type="text"
                   value={customCron}
@@ -292,7 +292,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
 
             {/* Timezone */}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "rgba(21,10,53,0.7)", marginBottom: 4 }}>Timezone</label>
+              <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Timezone</label>
               <select value={timezone} onChange={(e) => setTimezone(e.target.value)} style={selectStyle}>
                 {TIMEZONES.map((tz) => (
                   <option key={tz.value} value={tz.value}>{tz.label}</option>
@@ -326,7 +326,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
 
       {/* Schedules list */}
       {loading ? (
-        <p style={{ color: "#6b7280", fontSize: 14 }}>Loading schedules…</p>
+        <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>Loading schedules…</p>
       ) : schedules.length === 0 ? (
         <div
           style={{
@@ -342,7 +342,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
         >
           <IconCalendarClock size={48} style={{ opacity: 0.3 }} />
           <div>
-            <p style={{ fontWeight: 500, color: "var(--echo-cetacean)", margin: 0, marginBottom: 4 }}>No schedules yet</p>
+            <p style={{ fontWeight: 500, color: "var(--echo-text)", margin: 0, marginBottom: 4 }}>No schedules yet</p>
             <p style={{ fontSize: 13, margin: 0 }}>Create a schedule to automatically run workflows.</p>
           </div>
         </div>
@@ -378,7 +378,7 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
                   <IconClock size={20} />
                 </div>
                 <div>
-                  <p style={{ fontWeight: 500, color: "var(--echo-cetacean)", margin: 0, fontSize: 14 }}>
+                  <p style={{ fontWeight: 500, color: "var(--echo-text)", margin: 0, fontSize: 14 }}>
                     {sched.workflowName}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>

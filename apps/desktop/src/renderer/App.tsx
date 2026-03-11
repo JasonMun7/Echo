@@ -15,6 +15,8 @@ import {
   IconSend,
   IconCalendarClock,
   IconChevronRight,
+  IconSun,
+  IconMoon,
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
 import { EchoPrismVoiceModal } from "./EchoPrismVoiceModal";
@@ -24,6 +26,11 @@ import WorkflowDetailView from "./WorkflowDetailView";
 import WorkflowEditView from "./WorkflowEditView";
 import ScheduleView from "./ScheduleView";
 import echoLogo from "./assets/echo_logo.png";
+import GradientText from "./reactbits/GradientText";
+import ShinyText from "./reactbits/ShinyText";
+import SpotlightCard from "./reactbits/SpotlightCard";
+import Orb from "./reactbits/Orb";
+import { useTheme } from "./useTheme";
 
 declare global {
   interface Window {
@@ -132,6 +139,7 @@ const AGENT_URL =
     ?.VITE_ECHO_AGENT_URL ?? API_URL;
 
 function MainWindowApp() {
+  const { theme, toggleTheme } = useTheme();
   const [screenPermissionRequired, setScreenPermissionRequired] =
     useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -884,7 +892,7 @@ function MainWindowApp() {
           justifyContent: "center",
           height: "100vh",
           padding: 32,
-          background: "var(--echo-bg, #F5F7FC)",
+          background: "var(--echo-bg)",
         }}
       >
         <div
@@ -915,7 +923,7 @@ function MainWindowApp() {
             style={{
               fontSize: "1.25rem",
               fontWeight: 700,
-              color: "#150A35",
+              color: "var(--echo-text)",
               marginBottom: 8,
             }}
           >
@@ -924,7 +932,7 @@ function MainWindowApp() {
           <p
             style={{
               fontSize: 14,
-              color: "#6b7280",
+              color: "var(--echo-text-secondary)",
               marginBottom: 8,
               lineHeight: 1.6,
             }}
@@ -935,13 +943,13 @@ function MainWindowApp() {
           <p
             style={{
               fontSize: 13,
-              color: "#6b7280",
+              color: "var(--echo-text-secondary)",
               marginBottom: 24,
               lineHeight: 1.6,
             }}
           >
             Go to{" "}
-            <strong style={{ color: "#150A35" }}>
+            <strong style={{ color: "var(--echo-text)" }}>
               System Settings → Privacy &amp; Security → Screen Recording
             </strong>{" "}
             and enable Echo.
@@ -983,69 +991,29 @@ function MainWindowApp() {
 
   if (!token) {
     return (
-      <div style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 8,
-          }}
-        >
-          <img
-            src={echoLogo}
-            alt="Echo"
-            width={56}
-            height={56}
-            style={{ width: 56, height: 56, objectFit: "contain" }}
+      <div style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
+        {/* Animated background */}
+        <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
+          <Orb
+            hue={0}
+            hoverIntensity={0.3}
+            rotateOnHover
+            backgroundColor={theme === "dark" ? "#0a0414" : "#f5f0ff"}
           />
-          <h1
-            style={{
-              fontSize: "1.5rem",
-              fontWeight: 600,
-              color: "#150A35",
-              margin: 0,
-            }}
-          >
-            Echo Desktop
-          </h1>
         </div>
-        <p style={{ color: "#6b7280", marginBottom: 24, fontSize: 14 }}>
-          Sign in to access your workflows and run them locally.
-        </p>
-        <section className="echo-card" style={{ padding: 24 }}>
-          <p style={{ color: "#150A35", marginBottom: 16 }}>
-            Sign in with your browser to continue.
-          </p>
-          <button
-            type="button"
-            className="echo-btn-primary"
-            onClick={handleSignIn}
-          >
-            <IconLogin
-              size={18}
-              style={{ marginRight: 8, verticalAlign: "middle" }}
-            />
-            Sign in
-          </button>
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div style={{ padding: 24, maxWidth: 800, margin: "0 auto" }}>
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPage("home")}>
+        <div style={{
+          position: "relative",
+          zIndex: 1,
+          padding: 24,
+          maxWidth: 480,
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
             <img
               src={echoLogo}
               alt="Echo"
@@ -1053,21 +1021,83 @@ function MainWindowApp() {
               height={56}
               style={{ width: 56, height: 56, objectFit: "contain" }}
             />
-            <div>
-              <h1
-                style={{
-                  fontSize: "1.5rem",
-                  fontWeight: 600,
-                  color: "#150A35",
-                  marginBottom: 4,
-                  marginTop: 0,
-                }}
-              >
+            <GradientText
+              colors={["#A577FF", "#7C3AED", "#21C4DD", "#A577FF"]}
+              animationSpeed={6}
+            >
+              <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: 0 }}>
                 Echo Desktop
               </h1>
-            <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>
-                Signed in · EchoPrism workflow automation
-              </p>
+            </GradientText>
+          </div>
+          <p style={{ color: "var(--echo-text-secondary)", marginBottom: 32, fontSize: 14, textAlign: "center" }}>
+            Sign in to access your workflows and run them locally.
+          </p>
+          <SpotlightCard style={{ padding: 32, width: "100%" }}>
+            <p style={{ color: "var(--echo-text)", marginBottom: 20, fontSize: 14 }}>
+              Sign in with your browser to continue.
+            </p>
+            <button
+              type="button"
+              className="echo-btn-primary"
+              onClick={handleSignIn}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            >
+              <IconLogin size={18} />
+              Sign in
+            </button>
+          </SpotlightCard>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Animated background */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
+        <Orb
+          hue={0}
+          hoverIntensity={0.2}
+          rotateOnHover
+          backgroundColor={theme === "dark" ? "#0a0414" : "#f5f0ff"}
+        />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, padding: 24, maxWidth: 800, margin: "0 auto" }}>
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 28,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPage("home")}>
+            <img
+              src={echoLogo}
+              alt="Echo"
+              width={48}
+              height={48}
+              style={{ width: 48, height: 48, objectFit: "contain" }}
+            />
+            <div>
+              <GradientText
+                colors={["#A577FF", "#7C3AED", "#21C4DD", "#A577FF"]}
+                animationSpeed={6}
+              >
+                <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
+                  Echo Desktop
+                </h1>
+              </GradientText>
+              <ShinyText
+                text="Signed in · EchoPrism workflow automation"
+                speed={3}
+                color="#5a5470"
+                shineColor="#A577FF"
+                className="header-subtitle"
+              />
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1120,6 +1150,14 @@ function MainWindowApp() {
               />
               Sign out
             </button>
+            <button
+              type="button"
+              className="echo-theme-toggle"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+            </button>
           </div>
         </div>
 
@@ -1127,15 +1165,14 @@ function MainWindowApp() {
         {page === "home" && (
           <>
         {/* Record section — TOP */}
-        <section
-          className="echo-card"
+        <SpotlightCard
           style={{ padding: 20, marginBottom: 20 }}
         >
           <h2
             style={{
               fontSize: "1rem",
               fontWeight: 600,
-              color: "var(--echo-cetacean)",
+              color: "var(--echo-lavender)",
               marginBottom: 12,
               display: "flex",
               alignItems: "center",
@@ -1151,7 +1188,7 @@ function MainWindowApp() {
             <>
               <p
                 style={{
-                  color: "var(--echo-muted)",
+                  color: "var(--echo-text-secondary)",
                   fontSize: 13,
                   marginBottom: 12,
                 }}
@@ -1179,7 +1216,7 @@ function MainWindowApp() {
               <span
                 style={{
                   fontSize: 13,
-                  color: "var(--echo-muted)",
+                  color: "var(--echo-text-secondary)",
                   flexGrow: 1,
                 }}
               >
@@ -1231,11 +1268,10 @@ function MainWindowApp() {
               {recordStatus}
             </p>
           )}
-        </section>
+        </SpotlightCard>
 
         {/* Workflows list */}
-        <section
-          className="echo-card"
+        <SpotlightCard
           style={{ padding: 20, marginBottom: 20 }}
         >
           <div
@@ -1250,7 +1286,7 @@ function MainWindowApp() {
               style={{
                 fontSize: "1rem",
                 fontWeight: 600,
-                color: "#150A35",
+                color: "var(--echo-lavender)",
                 margin: 0,
               }}
             >
@@ -1283,11 +1319,11 @@ function MainWindowApp() {
             </button>
           </div>
           {workflowsLoading ? (
-            <p style={{ color: "#6b7280", fontSize: 14 }}>Loading workflows…</p>
+          <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>Loading workflows…</p>
           ) : workflowsError ? (
             <p style={{ color: "#ef4444", fontSize: 14 }}>{workflowsError}</p>
           ) : workflows.length === 0 ? (
-            <p style={{ color: "#6b7280", fontSize: 14 }}>
+            <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>
               No workflows yet. Record a screen to create one.
             </p>
           ) : (
@@ -1302,10 +1338,10 @@ function MainWindowApp() {
                     borderRadius: 8,
                     border: isSelected
                       ? "2px solid #A577FF"
-                      : "1px solid rgba(165,119,255,0.2)",
+                      : "1px solid rgba(165,119,255,0.12)",
                     background: isSelected
-                      ? "rgba(165,119,255,0.1)"
-                      : "white",
+                      ? "rgba(165,119,255,0.12)"
+                      : "var(--echo-surface)",
                     display: "flex",
                     alignItems: "center",
                     overflow: "hidden",
@@ -1333,7 +1369,7 @@ function MainWindowApp() {
                       width: 16,
                       height: 16,
                       borderRadius: "50%",
-                      border: isSelected ? "2px solid #A577FF" : "2px solid #d1d5db",
+                      border: isSelected ? "2px solid #A577FF" : "2px solid #342052",
                       background: isSelected ? "#A577FF" : "transparent",
                       display: "flex",
                       alignItems: "center",
@@ -1360,7 +1396,7 @@ function MainWindowApp() {
                     }}
                   >
                     <span
-                      style={{ fontWeight: 500, color: "#150A35", flexGrow: 1 }}
+                      style={{ fontWeight: 500, color: "var(--echo-text)", flexGrow: 1 }}
                     >
                       {w.name ?? w.id}
                     </span>
@@ -1385,7 +1421,7 @@ function MainWindowApp() {
                     )}
                     {w.status && (
                       <span
-                        style={{ fontSize: 12, color: "#6b7280", flexShrink: 0 }}
+                        style={{ fontSize: 12, color: "var(--echo-text-secondary)", flexShrink: 0 }}
                       >
                         ({w.status})
                       </span>
@@ -1398,7 +1434,7 @@ function MainWindowApp() {
             </div>
           )}
           {fetching && (
-            <p style={{ color: "#6b7280", fontSize: 13, marginTop: 8 }}>
+            <p style={{ color: "var(--echo-text-secondary)", fontSize: 13, marginTop: 8 }}>
               Loading workflow…
             </p>
           )}
@@ -1407,18 +1443,18 @@ function MainWindowApp() {
               {fetchError}
             </p>
           )}
-        </section>
+        </SpotlightCard>
 
         {/* Run workflow */}
-        <section className="echo-card" style={{ padding: 20 }}>
+        <SpotlightCard style={{ padding: 20 }}>
           {!selectedWorkflowId && (
-            <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
+            <p style={{ color: "var(--echo-text-secondary)", fontSize: 13, marginBottom: 12 }}>
               Select a workflow using the radio button to run it locally.
             </p>
           )}
           {selectedWorkflowId && workflow && (
-            <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
-              Ready to run: <strong style={{ color: "#150A35" }}>{String(workflow.name ?? workflow.id)}</strong> ({steps.length} steps)
+            <p style={{ color: "var(--echo-text-secondary)", fontSize: 13, marginBottom: 12 }}>
+              Ready to run: <strong style={{ color: "var(--echo-text)" }}>{String(workflow.name ?? workflow.id)}</strong> ({steps.length} steps)
             </p>
           )}
           <button
@@ -1439,9 +1475,9 @@ function MainWindowApp() {
               style={{
                 marginTop: 12,
                 padding: 12,
-                background: "#F5F3FF",
+                background: "rgba(165,119,255,0.08)",
                 borderRadius: 8,
-                border: "1px solid #A577FF30",
+                border: "1px solid rgba(165,119,255,0.2)",
               }}
             >
               <p
@@ -1482,10 +1518,10 @@ function MainWindowApp() {
                   style={{
                     marginTop: 12,
                     padding: 12,
-                    background: "#F5F7FC",
+                    background: "var(--echo-input-bg)",
                     borderRadius: 8,
                     fontSize: 12,
-                    color: "#6b7280",
+                    color: "var(--echo-text-secondary)",
                     maxHeight: 120,
                     overflow: "auto",
                   }}
@@ -1525,7 +1561,7 @@ function MainWindowApp() {
               )}
             </div>
           )}
-        </section>
+        </SpotlightCard>
           </>
         )}
 
@@ -1570,10 +1606,11 @@ function MainWindowApp() {
             left: 20,
             width: 340,
             maxHeight: 480,
-            background: "white",
+            background: "var(--echo-surface-solid)",
             borderRadius: 16,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-            border: "1px solid rgba(165,119,255,0.3)",
+            boxShadow: "var(--echo-card-shadow)",
+            border: "1px solid rgba(165,119,255,0.2)",
+            backdropFilter: "blur(20px)",
             display: "flex",
             flexDirection: "column",
             zIndex: 1000,
@@ -1588,7 +1625,7 @@ function MainWindowApp() {
               alignItems: "center",
             }}
           >
-            <span style={{ fontWeight: 700, fontSize: 14, color: "#150A35" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--echo-text)" }}>
               EchoPrism Chat
               {textChatConnected ? (
                 <span
@@ -1636,8 +1673,8 @@ function MainWindowApp() {
                 key={i}
                 style={{
                   alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  background: m.role === "user" ? "#A577FF" : "#F5F3FF",
-                  color: m.role === "user" ? "white" : "#150A35",
+                  background: m.role === "user" ? "linear-gradient(135deg, #A577FF, #7C3AED)" : "rgba(165,119,255,0.1)",
+                  color: m.role === "user" ? "white" : "var(--echo-text)",
                   borderRadius: 12,
                   padding: "8px 12px",
                   fontSize: 13,
@@ -1699,7 +1736,9 @@ function MainWindowApp() {
               style={{
                 flex: 1,
                 borderRadius: 8,
-                border: "1px solid rgba(165,119,255,0.3)",
+                border: "1px solid var(--echo-input-border)",
+                background: "var(--echo-input-bg)",
+                color: "var(--echo-text)",
                 padding: "8px 12px",
                 fontSize: 12,
                 outline: "none",
@@ -1743,14 +1782,15 @@ function MainWindowApp() {
           width: 52,
           height: 52,
           borderRadius: "50%",
-          background: "linear-gradient(135deg, #A577FF, #7C3AED)",
-          border: "none",
+          background: "linear-gradient(135deg, #A577FF, #7C3AED, #5B21B6)",
+          border: "1px solid rgba(165,119,255,0.3)",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "0 4px 16px rgba(165,119,255,0.4)",
+          boxShadow: "0 4px 24px rgba(165,119,255,0.4), 0 0 40px rgba(165,119,255,0.15)",
           zIndex: 999,
+          transition: "all 0.3s ease",
         }}
         title="EchoPrism Voice"
       >

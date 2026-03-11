@@ -91,17 +91,17 @@ function ParamFields({
     width: "100%",
     borderRadius: 6,
     border: "1px solid rgba(165,119,255,0.4)",
-    background: "white",
+    background: "var(--echo-input-bg)",
     padding: "6px 10px",
     fontSize: 13,
     outline: "none",
-    color: "var(--echo-cetacean)",
+    color: "var(--echo-text)",
   };
 
   const labelStyle: React.CSSProperties = {
     display: "block",
     fontSize: 11,
-    color: "rgba(21,10,53,0.6)",
+    color: "var(--echo-text-secondary)",
     marginBottom: 4,
   };
 
@@ -477,7 +477,7 @@ function StepCard({
         padding: 14,
         borderRadius: 8,
         border: "1px solid rgba(165,119,255,0.2)",
-        background: "white",
+        background: "var(--echo-surface)",
       }}
     >
       {/* Reorder buttons */}
@@ -536,17 +536,17 @@ function StepCard({
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
         {/* Action selector */}
         <div>
-          <label style={{ display: "block", fontSize: 11, color: "rgba(21,10,53,0.6)", marginBottom: 4 }}>Action</label>
+          <label style={{ display: "block", fontSize: 11, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Action</label>
           <select
             value={step.action}
             onChange={(e) => onUpdate({ action: e.target.value })}
             style={{
               borderRadius: 6,
               border: "1px solid rgba(165,119,255,0.4)",
-              background: "white",
+              background: "var(--echo-input-bg)",
               padding: "6px 10px",
               fontSize: 13,
-              color: "var(--echo-cetacean)",
+              color: "var(--echo-text)",
             }}
           >
             {ALL_ACTIONS.map((a) => (
@@ -557,7 +557,7 @@ function StepCard({
 
         {/* Context */}
         <div>
-          <label style={{ display: "block", fontSize: 11, color: "rgba(21,10,53,0.6)", marginBottom: 4 }}>Context</label>
+          <label style={{ display: "block", fontSize: 11, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Context</label>
           <textarea
             value={step.context}
             onChange={(e) => onUpdate({ context: e.target.value })}
@@ -567,11 +567,11 @@ function StepCard({
               width: "100%",
               borderRadius: 6,
               border: "1px solid rgba(165,119,255,0.4)",
-              background: "white",
+              background: "var(--echo-input-bg)",
               padding: "6px 10px",
               fontSize: 13,
               outline: "none",
-              color: "var(--echo-cetacean)",
+              color: "var(--echo-text)",
               resize: "vertical",
             }}
           />
@@ -592,7 +592,7 @@ function StepCard({
         style={{
           background: "none",
           border: "none",
-          color: "#6b7280",
+          color: "var(--echo-text-secondary)",
           padding: 4,
           flexShrink: 0,
           marginTop: 2,
@@ -795,7 +795,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
         >
           <IconArrowLeft size={18} /> Back
         </button>
-        <p style={{ color: "#6b7280", fontSize: 14 }}>Loading workflow editor…</p>
+        <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>Loading workflow editor…</p>
       </div>
     );
   }
@@ -832,7 +832,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
           <button
             type="button"
             onClick={onBack}
-            style={{ background: "none", border: "none", color: "var(--echo-cetacean)", opacity: 0.7, display: "flex", alignItems: "center", padding: 4, flexShrink: 0 }}
+            style={{ background: "none", border: "none", color: "var(--echo-text)", opacity: 0.7, display: "flex", alignItems: "center", padding: 4, flexShrink: 0 }}
           >
             <IconArrowLeft size={20} />
           </button>
@@ -846,7 +846,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
               minWidth: 0,
               fontSize: "1.5rem",
               fontWeight: 600,
-              color: "var(--echo-cetacean)",
+              color: "var(--echo-text)",
               background: "transparent",
               border: "none",
               outline: "none",
@@ -892,7 +892,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
 
       {/* Steps section */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--echo-cetacean)", margin: 0 }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--echo-text)", margin: 0 }}>
           Steps ({steps.length})
         </h3>
         <div style={{ position: "relative" }}>
@@ -912,10 +912,10 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
                 top: "100%",
                 right: 0,
                 marginTop: 4,
-                background: "white",
+                background: "var(--echo-surface-solid)",
                 borderRadius: 8,
                 border: "1px solid rgba(165,119,255,0.3)",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                boxShadow: "var(--echo-card-shadow)",
                 maxHeight: 280,
                 overflowY: "auto",
                 zIndex: 10,
@@ -936,7 +936,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
                     border: "none",
                     fontSize: 13,
                     fontFamily: "monospace",
-                    color: "var(--echo-cetacean)",
+                    color: "var(--echo-text)",
                   }}
                   onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.background = "rgba(165,119,255,0.08)"; }}
                   onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "none"; }}
@@ -964,7 +964,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
             textAlign: "center",
             borderRadius: 8,
             border: "2px dashed rgba(165,119,255,0.3)",
-            color: "#6b7280",
+            color: "var(--echo-text-secondary)",
             fontSize: 14,
           }}
         >
