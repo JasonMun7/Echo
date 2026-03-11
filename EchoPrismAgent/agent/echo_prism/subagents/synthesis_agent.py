@@ -138,7 +138,7 @@ def _snap_to_nearest_element(
 
 async def _get_omniparser_for_frame(frame_bytes: bytes) -> OmniParserResult | None:
     """Call OmniParser for a synthesis frame if configured."""
-    url = os.environ.get("OMNIPARSER_URL", "")
+    url = os.environ.get("ECHOPRISM_OMNIPARSER_URL", "") or os.environ.get("OMNIPARSER_URL", "")
     if not url:
         return None
     try:

@@ -38,7 +38,30 @@ class OmniParserResult:
     latency: float = 0.0
 
 
-DEFAULT_CONFIDENCE_THRESHOLD = 0.15
+DEFAULT_CONFIDENCE_THRESHOLD = 0.40
+
+# Maximum elements to include in the VLM prompt to avoid context noise
+_MAX_ELEMENTS_FOR_PROMPT = 50
+
+# Minimum element area (fraction of screen) to include — filters near-invisible detections
+_MIN_ELEMENT_AREA = 0.0003  # ~0.03% of screen
+
+
+def _screen_region(cx: float, cy: float) -> str:
+    """Map normalized center (0-1) to a human-readable screen region."""
+    if cy < 0.15:
+        vr = "top"
+    elif cy > 0.85:
+        vr = "bottom"
+    else:
+        vr = "middle"
+    if cx < 0.33:
+        hr = "left"
+    elif cx > 0.67:
+        hr = "right"
+    else:
+        hr = "center"
+    return f"{vr}-{hr}"
 
 
 def _build_screen_info(
@@ -47,33 +70,56 @@ def _build_screen_info(
 ) -> str:
     """Build a human-readable element list for injection into Gemini prompts.
 
-    Filters out low-confidence detections and includes bounding-box dimensions
-    to help the VLM disambiguate similarly-labelled elements.
+    Filters out low-confidence and tiny detections, adds spatial position,
+    ranks by usefulness, and caps at _MAX_ELEMENTS_FOR_PROMPT.
     """
-    lines: list[str] = []
+    candidates: list[tuple[float, int, str]] = []  # (score, idx, line)
     for idx, element in enumerate(parsed_content_list):
-        # Skip low-confidence detections to reduce noise
         confidence = element.get("confidence", 1.0)
         if confidence < confidence_threshold:
             continue
 
-        etype = element.get("type", "unknown")
-        content = element.get("content", "")
-
-        # Compute element size from bbox for disambiguation
         bbox = element.get("bbox")
-        size_hint = ""
-        if bbox and len(bbox) == 4:
-            w = abs(bbox[2] - bbox[0])
-            h = abs(bbox[3] - bbox[1])
-            size_hint = f", size: {w:.0%}x{h:.0%}"
+        if not bbox or len(bbox) != 4:
+            continue
+
+        x_min, y_min, x_max, y_max = [float(v) for v in bbox]
+        w = abs(x_max - x_min)
+        h = abs(y_max - y_min)
+        area = w * h
+
+        # Skip near-invisible elements
+        if area < _MIN_ELEMENT_AREA:
+            continue
+
+        etype = element.get("type", "unknown")
+        content = element.get("content", "").strip()
+        if not content:
+            continue
+
+        # Center in 0-1000 coords and screen region
+        cx = (x_min + x_max) / 2
+        cy = (y_min + y_max) / 2
+        cx_1k = int(cx * 1000)
+        cy_1k = int(cy * 1000)
+        region = _screen_region(cx, cy)
 
         if etype == "text":
-            lines.append(f'ID: {idx}, Text: "{content}"{size_hint}')
+            line = f'ID:{idx} Text:"{content}" pos:({cx_1k},{cy_1k}) region:{region}'
         elif etype == "icon":
-            lines.append(f"ID: {idx}, Icon: {content}{size_hint}")
+            line = f'ID:{idx} Icon:{content} pos:({cx_1k},{cy_1k}) region:{region}'
         else:
-            lines.append(f"ID: {idx}, {etype}: {content}{size_hint}")
+            line = f'ID:{idx} {etype}:{content} pos:({cx_1k},{cy_1k}) region:{region}'
+
+        # Score: larger, higher-confidence elements rank first
+        score = confidence * (area ** 0.5)
+        candidates.append((score, idx, line))
+
+    # Sort by score descending, keep top N
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    lines = [c[2] for c in candidates[:_MAX_ELEMENTS_FOR_PROMPT]]
+    # Re-sort by vertical then horizontal position for readability
+    # (extract pos from line)
     return "\n".join(lines)
 
 
@@ -86,15 +132,71 @@ def _cache_key(img_bytes: bytes) -> str:
     return hashlib.md5(img_bytes).hexdigest()
 
 
-def _get_id_token(url: str) -> str | None:
-    """Attempt to get a Google ID token for service-to-service auth on Cloud Run."""
-    try:
-        import google.auth.transport.requests  # type: ignore
-        import google.oauth2.id_token  # type: ignore
+def _find_service_account() -> str | None:
+    """Find the service-account.json file by searching common locations."""
+    import os
+    from pathlib import Path
 
+    # Explicit env var (absolute path)
+    sa = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if sa and os.path.isabs(sa) and os.path.isfile(sa):
+        return sa
+
+    # Relative path from env var — resolve against known directories
+    filename = sa if sa else "service-account.json"
+    search_dirs = [
+        Path.cwd(),
+        Path(__file__).resolve().parent.parent.parent.parent,  # EchoPrismAgent/
+        Path(__file__).resolve().parent.parent.parent.parent.parent / "backend",  # echo/backend/
+    ]
+    for d in search_dirs:
+        candidate = d / filename
+        if candidate.is_file():
+            return str(candidate.resolve())
+    return None
+
+
+# Cache the token + expiry to avoid re-fetching on every request
+_cached_token: str | None = None
+_cached_token_expiry: float = 0.0
+
+
+def _get_id_token(url: str) -> str | None:
+    """Get a Google ID token for Cloud Run service-to-service auth.
+
+    Uses explicit service account file loading instead of default credentials
+    to avoid issues with relative paths and credential caching.
+    """
+    global _cached_token, _cached_token_expiry
+
+    # Return cached token if still valid (with 60s margin)
+    if _cached_token and time.monotonic() < _cached_token_expiry:
+        return _cached_token
+
+    sa_path = _find_service_account()
+    if not sa_path:
+        logger.warning(
+            "No service-account.json found — OmniParser requests will be unauthenticated. "
+            "Set GOOGLE_APPLICATION_CREDENTIALS to an absolute path."
+        )
+        return None
+
+    try:
+        from google.oauth2 import service_account as sa_mod  # type: ignore
+        import google.auth.transport.requests  # type: ignore
+
+        credentials = sa_mod.IDTokenCredentials.from_service_account_file(
+            sa_path, target_audience=url
+        )
         request = google.auth.transport.requests.Request()
-        return google.oauth2.id_token.fetch_id_token(request, url)
-    except Exception:
+        credentials.refresh(request)
+        _cached_token = credentials.token
+        # ID tokens are valid for ~1 hour; cache for 50 minutes
+        _cached_token_expiry = time.monotonic() + 3000
+        logger.info("OmniParser auth: got ID token from %s", sa_path)
+        return _cached_token
+    except Exception as e:
+        logger.warning("Failed to get ID token from %s: %s", sa_path, e)
         return None
 
 
@@ -227,10 +329,14 @@ async def _do_parse_request(
         latency=server_latency,
     )
 
+    filtered_count = screen_info.count("\n") + (1 if screen_info else 0)
     logger.info(
-        "OmniParser: %d elements detected (%d after confidence filter) in %.2fs (server: %.2fs)",
+        "OmniParser: %d raw elements, %d after filtering (conf>=%.2f, area>=%.4f, max=%d) in %.2fs (server: %.2fs)",
         len(parsed_content_list),
-        screen_info.count("\n") + (1 if screen_info else 0),
+        filtered_count,
+        confidence_threshold,
+        _MIN_ELEMENT_AREA,
+        _MAX_ELEMENTS_FOR_PROMPT,
         elapsed,
         server_latency,
     )
