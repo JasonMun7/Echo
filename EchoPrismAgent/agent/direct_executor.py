@@ -19,32 +19,43 @@ logger = logging.getLogger(__name__)
 def is_deterministic(step: dict[str, Any]) -> bool:
     """
     Returns True if step can be executed directly (no Gemini needed).
-    Browser context: selectors ARE usable; coords are also accepted.
-    api_call steps are always deterministic — they execute integrations directly.
+
+    Click/pointer actions are NEVER deterministic — even when they carry
+    synthesised (x, y) coordinates the VLM should visually verify them.
+    Only purely mechanical/non-visual actions are deterministic.
     """
     params = step.get("params", {})
     action = (step.get("action") or "").lower().replace("_", "")
 
+    # API integrations — no visual reasoning needed
     if action == "apicall" or step.get("action") == "api_call":
         return True
+    # Navigation with explicit URL — no visual reasoning needed
     if action == "navigate" and params.get("url"):
         return True
-    if params.get("selector"):
-        return True
-    if "x" in params and "y" in params:
-        return True
+    # Keyboard-only actions
     if action == "wait":
         return True
     if action == "presskey" and params.get("key"):
         return True
+    if action == "hotkey":
+        return True
     if action == "scroll" and params.get("direction"):
         return True
-    if action == "selectoption" and params.get("selector") and params.get("value"):
+    # App launch / focus (OS-level, no coords)
+    if action == "openapp" and params.get("appName"):
         return True
-    if action == "hover" and (params.get("selector") or ("x" in params and "y" in params)):
+    if action == "focusapp" and params.get("appName"):
+        return True
+    # Selector-based browser actions (Playwright can handle directly)
+    if action == "selectoption" and params.get("selector") and params.get("value"):
         return True
     if action == "waitforelement" and params.get("selector"):
         return True
+
+    # Everything else (click, doubleclick, rightclick, hover, drag, type_text_at
+    # with coords, etc.) goes through VLM reasoning so the agent can visually
+    # verify the target before acting.
     return False
 
 

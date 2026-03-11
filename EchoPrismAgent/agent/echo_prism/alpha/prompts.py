@@ -65,6 +65,8 @@ DESKTOP_ACTION_SPACE = """
 - RightClick(x, y) - Right-click at (x, y) to open context menus
 - DoubleClick(element_id) - Double-click on a detected element by ID
 - DoubleClick(x, y) - Double-click at (x, y) to open files or apps
+- ClickAndType(element_id, "text") - Click a text field/input by element ID and immediately type text into it. Use when you need to click a field and type — this is faster and more reliable than separate Click + Type.
+- ClickAndType(x, y, "text") - Click at (x,y) and immediately type text. Use when the text field is not in the detected elements list.
 - Drag(x1, y1, x2, y2) - Click and drag from (x1,y1) to (x2,y2)
 - Scroll(x, y, direction, distance=300) - Scroll at (x, y); direction: up|down|left|right; distance in pixels
 - Type(content) - Type the specified text
@@ -73,6 +75,11 @@ DESKTOP_ACTION_SPACE = """
 - PressKey(key) - Press a single key e.g. PressKey("enter")
 - OpenApp(appName) - Launch an application by name e.g. OpenApp("Safari")
 - FocusApp(appName) - Bring an app to the foreground e.g. FocusApp("Finder")
+
+APP LAUNCH RULE: To open/launch/switch to an application, ALWAYS prefer OpenApp("AppName") or FocusApp("AppName") over clicking its Dock/Taskbar icon. These are faster and far more reliable than visually locating and clicking small icons. Only click an app icon as a last resort if OpenApp/FocusApp fail.
+
+LIST ITEM RULE: To OPEN items in list views, file browsers, or project lists (especially in IDEs like IntelliJ IDEA, VS Code, Xcode, or file managers like Finder), use DoubleClick — NOT Click. A single Click typically only selects/highlights the item without opening it. Alternatively, Click to select then PressKey("enter") to open.
+
 - Finished() - Mark task as complete
 - CallUser(reason) - Request human intervention. Use ONLY when:
     (a) you have tried 2+ different approaches and ALL have failed,
@@ -102,6 +109,12 @@ Action: DoubleClick(62, 982)
 
 Thought: My last click had no effect — the button appears to be lower on the page than I estimated. I'll scroll down to reveal it.
 Action: Scroll(500, 500, "down", 400)
+
+Thought: The search field is element 11. I need to click it and type a search query.
+Action: ClickAndType(11, "Zoodini")
+
+Thought: I see a text input area that is not in the detected elements. I will click it and type the project name.
+Action: ClickAndType(350, 120, "my project")
 """
 
 BROWSER_ACTION_SPACE = """
@@ -109,6 +122,8 @@ BROWSER_ACTION_SPACE = """
 
 - Click(element_id) - Click on a detected UI element by its ID (preferred when element list is available)
 - Click(x, y) - Click at normalized coordinates (0-1000). (0,0)=top-left, (1000,1000)=bottom-right. Use when target element is not in the detected list.
+- ClickAndType(element_id, "text") - Click a text field/input by element ID and immediately type text into it
+- ClickAndType(x, y, "text") - Click at (x,y) and immediately type text
 - Scroll(x, y, direction, distance=300) - Scroll at (x, y); direction: up|down|left|right
 - Type(content) - Type the specified text
 - Wait(seconds) - Pause for N seconds (max 30)
@@ -232,8 +247,19 @@ def state_transition_prompt(action_str: str = "", expected_outcome: str = "") ->
         "DESCRIPTION: <one sentence describing what changed or did not change>\n"
         "VERDICT: failed\n\n"
         "Rules:\n"
-        "- VERDICT: success — the UI changed meaningfully in the expected direction\n"
-        "- VERDICT: failed — the screenshots are identical or the change is unrelated to the intended action\n"
+        "- VERDICT: success — the UI changed meaningfully in the expected direction, "
+        "OR the desired state was already present in the AFTER screenshot "
+        "(e.g. the text was already typed, the button was already selected, the app was already open), "
+        "OR the action clearly initiated a transition (e.g. a loading screen appeared, a dialog closed, "
+        "the app started opening a file/project). Progress toward the goal counts as success even if "
+        "the final state is not yet fully rendered.\n"
+        "- VERDICT: failed — the screenshots are identical AND the desired state is NOT achieved, "
+        "or the change is unrelated to the intended action\n"
+        "- If the AFTER screenshot already shows the desired outcome (even if BEFORE also showed it), "
+        "that counts as SUCCESS — the goal is achieved.\n"
+        "- If a loading indicator, progress bar, or 'opening project' state is visible in the AFTER "
+        "screenshot that was NOT in the BEFORE screenshot, that counts as SUCCESS — the action worked "
+        "and the application is processing.\n"
         "- You MUST output the VERDICT line. It MUST be the last line of your response.\n"
         "- Do NOT add any text after the VERDICT line."
     )
@@ -261,13 +287,16 @@ def detected_elements_context(screen_info: str, element_count: int = 0) -> str:
     """
     if not screen_info:
         return ""
+    n_shown = screen_info.count("\n") + 1
     header = "[Detected UI Elements]"
     if element_count > 0:
-        header += f" ({element_count} elements detected)"
+        header += f" ({n_shown} shown of {element_count} detected)"
     return (
         f"{header}\n{screen_info}\n\n"
-        "Tip: When multiple elements share similar labels, use their ID, size, and "
-        "position to disambiguate. Prefer clicking by element_id for precision."
+        "Each element shows: ID, type, label, pos:(x,y) in 0-1000 coords, and screen region.\n"
+        "IMPORTANT: Use Click(element_id) for precision. Cross-check the element's pos "
+        "and region against what you see in the screenshot to pick the RIGHT element. "
+        "If the target is not in this list, use Click(x, y) with coordinates you estimate from the screenshot."
     )
 
 
@@ -305,7 +334,11 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
         x = params.get("x")
         y = params.get("y")
         parts.append(
-            f"Click {desc}. Locate it visually in the screenshot and provide Click(x, y) with normalized coords."
+            f"Interact with {desc}. "
+            "Choose the BEST action: if this is an application to open/launch, "
+            "use OpenApp(\"name\") or FocusApp(\"name\"). "
+            "Otherwise, locate it in the detected elements list and use Click(element_id), "
+            "or use Click(x, y) if it's not in the list."
         )
         if x is not None and y is not None:
             parts.append(
@@ -314,7 +347,17 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
     elif action == "type_text_at":
         text = params.get("text", "")
         desc = params.get("description", "the input field")
-        parts.append(f"Type '{text}' into {desc}.")
+        x = params.get("x")
+        y = params.get("y")
+        parts.append(
+            f"Type '{text}' into {desc}. "
+            "Use ClickAndType(element_id, \"text\") if the field is in the detected elements, "
+            "or ClickAndType(x, y, \"text\") to click and type in ONE action."
+        )
+        if x is not None and y is not None:
+            parts.append(
+                f"Approximate field location: ({x}, {y}) — verify visually before clicking."
+            )
     elif action == "scroll":
         direction = params.get("direction", "down")
         distance = params.get("distance", params.get("amount", 300))

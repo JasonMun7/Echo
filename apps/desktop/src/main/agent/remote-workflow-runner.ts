@@ -325,13 +325,19 @@ export async function runWorkflowRemote(
               continue;
             }
 
-            if (deterministic) {
+            // OS-level actions (openapp, focusapp) are inherently reliable —
+            // skip screenshot verification since the app may take time to render.
+            const skipVerifyActions = new Set(["openapp", "focusapp"]);
+            const executedAction = ((m.action as Record<string, unknown>)?.action as string ?? "").toLowerCase();
+            if (deterministic || skipVerifyActions.has(executedAction)) {
               stepSucceeded = true;
               break;
             }
 
             const beforeBuf = Buffer.from(screenshotB64!, "base64");
-            await new Promise((r) => setTimeout(r, 1000));
+            // Action-specific settle time: doubleclick/click may trigger slow app loads (e.g. IntelliJ opening a project)
+            const settleMs = ["doubleclick", "click", "clickandtype"].includes(executedAction) ? 5000 : 1500;
+            await new Promise((r) => setTimeout(r, settleMs));
 
             let afterBuf: Buffer;
             try {

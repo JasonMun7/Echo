@@ -46,6 +46,11 @@ export function createHudOverlayWindow(mode: "recording" | "run"): BrowserWindow
   win.setBackgroundColor("#00000000");
   win.loadURL(getRendererUrl(`windowType=hud&mode=${mode}`));
 
+  // Make HUD click-through so mouse events pass to apps underneath
+  win.webContents.on("did-finish-load", () => {
+    win.setIgnoreMouseEvents(true, { forward: true });
+  });
+
   return win;
 }
 

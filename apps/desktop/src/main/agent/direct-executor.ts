@@ -15,14 +15,9 @@ export function isDeterministic(step: Step): boolean {
   const params = step.params || {};
   const action = (step.action || "").toLowerCase().replace(/_/g, "");
 
-  // navigate is non-deterministic — let EchoPrism handle URL navigation visually
-  if (action === "navigate") return false;
-
-  // Coord-based pointer actions
-  if ("x" in params && "y" in params) {
-    if (["clickat", "rightclick", "doubleclick", "drag"].includes(action)) return true;
-    if (action === "typetextat" && params.text) return true;
-  }
+  // Click/pointer actions are NEVER deterministic — even when they carry
+  // synthesised (x, y) coordinates the VLM should visually verify them.
+  // Only purely mechanical / non-visual actions bypass VLM reasoning.
 
   if (action === "wait" && params.seconds != null) return true;
   if (action === "presskey" && params.key) return true;
@@ -31,6 +26,9 @@ export function isDeterministic(step: Step): boolean {
   if (action === "openapp" && params.appName) return true;
   if (action === "focusapp" && params.appName) return true;
 
+  // Everything else (click, doubleclick, rightclick, hover, drag, type_text_at,
+  // navigate, etc.) goes through VLM reasoning so the agent can visually
+  // verify the target before acting.
   return false;
 }
 

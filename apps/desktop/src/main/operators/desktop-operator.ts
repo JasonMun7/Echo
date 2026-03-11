@@ -6,7 +6,7 @@
  * operates in logical space) and physical pixels for screenshot capture.
  * Adapted from UI-TARS NutJSElectronOperator coordinate pipeline.
  */
-import { clipboard, desktopCapturer, screen as electronScreen, shell } from "electron";
+import { BrowserWindow, clipboard, desktopCapturer, screen as electronScreen, shell } from "electron";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import {
@@ -96,17 +96,30 @@ function scaleCoords(x: number, y: number): { x: number; y: number } {
 export async function captureScreen(sourceId: string): Promise<Buffer> {
   const { logicalWidth, logicalHeight } = getScreenInfo();
 
+  // Hide overlay windows (HUD, haze) so they don't appear in screenshots.
+  // The VLM must see only the actual desktop — overlay text confuses verification.
+  const overlays = BrowserWindow.getAllWindows().filter(
+    (w) => !w.isDestroyed() && w.isAlwaysOnTop()
+  );
+  for (const w of overlays) w.setOpacity(0);
+  if (overlays.length > 0) await sleep(100); // let compositor update
+
   const attempt = async (): Promise<Buffer | null> => {
     // Use "screen" only (not "window") to ensure we get the full display.
-    // Use logical dimensions — on macOS, Electron NativeImage.toPNG() already
-    // returns the full physical backing-store resolution regardless of thumbnailSize.
+    // Request logical dimensions — on macOS Retina, Electron's NativeImage stores
+    // at 2× DPR internally. We resize down to logical before encoding so the
+    // image dimensions match the coordinate space used by nut-js (logical pixels).
+    // This matches UI-TARS's NutJSElectronOperator.screenshot() approach.
     const sources = await desktopCapturer.getSources({
       types: ["screen"],
       thumbnailSize: { width: logicalWidth, height: logicalHeight },
     });
     const src = sources.find((s) => s.id === sourceId);
     if (!src?.thumbnail) return null;
-    const buf = Buffer.from(src.thumbnail.toPNG());
+
+    // Resize to logical pixels — NativeImage may be 2× on Retina
+    const resized = src.thumbnail.resize({ width: logicalWidth, height: logicalHeight });
+    const buf = Buffer.from(resized.toJPEG(75));
     if (buf.length < 5000) return null;
     return buf;
   };
@@ -121,6 +134,10 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
     buf = await attempt();
   }
   if (!buf) {
+    // Restore overlays before throwing
+    for (const w of overlays) {
+      if (!w.isDestroyed()) w.setOpacity(1);
+    }
     throw new Error(
       "Screenshot capture failed: blank or missing thumbnail. " +
       "On macOS, grant Screen Recording permission to this app in System Settings → Privacy & Security → Screen Recording, then restart."
@@ -128,8 +145,28 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
   }
   if (process.env.ECHO_DEBUG_COORDS) {
     console.log(
-      `[desktop-operator] captureScreen: source=${sourceId}, png=${buf.length} bytes`
+      `[desktop-operator] captureScreen: source=${sourceId}, jpeg=${buf.length} bytes, ` +
+      `target=${logicalWidth}x${logicalHeight}`
     );
+  }
+  // Restore overlay windows after capture
+  for (const w of overlays) {
+    if (!w.isDestroyed()) w.setOpacity(1);
+  }
+
+  // Save debug screenshots to disk when ECHO_DEBUG_SCREENSHOTS is set
+  if (process.env.ECHO_DEBUG_SCREENSHOTS) {
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const dir = process.env.ECHO_DEBUG_SCREENSHOTS;
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const ts = Date.now();
+      fs.writeFileSync(path.join(dir, `screenshot-${ts}.jpg`), buf);
+      console.log(`[desktop-operator] Saved debug screenshot: screenshot-${ts}.jpg`);
+    } catch (e) {
+      console.warn("[desktop-operator] Failed to save debug screenshot:", e);
+    }
   }
   return buf;
 }
@@ -149,9 +186,14 @@ export async function click(x: number, y: number): Promise<void> {
 
 /**
  * Double-click at (x, y) with precision delay.
+ * Uses standard OS double-click — nut-js sends two rapid clicks
+ * which macOS recognises as a double-click even if the window
+ * needs activation (the first of the pair activates it and the
+ * pair is still treated as a double-click by the OS).
  */
 export async function doubleClick(x: number, y: number): Promise<void> {
   const { x: wx, y: wy } = scaleCoords(x, y);
+  console.log(`[desktop-operator] doubleClick: norm=(${x}, ${y}) → pixel=(${wx}, ${wy})`);
   await mouse.setPosition(new Point(wx, wy));
   await sleep(MOUSE_MOVE_DELAY_MS);
   await mouse.doubleClick(Button.LEFT);
@@ -287,10 +329,51 @@ export async function hotkey(keys: string[]): Promise<void> {
 
 /**
  * Open an application by name (macOS: `open -a <AppName>`).
+ * Tries exact name first, then fuzzy-matches in /Applications.
  */
 export async function openApp(appName: string): Promise<void> {
   if (process.platform === "darwin") {
-    await execFileAsync("open", ["-a", appName]);
+    try {
+      await execFileAsync("open", ["-a", appName]);
+      return;
+    } catch (e) {
+      console.warn(`[desktop-operator] open -a "${appName}" failed, trying fuzzy match:`, e);
+    }
+    // Fuzzy: search /Applications for partial match
+    try {
+      const { stdout } = await execFileAsync("find", [
+        "/Applications",
+        "-maxdepth", "2",
+        "-name", `*${appName}*.app`,
+        "-type", "d",
+      ]);
+      const matches = stdout.trim().split("\n").filter(Boolean);
+      if (matches.length > 0) {
+        console.log(`[desktop-operator] Fuzzy match found: ${matches[0]}`);
+        await execFileAsync("open", [matches[0]]);
+        return;
+      }
+    } catch { /* ignore */ }
+    // Last resort: try with "IntelliJ IDEA CE" / "IntelliJ IDEA Ultimate" variants
+    const lower = appName.toLowerCase();
+    if (lower.includes("intellij")) {
+      for (const variant of ["IntelliJ IDEA CE", "IntelliJ IDEA Ultimate", "IntelliJ IDEA"]) {
+        try {
+          await execFileAsync("open", ["-a", variant]);
+          console.log(`[desktop-operator] Opened IntelliJ variant: ${variant}`);
+          return;
+        } catch { /* try next */ }
+      }
+    }
+    // If all else fails, try AppleScript activate
+    try {
+      const script = `tell application "${appName}" to activate`;
+      await execFileAsync("osascript", ["-e", script]);
+      return;
+    } catch (e2) {
+      console.error(`[desktop-operator] All openApp attempts failed for "${appName}":`, e2);
+      throw e2;
+    }
   } else {
     await shell.openExternal(`file:///Applications/${appName}.app`);
   }
@@ -298,11 +381,17 @@ export async function openApp(appName: string): Promise<void> {
 
 /**
  * Bring an application to the foreground (macOS: AppleScript).
+ * Falls back to `open -a` if AppleScript fails.
  */
 export async function focusApp(appName: string): Promise<void> {
   if (process.platform === "darwin") {
-    const script = `tell application "${appName}" to activate`;
-    await execFileAsync("osascript", ["-e", script]);
+    try {
+      const script = `tell application "${appName}" to activate`;
+      await execFileAsync("osascript", ["-e", script]);
+    } catch (e) {
+      console.warn(`[desktop-operator] focusApp AppleScript failed for "${appName}", trying open -a:`, e);
+      await openApp(appName);
+    }
   }
 }
 
@@ -328,6 +417,17 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
       await rightClick(Number(action.x ?? 0), Number(action.y ?? 0));
     } else if (act === "doubleclick") {
       await doubleClick(Number(action.x ?? 0), Number(action.y ?? 0));
+    } else if (act === "clickandtype") {
+      await click(Number(action.x ?? 0), Number(action.y ?? 0));
+      await sleep(200);
+      // Select all existing text before typing to replace (not append)
+      if (process.platform === "darwin") {
+        await hotkey(["cmd", "a"]);
+      } else {
+        await hotkey(["ctrl", "a"]);
+      }
+      await sleep(100);
+      await typeText(String(action.content ?? ""));
     } else if (act === "drag") {
       const { x: wx1, y: wy1 } = scaleCoords(Number(action.x1 ?? 0), Number(action.y1 ?? 0));
       const { x: wx2, y: wy2 } = scaleCoords(Number(action.x2 ?? 0), Number(action.y2 ?? 0));
@@ -364,8 +464,11 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
       await shell.openExternal(String(action.url ?? "https://www.google.com"));
     } else if (act === "openapp") {
       await openApp(String(action.appName ?? ""));
+      // Wait for app to launch and render
+      await sleep(2000);
     } else if (act === "focusapp") {
       await focusApp(String(action.appName ?? ""));
+      await sleep(1000);
     } else {
       console.warn("[desktop-operator] Unknown action:", act);
       return false;

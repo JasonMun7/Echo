@@ -91,6 +91,15 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
     } else if (act === "doubleclick") {
       const { x, y } = scaleToViewport(Number(action.x ?? 500), Number(action.y ?? 500), vp);
       await p.mouse.dblclick(x, y);
+    } else if (act === "clickandtype") {
+      const { x, y } = scaleToViewport(Number(action.x ?? 500), Number(action.y ?? 500), vp);
+      await p.mouse.click(x, y);
+      await new Promise((r) => setTimeout(r, 200));
+      // Select all existing text before typing to replace (not append)
+      const selKey = process.platform === "darwin" ? "Meta+a" : "Control+a";
+      await p.keyboard.press(selKey);
+      await new Promise((r) => setTimeout(r, 100));
+      await p.keyboard.type(String(action.content ?? ""));
     } else if (act === "drag") {
       const x1 = scaleToViewport(Number(action.x1 ?? 0), Number(action.y1 ?? 0), vp);
       const x2 = scaleToViewport(Number(action.x2 ?? 0), Number(action.y2 ?? 0), vp);

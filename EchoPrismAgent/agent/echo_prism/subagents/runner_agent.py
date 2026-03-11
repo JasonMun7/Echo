@@ -22,7 +22,7 @@ from echo_prism.utils.omniparser_client import OmniParserResult, resolve_element
 logger = logging.getLogger(__name__)
 
 # Actions that need coord resolution via Locator
-_GROUNDING_ACTIONS = {"click", "doubleclick", "rightclick", "hover", "drag"}
+_GROUNDING_ACTIONS = {"click", "doubleclick", "rightclick", "hover", "drag", "clickandtype"}
 
 
 async def resolve_coords_for_action(
@@ -56,10 +56,12 @@ async def resolve_coords_for_action(
         if coords is not None:
             center_x, center_y, box_2d = coords
             elements = omniparser_result.parsed_content_list
-            label = (
-                elements[element_id].get("content", "")
-                if element_id < len(elements)
-                else ""
+            elem = elements[element_id] if element_id < len(elements) else {}
+            label = elem.get("content", "")
+            etype = elem.get("type", "unknown")
+            logger.info(
+                "Element ID %d resolved: %s '%s' at (%d, %d)",
+                element_id, etype, label[:60], center_x, center_y,
             )
             location = ElementLocation(
                 center_x=center_x,

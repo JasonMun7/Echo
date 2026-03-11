@@ -159,6 +159,30 @@ def _screenshot_hash(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
 
 
+def _build_retry_context(last_error: str) -> str:
+    """Build extra context for VLM when retrying after a failed attempt."""
+    if not last_error:
+        return ""
+    ctx = f"Previous attempt failed: {last_error}"
+    lower_err = last_error.lower()
+    if "identical" in lower_err or "no visible change" in lower_err or "no effect" in lower_err or "no change" in lower_err or "did not change" in lower_err or "not yet" in lower_err or "did not appear" in lower_err or "did not load" in lower_err:
+        ctx += (
+            "\n\nIMPORTANT RETRY GUIDANCE: Your previous action had NO visible effect. "
+            "Try a DIFFERENT approach — in order of priority:\n"
+            "1. PressKey(\"enter\") — if the target item is already selected/highlighted in a list, "
+            "pressing Enter is the MOST RELIABLE way to open it (especially in IDEs like IntelliJ, VS Code, etc.)\n"
+            "2. DoubleClick instead of Click — many apps (IntelliJ, Finder, etc.) require double-click to open items/projects\n"
+            "3. If the step requires typing into a field, use ClickAndType(element_id, \"text\") to click AND type in one action\n"
+            "4. IMPORTANT: If you are trying to open/select a list item and clicking by element_id keeps failing, "
+            "the element you picked may be a text field or search bar — NOT the list item. "
+            "Look for a different element further DOWN the screen (higher y-coordinate), or try Click(x, y) "
+            "with coordinates BELOW the search bar area.\n"
+            "5. Right-click → Open or a keyboard shortcut as alternative\n"
+            "Do NOT repeat the exact same action — try a genuinely different element or approach."
+        )
+    return ctx
+
+
 async def _call_gemini(
     client: Any,
     instruction: str,
@@ -186,14 +210,18 @@ async def _call_gemini(
     if cached_content:
         config = gtypes.GenerateContentConfig(
             cached_content=cached_content,
-            max_output_tokens=256,
+            max_output_tokens=2048,
             temperature=temperature,
+            automatic_function_calling=gtypes.AutomaticFunctionCallingConfig(disable=True),
+            thinking_config=gtypes.ThinkingConfig(thinking_budget=1024),
         )
     else:
         config = gtypes.GenerateContentConfig(
             system_instruction=sys,
-            max_output_tokens=256,
+            max_output_tokens=2048,
             temperature=temperature,
+            automatic_function_calling=gtypes.AutomaticFunctionCallingConfig(disable=True),
+            thinking_config=gtypes.ThinkingConfig(thinking_budget=1024),
         )
 
     try:
@@ -204,7 +232,7 @@ async def _call_gemini(
                 contents=[gtypes.Content(role="user", parts=user_parts)],
                 config=config,
             ),
-            timeout=30.0,
+            timeout=60.0,
         )
         text = ""
         if response and response.candidates:
@@ -253,8 +281,9 @@ async def _verify_action(
                 contents=[gtypes.Content(role="user", parts=user_parts)],
                 config=gtypes.GenerateContentConfig(
                     media_resolution=gtypes.MediaResolution.MEDIA_RESOLUTION_LOW,
-                    max_output_tokens=128,
+                    max_output_tokens=2048,
                     temperature=0.0,
+                    automatic_function_calling=gtypes.AutomaticFunctionCallingConfig(disable=True),
                 ),
             ),
             timeout=30.0,
@@ -267,10 +296,24 @@ async def _verify_action(
                         if hasattr(p, "text") and p.text:
                             text += p.text
         description = text.strip() or "No change detected"
+        logger.info("State-transition verify response: %s", description[:500])
 
+        # Try strict format first: "VERDICT: success" / "VERDICT: failed"
         verdict_match = re.search(
             r"VERDICT:\s*(success|failed)", description, re.IGNORECASE
         )
+        if not verdict_match:
+            # Fallback: "VERDICT" followed by success/failed without colon
+            verdict_match = re.search(
+                r"VERDICT\s*:?\s*(success|failed)", description, re.IGNORECASE
+            )
+        if not verdict_match:
+            # Last resort: check if description ends with or contains
+            # clear success/fail indicators (model may have been truncated)
+            lower = description.lower()
+            if "identical" in lower or "no change" in lower or "did not change" in lower:
+                logger.info("Inferred VERDICT: failed (no change detected in description)")
+                return description, False
         if verdict_match:
             succeeded = verdict_match.group(1).lower() == "success"
         else:
@@ -438,7 +481,8 @@ async def run_ambiguous_step(
             set_omniparser_element_count(0)
 
         scene_caption = ""
-        if attempt == 0:
+        # Skip perceive_scene when OmniParser already provides element context
+        if attempt == 0 and not screen_info:
             if prefetched_caption is not None:
                 scene_caption = prefetched_caption
                 logger.debug("Using prefetched scene caption (step %d)", step_index)
@@ -501,7 +545,7 @@ async def run_ambiguous_step(
         if context_parts:
             effective_instruction = "\n\n".join(context_parts) + "\n\n" + instruction
 
-        extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
+        extra_context = _build_retry_context(last_error)
         use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in (
             "1",
             "true",
@@ -736,6 +780,7 @@ async def run_ambiguous_step_inference(
     owner_uid: str | None = None,
     db: Any | None = None,
     cached_prompt: str | None = None,
+    last_error_from_client: str = "",
 ) -> tuple[bool | AgentSignal, str, str, dict[str, Any] | None, str | None]:
     """
     Inference-only: no execution. Returns (result, thought, action_str, parsed_action_dict, error).
@@ -763,7 +808,8 @@ async def run_ambiguous_step_inference(
     client = _get_client(key)
     sys = system_prompt(instruction, workflow_type)
 
-    last_error = ""
+    # Seed last_error from client-side verification failure (e.g. "screenshots identical")
+    last_error = last_error_from_client or ""
     thought = ""
     action_str = ""
 
@@ -797,7 +843,8 @@ async def run_ambiguous_step_inference(
             set_omniparser_element_count(0)
 
         scene_caption = ""
-        if attempt == 0 and step_action not in _SKIP_SCENE_ACTIONS:
+        # Skip perceive_scene when OmniParser already provides element context
+        if attempt == 0 and not screen_info and step_action not in _SKIP_SCENE_ACTIONS:
             compressed_for_scene = compress_screenshot(current_screenshot)
             scene_caption = await perceive_scene(
                 client, compressed_for_scene, GROUNDING_MODEL
@@ -845,7 +892,7 @@ async def run_ambiguous_step_inference(
         if context_parts:
             effective_instruction = "\n\n".join(context_parts) + "\n\n" + instruction
 
-        extra_context = f"Previous attempt failed: {last_error}" if last_error else ""
+        extra_context = _build_retry_context(last_error)
         use_system2 = os.environ.get("ECHO_SYSTEM2_SAMPLING", "").lower() in (
             "1",
             "true",
@@ -909,8 +956,12 @@ async def run_ambiguous_step_inference(
             thought = extract_thought(raw_text)
             parsed = parse_action(raw_text)
             logger.info(
-                "VLM raw output (inference step %d, attempt %d): %s",
-                step_index, attempt + 1, (raw_text or "")[:300],
+                "VLM raw output (inference step %d, attempt %d):\n%s",
+                step_index, attempt + 1, (raw_text or ""),
+            )
+            logger.info(
+                "Parsed action (inference step %d, attempt %d): %s",
+                step_index, attempt + 1, parsed,
             )
 
         if not parsed:

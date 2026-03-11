@@ -6,13 +6,13 @@ Environment variables allow override of defaults. Used by agent, subagents, and 
 
 import os
 
-# Main Agent (Alpha) orchestration — Adaptive Thinking for sub-agents
+# Main Agent (Alpha) orchestration — fast model for real-time UI automation
 ORCHESTRATION_MODEL = os.environ.get(
-    "ECHOPRISM_ORCHESTRATION_MODEL", "gemini-3.1-pro-preview"
+    "ECHOPRISM_ORCHESTRATION_MODEL", "gemini-2.5-flash"
 )
 
 # Grounding — stable for SFT with custom datasets (legacy; use LOCATOR_MODEL)
-GROUNDING_MODEL = os.environ.get("ECHOPRISM_GROUNDING_MODEL", "gemini-3.1-pro-preview")
+GROUNDING_MODEL = os.environ.get("ECHOPRISM_GROUNDING_MODEL", "gemini-2.5-flash")
 
 # Locator — element localization; swappable (e.g., UI-TARS). Defaults to GROUNDING_MODEL.
 LOCATOR_MODEL = os.environ.get("ECHOPRISM_LOCATOR_MODEL") or GROUNDING_MODEL
