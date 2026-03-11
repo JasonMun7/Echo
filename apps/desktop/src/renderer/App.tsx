@@ -13,11 +13,16 @@ import {
   IconMessageCircle,
   IconWaveSine,
   IconSend,
+  IconCalendarClock,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
 import { EchoPrismVoiceModal } from "./EchoPrismVoiceModal";
 import RunHud from "./RunHud";
 import HazeOverlay from "./HazeOverlay";
+import WorkflowDetailView from "./WorkflowDetailView";
+import WorkflowEditView from "./WorkflowEditView";
+import ScheduleView from "./ScheduleView";
 import echoLogo from "./assets/echo_logo.png";
 
 declare global {
@@ -190,6 +195,9 @@ function MainWindowApp() {
   );
   const recordingDurationRef = useRef<number>(0);
   const wsTextRef = useRef<WebSocket | null>(null);
+
+  // Navigation
+  const [page, setPage] = useState<"home" | "detail" | "edit" | "schedule">("home");
 
   // EchoPrismVoice: mic + TTS playback
   const voiceMediaStreamRef = useRef<MediaStream | null>(null);
@@ -757,6 +765,74 @@ function MainWindowApp() {
     }
   };
 
+  /** Run a workflow from any page (detail view, home, etc.) */
+  const handleRunWorkflow = async (args: {
+    workflowId: string;
+    steps: Array<Record<string, unknown>>;
+    workflowType: string;
+  }) => {
+    if (!args.steps.length || !token) return;
+    const hasPermission = await window.electronAPI?.checkScreenPermission?.();
+    if (!hasPermission) {
+      setScreenPermissionRequired(true);
+      return;
+    }
+    const sourceId = await getPrimarySourceId();
+    if (!sourceId) {
+      setRunResult({ success: false, error: "Could not get primary display" });
+      return;
+    }
+    setRunning(true);
+    setRunResult(null);
+    setLiveProgress([]);
+    setSelectedWorkflowId(args.workflowId);
+    setSelectedWorkflowType(args.workflowType);
+
+    window.electronAPI?.onRunProgress((entry: { thought: string; action: string; step: number }) => {
+      setLiveProgress((prev) => [...prev, entry]);
+    });
+
+    try {
+      const createRes = await window.electronAPI?.createRun?.({
+        workflowId: args.workflowId,
+        token,
+      });
+      if (createRes && "error" in createRes) {
+        setRunResult({ success: false, error: createRes.error, workflowId: args.workflowId });
+        return;
+      }
+      const runId = createRes && "runId" in createRes ? createRes.runId : undefined;
+      setCurrentRunId(runId ?? null);
+
+      await window.electronAPI?.enterRunMode?.({
+        workflowId: args.workflowId,
+        runId: runId ?? "",
+        token,
+      });
+
+      const result = await window.electronAPI?.runWorkflowLocal({
+        steps: args.steps,
+        sourceId,
+        workflowType: args.workflowType,
+        workflowId: args.workflowId,
+        runId,
+        token,
+      });
+      window.electronAPI?.removeRunProgressListener();
+      setRunResult({
+        ...(result ?? { success: false, error: "No response" }),
+        workflowId: args.workflowId,
+        runId,
+      });
+    } finally {
+      setRunning(false);
+      setRunPaused(false);
+      setCurrentRunId(null);
+      window.electronAPI?.removeRunProgressListener?.();
+      await window.electronAPI?.exitRunMode?.();
+    }
+  };
+
   const sendTextChatMessage = (text: string) => {
     if (
       !text.trim() ||
@@ -969,7 +1045,7 @@ function MainWindowApp() {
             marginBottom: 24,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setPage("home")}>
             <img
               src={echoLogo}
               alt="Echo"
@@ -994,7 +1070,16 @@ function MainWindowApp() {
               </p>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className={page === "schedule" ? "echo-btn-primary" : "echo-btn-secondary"}
+              onClick={() => { setPage(page === "schedule" ? "home" : "schedule"); }}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <IconCalendarClock size={16} />
+              Schedule
+            </button>
             <button
               type="button"
               className="echo-btn-secondary"
@@ -1038,6 +1123,9 @@ function MainWindowApp() {
           </div>
         </div>
 
+        {/* Page-based content */}
+        {page === "home" && (
+          <>
         {/* Record section — TOP */}
         <section
           className="echo-card"
@@ -1204,62 +1292,109 @@ function MainWindowApp() {
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {workflows.map((w) => (
-                <button
+              {workflows.map((w) => {
+                const isSelected = selectedWorkflowId === w.id;
+                return (
+                <div
                   key={w.id}
-                  type="button"
-                  onClick={() => handleSelectWorkflow(w.id)}
                   style={{
-                    padding: 12,
+                    padding: 0,
                     borderRadius: 8,
-                    border:
-                      selectedWorkflowId === w.id
-                        ? "2px solid #A577FF"
-                        : "1px solid rgba(165,119,255,0.2)",
-                    background:
-                      selectedWorkflowId === w.id
-                        ? "rgba(165,119,255,0.1)"
-                        : "white",
-                    cursor: "pointer",
-                    textAlign: "left",
+                    border: isSelected
+                      ? "2px solid #A577FF"
+                      : "1px solid rgba(165,119,255,0.2)",
+                    background: isSelected
+                      ? "rgba(165,119,255,0.1)"
+                      : "white",
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
+                    overflow: "hidden",
                   }}
                 >
-                  <span
-                    style={{ fontWeight: 500, color: "#150A35", flexGrow: 1 }}
+                  {/* Radio: select for running (stays on home) */}
+                  <button
+                    type="button"
+                    title="Select for running"
+                    onClick={(e) => { e.stopPropagation(); handleSelectWorkflow(w.id); }}
+                    style={{
+                      width: 40,
+                      minHeight: 44,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "none",
+                      border: "none",
+                      borderRight: "1px solid rgba(165,119,255,0.15)",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
                   >
-                    {w.name ?? w.id}
-                  </span>
-                  {w.workflow_type && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "2px 7px",
-                        borderRadius: 99,
-                        background:
-                          w.workflow_type === "desktop"
-                            ? "rgba(165,119,255,0.15)"
-                            : "rgba(34,197,94,0.12)",
-                        color:
-                          w.workflow_type === "desktop" ? "#A577FF" : "#16a34a",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {w.workflow_type === "desktop" ? "Desktop" : "Browser"}
+                    <span style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      border: isSelected ? "2px solid #A577FF" : "2px solid #d1d5db",
+                      background: isSelected ? "#A577FF" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.15s ease",
+                    }}>
+                      {isSelected && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "white" }} />}
                     </span>
-                  )}
-                  {w.status && (
+                  </button>
+                  {/* Name + badges: click to view details */}
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedWorkflowId(w.id); setSelectedWorkflowType(w.workflow_type ?? "desktop"); setPage("detail"); }}
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
                     <span
-                      style={{ fontSize: 12, color: "#6b7280", flexShrink: 0 }}
+                      style={{ fontWeight: 500, color: "#150A35", flexGrow: 1 }}
                     >
-                      ({w.status})
+                      {w.name ?? w.id}
                     </span>
-                  )}
-                </button>
-              ))}
+                    {w.workflow_type && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 7px",
+                          borderRadius: 99,
+                          background:
+                            w.workflow_type === "desktop"
+                              ? "rgba(165,119,255,0.15)"
+                              : "rgba(34,197,94,0.12)",
+                          color:
+                            w.workflow_type === "desktop" ? "#A577FF" : "#16a34a",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {w.workflow_type === "desktop" ? "Desktop" : "Browser"}
+                      </span>
+                    )}
+                    {w.status && (
+                      <span
+                        style={{ fontSize: 12, color: "#6b7280", flexShrink: 0 }}
+                      >
+                        ({w.status})
+                      </span>
+                    )}
+                    <IconChevronRight size={16} style={{ color: "#9ca3af", flexShrink: 0 }} />
+                  </button>
+                </div>
+                );
+              })}
             </div>
           )}
           {fetching && (
@@ -1272,16 +1407,20 @@ function MainWindowApp() {
               {fetchError}
             </p>
           )}
-          {workflow && (
-            <p style={{ color: "#22c55e", fontSize: 13, marginTop: 8 }}>
-              Loaded: {String(workflow.name ?? workflow.id)} ({steps.length}{" "}
-              steps)
-            </p>
-          )}
         </section>
 
         {/* Run workflow */}
         <section className="echo-card" style={{ padding: 20 }}>
+          {!selectedWorkflowId && (
+            <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
+              Select a workflow using the radio button to run it locally.
+            </p>
+          )}
+          {selectedWorkflowId && workflow && (
+            <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
+              Ready to run: <strong style={{ color: "#150A35" }}>{String(workflow.name ?? workflow.id)}</strong> ({steps.length} steps)
+            </p>
+          )}
           <button
             type="button"
             className="echo-btn-primary"
@@ -1387,6 +1526,39 @@ function MainWindowApp() {
             </div>
           )}
         </section>
+          </>
+        )}
+
+        {page === "detail" && selectedWorkflowId && (
+          <WorkflowDetailView
+            workflowId={selectedWorkflowId}
+            token={token}
+            apiUrl={API_URL}
+            onBack={() => { setPage("home"); loadWorkflows(); }}
+            onEdit={() => setPage("edit")}
+            onRun={handleRunWorkflow}
+            onDeleted={() => { setPage("home"); loadWorkflows(); }}
+            onOpenWebUI={(p) => window.electronAPI?.openWebUI(p)}
+          />
+        )}
+
+        {page === "edit" && selectedWorkflowId && (
+          <WorkflowEditView
+            workflowId={selectedWorkflowId}
+            token={token}
+            apiUrl={API_URL}
+            onBack={() => setPage("detail")}
+            onSaved={() => setPage("detail")}
+          />
+        )}
+
+        {page === "schedule" && (
+          <ScheduleView
+            token={token}
+            apiUrl={API_URL}
+            onBack={() => setPage("home")}
+          />
+        )}
       </div>
 
       {/* EchoPrism Chat (text) Panel */}
