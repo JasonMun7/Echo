@@ -10,6 +10,7 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@base-ui/react": "^1.3.0",
     "@echo/types": "workspace:*",
     "@livekit/components-react": "^2.9.20",
     "@livekit/components-styles": "^1.2.0",

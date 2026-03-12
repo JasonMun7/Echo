@@ -26,7 +26,6 @@ const SANDBOX_ID = (
 ).env?.VITE_LIVEKIT_SANDBOX_ID;
 
 interface EchoPrismLiveKitSessionProps {
-  isOpen: boolean;
   onClose: () => void;
   getToken: () => Promise<string | null>;
   onRunStarted?: (arg: { workflowId: string; runId: string }) => void;
@@ -99,11 +98,13 @@ function BargeInEffect({
 }
 
 export function EchoPrismLiveKitSession({
-  isOpen,
   onClose,
   getToken,
   onRunStarted,
 }: EchoPrismLiveKitSessionProps) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   const tokenSource = useMemo(() => {
     if (SANDBOX_ID) return TokenSource.sandboxTokenServer(SANDBOX_ID);
     return TokenSource.custom(async (options) => {
@@ -138,33 +139,37 @@ export function EchoPrismLiveKitSession({
     });
   }, [getToken]);
 
-  const roomName = useMemo(() => `echoprism-${Date.now()}`, [isOpen]);
+  const roomName = useMemo(() => `echoprism-${Date.now()}`, []);
   const session = useSession(tokenSource, {
     roomName,
     agentName: AGENT_NAME,
   });
 
+  // Start session on mount; end on unmount
   useEffect(() => {
-    if (!isOpen) return;
-    void session.start();
+    void session
+      .start()
+      .catch((err) => {
+        console.error("[EchoPrism] Failed to start session:", err);
+        onCloseRef.current();
+      });
     return () => void session.end();
-  }, [isOpen]);
+  }, []);
 
   // Close modal when session disconnects (e.g. user clicked Leave)
   useEffect(() => {
-    if (!isOpen) return;
     const room = session.room;
-    const handler = () => onClose();
+    if (!room) return;
+    const handler = () => onCloseRef.current();
     room.on(RoomEvent.Disconnected, handler);
-    return () => {
-      room.off(RoomEvent.Disconnected, handler);
-    };
-  }, [isOpen, session.room, onClose]);
+    return () => void room.off(RoomEvent.Disconnected, handler);
+  }, [session.room]);
 
   // Listen for run_started data packets
   useEffect(() => {
     if (!onRunStarted) return;
     const room = session.room;
+    if (!room) return;
     const handler = (
       payload: Uint8Array,
       _p: unknown,
@@ -191,13 +196,9 @@ export function EchoPrismLiveKitSession({
   }, [session.room, onRunStarted]);
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.setAttribute("data-echo-prism-open", "true");
-      return () => document.body.removeAttribute("data-echo-prism-open");
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+    document.body.setAttribute("data-echo-prism-open", "true");
+    return () => document.body.removeAttribute("data-echo-prism-open");
+  }, []);
 
   return (
     <SessionProvider session={session}>
@@ -216,6 +217,7 @@ export function EchoPrismLiveKitSession({
           <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
             <BargeInEffect session={session} />
             <AgentSessionView_01
+              connectingMessage="Connecting..."
               preConnectMessage="EchoPrism is listening. Ask a question or press the chat button to type."
               isPreConnectBufferEnabled={true}
               supportsChatInput={true}

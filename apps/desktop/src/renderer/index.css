@@ -301,7 +301,7 @@ body {
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.15);
 }
 
-/* Dropdown menu item — gradient on icons only (not whole item) + scale bigger on hover */
+/* Dropdown menu item — secondary accent on icons (not whole item) + scale bigger on hover */
 .echo-dropdown-item {
   transition:
     background-color 0.2s ease,
@@ -317,7 +317,7 @@ body {
 .echo-dropdown-item[data-highlighted]:not([data-variant="destructive"]) svg,
 .echo-dropdown-item:focus:not([data-variant="destructive"]) svg,
 .echo-dropdown-item[data-state="open"]:not([data-variant="destructive"]) svg {
-  stroke: url(#echoIconGradient);
+  stroke: var(--echo-cyan);
 }
 .echo-dropdown-item[data-variant="destructive"][data-highlighted],
 .echo-dropdown-item[data-variant="destructive"]:focus {
@@ -325,13 +325,10 @@ body {
 }
 
 .echo-icon-gradient {
-  stroke: url(#echoIconGradient);
+  stroke: var(--echo-cyan);
 }
 
-/* Workflow row play icon: gradient on hover (like dropdown menu items) */
-.group\/workflow:hover .workflow-play-icon svg {
-  stroke: url(#echoIconGradient);
-}
+/* Workflow row play icon: matches three-dots hover (bg-accent + glow), no secondary stroke */
 
 .echo-recording-bar {
   display: flex;
@@ -498,16 +495,35 @@ body[data-echo-prism-open] [data-slot="select-content"] {
   z-index: 10000 !important;
 }
 
-/* EchoPrism control bar: white/surface bg + gradient icons when active */
+/* EchoPrism: mic/camera device select — white background (no transparent), gradient hover like shadcn dropdown */
+body[data-echo-prism-open] [data-slot="select-content"] {
+  background: white !important;
+  border-color: var(--echo-border) !important;
+}
+body[data-echo-prism-open] [data-slot="select-item"] {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  transform-origin: center;
+}
+body[data-echo-prism-open] [data-slot="select-item"][data-highlighted],
+body[data-echo-prism-open] [data-slot="select-item"]:focus {
+  background: linear-gradient(135deg, rgba(33, 196, 221, 0.1), rgba(165, 119, 255, 0.1)) !important;
+  transform: scale(1.02);
+}
+body[data-echo-prism-open] [data-slot="select-item"][data-highlighted] svg,
+body[data-echo-prism-open] [data-slot="select-item"]:focus svg {
+  stroke: var(--echo-cyan);
+}
+
+/* EchoPrism control bar: white/surface bg + secondary accent icons when active */
 [data-echo-prism] button[data-state="on"] {
   background: var(--echo-surface-solid) !important;
   border-color: var(--echo-border) !important;
 }
 [data-echo-prism] button[data-state="on"] svg {
-  stroke: url(#echoIconGradient);
+  stroke: var(--echo-cyan);
 }
 
-/* EchoPrism send button: white/surface bg + gradient icon when active */
+/* EchoPrism send button: white/surface bg + solid accent icon (gradient causes thin strokes like SendHorizontal center line to disappear) */
 [data-echo-prism] button.self-end:not(:disabled) {
   background: var(--echo-surface-solid) !important;
   border: 1px solid var(--echo-border) !important;
@@ -516,5 +532,5 @@ body[data-echo-prism-open] [data-slot="select-content"] {
   background: var(--echo-surface-hover) !important;
 }
 [data-echo-prism] button.self-end:not(:disabled) svg {
-  stroke: url(#echoIconGradient);
+  stroke: var(--echo-lavender);
 }

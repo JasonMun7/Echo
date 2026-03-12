@@ -107,7 +107,13 @@ export function Fade({ top = false, bottom = false, className }: FadeProps) {
 
 export interface AgentSessionView_01Props {
   /**
-   * Message shown above the controls before the first chat message is sent.
+   * Message shown while connecting (before session is ready).
+   *
+   * @default 'Connecting...'
+   */
+  connectingMessage?: string;
+  /**
+   * Message shown above the controls when connected but before the first chat message is sent.
    *
    * @default 'Agent is listening, ask it a question'
    */
@@ -160,6 +166,7 @@ export interface AgentSessionView_01Props {
 }
 
 export function AgentSessionView_01({
+  connectingMessage = "Connecting...",
   preConnectMessage = "Agent is listening, ask it a question",
   supportsChatInput = true,
   supportsVideoInput = true,
@@ -183,7 +190,9 @@ export function AgentSessionView_01({
   const { messages } = useSessionMessages(session);
   const [chatOpen, setChatOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { state: agentState } = useAgent();
+  const agent = useAgent();
+  const agentState = agent.state;
+  const isReady = session.isConnected && agent.canListen;
 
   const controls: AgentControlBarControls = {
     leave: true,
@@ -248,18 +257,18 @@ export function AgentSessionView_01({
         {...BOTTOM_VIEW_MOTION_PROPS}
         className="absolute inset-x-3 bottom-0 z-50 md:inset-x-12"
       >
-        {/* Pre-connect message */}
+        {/* Status message: connecting or listening */}
         {isPreConnectBufferEnabled && (
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {messages.length === 0 && (
               <MotionMessage
-                key="pre-connect-message"
+                key={isReady ? "listening" : "connecting"}
                 duration={2}
                 aria-hidden={messages.length > 0}
                 {...SHIMMER_MOTION_PROPS}
                 className="pointer-events-none mx-auto block w-full max-w-2xl pb-4 text-center text-sm font-semibold"
               >
-                {preConnectMessage}
+                {isReady ? preConnectMessage : connectingMessage}
               </MotionMessage>
             )}
           </AnimatePresence>

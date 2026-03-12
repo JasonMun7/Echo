@@ -6,6 +6,11 @@ import {
   IconCalendarClock,
   IconClock,
 } from "@tabler/icons-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -400,22 +405,26 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(sched.workflowId)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#ef4444",
-                  padding: 6,
-                  borderRadius: 6,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                title="Remove schedule"
-              >
-                <IconTrash size={16} />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(sched.workflowId)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#ef4444",
+                      padding: 6,
+                      borderRadius: 6,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <IconTrash size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Remove schedule</TooltipContent>
+              </Tooltip>
             </div>
           ))}
         </div>

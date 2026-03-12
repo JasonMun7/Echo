@@ -19,7 +19,7 @@ load_dotenv(_root / ".env")
 load_dotenv()
 
 from livekit import agents
-from livekit.agents import AgentSession
+from livekit.agents import AgentSession, room_io
 from livekit.plugins import google
 
 from agent.echo_prism.subagents.livekit.agent import LiveKitEchoPrismAgent
@@ -47,6 +47,7 @@ async def entrypoint(ctx: agents.JobContext):
     await session.start(
         room=ctx.room,
         agent=LiveKitEchoPrismAgent(),
+        room_options=room_io.RoomOptions(video_input=True),
     )
     await ctx.connect()
 

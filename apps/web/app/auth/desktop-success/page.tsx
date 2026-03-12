@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,21 @@ import Link from "next/link";
 export default function DesktopSuccessPage() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const tokenSentRef = useRef(false);
   const router = useRouter();
+
+  // Auto-send token to desktop app when user lands signed in — no navigation required
+  useEffect(() => {
+    if (!token || tokenSentRef.current) return;
+    tokenSentRef.current = true;
+    const authUrl = `echo-desktop://?token=${encodeURIComponent(token)}`;
+    const a = document.createElement("a");
+    a.href = authUrl;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [token]);
 
   useEffect(() => {
     if (!auth) {
@@ -33,14 +47,14 @@ export default function DesktopSuccessPage() {
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
         <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
           <div className="mb-6 flex justify-center">
-            <Image
-              src="/echo_logo.png"
-              alt="Echo"
-              width={96}
-              height={96}
-              className="object-contain"
-              style={{ aspectRatio: "1" }}
-            />
+            <div className="relative w-[120px] h-[120px]">
+              <Image
+                src="/echo_logo.png"
+                alt="Echo"
+                fill
+                className="object-contain"
+              />
+            </div>
           </div>
           <p className="text-sm text-red-500">{error}</p>
           <Link
@@ -59,14 +73,14 @@ export default function DesktopSuccessPage() {
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
         <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
           <div className="mb-6 flex justify-center">
-            <Image
-              src="/echo_logo.png"
-              alt="Echo"
-              width={96}
-              height={96}
-              className="object-contain"
-              style={{ aspectRatio: "1" }}
-            />
+            <div className="relative w-[120px] h-[120px]">
+              <Image
+                src="/echo_logo.png"
+                alt="Echo"
+                fill
+                className="object-contain"
+              />
+            </div>
           </div>
           <p className="text-center text-sm text-[#150A35]/80">
             Preparing your session…
@@ -76,20 +90,21 @@ export default function DesktopSuccessPage() {
     );
   }
 
-  const desktopUrl = `echo-desktop://?token=${encodeURIComponent(token)}`;
+  // Open-only URL — no token; used purely to navigate back to the desktop app
+  const openDesktopUrl = "echo-desktop://open";
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
       <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm md:p-8">
         <div className="mb-6 flex justify-center">
-          <Image
-            src="/echo_logo.png"
-            alt="Echo"
-            width={96}
-            height={96}
-            className="object-contain"
-            style={{ aspectRatio: "1" }}
-          />
+          <div className="relative w-[120px] h-[120px]">
+            <Image
+              src="/echo_logo.png"
+              alt="Echo"
+              fill
+              className="object-contain"
+            />
+          </div>
         </div>
         <h2 className="text-center text-xl font-bold text-[#150A35]">
           You&apos;re signed in
@@ -99,7 +114,7 @@ export default function DesktopSuccessPage() {
         </p>
 
         <a
-          href={desktopUrl}
+          href={openDesktopUrl}
           className="echo-btn-cyan-lavender mt-6 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
         >
           <IconDeviceDesktop className="size-5" />

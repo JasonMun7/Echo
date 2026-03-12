@@ -202,7 +202,7 @@ Use consistent spacing scale:
 
 ### Buttons
 
-**Primary** (use `.echo-btn-primary` or):
+**Primary** — Use the gradient button for primary CTAs. Apply `.echo-btn-primary` or `.echo-btn-gradient` (Lavender → Cetacean Blue):
 
 ```html
 <button
@@ -215,14 +215,6 @@ Use consistent spacing scale:
 ```html
 <button
   class="rounded-lg border border-[#A577FF]/40 bg-[#F5F7FC] px-5 py-2.5 font-medium text-[#150A35] hover:bg-[#A577FF]/10"
-></button>
-```
-
-**Gradient** (use `.echo-btn-gradient` or):
-
-```html
-<button
-  class="rounded-lg bg-linear-to-r from-[#A577FF] to-[#150A35] px-5 py-2.5 font-medium text-white hover:opacity-95"
 ></button>
 ```
 
@@ -245,6 +237,25 @@ Use consistent spacing scale:
 **Hover border gradient** — Use `HoverBorderGradient` from `@/components/ui/hover-border-gradient` for CTAs with an animated Cyan→Lavender border. Pair with `echo-hover-border-*` classes.
 
 **Stateful button** — Use `StatefulButton` from `@/components/ui/stateful-button` for actions with loading and success states (e.g., form submit). Styled with Echo primary (Lavender) by default.
+
+**Icon buttons** — All icon-only buttons (e.g. `Button` with `size="icon"` or icon-only custom buttons) **must** have an attached tooltip using the shadcn `Tooltip` component. Do not rely on the native `title` attribute. Use `TooltipProvider`, `Tooltip`, `TooltipTrigger`, and `TooltipContent` from `@/components/ui/tooltip`:
+
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button size="icon" variant="ghost">
+        <IconSettings className="h-4 w-4" />
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent>Settings</TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+Ensure `TooltipProvider` wraps the page or app so tooltips work correctly.
 
 ### Cards
 
@@ -318,6 +329,8 @@ import { IconSettings, IconUser } from "@tabler/icons-react";
 ```
 
 Icon sizes: `h-4 w-4` (small), `h-5 w-5` (default), `h-6 w-6` (large)
+
+For icon-only buttons, always pair with the shadcn Tooltip (see **Icon buttons** under Buttons).
 
 ---
 

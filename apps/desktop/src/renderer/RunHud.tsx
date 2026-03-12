@@ -9,6 +9,12 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface LiveEntry {
   thought: string;
@@ -73,6 +79,7 @@ export default function RunHud({
   }, [thoughts.length]);
 
   return (
+    <TooltipProvider>
     <div
       className="echo-hud-run"
       style={{
@@ -296,29 +303,38 @@ export default function RunHud({
           appRegion: "no-drag",
         } as CSSProperties}
       >
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handlePauseResume}
-          className="h-9 w-9 rounded-lg border-[#A577FF]/40 bg-[#A577FF]/5 text-[#A577FF] hover:bg-[#A577FF]/15"
-          title={runPaused ? "Resume" : "Pause"}
-        >
-          {runPaused ? (
-            <IconPlayerPlay size={16} />
-          ) : (
-            <IconPlayerPause size={16} />
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleCancel}
-          className="h-9 w-9 rounded-lg border-[#ef4444]/50 bg-[#ef4444]/10 text-[#ef4444] hover:bg-[#ef4444]/20"
-          title="Cancel run"
-        >
-          <IconX size={16} />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePauseResume}
+              className="h-9 w-9 rounded-lg border-[#A577FF]/40 bg-[#A577FF]/5 text-[#A577FF] hover:bg-[#A577FF]/15"
+            >
+              {runPaused ? (
+                <IconPlayerPlay size={16} />
+              ) : (
+                <IconPlayerPause size={16} />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{runPaused ? "Resume" : "Pause"}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCancel}
+              className="h-9 w-9 rounded-lg border-[#ef4444]/50 bg-[#ef4444]/10 text-[#ef4444] hover:bg-[#ef4444]/20"
+            >
+              <IconX size={16} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Cancel run</TooltipContent>
+        </Tooltip>
       </div>
     </div>
+    </TooltipProvider>
   );
 }

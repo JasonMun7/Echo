@@ -8,7 +8,6 @@ import {
   IconBolt,
 } from "@tabler/icons-react";
 import SpotlightCard from "./reactbits/SpotlightCard";
-// @ts-expect-error Threads is JSX
 import Threads from "@/components/Threads";
 import AnimatedList from "@/components/AnimatedList";
 import { Button } from "@/components/ui/button";

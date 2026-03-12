@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { createOrUpdateUser } from "@/lib/firestore";
 import { apiFetch } from "@/lib/api";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -22,5 +23,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  return <>{children}</>;
+  return <TooltipProvider>{children}</TooltipProvider>;
 }

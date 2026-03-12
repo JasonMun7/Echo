@@ -14,6 +14,11 @@ import {
   agentTrackToggleVariants,
 } from "@/components/agents-ui/agent-track-toggle";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Toggle } from "@/components/ui/toggle";
 import {
   useInputControls,
@@ -129,17 +134,23 @@ function AgentChatInput({
         onChange={(e) => setMessage(e.target.value)}
         className="field-sizing-content max-h-16 min-h-8 flex-1 resize-none py-2 [scrollbar-width:thin] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <Button
-        size="icon"
-        type="button"
-        disabled={isDisabled}
-        variant={isDisabled ? "secondary" : "default"}
-        title={isSending ? "Sending..." : "Send"}
-        onClick={handleButtonClick}
-        className="self-end disabled:cursor-not-allowed"
-      >
-        {isSending ? <Loader className="animate-spin" /> : <SendHorizontal />}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon"
+            type="button"
+            disabled={isDisabled}
+            variant={isDisabled ? "secondary" : "default"}
+            onClick={handleButtonClick}
+            className="self-end disabled:cursor-not-allowed"
+          >
+            {isSending ? <Loader className="animate-spin" /> : <SendHorizontal />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isSending ? "Sending..." : "Send"}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

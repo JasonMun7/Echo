@@ -8,6 +8,11 @@ import {
   IconChevronDown,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /* ── Action types ────────────────────────────────────────────────────────── */
 
@@ -481,21 +486,25 @@ function StepCard({
           marginTop: 2,
         }}
       >
-        <button
-          type="button"
-          onClick={onMoveUp}
-          disabled={index === 0}
-          style={{
-            background: "none",
-            border: "none",
-            color: index === 0 ? "#ccc" : "#A577FF",
-            padding: 2,
-            lineHeight: 1,
-          }}
-          title="Move up"
-        >
-          <IconChevronUp size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={index === 0}
+              style={{
+                background: "none",
+                border: "none",
+                color: index === 0 ? "#ccc" : "#A577FF",
+                padding: 2,
+                lineHeight: 1,
+              }}
+            >
+              <IconChevronUp size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Move up</TooltipContent>
+        </Tooltip>
         <span
           style={{
             fontSize: 11,
@@ -506,21 +515,25 @@ function StepCard({
         >
           {index + 1}
         </span>
-        <button
-          type="button"
-          onClick={onMoveDown}
-          disabled={index === total - 1}
-          style={{
-            background: "none",
-            border: "none",
-            color: index === total - 1 ? "#ccc" : "#A577FF",
-            padding: 2,
-            lineHeight: 1,
-          }}
-          title="Move down"
-        >
-          <IconChevronDown size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={index === total - 1}
+              style={{
+                background: "none",
+                border: "none",
+                color: index === total - 1 ? "#ccc" : "#A577FF",
+                padding: 2,
+                lineHeight: 1,
+              }}
+            >
+              <IconChevronDown size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Move down</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Step content */}
@@ -579,14 +592,18 @@ function StepCard({
       </div>
 
       {/* Delete */}
-      <button
-        type="button"
-        onClick={onDelete}
-        className="flex shrink-0 p-1 text-[var(--echo-text-secondary)] transition-colors hover:text-[#ef4444]"
-        title="Delete step"
-      >
-        <IconTrash size={16} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex shrink-0 p-1 text-[var(--echo-text-secondary)] transition-colors hover:text-[#ef4444]"
+          >
+            <IconTrash size={16} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Delete step</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

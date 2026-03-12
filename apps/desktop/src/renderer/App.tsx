@@ -1,27 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  IconPlayerPlay,
-  IconPlayerPause,
+  IconPlayerPlayFilled,
   IconUpload,
   IconPlayerRecord,
   IconLogin,
   IconLogout,
   IconTrash,
   IconExternalLink,
-  IconRefresh,
-  IconPhoneCall,
-  IconSend,
+  IconSearch,
   IconCalendarClock,
-  IconChevronRight,
   IconChevronLeft,
   IconSun,
   IconMoon,
   IconDots,
   IconMenu2,
   IconPencil,
-  IconInfoSmall,
+  IconInfoCircle,
   IconSparkles,
   IconPower,
+  IconDeviceDesktop,
+  IconJumpRope,
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
 import { EchoPrismLiveKitSession } from "./EchoPrismLiveKitSession";
@@ -35,6 +33,7 @@ import echoLogo from "./assets/echo_logo.png";
 import GradientText from "./reactbits/GradientText";
 import ShinyText from "./reactbits/ShinyText";
 import SpotlightCard from "./reactbits/SpotlightCard";
+import Threads from "@/components/Threads";
 import Orb from "./reactbits/Orb";
 import { useTheme } from "./useTheme";
 import {
@@ -51,98 +50,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "motion/react";
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      getSources: () => Promise<
-        { id: string; name: string; thumbnail: string }[]
-      >;
-      getPrimarySourceId: () => Promise<string | null>;
-      createRun: (args: {
-        workflowId: string;
-        token: string;
-      }) => Promise<{ runId: string; workflowId: string } | { error: string }>;
-      runWorkflowLocal: (args: {
-        steps: Array<Record<string, unknown>>;
-        sourceId: string;
-        workflowType?: string;
-        workflowId?: string;
-        runId?: string;
-        token?: string;
-      }) => Promise<{ success: boolean; error?: string; progress?: string[] }>;
-      fetchWorkflow: (args: { workflowId: string; token?: string }) => Promise<
-        | {
-            workflow: Record<string, unknown>;
-            steps: Array<Record<string, unknown>>;
-          }
-        | { error: string }
-      >;
-      authGetToken: () => Promise<string | null>;
-      authClearToken: () => Promise<void>;
-      authOpenSignin: () => Promise<void>;
-      onAuthTokenReceived: (callback: () => void) => void;
-      removeAuthTokenReceivedListener: () => void;
-      onScreenPermissionRequired: (callback: () => void) => void;
-      checkScreenPermission: () => Promise<boolean>;
-      openSystemSettings: () => Promise<void>;
-      listWorkflows: (args: { token: string }) => Promise<
-        | {
-            workflows: Array<{
-              id: string;
-              name?: string;
-              status?: string;
-              workflow_type?: string;
-            }>;
-          }
-        | { error: string }
-      >;
-      openWebUI: (path?: string) => Promise<void>;
-      pauseRun: () => Promise<{ ok: boolean }>;
-      resumeRun: () => Promise<{ ok: boolean }>;
-      cancelRun: () => Promise<void>;
-      sendInterrupt: (text: string) => Promise<void>;
-      onRunProgress: (
-        cb: (entry: { thought: string; action: string; step: number }) => void,
-      ) => void;
-      removeRunProgressListener: () => void;
-      onRunFromUrl: (
-        cb: (arg: { workflowId: string; runId: string }) => void,
-      ) => void;
-      removeRunFromUrlListener: () => void;
-      onOpenEchoPrism: (callback: () => void) => void;
-      removeOpenEchoPrismListener: () => void;
-      onStartCapture: (callback: () => void) => void;
-      removeStartCaptureListener: () => void;
-      enterRecordingMode: () => Promise<{ ok: boolean }>;
-      exitRecordingMode: () => Promise<{ ok: boolean }>;
-      enterRunMode: (ctx: {
-        workflowId: string;
-        runId: string;
-        token: string;
-      }) => Promise<{ ok: boolean }>;
-      exitRunMode: () => Promise<{ ok: boolean }>;
-      onRecordingCommand: (cb: (payload: { action: string }) => void) => void;
-      removeRecordingCommandListener: () => void;
-      recordingPause: () => Promise<void>;
-      recordingStop: (duration?: number) => Promise<void>;
-      recordingRedo: () => Promise<void>;
-      recordingDiscard: () => Promise<void>;
-      sendCallUserFeedback: (text: string) => Promise<{ ok: boolean }>;
-      onRunAwaitingUser: (cb: (arg: { reason: string }) => void) => void;
-      removeRunAwaitingUserListener: () => void;
-      desktopCollapse: () => Promise<void>;
-      desktopExpand: () => Promise<void>;
-      onDesktopStateChanged: (
-        callback: (arg: { collapsed: boolean }) => void,
-      ) => void;
-      removeDesktopStateChangedListener: () => void;
-      quitApp: () => Promise<void>;
-    };
-  }
-}
-
 function useWindowType(): { windowType: string; mode: string } {
   const [params, setParams] = useState({ windowType: "", mode: "" });
   useEffect(() => {
@@ -179,6 +88,9 @@ function MainWindowApp() {
   const [workflowsLoading, setWorkflowsLoading] = useState(false);
   const [workflowsError, setWorkflowsError] = useState("");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>("");
+  const [workflowSearchOpen, setWorkflowSearchOpen] = useState(false);
+  const [workflowSearchQuery, setWorkflowSearchQuery] = useState("");
+  const workflowSearchRef = useRef<HTMLDivElement>(null);
   const [selectedWorkflowType, setSelectedWorkflowType] =
     useState<string>("desktop");
   const [workflow, setWorkflow] = useState<Record<string, unknown> | null>(
@@ -219,7 +131,6 @@ function MainWindowApp() {
   );
   const recordingDurationRef = useRef<number>(0);
 
-  // Navigation
   const [page, setPage] = useState<"home" | "detail" | "edit" | "schedule">(
     "home",
   );
@@ -295,7 +206,27 @@ function MainWindowApp() {
     else setWorkflows([]);
   }, [token, loadWorkflows]);
 
-  // Shared handler for run-from-url (web opens desktop) and voice-run (LiveKit run_started)
+  useEffect(() => {
+    if (!workflowSearchOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setWorkflowSearchOpen(false);
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (
+        workflowSearchRef.current &&
+        !workflowSearchRef.current.contains(e.target as Node)
+      ) {
+        setWorkflowSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mousedown", onClickOutside);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousedown", onClickOutside);
+    };
+  }, [workflowSearchOpen]);
+
   const handleRunStarted = useCallback(
     async (arg: { workflowId: string; runId: string }) => {
       const t = token ?? (await loadToken());
@@ -358,7 +289,6 @@ function MainWindowApp() {
     [token, loadToken, getPrimarySourceId],
   );
 
-  // Handle run-from-url (web opens desktop)
   useEffect(() => {
     window.electronAPI?.onRunFromUrl?.(handleRunStarted);
     return () => window.electronAPI?.removeRunFromUrlListener?.();
@@ -374,10 +304,6 @@ function MainWindowApp() {
   const startRecordingRef = useRef<() => Promise<void>>(() =>
     Promise.resolve(),
   );
-  useEffect(() => {
-    window.electronAPI?.onStartCapture?.(() => startRecordingRef.current());
-    return () => window.electronAPI?.removeStartCaptureListener?.();
-  }, []);
 
   // Sync collapse state from main process
   useEffect(() => {
@@ -400,53 +326,39 @@ function MainWindowApp() {
     setSelectedWorkflowType("desktop");
   };
 
-  const handleSelectWorkflow = async (workflowId: string) => {
-    setSelectedWorkflowId(workflowId);
-    const wf = workflows.find((w) => w.id === workflowId);
-    setSelectedWorkflowType(wf?.workflow_type ?? "desktop");
-    if (!token) return;
-    setFetching(true);
-    setFetchError("");
-    setWorkflow(null);
-    setSteps([]);
-    try {
-      const result = await window.electronAPI?.fetchWorkflow({
-        workflowId,
-        token,
-      });
-      if (result && "error" in result) {
-        if (result.error?.includes("401")) {
-          await window.electronAPI?.authClearToken?.();
-          setToken(null);
-          return;
+  const handleSelectWorkflow = useCallback(
+    async (workflowId: string) => {
+      setSelectedWorkflowId(workflowId);
+      const wf = workflows.find((w) => w.id === workflowId);
+      setSelectedWorkflowType(wf?.workflow_type ?? "desktop");
+      const t = token ?? (await loadToken());
+      if (!t) return;
+      setFetching(true);
+      setFetchError("");
+      setWorkflow(null);
+      setSteps([]);
+      try {
+        const result = await window.electronAPI?.fetchWorkflow({
+          workflowId,
+          token: t,
+        });
+        if (result && "error" in result) {
+          if (result.error?.includes("401")) {
+            await window.electronAPI?.authClearToken?.();
+            setToken(null);
+            return;
+          }
+          setFetchError(result.error ?? "");
+        } else if (result && "workflow" in result) {
+          setWorkflow(result.workflow);
+          setSteps(result.steps ?? []);
         }
-        setFetchError(result.error ?? "");
-      } else if (result && "workflow" in result) {
-        setWorkflow(result.workflow);
-        setSteps(result.steps ?? []);
+      } finally {
+        setFetching(false);
       }
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  // Main window: receive recording commands from HUD (forwarded via Main Process)
-  useEffect(() => {
-    const handler = (payload: { action: string; duration?: number }) => {
-      if (payload.action === "pause") pauseResumeRecording();
-      if (payload.action === "stop") {
-        stopRecording(payload.duration);
-        window.electronAPI?.exitRecordingMode?.();
-      }
-      if (payload.action === "discard") {
-        discardRecording();
-        window.electronAPI?.exitRecordingMode?.();
-      }
-      if (payload.action === "redo") redoRecording();
-    };
-    window.electronAPI?.onRecordingCommand?.(handler);
-    return () => window.electronAPI?.removeRecordingCommandListener?.();
-  }, []);
+    },
+    [token, loadToken, workflows],
+  );
 
   const startRecording = async () => {
     setRecordError("");
@@ -500,6 +412,11 @@ function MainWindowApp() {
     }
   };
   startRecordingRef.current = startRecording;
+
+  useEffect(() => {
+    window.electronAPI?.onStartCapture?.(() => startRecordingRef.current());
+    return () => window.electronAPI?.removeStartCaptureListener?.();
+  }, []);
 
   const stopRecording = (durationFromHud?: number) => {
     if (recordingIntervalRef.current) {
@@ -561,6 +478,26 @@ function MainWindowApp() {
     discardRecording();
     startRecording();
   };
+
+  startRecordingRef.current = startRecording;
+
+  // Main window: receive recording commands from HUD (forwarded via Main Process)
+  useEffect(() => {
+    const handler = (payload: { action: string; duration?: number }) => {
+      if (payload.action === "pause") pauseResumeRecording();
+      if (payload.action === "stop") {
+        stopRecording(payload.duration);
+        window.electronAPI?.exitRecordingMode?.();
+      }
+      if (payload.action === "discard") {
+        discardRecording();
+        window.electronAPI?.exitRecordingMode?.();
+      }
+      if (payload.action === "redo") redoRecording();
+    };
+    window.electronAPI?.onRecordingCommand?.(handler);
+    return () => window.electronAPI?.removeRecordingCommandListener?.();
+  }, [pauseResumeRecording, stopRecording, discardRecording, redoRecording]);
 
   const formatDuration = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -815,107 +752,151 @@ function MainWindowApp() {
   };
 
   if (screenPermissionRequired) {
+    const isDark = theme === "dark";
     return (
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          padding: 32,
-          background: "var(--echo-bg)",
+          position: "relative",
+          minHeight: "100vh",
+          overflow: "hidden",
+          background: isDark
+            ? "linear-gradient(135deg, #150a35 0%, #2d1b69 50%, #0d0620 100%)"
+            : "linear-gradient(135deg, #f5f0ff 0%, #ede5fc 50%, #e8e0f5 100%)",
         }}
       >
-        <div
-          className="echo-card"
+        <button
+          type="button"
+          className="echo-theme-toggle"
+          onClick={toggleTheme}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
           style={{
-            maxWidth: 440,
-            width: "100%",
+            position: "absolute",
+            top: 16,
+            right: 16,
+            zIndex: 10,
+          }}
+        >
+          {isDark ? <IconSun size={18} /> : <IconMoon size={18} />}
+        </button>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "100vh",
             padding: 32,
-            textAlign: "center",
           }}
         >
           <div
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: "rgba(165,119,255,0.15)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 20px",
-              fontSize: 28,
+              maxWidth: 440,
+              width: "100%",
+              padding: 40,
+              textAlign: "center",
+              background: isDark
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(255, 255, 255, 0.9)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              border: isDark
+                ? "1px solid rgba(165, 119, 255, 0.15)"
+                : "1px solid rgba(165, 119, 255, 0.2)",
+              borderRadius: "1rem",
+              boxShadow: isDark
+                ? "0 4px 24px rgba(0, 0, 0, 0.2)"
+                : "0 4px 24px rgba(100, 60, 180, 0.08)",
             }}
           >
-            🖥️
-          </div>
-          <h1
-            style={{
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              color: "var(--echo-text)",
-              marginBottom: 8,
-            }}
-          >
-            Screen Recording Required
-          </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--echo-text-secondary)",
-              marginBottom: 8,
-              lineHeight: 1.6,
-            }}
-          >
-            Echo needs permission to record your screen in order to capture
-            workflows and run automations.
-          </p>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--echo-text-secondary)",
-              marginBottom: 24,
-              lineHeight: 1.6,
-            }}
-          >
-            Go to{" "}
-            <strong style={{ color: "var(--echo-text)" }}>
-              System Settings → Privacy &amp; Security → Screen Recording
-            </strong>{" "}
-            and enable Echo.
-          </p>
-          <button
-            type="button"
-            className="echo-btn-primary"
-            style={{ width: "100%", marginBottom: 16 }}
-            onClick={() => window.electronAPI?.openSystemSettings?.()}
-          >
-            Open System Settings
-          </button>
-          <p
-            style={{
-              fontSize: 12,
-              color: "#9ca3af",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
-          >
-            <span
+            <div
               style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#A577FF",
-                animation: "echo-pulse 1.2s ease-in-out infinite",
+                width: 56,
+                height: 56,
+                borderRadius: "0.75rem",
+                background: "rgba(165, 119, 255, 0.15)",
+                border: "1px solid rgba(165, 119, 255, 0.25)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px",
+                color: "var(--echo-lavender)",
               }}
-            />
-            Waiting for permission — will continue automatically once granted
-          </p>
+            >
+              <IconDeviceDesktop size={28} stroke={1.5} />
+            </div>
+            <h1
+              style={{
+                fontSize: "1.5rem",
+                fontWeight: 600,
+                color: "var(--echo-text)",
+                marginBottom: 12,
+                lineHeight: 1.3,
+              }}
+            >
+              Screen recording permission
+            </h1>
+            <p
+              style={{
+                fontSize: 15,
+                color: "var(--echo-text-secondary)",
+                marginBottom: 12,
+                lineHeight: 1.6,
+              }}
+            >
+              Echo needs Screen Recording access to capture workflows, run
+              automations, and power EchoPrism.
+            </p>
+            <p
+              style={{
+                fontSize: 14,
+                color: "var(--echo-text-secondary)",
+                marginBottom: 28,
+                lineHeight: 1.6,
+              }}
+            >
+              Go to{" "}
+              <strong style={{ color: "var(--echo-text)" }}>
+                System Settings → Privacy &amp; Security → Screen Recording
+              </strong>{" "}
+              and enable Echo.
+            </p>
+            <button
+              type="button"
+              className="echo-btn-cyan-lavender"
+              style={{
+                width: "100%",
+                marginBottom: 20,
+                padding: "0.625rem 1.25rem",
+                borderRadius: "0.75rem",
+                fontWeight: 600,
+              }}
+              onClick={() => window.electronAPI?.openSystemSettings?.()}
+            >
+              Open System Settings
+            </button>
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--echo-text-dim)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "var(--echo-lavender)",
+                  animation: "echo-pulse 1.2s ease-in-out infinite",
+                }}
+              />
+              Permission will be detected automatically once granted
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -1105,56 +1086,60 @@ function MainWindowApp() {
       <TooltipProvider>
         <AnimatePresence mode="wait">
           {isCollapsed ? (
-            <button
-              key="collapsed"
-              type="button"
-              onClick={handleExpand}
-              style={{
-                position: "fixed",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 14,
-                cursor: "pointer",
-                border: "none",
-                background:
-                  theme === "dark"
-                    ? "rgba(21, 10, 53, 0.92)"
-                    : "rgba(255, 255, 255, 0.98)",
-                boxShadow:
-                  theme === "dark"
-                    ? "0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(165, 119, 255, 0.2)"
-                    : "0 6px 28px rgba(165, 119, 255, 0.25), 0 0 0 1px rgba(165, 119, 255, 0.15)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.06)";
-                e.currentTarget.style.boxShadow =
-                  theme === "dark"
-                    ? "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(165, 119, 255, 0.3)"
-                    : "0 8px 32px rgba(165, 119, 255, 0.35), 0 0 0 1px rgba(165, 119, 255, 0.25)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.boxShadow =
-                  theme === "dark"
-                    ? "0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(165, 119, 255, 0.2)"
-                    : "0 6px 28px rgba(165, 119, 255, 0.25), 0 0 0 1px rgba(165, 119, 255, 0.15)";
-              }}
-              title="Expand"
-            >
-              <img
-                src={echoLogo}
-                alt="Echo"
-                width={36}
-                height={36}
-                style={{ width: 36, height: 36, objectFit: "contain" }}
-              />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  key="collapsed"
+                  type="button"
+                  onClick={handleExpand}
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 14,
+                    cursor: "pointer",
+                    border: "none",
+                    background:
+                      theme === "dark"
+                        ? "rgba(21, 10, 53, 0.92)"
+                        : "rgba(255, 255, 255, 0.98)",
+                    boxShadow:
+                      theme === "dark"
+                        ? "0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(165, 119, 255, 0.2)"
+                        : "0 6px 28px rgba(165, 119, 255, 0.25), 0 0 0 1px rgba(165, 119, 255, 0.15)",
+                    backdropFilter: "blur(20px)",
+                    WebkitBackdropFilter: "blur(20px)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "scale(1.06)";
+                    e.currentTarget.style.boxShadow =
+                      theme === "dark"
+                        ? "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(165, 119, 255, 0.3)"
+                        : "0 8px 32px rgba(165, 119, 255, 0.35), 0 0 0 1px rgba(165, 119, 255, 0.25)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.boxShadow =
+                      theme === "dark"
+                        ? "0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(165, 119, 255, 0.2)"
+                        : "0 6px 28px rgba(165, 119, 255, 0.25), 0 0 0 1px rgba(165, 119, 255, 0.15)";
+                  }}
+                >
+                  <img
+                    src={echoLogo}
+                    alt="Echo"
+                    width={36}
+                    height={36}
+                    style={{ width: 36, height: 36, objectFit: "contain" }}
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Expand</TooltipContent>
+            </Tooltip>
           ) : (
             <div
               key="expanded"
@@ -1237,72 +1222,84 @@ function MainWindowApp() {
                     flexShrink: 0,
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setEchoPrismModalOpen(true)}
-                    title="EchoPrism"
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      padding: 0,
-                      border: "none",
-                      cursor: "pointer",
-                      overflow: "hidden",
-                      flexShrink: 0,
-                      boxShadow: "0 2px 12px rgba(165,119,255,0.35)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.08)";
-                      e.currentTarget.style.boxShadow =
-                        "0 4px 16px rgba(165,119,255,0.45)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.boxShadow =
-                        "0 2px 12px rgba(165,119,255,0.35)";
-                    }}
-                  >
-                    <div style={{ width: "100%", height: "100%" }}>
-                      <Orb
-                        hue={0}
-                        hoverIntensity={0.3}
-                        rotateOnHover
-                        forceHoverState={false}
-                        backgroundColor={
-                          theme === "dark" ? "#0a0414" : "#f5f0ff"
-                        }
-                      />
-                    </div>
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleTheme}
-                    className="h-8 w-8 rounded-lg"
-                    title={
-                      theme === "dark"
-                        ? "Switch to light mode"
-                        : "Switch to dark mode"
-                    }
-                  >
-                    {theme === "dark" ? (
-                      <IconSun size={18} />
-                    ) : (
-                      <IconMoon size={18} />
-                    )}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setEchoPrismModalOpen(true)}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: "50%",
+                          padding: 0,
+                          border: "none",
+                          cursor: "pointer",
+                          overflow: "hidden",
+                          flexShrink: 0,
+                          boxShadow: "0 2px 12px rgba(165,119,255,0.35)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.08)";
+                          e.currentTarget.style.boxShadow =
+                            "0 4px 16px rgba(165,119,255,0.45)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.boxShadow =
+                            "0 2px 12px rgba(165,119,255,0.35)";
+                        }}
+                      >
+                        <div style={{ width: "100%", height: "100%" }}>
+                          <Orb
+                            hue={0}
+                            hoverIntensity={0.3}
+                            rotateOnHover
+                            forceHoverState={false}
+                            backgroundColor={
+                              theme === "dark" ? "#0a0414" : "#f5f0ff"
+                            }
+                          />
+                        </div>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>EchoPrism</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={toggleTheme}
                         className="h-8 w-8 rounded-lg"
-                        title="Menu"
                       >
-                        <IconMenu2 size={18} />
+                        {theme === "dark" ? (
+                          <IconSun size={18} />
+                        ) : (
+                          <IconMoon size={18} />
+                        )}
                       </Button>
-                    </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {theme === "dark"
+                        ? "Switch to light mode"
+                        : "Switch to dark mode"}
+                    </TooltipContent>
+                  </Tooltip>
+                  <DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg"
+                          >
+                            <IconMenu2 size={18} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Menu</TooltipContent>
+                    </Tooltip>
                     <DropdownMenuContent
                       align="end"
                       className="w-48 bg-[var(--echo-surface-solid)] text-[var(--echo-text)] border border-[var(--echo-border)] shadow-lg"
@@ -1346,7 +1343,6 @@ function MainWindowApp() {
                         size="icon"
                         className="h-8 w-8 rounded-lg"
                         onClick={handleCollapse}
-                        title="Collapse to side"
                       >
                         <IconChevronLeft size={18} />
                       </Button>
@@ -1373,7 +1369,7 @@ function MainWindowApp() {
                       <button
                         type="button"
                         onClick={startRecording}
-                        className="echo-btn-cyan-lavender w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white"
+                        className="echo-btn-cyan-lavender mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white"
                       >
                         <IconPlayerRecord size={18} />
                         Start Capture
@@ -1401,15 +1397,19 @@ function MainWindowApp() {
                           <IconUpload size={16} />
                           {recordStatus || "Synthesize workflow"}
                         </button>
-                        <button
-                          type="button"
-                          className="echo-btn-danger flex shrink-0 items-center justify-center rounded-lg p-2"
-                          onClick={discardRecording}
-                          title="Discard"
-                          aria-label="Discard"
-                        >
-                          <IconTrash size={16} />
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="echo-btn-danger flex shrink-0 items-center justify-center rounded-lg p-2"
+                              onClick={discardRecording}
+                              aria-label="Discard"
+                            >
+                              <IconTrash size={16} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Discard</TooltipContent>
+                        </Tooltip>
                       </div>
                     )}
 
@@ -1431,10 +1431,11 @@ function MainWindowApp() {
                   {/* Workflows list */}
                   <SpotlightCard style={{ padding: 20, marginBottom: 20 }}>
                     <div
+                      ref={workflowSearchRef}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "space-between",
+                        gap: 8,
                         marginBottom: 12,
                       }}
                     >
@@ -1444,35 +1445,59 @@ function MainWindowApp() {
                           fontWeight: 600,
                           color: "var(--echo-lavender)",
                           margin: 0,
+                          flexShrink: 0,
                         }}
                       >
                         Workflows
                       </h2>
-                      <button
-                        type="button"
-                        onClick={loadWorkflows}
-                        disabled={workflowsLoading}
-                        title="Refresh workflows"
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: workflowsLoading ? "not-allowed" : "pointer",
-                          color: "#A577FF",
-                          padding: 4,
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        <IconRefresh
-                          size={18}
-                          style={{
-                            animation: workflowsLoading
-                              ? "echo-spin 1s linear infinite"
-                              : "none",
-                            opacity: workflowsLoading ? 0.5 : 1,
-                          }}
-                        />
-                      </button>
+                      <AnimatePresence>
+                        {workflowSearchOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: 180 }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            style={{ overflow: "hidden" }}
+                          >
+                            <Input
+                              placeholder="Search workflows…"
+                              value={workflowSearchQuery}
+                              onChange={(e) =>
+                                setWorkflowSearchQuery(e.target.value)
+                              }
+                              autoFocus
+                              className="w-full border-[rgba(165,119,255,0.2)] text-[var(--echo-text)] placeholder:text-[var(--echo-text-secondary)] focus-visible:ring-[#A577FF]/30"
+                              style={{
+                                fontSize: 14,
+                                backgroundColor: "var(--echo-surface-solid)",
+                              }}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setWorkflowSearchOpen((open) => !open)
+                            }
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "#A577FF",
+                              padding: 4,
+                              display: "flex",
+                              alignItems: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <IconSearch size={18} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Search workflows</TooltipContent>
+                      </Tooltip>
                     </div>
                     {workflowsLoading ? (
                       <p
@@ -1488,161 +1513,264 @@ function MainWindowApp() {
                         {workflowsError}
                       </p>
                     ) : workflows.length === 0 ? (
-                      <p
+                      <div
                         style={{
-                          color: "var(--echo-text-secondary)",
-                          fontSize: 14,
+                          position: "relative",
+                          minHeight: 250,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "flex-start",
+                          padding: 24,
+                          overflow: "hidden",
+                          borderRadius: 12,
+                          border: "1px solid rgba(165, 119, 255, 0.12)",
+                          background: "rgba(165, 119, 255, 0.04)",
                         }}
                       >
-                        No workflows yet. Record a screen to create one.
-                      </p>
-                    ) : (
-                      <AnimatedList
-                        items={workflows}
-                        showGradients={true}
-                        onItemSelect={(w: {
-                          id: string;
-                          workflow_type?: string;
-                        }) => handleRunFromList(w)}
-                        renderItem={(w: {
-                          id: string;
-                          name?: string;
-                          workflow_type?: string;
-                        }) => (
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            width: "100%",
+                            height: "100%",
+                            borderRadius: 12,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <Threads
+                            color={[165 / 255, 119 / 255, 255 / 255]}
+                            amplitude={1.3}
+                            distance={0.3}
+                            enableMouseInteraction={false}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            position: "relative",
+                            zIndex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 12,
+                            textAlign: "center",
+                          }}
+                        >
                           <div
-                            key={w.id}
-                            className="group/workflow"
                             style={{
-                              padding: "10px 12px",
-                              borderRadius: 8,
-                              border: "1px solid rgba(165,119,255,0.12)",
-                              background: "var(--echo-surface)",
-                              display: "flex",
-                              alignItems: "center",
-                              overflow: "hidden",
+                              animation:
+                                "run-logs-placeholder-pulse 3s ease-in-out infinite",
                             }}
                           >
-                            <button
-                              type="button"
+                            <IconJumpRope
+                              size={30}
+                              stroke={1.5}
                               style={{
-                                flex: 1,
-                                padding: 0,
-                                paddingRight: 8,
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                textAlign: "left",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                minWidth: 0,
+                                color: "var(--echo-lavender)",
+                                opacity: 0.9,
+                              }}
+                            />
+                          </div>
+                          <p
+                            style={{
+                              fontSize: 14,
+                              color: "var(--echo-text-secondary)",
+                              margin: 0,
+                              maxWidth: 280,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            No workflows yet. Record a screen to create one.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      (() => {
+                        const q = workflowSearchQuery.trim().toLowerCase();
+                        const filtered = q
+                          ? workflows.filter((w) => {
+                              const name = (w.name ?? w.id).toLowerCase();
+                              const type = (
+                                w.workflow_type ?? ""
+                              ).toLowerCase();
+                              return name.includes(q) || type.includes(q);
+                            })
+                          : workflows;
+                        if (filtered.length === 0 && q) {
+                          return (
+                            <p
+                              style={{
+                                color: "var(--echo-text-secondary)",
+                                fontSize: 14,
+                                margin: 0,
+                                padding: 16,
+                                textAlign: "center",
                               }}
                             >
-                              <span
-                                className="workflow-play-icon inline-flex shrink-0 transition-[stroke]"
-                                style={{ color: "var(--echo-text-secondary)" }}
-                              >
-                                <IconPlayerPlay
-                                  size={14}
-                                  stroke="currentColor"
-                                />
-                              </span>
-                              <span
+                              No workflows match &quot;{workflowSearchQuery}
+                              &quot;
+                            </p>
+                          );
+                        }
+                        return (
+                          <AnimatedList
+                            items={filtered}
+                            onItemSelect={(w: {
+                              id: string;
+                              workflow_type?: string;
+                            }) => handleRunFromList(w)}
+                            renderItem={(w: {
+                              id: string;
+                              name?: string;
+                              workflow_type?: string;
+                            }) => (
+                              <div
+                                key={w.id}
+                                className="group/workflow cursor-default"
                                 style={{
-                                  fontWeight: 500,
-                                  color: "var(--echo-text)",
-                                  flexGrow: 1,
-                                  fontSize: 13,
+                                  padding: "10px 12px",
+                                  borderRadius: 8,
+                                  border: "1px solid rgba(165,119,255,0.12)",
+                                  background: "var(--echo-surface)",
+                                  display: "flex",
+                                  alignItems: "center",
                                   overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
                                 }}
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                {w.name ?? w.id}
-                              </span>
-                              {w.workflow_type && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRunFromList(w);
+                                      }}
+                                      className="workflow-play-icon inline-flex shrink-0 items-center justify-center rounded-md p-1.5 pr-2 transition-all hover:bg-accent hover:shadow-[0_0_16px_var(--echo-glow)]"
+                                      style={{
+                                        border: "none",
+                                        cursor: "pointer",
+                                        color: "var(--echo-text-secondary)",
+                                      }}
+                                    >
+                                      <IconPlayerPlayFilled
+                                        size={14}
+                                        color="currentColor"
+                                      />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Run workflow</TooltipContent>
+                                </Tooltip>
                                 <span
                                   style={{
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    padding: "2px 5px",
-                                    borderRadius: 99,
-                                    background:
-                                      w.workflow_type === "desktop"
-                                        ? "rgba(165,119,255,0.15)"
-                                        : "rgba(34,197,94,0.12)",
-                                    color:
-                                      w.workflow_type === "desktop"
-                                        ? "#A577FF"
-                                        : "#16a34a",
-                                    flexShrink: 0,
+                                    flex: 1,
+                                    fontWeight: 500,
+                                    color: "var(--echo-text)",
+                                    fontSize: 13,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    paddingRight: 8,
                                   }}
                                 >
-                                  {w.workflow_type === "desktop"
-                                    ? "Desktop"
-                                    : "Browser"}
+                                  {w.name ?? w.id}
                                 </span>
-                              )}
-                            </button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 shrink-0 ml-auto rounded-md text-[#A577FF] hover:bg-[#A577FF]/10 px-2"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <IconDots size={14} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                className="w-40 bg-[var(--echo-surface-solid)] text-[var(--echo-text)] border border-[var(--echo-border)] shadow-lg"
-                              >
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedWorkflowId(w.id);
-                                    setSelectedWorkflowType(
-                                      w.workflow_type ?? "desktop",
-                                    );
-                                    handleSelectWorkflow(w.id);
-                                    setPage("detail");
-                                  }}
-                                >
-                                  <IconInfoSmall size={14} />
-                                  Summary
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedWorkflowId(w.id);
-                                    setSelectedWorkflowType(
-                                      w.workflow_type ?? "desktop",
-                                    );
-                                    setPage("edit");
-                                  }}
-                                >
-                                  <IconPencil size={14} />
-                                  Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={() => handleDeleteWorkflow(w.id)}
-                                >
-                                  <IconTrash size={14} />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        )}
-                        maxHeight="280px"
-                        displayScrollbar={true}
-                        showGradients={true}
-                        enableArrowNavigation={true}
-                        className="p-0"
-                        scrollContainerClassName="!p-0"
-                        keyExtractor={(w: { id: string }) => w.id}
-                      />
+                                {w.workflow_type && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      padding: "2px 5px",
+                                      borderRadius: 99,
+                                      background:
+                                        w.workflow_type === "desktop"
+                                          ? "rgba(165,119,255,0.15)"
+                                          : "rgba(34,197,94,0.12)",
+                                      color:
+                                        w.workflow_type === "desktop"
+                                          ? "#A577FF"
+                                          : "#16a34a",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {w.workflow_type === "desktop"
+                                      ? "Desktop"
+                                      : "Browser"}
+                                  </span>
+                                )}
+                                <DropdownMenu>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 shrink-0 ml-auto rounded-md text-black px-2 transition-shadow hover:shadow-[0_0_16px_var(--echo-glow)]"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <IconDots size={14} />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Workflow options
+                                    </TooltipContent>
+                                  </Tooltip>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="w-40 bg-[var(--echo-surface-solid)] text-[var(--echo-text)] border border-[var(--echo-border)] shadow-lg"
+                                  >
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedWorkflowId(w.id);
+                                        setSelectedWorkflowType(
+                                          w.workflow_type ?? "desktop",
+                                        );
+                                        handleSelectWorkflow(w.id);
+                                        setPage("detail");
+                                      }}
+                                    >
+                                      <IconInfoCircle size={14} />
+                                      Summary
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedWorkflowId(w.id);
+                                        setSelectedWorkflowType(
+                                          w.workflow_type ?? "desktop",
+                                        );
+                                        setPage("edit");
+                                      }}
+                                    >
+                                      <IconPencil size={14} />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteWorkflow(w.id);
+                                      }}
+                                    >
+                                      <IconTrash size={14} />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
+                            maxHeight="280px"
+                            displayScrollbar={true}
+                            showGradients={true}
+                            enableArrowNavigation={true}
+                            className="p-0"
+                            scrollContainerClassName="!p-0"
+                            keyExtractor={(w: { id: string }) => w.id}
+                          />
+                        );
+                      })()
                     )}
                     {fetching && (
                       <p
@@ -1723,13 +1851,14 @@ function MainWindowApp() {
         </AnimatePresence>
       </TooltipProvider>
 
-      {/* EchoPrism (Voice + Chat) via LiveKit AgentSessionView */}
-      <EchoPrismLiveKitSession
-        isOpen={echoPrismModalOpen}
-        onClose={() => setEchoPrismModalOpen(false)}
-        getToken={loadToken}
-        onRunStarted={handleRunStarted}
-      />
+      {/* EchoPrism (Voice + Chat) via LiveKit AgentSessionView — mount only when open for efficient session lifecycle */}
+      {echoPrismModalOpen && (
+        <EchoPrismLiveKitSession
+          onClose={() => setEchoPrismModalOpen(false)}
+          getToken={loadToken}
+          onRunStarted={handleRunStarted}
+        />
+      )}
     </>
   );
 }

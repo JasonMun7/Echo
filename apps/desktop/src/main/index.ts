@@ -9,7 +9,10 @@ import {
   shell,
 } from "electron";
 import type { Step, WorkflowType } from "@echo/types";
-import { runWorkflowRemote } from "./agent/remote-workflow-runner";
+import {
+  runWorkflowRemote,
+  abortActiveRun,
+} from "./agent/remote-workflow-runner";
 import { createHudOverlayWindow, createHazeOverlayWindow } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -59,6 +62,13 @@ function handleAuthUrl(url: string): void {
     }
   } catch {
     /* ignore */
+  }
+}
+
+function handleOpenApp(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
   }
 }
 
@@ -338,6 +348,9 @@ ipcMain.handle("cancel-run", async () => {
     /\/$/,
     "",
   );
+  // Signal cancel and abort the active run immediately — closes WebSocket so remote-workflow-runner exits
+  requestCancel();
+  abortActiveRun();
   try {
     const res = await fetch(`${base}/api/run/${workflowId}/${runId}`, {
       method: "DELETE",
@@ -408,11 +421,18 @@ app.whenReady().then(async () => {
     destroyOverlaysAndShowMain();
   });
 
-  // Required for getDisplayMedia() in the renderer - Electron does not support it by default
+  // Required for getDisplayMedia() in the renderer - Electron does not support it by default.
+  // Include both "window" and "screen" so the system picker shows individual windows.
+  // When the handler runs (e.g. re-request from applyConstraints), prefer a window to avoid
+  // shifting from the user's chosen window back to the primary desktop.
   session.defaultSession.setDisplayMediaRequestHandler(
     async (_request, callback) => {
-      const sources = await desktopCapturer.getSources({ types: ["screen"] });
-      const source = sources[0];
+      const sources = await desktopCapturer.getSources({
+        types: ["window", "screen"],
+        thumbnailSize: { width: 150, height: 150 },
+      });
+      const windowSource = sources.find((s) => s.id.startsWith("window:"));
+      const source = windowSource ?? sources[0];
       if (source) callback({ video: source });
     },
     { useSystemPicker: true },
@@ -446,6 +466,8 @@ function dispatchDeepLink(url: string): void {
       handleCaptureUrl();
     } else if (u.searchParams.has("token")) {
       handleAuthUrl(url);
+    } else if (pathname === "open") {
+      handleOpenApp();
     } else {
       handleAuthUrl(url);
     }
@@ -598,7 +620,12 @@ ipcMain.handle(
   },
 );
 
-import { requestPause, requestResume } from "./run-control";
+import {
+  requestPause,
+  requestResume,
+  requestCancel,
+  clearCancel,
+} from "./run-control";
 
 ipcMain.handle("pause-run", () => {
   requestPause();
@@ -628,6 +655,7 @@ ipcMain.handle(
       return { success: false, error: "steps and sourceId required" };
     }
     requestResume();
+    clearCancel();
     const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
       /\/$/,
       "",
@@ -637,7 +665,8 @@ ipcMain.handle(
       "",
     );
     const progress: string[] = [];
-    const entries: Array<{ thought: string; action: string; step: number }> = [];
+    const entries: Array<{ thought: string; action: string; step: number }> =
+      [];
     const result = await runWorkflowRemote(steps as unknown as Step[], {
       sourceId,
       workflowType: (workflowType as WorkflowType) ?? "desktop",
