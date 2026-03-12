@@ -18,7 +18,6 @@ import {
   IconArrowLeft,
   IconPlayerPlay,
   IconList,
-  IconJumpRope,
   IconTrash,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -135,26 +134,21 @@ export default function WorkflowDetailPage() {
     return (
       <div className="flex flex-1 overflow-auto">
         <div className="flex w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Skeleton className="h-5 w-5 rounded-md" />
-              <Skeleton className="h-7 w-56 rounded-lg" />
-            </div>
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-24 rounded-lg" />
-              <Skeleton className="h-10 w-20 rounded-lg" />
-              <Skeleton className="h-10 w-28 rounded-lg" />
+          {/* Header skeleton: Back, Title, Buttons */}
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+            <Skeleton className="h-4 w-48 rounded-md" />
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-16 rounded-md" />
+              <Skeleton className="h-8 w-14 rounded-md" />
+              <Skeleton className="h-8 w-14 rounded-md" />
             </div>
           </div>
-          {/* Status pills */}
-          <div className="flex gap-3">
-            <Skeleton className="h-6 w-24 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
-          </div>
+          {/* Status */}
+          <Skeleton className="h-4 w-32 rounded-md" />
           {/* Run list */}
           <div className="flex flex-col gap-2 mt-2">
-            <Skeleton className="h-5 w-24 rounded-lg mb-1" />
+            <Skeleton className="h-5 w-24 rounded-lg" />
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-16 w-full rounded-xl" />
             ))}
@@ -179,33 +173,32 @@ export default function WorkflowDetailPage() {
       )}
       <div className="flex flex-1 overflow-auto">
         <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/dashboard/workflows"
-                className="cursor-pointer text-[#150A35]/70 hover:text-[#A577FF]"
-              >
-                <IconArrowLeft className="h-5 w-5" />
-              </Link>
-              <h1 className="text-2xl font-semibold text-[#150A35]">
-                {String(workflow.name || id)}
-              </h1>
-            </div>
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3">
+            <Link
+              href="/dashboard/workflows"
+              className="echo-btn-secondary-accent flex w-fit shrink-0 items-center justify-center rounded-lg p-1.5"
+              aria-label="Back"
+            >
+              <IconArrowLeft className="echo-icon-gradient h-5 w-5" />
+            </Link>
+            <h1 className="min-w-0 truncate text-base font-semibold text-[#150A35]">
+              {String(workflow.name || id)}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex items-center gap-2 rounded-lg border border-echo-error/40 px-5 py-2.5 font-medium text-echo-error hover:bg-echo-error/10 disabled:opacity-50"
+                className="echo-btn-danger flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm disabled:opacity-50"
               >
-                <IconTrash className="h-5 w-5" />
+                <IconTrash className="h-4 w-4" />
                 {deleting ? "Deleting..." : "Delete"}
               </button>
               <Link
                 href={`/dashboard/workflows/${id}/edit`}
-                className="echo-btn-secondary flex items-center gap-2"
+                className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm"
               >
-                <IconList className="h-5 w-5" />
+                <IconList className="echo-icon-gradient h-4 w-4" />
                 Edit
               </Link>
               <button
@@ -215,9 +208,9 @@ export default function WorkflowDetailPage() {
                   running ||
                   (workflow.status !== "active" && workflow.status !== "ready")
                 }
-                className="echo-btn-primary flex items-center gap-2 disabled:opacity-50"
+                className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm disabled:opacity-50"
               >
-                <IconPlayerPlay className="h-5 w-5" />
+                <IconPlayerPlay className="echo-icon-gradient h-4 w-4" />
                 {running ? "Starting..." : "Run"}
               </button>
             </div>

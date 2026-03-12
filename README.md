@@ -164,7 +164,7 @@ npm install
 
 ```bash
 # Terminal 1 – backend
-pnpm run backend:dev
+pnpm run dev:backend
 
 # Terminal 2 – frontend
 pnpm run dev
@@ -172,7 +172,7 @@ pnpm run dev
 pnpm run dev:desktop
 
 # Terminal 3 (optional) – EchoPrism Agent (chat, voice, synthesis)
-pnpm run echo-prism-agent:dev
+pnpm run dev:agent
 ```
 
 When running EchoPrism Agent locally, set `NEXT_PUBLIC_ECHO_AGENT_URL` (web) and `VITE_ECHO_AGENT_URL` (desktop) to `http://localhost:8081` in Doppler.
@@ -274,6 +274,18 @@ The script will:
 
 The deploy script injects `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_ECHO_AGENT_URL` into the frontend build. No extra config needed for production.
 
+### 6.4 LiveKit Agent (optional — EchoPrism Voice)
+
+The main `pnpm run deploy` deploys frontend, backend, echo-prism-agent, and omniparser. The **LiveKit voice agent** is a separate Cloud Run service deployed only when EchoPrism Voice is required.
+
+To deploy the LiveKit agent:
+
+```bash
+pnpm run deploy:livekit-agent
+```
+
+Requires Doppler prd config with: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`, `ECHOPRISM_AGENT_URL`, `GEMINI_API_KEY`. See [EchoPrism LiveKit README](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md).
+
 ---
 
 ## Environment variables reference
@@ -283,6 +295,16 @@ See [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) for the
 - **Shared (Backend + EchoPrism):** `ECHO_GCS_BUCKET`, `ECHO_GCP_PROJECT_ID`, `GEMINI_API_KEY`, `ECHOPRISM_OMNIPARSER_URL`, `GOOGLE_APPLICATION_CREDENTIALS`
 - **Frontend (web):** `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ECHO_AGENT_URL`, `NEXT_PUBLIC_FIREBASE_*`
 - **Desktop:** `VITE_API_URL`, `VITE_ECHO_AGENT_URL`
+
+### LiveKit (EchoPrism Voice + Chat)
+
+EchoPrism Voice uses LiveKit + Gemini. Configure these for the backend and [LiveKit agent](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md):
+
+- **Backend (EchoPrismAgent):** `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`
+- **Desktop (dev):** `VITE_LIVEKIT_SANDBOX_ID` — optional; use LiveKit Cloud sandbox token server to skip backend token endpoint during development
+- **Desktop:** `VITE_API_URL` = main backend; `VITE_ECHO_AGENT_URL` = EchoPrismAgent (8081). LiveKit token is fetched from EchoPrismAgent.
+
+Create a project at [cloud.livekit.io](https://cloud.livekit.io), copy API key/secret/URL, then run the LiveKit agent (`pnpm run dev:livekit-agent` or see [livekit README](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md)) alongside the EchoPrism backend.
 
 ---
 
@@ -304,10 +326,11 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 |--------|-------------|
 | `pnpm run dev` | Start Next.js frontend (Doppler env) |
 | `pnpm run dev:desktop` | Start Electron desktop app (Doppler env) |
-| `pnpm run backend:dev` | Start FastAPI backend (Doppler env) |
-| `pnpm run echo-prism-agent:dev` | Start EchoPrism Agent locally (port 8081, Doppler env) |
-| `pnpm run backend:docker` | Build and run backend in Docker |
-| `pnpm run deploy` | Deploy to Cloud Run (uses Doppler prd) |
+| `pnpm run dev:backend` | Start FastAPI backend (Doppler env) |
+| `pnpm run dev:agent` | Start EchoPrism Agent locally (port 8081, Doppler env) |
+| `pnpm run dev:livekit-agent` | Start EchoPrism LiveKit voice agent (Doppler env) |
+| `pnpm run deploy` | Deploy to Cloud Run — frontend, backend, echo-prism-agent, omniparser |
+| `pnpm run deploy:livekit-agent` | Deploy LiveKit voice agent only (optional; requires LiveKit Cloud) |
 
 ---
 

@@ -20,6 +20,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
     stream=sys.stderr,
 )
+# Silence verbose INFO logs from google_genai (e.g. "AFC is enabled with max remote calls: 10")
+logging.getLogger("google_genai.models").setLevel(logging.WARNING)
 
 # Resolve GOOGLE_APPLICATION_CREDENTIALS early — Doppler sets a relative path
 # (e.g. "service-account.json") which resolves from the repo root (echo/) but
@@ -58,7 +60,7 @@ if str(_service_root) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import chat, synthesize, agent as agent_router, traces
+from routers import chat, synthesize, agent as agent_router, traces, livekit
 
 app = FastAPI(title="EchoPrism Agent", version="0.1.0")
 
@@ -79,6 +81,7 @@ app.add_middleware(
 )
 
 app.include_router(chat.router)
+app.include_router(livekit.router, prefix="/api")
 app.include_router(synthesize.router, prefix="/api")
 app.include_router(agent_router.router, prefix="/api")
 app.include_router(traces.router, prefix="/api")

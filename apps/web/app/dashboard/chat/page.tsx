@@ -21,6 +21,11 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { apiFetch, agentFetch, AGENT_URL } from "@/lib/api";
 import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { ChatMessageContent } from "@/components/chat-message-content";
@@ -567,22 +572,28 @@ export default function ChatPage() {
         {/* Input area */}
         <div className="flex items-center gap-3 border-t border-[#A577FF]/20 px-6 py-4">
           {/* Dictation mic — fills input box only, no live audio streaming */}
-          <button
-            onClick={toggleDictation}
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all",
-              isDictating
-                ? "bg-red-500 text-white animate-pulse ring-2 ring-red-400/50"
-                : "bg-[#A577FF]/10 text-[#A577FF] hover:bg-[#A577FF]/20",
-            )}
-            title={isDictating ? "Stop dictation" : "Dictate message"}
-          >
-            {isDictating ? (
-              <IconPlayerStop className="h-4 w-4" />
-            ) : (
-              <IconMicrophone className="h-4 w-4" />
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleDictation}
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all",
+                  isDictating
+                    ? "bg-red-500 text-white animate-pulse ring-2 ring-red-400/50"
+                    : "bg-[#A577FF]/10 text-[#A577FF] hover:bg-[#A577FF]/20",
+                )}
+              >
+                {isDictating ? (
+                  <IconPlayerStop className="h-4 w-4" />
+                ) : (
+                  <IconMicrophone className="h-4 w-4" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isDictating ? "Stop dictation" : "Dictate message"}
+            </TooltipContent>
+          </Tooltip>
 
           <Input
             value={input}
@@ -593,13 +604,18 @@ export default function ChatPage() {
             disabled={!isConnected}
           />
 
-          <Button
-            onClick={() => sendTextMessage(input)}
-            disabled={!input.trim() || !isConnected}
-            className="h-10 w-10 shrink-0 rounded-full bg-linear-to-r from-[#A577FF] to-[#7C3AED] p-0 text-white hover:opacity-90"
-          >
-            <IconSend className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => sendTextMessage(input)}
+                disabled={!input.trim() || !isConnected}
+                className="h-10 w-10 shrink-0 rounded-full bg-linear-to-r from-[#A577FF] to-[#7C3AED] p-0 text-white hover:opacity-90"
+              >
+                <IconSend className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Send message</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

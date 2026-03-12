@@ -1,0 +1,22 @@
+# Cloud Build: echo-prism-livekit-agent (Cloud Run service)
+# Long-running worker that connects to LiveKit and joins rooms for voice
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-livekit-agent
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "EchoPrismAgent/Dockerfile.livekit"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-prism-livekit-agent:${_IMAGE_TAG}"
+      - "."
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-livekit-agent
+    args: ["push", "gcr.io/$PROJECT_ID/echo-prism-livekit-agent:${_IMAGE_TAG}"]
+    waitFor: ["build-livekit-agent"]
+substitutions:
+  _IMAGE_TAG: "latest"
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: CLOUD_LOGGING_ONLY
