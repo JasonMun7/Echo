@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { useAuthStore } from "@/stores";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,13 +13,12 @@ import { toast } from "sonner";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function apiFetch(path: string, options?: RequestInit) {
-  const user = auth?.currentUser;
-  const token = user ? await user.getIdToken() : "";
+  const token = await useAuthStore.getState().getIdToken();
   return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers || {}),
     },
   });
@@ -27,26 +26,29 @@ async function apiFetch(path: string, options?: RequestInit) {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
   const [profile, setProfile] = useState<{ display_name?: string; email?: string; createdAt?: unknown } | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const user = auth?.currentUser;
 
   useEffect(() => {
-    const unsub = auth?.onAuthStateChanged(async (u) => {
-      if (!u) { router.replace("/signin"); return; }
+    if (!user) {
+      if (!loading) router.replace("/signin");
+      return;
+    }
+    (async () => {
       try {
         const resp = await apiFetch("/api/users/me");
         if (resp.ok) {
           const data = await resp.json();
           setProfile(data);
-          setDisplayName(data.display_name || u.displayName || "");
+          setDisplayName(data.display_name || user.displayName || "");
         }
       } catch { /* ignore */ }
-    });
-    return () => unsub?.();
-  }, [router]);
+    })();
+  }, [user, loading, router]);
 
   async function saveDisplayName() {
     setSaving(true);

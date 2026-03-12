@@ -24,29 +24,26 @@ import {
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { auth, db } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
+import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthStore } from "@/stores";
 
 export function DashboardLayout({ children }: { children?: React.ReactNode }) {
   const [open, setOpen] = useState(true);
-  const [user, setUser] = useState(auth?.currentUser ?? null);
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const signOutAuth = useAuthStore((s) => s.signOut);
   const [activeRunCount, setActiveRunCount] = useState(0);
   const [awaitingUserCount, setAwaitingUserCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!auth) return;
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      setUser(u);
-      if (!u) {
-        router.replace("/signin");
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!loading && !user) {
+      router.replace("/signin");
+    }
+  }, [loading, user, router]);
 
   // Real-time active run indicator — properly unsubscribes nested listeners on cleanup
   useEffect(() => {
@@ -129,13 +126,11 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
   }, [user]);
 
   const handleLogout = async () => {
-    if (auth) {
-      await signOut(auth);
-      router.replace("/signin");
-    }
+    await signOutAuth();
+    router.replace("/signin");
   };
 
-  if (!user) {
+  if (loading || !user) {
     return (
       <div className="flex h-screen w-full min-h-screen overflow-hidden bg-[#F5F7FC]">
         {/* Sidebar skeleton */}

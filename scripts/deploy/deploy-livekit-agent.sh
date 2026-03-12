@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deploy echo-prism-livekit-agent to Cloud Run
 # Long-running worker that connects to LiveKit Cloud and joins rooms for voice
+# Colocation: Use same region (e.g. us-central1) for LiveKit Cloud, agent, and token API
 # Usage: ./scripts/deploy/deploy-livekit-agent.sh [--build] [PROJECT_ID] [REGION]
 #   --build  Build image first (omit when using deploy.sh which builds all)
 set -e
@@ -31,7 +32,7 @@ LIVEKIT_ENV="LIVEKIT_URL=$LIVEKIT_URL,LIVEKIT_API_KEY=$LIVEKIT_API_KEY,LIVEKIT_A
 [ -n "$ECHOPRISM_VOICE_MODEL" ] && LIVEKIT_ENV="$LIVEKIT_ENV,ECHOPRISM_VOICE_MODEL=$ECHOPRISM_VOICE_MODEL"
 [ -n "$ECHOPRISM_VOICE" ]       && LIVEKIT_ENV="$LIVEKIT_ENV,ECHOPRISM_VOICE=$ECHOPRISM_VOICE"
 
-step "Deploying echo-prism-livekit-agent (min-instances=1 to stay connected)..."
+step "Deploying echo-prism-livekit-agent (min-instances=1 to avoid cold starts)..."
 echo ""
 
 gcloud run deploy echo-prism-livekit-agent \

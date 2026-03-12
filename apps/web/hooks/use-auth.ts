@@ -1,40 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  type User,
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { useAuthStore } from "@/stores";
 
+/** @deprecated Use useAuthStore directly for new code. */
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(auth?.currentUser ?? null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!auth) {
-      setTimeout(() => setLoading(false), 0);
-      return;
-    }
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const signIn = useAuthStore((s) => s.signIn);
+  const signUp = useAuthStore((s) => s.signUp);
+  const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
+  const signOut = useAuthStore((s) => s.signOut);
 
   return {
     user,
     loading,
-    signIn: signInWithEmailAndPassword.bind(null, auth!),
-    signUp: createUserWithEmailAndPassword.bind(null, auth!),
-    signInWithGoogle: () =>
-      signInWithPopup(auth!, new GoogleAuthProvider()),
-    signOut: () => (auth ? signOut(auth) : Promise.resolve()),
+    signIn,
+    signUp,
+    signInWithGoogle,
+    signOut,
   };
 }

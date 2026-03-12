@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { useAuthStore } from "@/stores";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,13 +66,12 @@ const emptyTool: Omit<McpTool, "id"> = {
 };
 
 async function apiFetch(path: string, options?: RequestInit) {
-  const user = auth?.currentUser;
-  const token = user ? await user.getIdToken() : "";
+  const token = await useAuthStore.getState().getIdToken();
   return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers || {}),
     },
   });
@@ -89,13 +88,16 @@ export default function McpToolsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
 
+  const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.loading);
+
   useEffect(() => {
-    const unsub = auth?.onAuthStateChanged((u) => {
-      if (!u) router.replace("/signin");
-      else loadTools();
-    });
-    return () => unsub?.();
-  }, [router]);
+    if (!user) {
+      if (!authLoading) router.replace("/signin");
+      return;
+    }
+    loadTools();
+  }, [user, authLoading, router]);
 
   async function loadTools() {
     setLoading(true);

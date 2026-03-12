@@ -52,6 +52,14 @@ import {
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "motion/react";
+import {
+  useAuthStore,
+  useUIStore,
+  useWorkflowsStore,
+  useRunStore,
+  useRecordingStore,
+} from "@/stores";
+import { useRecording } from "@/hooks/use-recording";
 function useWindowType(): { windowType: string; mode: string } {
   const [params, setParams] = useState({ windowType: "", mode: "" });
   useEffect(() => {
@@ -68,112 +76,73 @@ function useWindowType(): { windowType: string; mode: string } {
 const API_URL =
   (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
   "http://localhost:8000";
-const AGENT_URL =
-  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
-    ?.VITE_ECHO_AGENT_URL ?? API_URL;
 
 function MainWindowApp() {
   const { theme, toggleTheme } = useTheme();
-  const [screenPermissionRequired, setScreenPermissionRequired] =
-    useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const [workflows, setWorkflows] = useState<
-    Array<{
-      id: string;
-      name?: string;
-      status?: string;
-      workflow_type?: string;
-    }>
-  >([]);
-  const [workflowsLoading, setWorkflowsLoading] = useState(false);
-  const [workflowsError, setWorkflowsError] = useState("");
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>("");
-  const [workflowSearchOpen, setWorkflowSearchOpen] = useState(false);
-  const [workflowSearchQuery, setWorkflowSearchQuery] = useState("");
   const workflowSearchRef = useRef<HTMLDivElement>(null);
-  const [selectedWorkflowType, setSelectedWorkflowType] =
-    useState<string>("desktop");
-  const [workflow, setWorkflow] = useState<Record<string, unknown> | null>(
-    null,
-  );
-  const [steps, setSteps] = useState<Array<Record<string, unknown>>>([]);
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState("");
-  const [running, setRunning] = useState(false);
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-  const [runPaused, setRunPaused] = useState(false);
-  const [interruptText, setInterruptText] = useState("");
-  const [sendingInterrupt, setSendingInterrupt] = useState(false);
-  const [runResult, setRunResult] = useState<{
-    success: boolean;
-    error?: string;
-    progress?: string[];
-    runId?: string;
-    workflowId?: string;
-  } | null>(null);
-  const [runResultDismissed, setRunResultDismissed] = useState(false);
-  const [liveProgress, setLiveProgress] = useState<
-    Array<{ thought: string; action: string; step: number }>
-  >([]);
-  const [echoPrismModalOpen, setEchoPrismModalOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const [recording, setRecording] = useState(false);
-  const [recordingPaused, setRecordingPaused] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [recordedDuration, setRecordedDuration] = useState(0);
-  const [recordStatus, setRecordStatus] = useState("");
-  const [recordError, setRecordError] = useState("");
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
+  const token = useAuthStore((s) => s.token);
+  const screenPermissionRequired = useAuthStore(
+    (s) => s.screenPermissionRequired
   );
-  const recordingDurationRef = useRef<number>(0);
-
-  const [page, setPage] = useState<"home" | "detail" | "edit" | "schedule">(
-    "home",
+  const loadToken = useAuthStore((s) => s.loadToken);
+  const signIn = useAuthStore((s) => s.signIn);
+  const signOut = useAuthStore((s) => s.signOut);
+  const setScreenPermissionRequired = useAuthStore(
+    (s) => s.setScreenPermissionRequired
   );
 
-  const loadToken = useCallback(async () => {
-    const t = await window.electronAPI?.authGetToken();
-    setToken(t ?? null);
-    return t ?? null;
-  }, []);
+  const page = useUIStore((s) => s.page);
+  const setPage = useUIStore((s) => s.setPage);
+  const echoPrismModalOpen = useUIStore((s) => s.echoPrismModalOpen);
+  const setEchoPrismModalOpen = useUIStore((s) => s.setEchoPrismModalOpen);
+  const isCollapsed = useUIStore((s) => s.isCollapsed);
+  const setIsCollapsed = useUIStore((s) => s.setIsCollapsed);
+  const workflowSearchOpen = useUIStore((s) => s.workflowSearchOpen);
+  const setWorkflowSearchOpen = useUIStore((s) => s.setWorkflowSearchOpen);
+  const workflowSearchQuery = useUIStore((s) => s.workflowSearchQuery);
+  const setWorkflowSearchQuery = useUIStore((s) => s.setWorkflowSearchQuery);
+
+  const workflows = useWorkflowsStore((s) => s.workflows);
+  const workflowsLoading = useWorkflowsStore((s) => s.workflowsLoading);
+  const workflowsError = useWorkflowsStore((s) => s.workflowsError);
+  const selectedWorkflowId = useWorkflowsStore((s) => s.selectedWorkflowId);
+  const selectedWorkflowType = useWorkflowsStore((s) => s.selectedWorkflowType);
+  const workflow = useWorkflowsStore((s) => s.workflow);
+  const steps = useWorkflowsStore((s) => s.steps);
+  const fetching = useWorkflowsStore((s) => s.fetching);
+  const fetchError = useWorkflowsStore((s) => s.fetchError);
+  const loadWorkflows = useWorkflowsStore((s) => s.loadWorkflows);
+  const handleSelectWorkflow = useWorkflowsStore((s) => s.handleSelectWorkflow);
+  const handleDeleteWorkflow = useWorkflowsStore((s) => s.handleDeleteWorkflow);
+  const selectWorkflow = useWorkflowsStore((s) => s.selectWorkflow);
+
+  const runResult = useRunStore((s) => s.runResult);
+  const runResultDismissed = useRunStore((s) => s.runResultDismissed);
+  const dismissRunResult = useRunStore((s) => s.dismissRunResult);
+  const handleRunWorkflow = useRunStore((s) => s.handleRunWorkflow);
+  const handleRunStarted = useRunStore((s) => s.handleRunStarted);
+
+  const recording = useRecordingStore((s) => s.recording);
+  const recordedBlob = useRecordingStore((s) => s.recordedBlob);
+  const recordedDuration = useRecordingStore((s) => s.recordedDuration);
+  const recordStatus = useRecordingStore((s) => s.recordStatus);
+  const recordError = useRecordingStore((s) => s.recordError);
+  const uploadAndSynthesize = useRecordingStore((s) => s.uploadAndSynthesize);
+
+  const {
+    startRecording,
+    stopRecording,
+    pauseResumeRecording,
+    discardRecording,
+    redoRecording,
+  } = useRecording();
 
   const refreshAuth = useRef<() => void>(() => {});
   refreshAuth.current = async () => {
     const t = await loadToken();
     if (t) loadWorkflows();
   };
-
-  const loadWorkflows = useCallback(async () => {
-    const t = token ?? (await loadToken());
-    if (!t) return;
-    setWorkflowsLoading(true);
-    setWorkflowsError("");
-    try {
-      const result = await window.electronAPI?.listWorkflows({ token: t });
-      if (result && "error" in result) {
-        if (result.error?.includes("401")) {
-          await window.electronAPI?.authClearToken?.();
-          setToken(null);
-          setWorkflows([]);
-          return;
-        }
-        setWorkflowsError(result.error ?? "");
-        setWorkflows([]);
-      } else if (result && "workflows" in result) {
-        setWorkflows(result.workflows ?? []);
-      }
-    } finally {
-      setWorkflowsLoading(false);
-    }
-  }, [token, loadToken]);
-
-  const getPrimarySourceId = useCallback(async (): Promise<string | null> => {
-    return (await window.electronAPI?.getPrimarySourceId?.()) ?? null;
-  }, []);
 
   // Permission screen: poll to auto-dismiss when user grants permission
   useEffect(() => {
@@ -183,7 +152,7 @@ function MainWindowApp() {
       if (granted) setScreenPermissionRequired(false);
     }, 2000);
     return () => clearInterval(interval);
-  }, [screenPermissionRequired]);
+  }, [screenPermissionRequired, setScreenPermissionRequired]);
 
   useEffect(() => {
     loadToken();
@@ -203,7 +172,7 @@ function MainWindowApp() {
 
   useEffect(() => {
     if (token) loadWorkflows();
-    else setWorkflows([]);
+    else useWorkflowsStore.getState().resetOnSignOut();
   }, [token, loadWorkflows]);
 
   useEffect(() => {
@@ -225,69 +194,7 @@ function MainWindowApp() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onClickOutside);
     };
-  }, [workflowSearchOpen]);
-
-  const handleRunStarted = useCallback(
-    async (arg: { workflowId: string; runId: string }) => {
-      const t = token ?? (await loadToken());
-      if (!t) return;
-      const hasPermission = await window.electronAPI?.checkScreenPermission?.();
-      if (!hasPermission) {
-        setScreenPermissionRequired(true);
-        return;
-      }
-      const result = await window.electronAPI?.fetchWorkflow?.({
-        workflowId: arg.workflowId,
-        token: t,
-      });
-      if (!result || "error" in result) return;
-      const { workflow, steps } = result;
-      if (!steps?.length) return;
-      const sourceId = await getPrimarySourceId();
-      if (!sourceId) return;
-      setSelectedWorkflowId(arg.workflowId);
-      setWorkflow(workflow);
-      setSteps(steps);
-      setRunning(true);
-      setRunResult(null);
-      setRunResultDismissed(false);
-      setLiveProgress([]);
-      setCurrentRunId(arg.runId);
-      window.electronAPI?.onRunProgress?.(
-        (entry: { thought: string; action: string; step: number }) =>
-          setLiveProgress((prev) => [...prev, entry]),
-      );
-      try {
-        await window.electronAPI?.enterRunMode?.({
-          workflowId: arg.workflowId,
-          runId: arg.runId,
-          token: t,
-        });
-        const runResult = await window.electronAPI?.runWorkflowLocal?.({
-          steps,
-          sourceId,
-          workflowType:
-            (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
-          workflowId: arg.workflowId,
-          runId: arg.runId,
-          token: t,
-        });
-        window.electronAPI?.removeRunProgressListener?.();
-        setRunResult({
-          ...(runResult ?? { success: false, error: "No response" }),
-          workflowId: arg.workflowId,
-          runId: arg.runId,
-        });
-      } finally {
-        setRunning(false);
-        setRunPaused(false);
-        setCurrentRunId(null);
-        window.electronAPI?.removeRunProgressListener?.();
-        await window.electronAPI?.exitRunMode?.();
-      }
-    },
-    [token, loadToken, getPrimarySourceId],
-  );
+  }, [workflowSearchOpen, setWorkflowSearchOpen]);
 
   useEffect(() => {
     window.electronAPI?.onRunFromUrl?.(handleRunStarted);
@@ -298,190 +205,16 @@ function MainWindowApp() {
   useEffect(() => {
     window.electronAPI?.onOpenEchoPrism?.(() => setEchoPrismModalOpen(true));
     return () => window.electronAPI?.removeOpenEchoPrismListener?.();
-  }, []);
+  }, [setEchoPrismModalOpen]);
 
-  // Handle start-capture (web opens desktop and starts recording)
-  const startRecordingRef = useRef<() => Promise<void>>(() =>
-    Promise.resolve(),
-  );
-
-  // Sync collapse state from main process
-  useEffect(() => {
-    window.electronAPI?.onDesktopStateChanged?.((arg) =>
-      setIsCollapsed(arg.collapsed),
-    );
-    return () => window.electronAPI?.removeDesktopStateChangedListener?.();
-  }, []);
-
-  const handleSignIn = () => {
-    window.electronAPI?.authOpenSignin?.();
-  };
-
-  const handleSignOut = async () => {
-    await window.electronAPI?.authClearToken?.();
-    setToken(null);
-    setWorkflow(null);
-    setSteps([]);
-    setSelectedWorkflowId("");
-    setSelectedWorkflowType("desktop");
-  };
-
-  const handleSelectWorkflow = useCallback(
-    async (workflowId: string) => {
-      setSelectedWorkflowId(workflowId);
-      const wf = workflows.find((w) => w.id === workflowId);
-      setSelectedWorkflowType(wf?.workflow_type ?? "desktop");
-      const t = token ?? (await loadToken());
-      if (!t) return;
-      setFetching(true);
-      setFetchError("");
-      setWorkflow(null);
-      setSteps([]);
-      try {
-        const result = await window.electronAPI?.fetchWorkflow({
-          workflowId,
-          token: t,
-        });
-        if (result && "error" in result) {
-          if (result.error?.includes("401")) {
-            await window.electronAPI?.authClearToken?.();
-            setToken(null);
-            return;
-          }
-          setFetchError(result.error ?? "");
-        } else if (result && "workflow" in result) {
-          setWorkflow(result.workflow);
-          setSteps(result.steps ?? []);
-        }
-      } finally {
-        setFetching(false);
-      }
-    },
-    [token, loadToken, workflows],
-  );
-
-  const startRecording = async () => {
-    setRecordError("");
-    setRecordedBlob(null);
-    const hasPermission = await window.electronAPI?.checkScreenPermission?.();
-    if (!hasPermission) {
-      setScreenPermissionRequired(true);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
-      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : MediaRecorder.isTypeSupported("video/webm")
-          ? "video/webm"
-          : "video/mp4";
-      const recorder = new MediaRecorder(stream, { mimeType: mime });
-
-      // Use a local array per recording session — avoids stale-ref bug when
-      // a new recording starts before the previous onstop fires.
-      const localChunks: Blob[] = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size) localChunks.push(e.data);
-      };
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecordedBlob(
-          new Blob(localChunks, { type: recorder.mimeType || "video/webm" }),
-        );
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start(1000);
-      setRecording(true);
-      setRecordingDuration(0);
-      recordingDurationRef.current = 0;
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingDuration((d) => {
-          const next = d + 1;
-          recordingDurationRef.current = next;
-          return next;
-        });
-      }, 1000);
-      await window.electronAPI?.enterRecordingMode?.();
-    } catch (e) {
-      setRecordError(
-        e instanceof Error ? e.message : "Could not start recording",
-      );
-    }
-  };
+  const startRecordingRef = useRef<() => Promise<void>>(() => Promise.resolve());
   startRecordingRef.current = startRecording;
 
   useEffect(() => {
-    window.electronAPI?.onStartCapture?.(() => startRecordingRef.current());
+    window.electronAPI?.onStartCapture?.(() => startRecordingRef.current?.());
     return () => window.electronAPI?.removeStartCaptureListener?.();
   }, []);
 
-  const stopRecording = (durationFromHud?: number) => {
-    if (recordingIntervalRef.current) {
-      clearInterval(recordingIntervalRef.current);
-      recordingIntervalRef.current = null;
-    }
-    const rec = mediaRecorderRef.current;
-    if (rec && rec.state !== "inactive") {
-      rec.stop();
-      setRecordedDuration(durationFromHud ?? recordingDurationRef.current);
-      setRecording(false);
-      setRecordingPaused(false);
-    }
-  };
-
-  const pauseResumeRecording = () => {
-    const rec = mediaRecorderRef.current;
-    if (!rec) return;
-    if (rec.state === "recording") {
-      rec.pause();
-      setRecordingPaused(true);
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = null;
-      }
-    } else if (rec.state === "paused") {
-      rec.resume();
-      setRecordingPaused(false);
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingDuration((d) => {
-          const next = d + 1;
-          recordingDurationRef.current = next;
-          return next;
-        });
-      }, 1000);
-    }
-  };
-
-  const discardRecording = () => {
-    if (recordingIntervalRef.current) {
-      clearInterval(recordingIntervalRef.current);
-      recordingIntervalRef.current = null;
-    }
-    const rec = mediaRecorderRef.current;
-    if (rec && rec.state !== "inactive") {
-      rec.stop();
-    }
-    mediaRecorderRef.current = null;
-    setRecording(false);
-    setRecordingPaused(false);
-    setRecordedBlob(null);
-    setRecordingDuration(0);
-    setRecordedDuration(0);
-    setRecordError("");
-    setRecordStatus("");
-  };
-
-  const redoRecording = () => {
-    discardRecording();
-    startRecording();
-  };
-
-  startRecordingRef.current = startRecording;
-
-  // Main window: receive recording commands from HUD (forwarded via Main Process)
   useEffect(() => {
     const handler = (payload: { action: string; duration?: number }) => {
       if (payload.action === "pause") pauseResumeRecording();
@@ -499,256 +232,45 @@ function MainWindowApp() {
     return () => window.electronAPI?.removeRecordingCommandListener?.();
   }, [pauseResumeRecording, stopRecording, discardRecording, redoRecording]);
 
+  // Sync collapse state from main process
+  useEffect(() => {
+    window.electronAPI?.onDesktopStateChanged?.((arg) =>
+      setIsCollapsed(arg.collapsed)
+    );
+    return () => window.electronAPI?.removeDesktopStateChangedListener?.();
+  }, [setIsCollapsed]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    useWorkflowsStore.getState().resetOnSignOut();
+    setPage("home");
+  };
+
   const formatDuration = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const uploadAndSynthesize = async () => {
-    if (!recordedBlob || !token) return;
-    setRecordStatus("Uploading recording…");
-    setRecordError("");
-    const apiBase = API_URL.replace(/\/$/, "");
-    const agentBase = AGENT_URL.replace(/\/$/, "");
-    try {
-      const ext = recordedBlob.type.includes("webm") ? "webm" : "mp4";
-      const filename = `recording-${Date.now()}.${ext}`;
-      const formData = new FormData();
-      formData.append("video", recordedBlob, filename);
-      const uploadRes = await fetch(`${apiBase}/api/storage/upload-recording`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      if (!uploadRes.ok) {
-        if (uploadRes.status === 401) {
-          await window.electronAPI?.authClearToken?.();
-          setToken(null);
-          throw new Error("Session expired. Please sign in again.");
-        }
-        const d = await uploadRes.json().catch(() => ({}));
-        throw new Error(
-          (d as { detail?: string }).detail || "Failed to upload recording",
-        );
-      }
-      const { gcs_path } = (await uploadRes.json()) as { gcs_path: string };
-      setRecordStatus("Synthesizing workflow…");
-      const synthFormData = new FormData();
-      synthFormData.append("video_gcs_path", gcs_path);
-      const synthRes = await fetch(`${agentBase}/api/synthesize`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: synthFormData,
-      });
-      if (!synthRes.ok) {
-        const d = await synthRes.json().catch(() => ({}));
-        throw new Error(
-          (d as { detail?: string }).detail || "Synthesis failed",
-        );
-      }
-      const { workflow_id } = (await synthRes.json()) as {
-        workflow_id: string;
-      };
-      setRecordStatus(`Created workflow ${workflow_id}`);
-      setRecordedBlob(null);
-      loadWorkflows();
-    } catch (e) {
-      setRecordError(
-        e instanceof Error ? e.message : "Upload/synthesis failed",
-      );
-    } finally {
-      setTimeout(() => setRecordStatus(""), 3000);
-    }
-  };
-
-  const handleRun = async () => {
-    if (steps.length === 0 || !token) return;
-    const hasPermission = await window.electronAPI?.checkScreenPermission?.();
-    if (!hasPermission) {
-      setScreenPermissionRequired(true);
-      return;
-    }
-    const sourceId = await getPrimarySourceId();
-    if (!sourceId) {
-      setRunResult({ success: false, error: "Could not get primary display" });
-      return;
-    }
-    setRunning(true);
-    setRunResult(null);
-    setRunResultDismissed(false);
-    setLiveProgress([]);
-
-    window.electronAPI?.onRunProgress(
-      (entry: { thought: string; action: string; step: number }) => {
-        setLiveProgress((prev) => [...prev, entry]);
-      },
-    );
-
-    try {
-      const createRes = await window.electronAPI?.createRun?.({
-        workflowId: selectedWorkflowId,
-        token,
-      });
-      if (createRes && "error" in createRes) {
-        setRunResult({
-          success: false,
-          error: createRes.error,
-          workflowId: selectedWorkflowId,
-        });
-        return;
-      }
-      const runId =
-        createRes && "runId" in createRes ? createRes.runId : undefined;
-      setCurrentRunId(runId ?? null);
-
-      await window.electronAPI?.enterRunMode?.({
-        workflowId: selectedWorkflowId,
-        runId: runId ?? "",
-        token,
-      });
-
-      const result = await window.electronAPI?.runWorkflowLocal({
-        steps,
-        sourceId,
-        workflowType: selectedWorkflowType,
-        workflowId: selectedWorkflowId,
-        runId,
-        token,
-      });
-      window.electronAPI?.removeRunProgressListener();
-      setRunResult({
-        ...(result ?? { success: false, error: "No response" }),
-        workflowId: selectedWorkflowId,
-        runId,
-      });
-    } finally {
-      setRunning(false);
-      setRunPaused(false);
-      setCurrentRunId(null);
-      window.electronAPI?.removeRunProgressListener?.();
-      await window.electronAPI?.exitRunMode?.();
-    }
-  };
-
-  const handleCancelRun = async () => {
-    if (!selectedWorkflowId || !currentRunId || !token) return;
-    window.electronAPI?.resumeRun();
-    try {
-      const base = API_URL.replace(/\/$/, "");
-      const res = await fetch(
-        `${base}/api/run/${selectedWorkflowId}/${currentRunId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      if (!res.ok) throw new Error("Cancel failed");
-    } catch {
-      // Non-fatal: agent may have already finished
-    }
-  };
-
-  /** Run a workflow from any page (detail view, home, etc.) */
-  const handleRunWorkflow = async (args: {
-    workflowId: string;
-    steps: Array<Record<string, unknown>>;
-    workflowType: string;
+  const handleRunFromList = async (w: {
+    id: string;
+    workflow_type?: string;
   }) => {
-    if (!args.steps.length || !token) return;
-    const hasPermission = await window.electronAPI?.checkScreenPermission?.();
-    if (!hasPermission) {
-      setScreenPermissionRequired(true);
-      return;
-    }
-    const sourceId = await getPrimarySourceId();
-    if (!sourceId) {
-      setRunResult({ success: false, error: "Could not get primary display" });
-      return;
-    }
-    setRunning(true);
-    setRunResult(null);
-    setRunResultDismissed(false);
-    setLiveProgress([]);
-    setSelectedWorkflowId(args.workflowId);
-    setSelectedWorkflowType(args.workflowType);
-
-    window.electronAPI?.onRunProgress(
-      (entry: { thought: string; action: string; step: number }) => {
-        setLiveProgress((prev) => [...prev, entry]);
-      },
-    );
-
-    try {
-      const createRes = await window.electronAPI?.createRun?.({
-        workflowId: args.workflowId,
-        token,
-      });
-      if (createRes && "error" in createRes) {
-        setRunResult({
-          success: false,
-          error: createRes.error,
-          workflowId: args.workflowId,
-        });
-        return;
-      }
-      const runId =
-        createRes && "runId" in createRes ? createRes.runId : undefined;
-      setCurrentRunId(runId ?? null);
-
-      await window.electronAPI?.enterRunMode?.({
-        workflowId: args.workflowId,
-        runId: runId ?? "",
-        token,
-      });
-
-      const result = await window.electronAPI?.runWorkflowLocal({
-        steps: args.steps,
-        sourceId,
-        workflowType: args.workflowType,
-        workflowId: args.workflowId,
-        runId,
-        token,
-      });
-      window.electronAPI?.removeRunProgressListener();
-      setRunResult({
-        ...(result ?? { success: false, error: "No response" }),
-        workflowId: args.workflowId,
-        runId,
-      });
-    } finally {
-      setRunning(false);
-      setRunPaused(false);
-      setCurrentRunId(null);
-      window.electronAPI?.removeRunProgressListener?.();
-      await window.electronAPI?.exitRunMode?.();
-    }
-  };
-
-  const handleInterrupt = async () => {
-    if (!interruptText.trim() || !selectedWorkflowId || !currentRunId || !token)
-      return;
-    setSendingInterrupt(true);
-    try {
-      const base = API_URL.replace(/\/$/, "");
-      const res = await fetch(
-        `${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ instruction: interruptText.trim() }),
-        },
-      );
-      if (!res.ok) throw new Error("Failed to send");
-      setInterruptText("");
-    } catch {
-      // Ignore
-    } finally {
-      setSendingInterrupt(false);
-    }
+    const t = token ?? (await loadToken());
+    if (!t) return;
+    const result = await window.electronAPI?.fetchWorkflow?.({
+      workflowId: w.id,
+      token: t,
+    });
+    if (!result || "error" in result) return;
+    const { workflow, steps: fetchedSteps } = result;
+    if (!fetchedSteps?.length) return;
+    await handleRunWorkflow({
+      workflowId: w.id,
+      steps: fetchedSteps,
+      workflowType:
+        (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+    });
   };
 
   if (screenPermissionRequired) {
@@ -1004,7 +526,7 @@ function MainWindowApp() {
               <button
                 type="button"
                 className="echo-btn-cyan-lavender"
-                onClick={handleSignIn}
+                onClick={signIn}
                 style={{
                   width: "100%",
                   display: "flex",
@@ -1027,50 +549,9 @@ function MainWindowApp() {
     );
   }
 
-  const handleRunFromList = async (w: {
-    id: string;
-    workflow_type?: string;
-  }) => {
-    const t = token ?? (await loadToken());
-    if (!t) return;
-    const result = await window.electronAPI?.fetchWorkflow?.({
-      workflowId: w.id,
-      token: t,
-    });
-    if (!result || "error" in result) return;
-    const { workflow, steps } = result;
-    if (!steps?.length) return;
-    await handleRunWorkflow({
-      workflowId: w.id,
-      steps,
-      workflowType:
-        (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
-    });
-  };
-
-  const handleDeleteWorkflow = async (workflowId: string) => {
+  const handleDeleteWithConfirm = async (workflowId: string) => {
     if (!confirm("Delete this workflow? This cannot be undone.")) return;
-    if (!token) return;
-    try {
-      const base = API_URL.replace(/\/$/, "");
-      const res = await fetch(
-        `${base}/api/workflows/${encodeURIComponent(workflowId)}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      if (!res.ok) throw new Error("Failed to delete workflow");
-      loadWorkflows();
-      if (selectedWorkflowId === workflowId) {
-        setSelectedWorkflowId("");
-        setWorkflow(null);
-        setSteps([]);
-        setPage("home");
-      }
-    } catch {
-      // Non-fatal
-    }
+    await handleDeleteWorkflow(workflowId);
   };
 
   const handleCollapse = () => {
@@ -1723,10 +1204,7 @@ function MainWindowApp() {
                                     <DropdownMenuItem
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedWorkflowId(w.id);
-                                        setSelectedWorkflowType(
-                                          w.workflow_type ?? "desktop",
-                                        );
+                                        selectWorkflow(w.id);
                                         handleSelectWorkflow(w.id);
                                         setPage("detail");
                                       }}
@@ -1737,10 +1215,7 @@ function MainWindowApp() {
                                     <DropdownMenuItem
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedWorkflowId(w.id);
-                                        setSelectedWorkflowType(
-                                          w.workflow_type ?? "desktop",
-                                        );
+                                        selectWorkflow(w.id);
                                         setPage("edit");
                                       }}
                                     >
@@ -1751,7 +1226,7 @@ function MainWindowApp() {
                                       variant="destructive"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteWorkflow(w.id);
+                                        handleDeleteWithConfirm(w.id);
                                       }}
                                     >
                                       <IconTrash size={14} />
@@ -1796,7 +1271,7 @@ function MainWindowApp() {
                   <RunLogsSection
                     runResult={runResult}
                     dismissed={runResultDismissed}
-                    onDismiss={() => setRunResultDismissed(true)}
+                    onDismiss={dismissRunResult}
                     onOpenWebUI={(path) =>
                       window.electronAPI?.openWebUI?.(path)
                     }
@@ -1851,7 +1326,7 @@ function MainWindowApp() {
         </AnimatePresence>
       </TooltipProvider>
 
-      {/* EchoPrism (Voice + Chat) via LiveKit AgentSessionView — mount only when open for efficient session lifecycle */}
+      {/* EchoPrism (Voice + Chat) via LiveKit AgentSessionView */}
       {echoPrismModalOpen && (
         <EchoPrismLiveKitSession
           onClose={() => setEchoPrismModalOpen(false)}
