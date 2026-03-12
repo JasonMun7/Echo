@@ -4,6 +4,7 @@ EchoPrism LiveKit Agent — entrypoint.
 Run from EchoPrismAgent/:  python -m agent.echo_prism.subagents.livekit.main dev
 Or:  python -m agent.echo_prism.subagents.livekit.main start
 """
+import logging
 import os
 import sys
 from pathlib import Path
@@ -29,6 +30,11 @@ server = agents.AgentServer()
 
 @server.rtc_session(agent_name="echoprism-agent")
 async def entrypoint(ctx: agents.JobContext):
+    import time
+
+    t_entry = time.perf_counter()
+    logging.debug("[EchoPrism] Agent dispatch -> entrypoint: job received")
+
     model = os.environ.get(
         "ECHOPRISM_VOICE_MODEL",
         "gemini-2.5-flash-native-audio-preview-12-2025",
@@ -47,20 +53,47 @@ async def entrypoint(ctx: agents.JobContext):
     await session.start(
         room=ctx.room,
         agent=LiveKitEchoPrismAgent(),
-        room_options=room_io.RoomOptions(video_input=True),
+        room_options=room_io.RoomOptions(
+            video_input=True,
+            audio_input=room_io.AudioInputOptions(
+                pre_connect_audio=True,
+                pre_connect_audio_timeout=10.0,
+            ),
+        ),
     )
+    t_session_started = time.perf_counter()
+    logging.debug(
+        "[EchoPrism] session.start() completed in %.0fms",
+        (t_session_started - t_entry) * 1000,
+    )
+
     await ctx.connect()
+    t_connected = time.perf_counter()
+    logging.debug(
+        "[EchoPrism] ctx.connect() completed in %.0fms (total since entry: %.0fms)",
+        (t_connected - t_session_started) * 1000,
+        (t_connected - t_entry) * 1000,
+    )
 
     # RPC so the client can interrupt when user speaks during agent speech (barge-in)
     @ctx.room.local_participant.register_rpc_method("interrupt")
     async def _handle_interrupt(_data):
         session.interrupt()
         return "ok"
+    # Greeting: generate_reply uses realtime LLM. Cached greeting would require
+    # TTS plugin + session.say(text, audio=audio_frames_from_file(...)) to skip LLM latency.
+    t_before_greeting = time.perf_counter()
     handle = session.generate_reply(
         instructions="Greet the user and offer your assistance with workflows and Echo.",
     )
     if handle:
         await handle.wait_for_playout()
+        t_greeting_done = time.perf_counter()
+        logging.debug(
+            "[EchoPrism] Greeting playout done in %.0fms (total since entry: %.0fms)",
+            (t_greeting_done - t_before_greeting) * 1000,
+            (t_greeting_done - t_entry) * 1000,
+        )
 
 
 if __name__ == "__main__":

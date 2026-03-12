@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { useAuthStore } from "@/stores";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -153,6 +153,9 @@ export default function ChatPage() {
   const [isDictating, setIsDictating] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const getIdToken = useAuthStore((s) => s.getIdToken);
   const [pendingRunLink, setPendingRunLink] = useState<Message["runLink"] | null>(null);
   const [adhocWorkflow, setAdhocWorkflow] = useState<{
     workflowId: string;
@@ -166,24 +169,13 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const fetchToken = async () => {
-      const user = auth?.currentUser;
-      if (user) {
-        const t = await user.getIdToken();
-        setToken(t);
-      }
-    };
-    fetchToken();
-    const unsubscribe = auth?.onAuthStateChanged(async (u) => {
-      if (u) {
-        const t = await u.getIdToken();
-        setToken(t);
-      } else {
-        router.replace("/signin");
-      }
-    });
-    return () => unsubscribe?.();
-  }, [router]);
+    if (user) {
+      getIdToken().then(setToken);
+    } else {
+      setToken(null);
+      if (!loading && !user) router.replace("/signin");
+    }
+  }, [user, loading, getIdToken, router]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
