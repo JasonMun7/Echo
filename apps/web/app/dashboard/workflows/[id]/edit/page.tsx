@@ -139,12 +139,12 @@ function ParamFields({
             form)
           </span>
         </label>
-        <input
-          type="text"
+        <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
           placeholder="blue 'Submit' button in the bottom-center of the form"
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          rows={2}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
         <div className="flex gap-3">
           <div className="flex-1">
@@ -220,12 +220,12 @@ function ParamFields({
             (describe what to wait for visually)
           </span>
         </label>
-        <input
-          type="text"
+        <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
           placeholder="loading spinner disappears and dashboard is visible"
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          rows={2}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
       </div>
     );
@@ -280,12 +280,12 @@ function ParamFields({
             (e.g. country dropdown in the billing section)
           </span>
         </label>
-        <input
-          type="text"
+        <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
           placeholder="country dropdown in the billing section"
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          rows={2}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
         <div className="flex gap-3">
           <div className="flex-1">
@@ -497,7 +497,7 @@ function StepCard({
       >
         <IconGripVertical className="h-5 w-5" />
       </button>
-      <div className="flex-1 space-y-3">
+      <div className="flex-1 min-w-0 space-y-3 break-words">
         {isInvalid && (
           <p className="text-xs font-medium text-echo-error">
             Context is required before saving
@@ -538,7 +538,7 @@ function StepCard({
             placeholder="Description of this step"
             rows={2}
             className={[
-              "mt-1 w-full rounded border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2",
+              "mt-1 w-full min-w-0 resize-y rounded border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 break-words",
               isInvalid
                 ? "border-echo-error/60 focus:ring-echo-error/40"
                 : "border-[#A577FF]/40 focus:ring-[#A577FF]/40",
@@ -785,16 +785,10 @@ export default function WorkflowEditPage() {
     return (
       <div className="flex flex-1">
         <div className="flex w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
-          {/* Header row */}
+          {/* Header row: Back icon + Save button */}
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-5 w-5 rounded-md" />
-              <Skeleton className="h-7 w-64 rounded-lg" />
-            </div>
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-9 w-24 rounded-lg" />
-              <Skeleton className="h-9 w-32 rounded-lg" />
-            </div>
+            <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+            <Skeleton className="h-9 w-32 rounded-lg" />
           </div>
           {/* View toggle */}
           <div className="flex gap-2">
@@ -820,28 +814,20 @@ export default function WorkflowEditPage() {
       <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
         {/* Header row */}
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <Link
-              href="/dashboard/workflows"
-              className="shrink-0 cursor-pointer text-[#150A35]/70 hover:text-[#A577FF]"
-            >
-              <IconArrowLeft className="h-5 w-5" />
-            </Link>
-            <input
-              type="text"
-              value={workflowName}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="Untitled workflow"
-              className="min-w-0 flex-1 truncate rounded-md bg-transparent px-2 py-1 text-2xl font-semibold text-[#150A35] outline-none ring-0 transition-all hover:bg-[#A577FF]/5 focus:bg-[#A577FF]/5 focus:ring-2 focus:ring-[#A577FF]/40"
-            />
-          </div>
+          <Link
+            href="/dashboard/workflows"
+            className="echo-btn-secondary-accent flex shrink-0 items-center justify-center rounded-lg p-1.5"
+            aria-label="Back"
+          >
+            <IconArrowLeft className="echo-icon-gradient h-5 w-5" />
+          </Link>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="echo-btn-primary flex shrink-0 items-center gap-2 disabled:opacity-50"
+            className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2 disabled:opacity-50"
           >
-            <IconCheck className="h-5 w-5" />
+            <IconCheck className="echo-icon-gradient h-5 w-5 shrink-0" />
             {saving ? "Saving..." : "Save & Activate"}
           </button>
         </div>
@@ -891,9 +877,9 @@ export default function WorkflowEditPage() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="echo-btn-secondary flex items-center gap-2"
+                    className="echo-btn-secondary-accent flex items-center gap-2"
                   >
-                    <IconPlus className="h-5 w-5" />
+                    <IconPlus className="echo-icon-gradient h-5 w-5 shrink-0" />
                     Add Step
                   </button>
                 </DropdownMenuTrigger>
@@ -905,7 +891,7 @@ export default function WorkflowEditPage() {
                     <DropdownMenuItem
                       key={a}
                       onSelect={() => handleAddStep(a)}
-                      className="cursor-pointer font-mono text-sm"
+                      className="echo-dropdown-item cursor-pointer font-mono text-sm"
                     >
                       {a === "api_call" ? "⚡ api_call (App Integration)" : a}
                     </DropdownMenuItem>

@@ -213,6 +213,9 @@ async def process_chat_turn(
         system_instruction=SYSTEM_PROMPT,
         tools=[types.Tool(function_declarations=fn_decls)],
         temperature=0.4,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+            maximum_remote_calls=100,
+        ),
     )
 
     response = await client.aio.models.generate_content(

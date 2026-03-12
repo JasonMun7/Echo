@@ -199,13 +199,13 @@ export default function DashboardPage() {
               Here&apos;s what&apos;s happening with your workflows today.
             </p>
           </div>
-          <Link
-            href="/dashboard/workflows/new"
+          <a
+            href="echo-desktop://capture"
             className="echo-btn-primary flex shrink-0 items-center gap-2"
           >
             <IconPlus className="h-5 w-5" />
             New Workflow
-          </Link>
+          </a>
         </div>
 
         {/* Onboarding banner */}
@@ -224,7 +224,7 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm text-gray-500">Get started with these 3 steps:</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               {[
-                { icon: <IconRocket className="h-4 w-4" />, label: "Create a workflow", href: "/dashboard/workflows/new" },
+                { icon: <IconRocket className="h-4 w-4" />, label: "Create a workflow", href: "echo-desktop://capture" },
                 { icon: <IconPlayerPlay className="h-4 w-4" />, label: "Run it", href: "/dashboard/workflows" },
                 { icon: <IconBrain className="h-4 w-4" />, label: "Review traces", href: "/dashboard/traces" },
               ].map((step) => (
@@ -237,13 +237,13 @@ export default function DashboardPage() {
                   {step.label}
                 </Link>
               ))}
-              <Link
-                href="/dashboard/chat"
+              <a
+                href="echo-desktop://echoprism"
                 className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
               >
                 <IconMessageCircle className="h-4 w-4" />
                 Try EchoPrismVoice
-              </Link>
+              </a>
             </div>
           </div>
         )}
@@ -323,12 +323,12 @@ export default function DashboardPage() {
                   Create your first workflow to get started
                 </p>
               </div>
-              <Link
-                href="/dashboard/workflows/new"
+              <a
+                href="echo-desktop://capture"
                 className="echo-btn-primary"
               >
                 Create workflow
-              </Link>
+              </a>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

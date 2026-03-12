@@ -15,6 +15,7 @@
     "lint": "cd apps/web && pnpm run lint",
     "backend:dev": "cd backend && doppler run -- uvicorn main:app --reload",
     "echo-prism-agent:dev": "cd EchoPrismAgent && doppler run -- uvicorn main:app --reload --port 8081",
+    "echo-prism-livekit:dev": "cd EchoPrismAgent && doppler run -- python -m agent.echo_prism.subagents.livekit.main dev",
     "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend",
     "deploy": "doppler run --config prd -- ./scripts/deploy.sh",
     "deploy:build": "doppler run --config prd -- ./scripts/deploy/build.sh",

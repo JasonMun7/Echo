@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
-import type { CSSProperties } from "react";
-import { IconGripVertical, IconRefresh, IconTrash } from "@tabler/icons-react";
+import {
+  IconGripVertical,
+  IconRefresh,
+  IconTrash,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconSquare,
+} from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
 
 interface RecordingHudProps {}
 
@@ -20,6 +27,7 @@ export default function RecordingHud(_props: RecordingHudProps) {
     }, 1000);
     return () => clearInterval(interval);
   }, [recordingPaused]);
+
   const handlePause = () => {
     window.electronAPI?.recordingPause?.();
     setRecordingPaused((p) => !p);
@@ -27,7 +35,6 @@ export default function RecordingHud(_props: RecordingHudProps) {
 
   const handleStop = () => {
     window.electronAPI?.recordingStop?.(recordingDuration);
-    // Main window receives, stops recorder, calls exitRecordingMode
   };
 
   const handleRedo = () => {
@@ -38,98 +45,86 @@ export default function RecordingHud(_props: RecordingHudProps) {
 
   const handleDiscard = () => {
     window.electronAPI?.recordingDiscard?.();
-    // Main window receives, discards, calls exitRecordingMode
-  };
-
-  const btnBase = {
-    WebkitAppRegion: "no-drag" as const,
-    appRegion: "no-drag" as const,
-    fontSize: 13,
-    padding: "10px 20px",
-    borderRadius: 8,
-    cursor: "pointer" as const,
-    border: "none",
-  };
-  const btnSecondary = {
-    ...btnBase,
-    border: "1px solid rgba(255,255,255,0.3)",
-    background: "rgba(255,255,255,0.1)",
-    color: "white",
-  };
-  const btnPrimary = {
-    ...btnBase,
-    background: "linear-gradient(to right, #150A35, #A577FF)",
-    color: "white",
-  };
-  const btnDanger = {
-    ...btnBase,
-    border: "1px solid rgba(239,68,68,0.5)",
-    background: "rgba(239,68,68,0.2)",
-    color: "#fca5a5",
   };
 
   return (
     <div
+      className="echo-recording-hud flex w-full min-h-full items-stretch overflow-hidden rounded-lg backdrop-blur-xl border shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
       style={{
-        display: "flex",
-        alignItems: "stretch",
-        width: "100%",
-        minHeight: "100%",
-        boxSizing: "border-box",
-        borderRadius: 12,
-        background: "#150A35",
-        border: "1px solid rgba(165, 119, 255, 0.4)",
-        boxShadow: "0 4px 24px rgba(21, 10, 53, 0.4)",
+        background: "var(--echo-recording-hud-bg)",
+        borderColor: "var(--echo-recording-hud-border)",
       }}
     >
+      {/* Grab handle */}
       <div
-        className="echo-hud-grab-handle"
-        style={{ width: 28, padding: "0 4px" }}
+        className={cn(
+          "echo-hud-grab-handle flex shrink-0 w-7 items-center justify-center px-1",
+          "text-(--echo-text-secondary)",
+        )}
       >
-        <IconGripVertical size={16} style={{ color: "rgba(255,255,255,0.6)" }} />
+        <IconGripVertical size={16} />
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "16px 20px",
-          flex: 1,
-          WebkitAppRegion: "no-drag",
-          appRegion: "no-drag",
-        } as CSSProperties}
-      >
+
+      {/* Controls */}
+      <div className="echo-hud-no-drag flex flex-1 items-center gap-2 p-3 pl-2">
+        {/* Recording indicator */}
         <div
-          className={`echo-recording-dot${recordingPaused ? " paused" : ""}`}
+          className={cn(
+            "echo-recording-dot shrink-0",
+            recordingPaused && "paused",
+          )}
         />
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: "white",
-            minWidth: 48,
-          }}
-        >
+        <span className="text-sm font-semibold text-(--echo-text) min-w-[48px] tabular-nums">
           {formatDuration(recordingDuration)}
         </span>
-        <button type="button" onClick={handlePause} style={btnSecondary}>
-          {recordingPaused ? "Resume" : "Pause"}
-        </button>
-        <button type="button" onClick={handleStop} style={btnPrimary}>
-          Stop
-        </button>
-        <button
-          type="button"
-          onClick={handleRedo}
-          title="Redo: discard and restart"
-          style={{ ...btnSecondary, minWidth: 44, padding: "10px" }}
-        >
-          <IconRefresh size={16} style={{ verticalAlign: "middle" }} />
-        </button>
-        <button type="button" onClick={handleDiscard} style={btnDanger}>
-          <IconTrash size={16} style={{ marginRight: 4, verticalAlign: "middle" }} />
-          Discard
-        </button>
+
+        <div className="flex grow items-center gap-3">
+          {/* Pause / Resume - theme-aware secondary */}
+          <button
+            type="button"
+            onClick={handlePause}
+            className="echo-recording-hud-btn-secondary flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-all"
+          >
+            {recordingPaused ? (
+              <IconPlayerPlay size={16} />
+            ) : (
+              <IconPlayerPause size={16} />
+            )}
+            <span className="hidden sm:inline">
+              {recordingPaused ? "Resume" : "Pause"}
+            </span>
+          </button>
+
+          {/* Stop - primary CTA, gradient button */}
+          <button
+            type="button"
+            onClick={handleStop}
+            className="echo-btn-cyan-lavender flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white"
+          >
+            <IconSquare size={14} fill="currentColor" />
+            Stop
+          </button>
+
+          {/* Redo - icon only */}
+          <button
+            type="button"
+            onClick={handleRedo}
+            title="Redo: discard and restart"
+            className="echo-recording-hud-btn-secondary flex shrink-0 items-center justify-center rounded-lg border p-2 transition-all"
+          >
+            <IconRefresh size={16} />
+          </button>
+
+          {/* Discard - icon only */}
+          <button
+            type="button"
+            onClick={handleDiscard}
+            title="Discard"
+            className="echo-btn-danger flex shrink-0 items-center justify-center rounded-lg p-2"
+          >
+            <IconTrash size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -153,20 +153,20 @@ export default function WorkflowsPage() {
       <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-[#150A35]">Workflows</h1>
-          <Link
-            href="/dashboard/workflows/new"
+          <a
+            href="echo-desktop://capture"
             className="echo-btn-primary flex items-center gap-2"
           >
             <IconPlus className="h-5 w-5" />
             New Workflow
-          </Link>
+          </a>
         </div>
         {workflows.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
             <p className="text-[#150A35]/80">No workflows yet</p>
-            <Link href="/dashboard/workflows/new" className="echo-btn-primary">
+            <a href="echo-desktop://capture" className="echo-btn-primary">
               Create your first workflow
-            </Link>
+            </a>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

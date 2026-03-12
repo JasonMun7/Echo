@@ -284,6 +284,16 @@ See [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) for the
 - **Frontend (web):** `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ECHO_AGENT_URL`, `NEXT_PUBLIC_FIREBASE_*`
 - **Desktop:** `VITE_API_URL`, `VITE_ECHO_AGENT_URL`
 
+### LiveKit (EchoPrism Voice + Chat)
+
+EchoPrism Voice uses LiveKit + Gemini. Configure these for the backend and [LiveKit agent](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md):
+
+- **Backend (EchoPrismAgent):** `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`
+- **Desktop (dev):** `VITE_LIVEKIT_SANDBOX_ID` — optional; use LiveKit Cloud sandbox token server to skip backend token endpoint during development
+- **Desktop:** `VITE_API_URL` = main backend; `VITE_ECHO_AGENT_URL` = EchoPrismAgent (8081). LiveKit token is fetched from EchoPrismAgent.
+
+Create a project at [cloud.livekit.io](https://cloud.livekit.io), copy API key/secret/URL, then run the LiveKit agent (`pnpm run echo-prism-livekit:dev` or see [livekit README](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md)) alongside the EchoPrism backend.
+
 ---
 
 ## Firestore data model
@@ -306,6 +316,7 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 | `pnpm run dev:desktop` | Start Electron desktop app (Doppler env) |
 | `pnpm run backend:dev` | Start FastAPI backend (Doppler env) |
 | `pnpm run echo-prism-agent:dev` | Start EchoPrism Agent locally (port 8081, Doppler env) |
+| `pnpm run echo-prism-livekit:dev` | Start EchoPrism LiveKit voice agent (Doppler env) |
 | `pnpm run backend:docker` | Build and run backend in Docker |
 | `pnpm run deploy` | Deploy to Cloud Run (uses Doppler prd) |
 

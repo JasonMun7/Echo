@@ -1,9 +1,14 @@
+@import "tailwindcss";
+
+/* Ensure agents-ui and all components are scanned for Tailwind classes */
+@source "../components/**/*.{ts,tsx}";
+
 /* Echo Design System - Dual Theme */
 
 /* ── Shared tokens ─────────────────────────────────────── */
 :root {
-  --echo-lavender: #A577FF;
-  --echo-cyan: #21C4DD;
+  --echo-lavender: #a577ff;
+  --echo-cyan: #21c4dd;
   --echo-success: #22c55e;
   --echo-error: #ef4444;
 }
@@ -26,6 +31,8 @@
   --echo-input-bg: rgba(21, 10, 53, 0.5);
   --echo-input-border: rgba(165, 119, 255, 0.4);
   --echo-recording-bar-bg: rgba(21, 10, 53, 0.5);
+  --echo-recording-hud-bg: rgba(21, 10, 53, 0.95);
+  --echo-recording-hud-border: rgba(165, 119, 255, 0.35);
   --echo-scrollbar: rgba(165, 119, 255, 0.2);
   --echo-scrollbar-hover: rgba(165, 119, 255, 0.4);
   --echo-danger-text: #ff6b6b;
@@ -48,26 +55,100 @@
   --echo-input-bg: rgba(255, 255, 255, 0.8);
   --echo-input-border: rgba(165, 119, 255, 0.3);
   --echo-recording-bar-bg: rgba(255, 255, 255, 0.6);
+  --echo-recording-hud-bg: rgba(245, 247, 252, 0.98);
+  --echo-recording-hud-border: rgba(165, 119, 255, 0.3);
   --echo-scrollbar: rgba(165, 119, 255, 0.15);
   --echo-scrollbar-hover: rgba(165, 119, 255, 0.3);
   --echo-danger-text: #dc2626;
+}
+
+/* Shadcn/Agents-UI theme (references Echo vars) */
+:root,
+[data-theme="dark"] {
+  --background: var(--echo-bg);
+  --foreground: var(--echo-text);
+  --muted: var(--echo-surface-solid);
+  --muted-foreground: var(--echo-text-dim);
+  --accent: var(--echo-surface-solid);
+  --accent-foreground: var(--echo-text);
+  --destructive: var(--echo-danger-text);
+  --destructive-foreground: var(--echo-text);
+  --border: var(--echo-border);
+  --input: var(--echo-input-border);
+  --ring: var(--echo-lavender);
+  --primary: var(--echo-lavender);
+  --primary-foreground: #ffffff;
+  --radius: 0.5rem;
+}
+
+[data-theme="light"] {
+  --background: var(--echo-bg);
+  --foreground: var(--echo-text);
+  --muted: var(--echo-surface-solid);
+  --muted-foreground: var(--echo-text-dim);
+  --accent: var(--echo-surface-solid);
+  --accent-foreground: var(--echo-text);
+  --destructive: var(--echo-danger-text);
+  --destructive-foreground: var(--echo-text);
+  --border: var(--echo-border);
+  --input: var(--echo-input-border);
+}
+
+/* Tailwind v4: register theme colors so utilities like bg-background, text-foreground work */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 * {
   box-sizing: border-box;
 }
 
-button, a, [role="button"], select, label[for], summary {
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+button,
+a,
+[role="button"],
+select,
+label[for],
+summary {
   cursor: pointer;
 }
 
 body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
   background: var(--echo-bg);
   color: var(--echo-text);
-  min-height: 100vh;
-  transition: background 0.4s ease, color 0.4s ease;
+  transition:
+    background 0.4s ease,
+    color 0.4s ease;
 }
 
 /* Theme toggle */
@@ -114,7 +195,9 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--echo-card-shadow);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .echo-card:hover {
@@ -125,7 +208,7 @@ body {
 .echo-btn-primary {
   cursor: pointer;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #A577FF 0%, #7C3AED 50%, #5B21B6 100%);
+  background: linear-gradient(135deg, #a577ff 0%, #7c3aed 50%, #5b21b6 100%);
   padding: 0.625rem 1.25rem;
   font-weight: 600;
   color: white;
@@ -187,7 +270,7 @@ body {
 .echo-btn-cyan-lavender {
   cursor: pointer;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #21C4DD, #A577FF);
+  background: linear-gradient(135deg, #21c4dd, #a577ff);
   padding: 0.625rem 1.25rem;
   font-weight: 600;
   color: white;
@@ -218,6 +301,38 @@ body {
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.15);
 }
 
+/* Dropdown menu item — gradient on icons only (not whole item) + scale bigger on hover */
+.echo-dropdown-item {
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+  transform-origin: center;
+}
+.echo-dropdown-item[data-highlighted],
+.echo-dropdown-item:focus,
+.echo-dropdown-item[data-state="open"] {
+  background: var(--echo-surface-hover);
+  transform: scale(1.02);
+}
+.echo-dropdown-item[data-highlighted]:not([data-variant="destructive"]) svg,
+.echo-dropdown-item:focus:not([data-variant="destructive"]) svg,
+.echo-dropdown-item[data-state="open"]:not([data-variant="destructive"]) svg {
+  stroke: url(#echoIconGradient);
+}
+.echo-dropdown-item[data-variant="destructive"][data-highlighted],
+.echo-dropdown-item[data-variant="destructive"]:focus {
+  transform: scale(1);
+}
+
+.echo-icon-gradient {
+  stroke: url(#echoIconGradient);
+}
+
+/* Workflow row play icon: gradient on hover (like dropdown menu items) */
+.group\/workflow:hover .workflow-play-icon svg {
+  stroke: url(#echoIconGradient);
+}
+
 .echo-recording-bar {
   display: flex;
   align-items: center;
@@ -244,14 +359,44 @@ body {
   opacity: 0.4;
 }
 
+/* Recording HUD secondary buttons - theme-aware */
+.echo-recording-hud-btn-secondary {
+  border-color: var(--echo-border);
+  background: var(--echo-surface);
+  color: var(--echo-text);
+}
+.echo-recording-hud-btn-secondary:hover {
+  background: var(--echo-surface-hover);
+  border-color: var(--echo-border-hover);
+}
+
 @keyframes echo-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes run-logs-placeholder-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes echo-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .echo-run-haze {
@@ -270,8 +415,13 @@ body {
 }
 
 @keyframes echo-haze-pulse {
-  0%, 100% { opacity: 0.75; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Content sits on top of the border haze, pointer-events enabled */
@@ -297,7 +447,7 @@ body {
 }
 
 .echo-run-haze-label {
-  color: #A577FF;
+  color: #a577ff;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -307,12 +457,23 @@ body {
 
 /* EchoPrism Voice modal orb animations */
 @keyframes echo-voice-ping {
-  0% { transform: scale(1); opacity: 0.3; }
-  100% { transform: scale(1.2); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
 }
 @keyframes echo-voice-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* HUD grab handle: drag region with cursor feedback */
@@ -324,4 +485,36 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+/* HUD controls: no-drag so buttons are clickable */
+.echo-hud-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* EchoPrism: device select dropdown must appear above modal (z-index 9999) */
+body[data-echo-prism-open] [data-slot="select-content"] {
+  z-index: 10000 !important;
+}
+
+/* EchoPrism control bar: white/surface bg + gradient icons when active */
+[data-echo-prism] button[data-state="on"] {
+  background: var(--echo-surface-solid) !important;
+  border-color: var(--echo-border) !important;
+}
+[data-echo-prism] button[data-state="on"] svg {
+  stroke: url(#echoIconGradient);
+}
+
+/* EchoPrism send button: white/surface bg + gradient icon when active */
+[data-echo-prism] button.self-end:not(:disabled) {
+  background: var(--echo-surface-solid) !important;
+  border: 1px solid var(--echo-border) !important;
+}
+[data-echo-prism] button.self-end:not(:disabled):hover {
+  background: var(--echo-surface-hover) !important;
+}
+[data-echo-prism] button.self-end:not(:disabled) svg {
+  stroke: url(#echoIconGradient);
 }

@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { CSSProperties } from "react";
 import {
   IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
-  IconPhoneCall,
   IconBolt,
   IconBrain,
+  IconX,
 } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
 
 interface LiveEntry {
   thought: string;
@@ -32,10 +33,9 @@ export default function RunHud({
   isAwaitingUser,
   onCallUserFeedbackSent,
 }: RunHudProps) {
-  const [interruptText, setInterruptText] = useState("");
-  const [sendingInterrupt, setSendingInterrupt] = useState(false);
   const [callUserInput, setCallUserInput] = useState("");
   const [sendingCallUserFeedback, setSendingCallUserFeedback] = useState(false);
+  const thoughtsEndRef = useRef<HTMLDivElement>(null);
 
   const handlePauseResume = () => {
     const next = !runPaused;
@@ -48,22 +48,13 @@ export default function RunHud({
     window.electronAPI?.exitRunMode?.();
   };
 
-  const handleInterrupt = async () => {
-    if (!interruptText.trim()) return;
-    setSendingInterrupt(true);
-    try {
-      await window.electronAPI?.sendInterrupt?.(interruptText.trim());
-      setInterruptText("");
-    } finally {
-      setSendingInterrupt(false);
-    }
-  };
-
   const handleSendCallUserFeedback = async () => {
     if (!callUserInput.trim()) return;
     setSendingCallUserFeedback(true);
     try {
-      const result = await window.electronAPI?.sendCallUserFeedback?.(callUserInput.trim());
+      const result = await window.electronAPI?.sendCallUserFeedback?.(
+        callUserInput.trim()
+      );
       if (result?.ok) {
         setCallUserInput("");
         onCallUserFeedbackSent?.();
@@ -73,11 +64,17 @@ export default function RunHud({
     }
   };
 
-  const lastEntry = liveProgress.length > 0 ? liveProgress[liveProgress.length - 1] : null;
-  const thoughts = liveProgress.slice(-5).reverse();
+  const lastEntry =
+    liveProgress.length > 0 ? liveProgress[liveProgress.length - 1] : null;
+  const thoughts = liveProgress.slice(-12);
+
+  useEffect(() => {
+    thoughtsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [thoughts.length]);
 
   return (
     <div
+      className="echo-hud-run"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -145,7 +142,7 @@ export default function RunHud({
           <div
             style={{
               fontSize: 11,
-              fontFamily: "monospace",
+              fontFamily: "ui-monospace, monospace",
               color: "var(--echo-text)",
               wordBreak: "break-all",
             }}
@@ -155,13 +152,16 @@ export default function RunHud({
         </div>
       )}
 
-      {/* Thought section */}
+      {/* Thought stream - newest at bottom */}
       <div
         style={{
           flex: 1,
           minHeight: 0,
           overflow: "auto",
           padding: "10px 16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
           WebkitAppRegion: "no-drag",
           appRegion: "no-drag",
         } as CSSProperties}
@@ -174,14 +174,20 @@ export default function RunHud({
             fontSize: 10,
             fontWeight: 600,
             color: "#A577FF",
-            marginBottom: 6,
+            marginBottom: 4,
           }}
         >
           <IconBrain size={12} />
-          Thought
+          Thoughts
         </div>
         {thoughts.length === 0 ? (
-          <p style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0 }}>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--echo-text-secondary)",
+              margin: 0,
+            }}
+          >
             EchoPrism is taking control…
           </p>
         ) : (
@@ -189,18 +195,30 @@ export default function RunHud({
             <div
               key={i}
               style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: "var(--echo-text)",
-                marginBottom: 8,
                 lineHeight: 1.5,
+                padding: "8px 10px",
+                borderRadius: 8,
+                background: "rgba(165, 119, 255, 0.06)",
+                border: "1px solid rgba(165, 119, 255, 0.1)",
               }}
             >
-              <span style={{ color: "var(--echo-text-secondary)" }}>Step {e.step + 1}: </span>
-              {e.thought.slice(0, 150)}
-              {e.thought.length > 150 ? "…" : ""}
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "var(--echo-text-secondary)",
+                  marginRight: 6,
+                }}
+              >
+                Step {e.step + 1}
+              </span>
+              <span style={{ color: "var(--echo-text)" }}>{e.thought}</span>
             </div>
           ))
         )}
+        <div ref={thoughtsEndRef} />
       </div>
 
       {/* CallUser section */}
@@ -214,10 +232,23 @@ export default function RunHud({
             appRegion: "no-drag",
           } as CSSProperties}
         >
-          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--echo-text)", margin: "0 0 8px" }}>
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--echo-text)",
+              margin: "0 0 8px",
+            }}
+          >
             EchoPrism needs your help
           </p>
-          <p style={{ fontSize: 10, color: "var(--echo-text-secondary)", margin: "0 0 8px" }}>
+          <p
+            style={{
+              fontSize: 10,
+              color: "var(--echo-text-secondary)",
+              margin: "0 0 8px",
+            }}
+          >
             {callUserReason}
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -225,7 +256,9 @@ export default function RunHud({
               value={callUserInput}
               onChange={(e) => setCallUserInput(e.target.value)}
               placeholder="Type feedback to resume…"
-              onKeyDown={(e) => e.key === "Enter" && handleSendCallUserFeedback()}
+              onKeyDown={(e) =>
+                e.key === "Enter" && handleSendCallUserFeedback()
+              }
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -238,100 +271,54 @@ export default function RunHud({
                 color: "var(--echo-text)",
               }}
             />
-            <button
-              type="button"
+            <Button
+              size="sm"
+              className="echo-btn-primary"
               onClick={handleSendCallUserFeedback}
               disabled={!callUserInput.trim() || sendingCallUserFeedback}
-              style={btnPrimary}
             >
-              Send feedback &amp; resume
-            </button>
+              {sendingCallUserFeedback ? "Sending…" : "Send feedback"}
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Controls row */}
+      {/* Controls - icons only */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
+          justifyContent: "flex-end",
           gap: 8,
           padding: "12px 16px",
           borderTop: "1px solid rgba(165, 119, 255, 0.15)",
-          flexWrap: "wrap",
           WebkitAppRegion: "no-drag",
           appRegion: "no-drag",
         } as CSSProperties}
       >
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="icon"
           onClick={handlePauseResume}
-          style={{
-            ...btnSecondary,
-            border: "1px solid rgba(165, 119, 255, 0.4)",
-            background: "var(--echo-input-bg)",
-            color: "var(--echo-text)",
-          }}
+          className="h-9 w-9 rounded-lg border-[#A577FF]/40 bg-[#A577FF]/5 text-[#A577FF] hover:bg-[#A577FF]/15"
+          title={runPaused ? "Resume" : "Pause"}
         >
-          {runPaused ? <IconPlayerPlay size={14} /> : <IconPlayerPause size={14} />}
-          {runPaused ? "Resume" : "Pause"}
-        </button>
-        <button type="button" onClick={handleCancel} style={btnDanger}>
-          Cancel run
-        </button>
-        <input
-          value={interruptText}
-          onChange={(e) => setInterruptText(e.target.value)}
-          placeholder="Interrupt (e.g. click the green button)"
-          onKeyDown={(e) => e.key === "Enter" && handleInterrupt()}
-          style={{
-            flex: 1,
-            minWidth: 140,
-            borderRadius: 8,
-            border: "1px solid rgba(165, 119, 255, 0.4)",
-            padding: "8px 12px",
-            fontSize: 12,
-            outline: "none",
-            background: "var(--echo-input-bg)",
-            color: "var(--echo-text)",
-          }}
-        />
-        <button
-          type="button"
-          onClick={handleInterrupt}
-          disabled={!interruptText.trim() || sendingInterrupt}
-          style={btnPrimary}
-          title="Send instruction to agent"
+          {runPaused ? (
+            <IconPlayerPlay size={16} />
+          ) : (
+            <IconPlayerPause size={16} />
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleCancel}
+          className="h-9 w-9 rounded-lg border-[#ef4444]/50 bg-[#ef4444]/10 text-[#ef4444] hover:bg-[#ef4444]/20"
+          title="Cancel run"
         >
-          <IconPhoneCall size={14} />
-          Interrupt
-        </button>
+          <IconX size={16} />
+        </Button>
       </div>
     </div>
   );
 }
-
-const btnBase = {
-  WebkitAppRegion: "no-drag" as const,
-  appRegion: "no-drag" as const,
-  fontSize: 12,
-  padding: "8px 14px",
-  borderRadius: 8,
-  cursor: "pointer" as const,
-  border: "none",
-  display: "flex" as const,
-  alignItems: "center" as const,
-  gap: 4,
-};
-const btnSecondary = { ...btnBase };
-const btnPrimary = {
-  ...btnBase,
-  background: "linear-gradient(to right, #7C3AED, #A577FF)",
-  color: "white",
-};
-const btnDanger = {
-  ...btnBase,
-  border: "1px solid rgba(239,68,68,0.5)",
-  background: "rgba(239,68,68,0.1)",
-  color: "#ef4444",
-};

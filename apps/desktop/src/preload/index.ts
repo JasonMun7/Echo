@@ -35,6 +35,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeRunFromUrlListener: () => {
     ipcRenderer.removeAllListeners("run-from-url");
   },
+  onOpenEchoPrism: (callback: () => void) => {
+    ipcRenderer.on("open-echoprism", () => callback());
+  },
+  removeOpenEchoPrismListener: () => {
+    ipcRenderer.removeAllListeners("open-echoprism");
+  },
+  onStartCapture: (callback: () => void) => {
+    ipcRenderer.on("start-capture", () => callback());
+  },
+  removeStartCaptureListener: () => {
+    ipcRenderer.removeAllListeners("start-capture");
+  },
   onScreenPermissionRequired: (callback: () => void) => {
     ipcRenderer.on("screen-permission-required", () => callback());
   },
@@ -46,6 +58,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       | { error: string }
     >,
   openWebUI: (path?: string) => ipcRenderer.invoke("open-web-ui", path),
+
+  desktopCollapse: () => ipcRenderer.invoke("desktop-collapse"),
+  desktopExpand: () => ipcRenderer.invoke("desktop-expand"),
+  onDesktopStateChanged: (callback: (arg: { collapsed: boolean }) => void) => {
+    ipcRenderer.on("desktop-state-changed", (_, arg: { collapsed: boolean }) => callback(arg));
+  },
+  removeDesktopStateChangedListener: () => {
+    ipcRenderer.removeAllListeners("desktop-state-changed");
+  },
+  quitApp: () => ipcRenderer.invoke("app-quit"),
 
   // Pause / resume run
   pauseRun: () => ipcRenderer.invoke("pause-run"),
@@ -89,20 +111,4 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("run-progress", (_, entry) => callback(entry));
   },
   removeRunProgressListener: () => ipcRenderer.removeAllListeners("run-progress"),
-
-  // EchoPrismVoice IPC
-  startVoiceChat: () => ipcRenderer.invoke("start-voice-chat"),
-  stopVoiceChat: () => ipcRenderer.invoke("stop-voice-chat"),
-  sendChatText: (text: string) => ipcRenderer.invoke("send-chat-text", text),
-  sendVoiceAudio: (chunk: ArrayBuffer) => ipcRenderer.invoke("send-voice-audio", chunk),
-  onChatAudio: (cb: (chunk: ArrayBuffer) => void) => {
-    ipcRenderer.on("chat-audio", (_, buf) => cb(buf));
-  },
-  onChatText: (cb: (msg: { role: string; text: string }) => void) => {
-    ipcRenderer.on("chat-text", (_, msg) => cb(msg));
-  },
-  removeChatListeners: () => {
-    ipcRenderer.removeAllListeners("chat-audio");
-    ipcRenderer.removeAllListeners("chat-text");
-  },
 });
