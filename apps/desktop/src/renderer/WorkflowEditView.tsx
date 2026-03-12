@@ -7,6 +7,12 @@ import {
   IconChevronUp,
   IconChevronDown,
 } from "@tabler/icons-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /* ── Action types ────────────────────────────────────────────────────────── */
 
@@ -125,12 +131,12 @@ function ParamFields({
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
           <label style={labelStyle}>Description</label>
-          <input
-            type="text"
+          <textarea
             value={(params.description as string) || ""}
             onChange={(e) => update("description", e.target.value)}
             placeholder="blue 'Submit' button in the bottom-center"
-            style={inputStyle}
+            rows={2}
+            style={{ ...inputStyle, resize: "vertical", wordWrap: "break-word" }}
           />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -183,12 +189,12 @@ function ParamFields({
     return (
       <div>
         <label style={labelStyle}>Element Description</label>
-        <input
-          type="text"
+        <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
           placeholder="loading spinner disappears and dashboard is visible"
-          style={inputStyle}
+          rows={2}
+          style={{ ...inputStyle, resize: "vertical", wordWrap: "break-word" }}
         />
       </div>
     );
@@ -469,17 +475,7 @@ function StepCard({
   onMoveDown: () => void;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-        padding: 14,
-        borderRadius: 8,
-        border: "1px solid rgba(165,119,255,0.2)",
-        background: "var(--echo-surface)",
-      }}
-    >
+    <div className="echo-card flex items-start gap-3 p-4">
       {/* Reorder buttons */}
       <div
         style={{
@@ -490,21 +486,25 @@ function StepCard({
           marginTop: 2,
         }}
       >
-        <button
-          type="button"
-          onClick={onMoveUp}
-          disabled={index === 0}
-          style={{
-            background: "none",
-            border: "none",
-            color: index === 0 ? "#ccc" : "#A577FF",
-            padding: 2,
-            lineHeight: 1,
-          }}
-          title="Move up"
-        >
-          <IconChevronUp size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={index === 0}
+              style={{
+                background: "none",
+                border: "none",
+                color: index === 0 ? "#ccc" : "#A577FF",
+                padding: 2,
+                lineHeight: 1,
+              }}
+            >
+              <IconChevronUp size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Move up</TooltipContent>
+        </Tooltip>
         <span
           style={{
             fontSize: 11,
@@ -515,25 +515,29 @@ function StepCard({
         >
           {index + 1}
         </span>
-        <button
-          type="button"
-          onClick={onMoveDown}
-          disabled={index === total - 1}
-          style={{
-            background: "none",
-            border: "none",
-            color: index === total - 1 ? "#ccc" : "#A577FF",
-            padding: 2,
-            lineHeight: 1,
-          }}
-          title="Move down"
-        >
-          <IconChevronDown size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={index === total - 1}
+              style={{
+                background: "none",
+                border: "none",
+                color: index === total - 1 ? "#ccc" : "#A577FF",
+                padding: 2,
+                lineHeight: 1,
+              }}
+            >
+              <IconChevronDown size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Move down</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Step content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8, wordWrap: "break-word" }}>
         {/* Action selector */}
         <div>
           <label style={{ display: "block", fontSize: 11, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Action</label>
@@ -563,17 +567,19 @@ function StepCard({
             onChange={(e) => onUpdate({ context: e.target.value })}
             placeholder="Description of this step"
             rows={2}
-            style={{
-              width: "100%",
-              borderRadius: 6,
-              border: "1px solid rgba(165,119,255,0.4)",
-              background: "var(--echo-input-bg)",
-              padding: "6px 10px",
-              fontSize: 13,
-              outline: "none",
-              color: "var(--echo-text)",
-              resize: "vertical",
-            }}
+          style={{
+            width: "100%",
+            minWidth: 0,
+            borderRadius: 6,
+            border: "1px solid rgba(165,119,255,0.4)",
+            background: "var(--echo-input-bg)",
+            padding: "6px 10px",
+            fontSize: 13,
+            outline: "none",
+            color: "var(--echo-text)",
+            resize: "vertical",
+            wordWrap: "break-word" as const,
+          }}
           />
         </div>
 
@@ -586,21 +592,18 @@ function StepCard({
       </div>
 
       {/* Delete */}
-      <button
-        type="button"
-        onClick={onDelete}
-        style={{
-          background: "none",
-          border: "none",
-          color: "var(--echo-text-secondary)",
-          padding: 4,
-          flexShrink: 0,
-          marginTop: 2,
-        }}
-        title="Delete step"
-      >
-        <IconTrash size={16} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex shrink-0 p-1 text-[var(--echo-text-secondary)] transition-colors hover:text-[#ef4444]"
+          >
+            <IconTrash size={16} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Delete step</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
@@ -788,14 +791,26 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
   if (loading) {
     return (
       <div>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{ background: "none", border: "none", color: "#A577FF", display: "flex", alignItems: "center", gap: 6, fontSize: 14, marginBottom: 16, padding: 0 }}
-        >
-          <IconArrowLeft size={18} /> Back
-        </button>
-        <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>Loading workflow editor…</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <button
+            type="button"
+            onClick={onBack}
+            className="echo-btn-secondary-accent flex shrink-0 items-center justify-center rounded-lg p-1.5"
+            aria-label="Back"
+          >
+            <IconArrowLeft size={18} className="echo-icon-gradient" />
+          </button>
+          <Skeleton className="h-9 w-28 rounded-lg" />
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <Skeleton className="h-9 w-20 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -806,9 +821,10 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
         <button
           type="button"
           onClick={onBack}
-          style={{ background: "none", border: "none", color: "#A577FF", display: "flex", alignItems: "center", gap: 6, fontSize: 14, marginBottom: 16, padding: 0 }}
+          className="echo-btn-secondary-accent mb-4 flex items-center justify-center rounded-lg p-1.5"
+          aria-label="Back"
         >
-          <IconArrowLeft size={18} /> Back
+          <IconArrowLeft size={18} className="echo-icon-gradient" />
         </button>
         <p style={{ color: "#ef4444", fontSize: 14 }}>{error || "Workflow not found"}</p>
       </div>
@@ -828,36 +844,17 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
-          <button
-            type="button"
-            onClick={onBack}
-            style={{ background: "none", border: "none", color: "var(--echo-text)", opacity: 0.7, display: "flex", alignItems: "center", padding: 4, flexShrink: 0 }}
-          >
-            <IconArrowLeft size={20} />
-          </button>
-          <input
-            type="text"
-            value={workflowName}
-            onChange={(e) => handleNameChange(e.target.value)}
-            placeholder="Untitled workflow"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: "1.5rem",
-              fontWeight: 600,
-              color: "var(--echo-text)",
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              padding: "4px 8px",
-              borderRadius: 6,
-            }}
-          />
-        </div>
         <button
           type="button"
-          className="echo-btn-primary"
+          onClick={onBack}
+          className="echo-btn-secondary-accent flex shrink-0 items-center justify-center rounded-lg p-1.5"
+          aria-label="Back"
+        >
+          <IconArrowLeft size={18} className="echo-icon-gradient" />
+        </button>
+        <button
+          type="button"
+          className="echo-btn-cyan-lavender"
           onClick={handleSave}
           disabled={saving}
           style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}
@@ -898,7 +895,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
         <div style={{ position: "relative" }}>
           <button
             type="button"
-            className="echo-btn-secondary"
+            className="echo-btn-secondary-accent"
             onClick={() => setAddMenuOpen((o) => !o)}
             style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
           >
@@ -938,8 +935,8 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
                     fontFamily: "monospace",
                     color: "var(--echo-text)",
                   }}
-                  onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.background = "rgba(165,119,255,0.08)"; }}
-                  onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "none"; }}
+                  onMouseEnter={(e) => { const t = e.target as HTMLButtonElement; t.style.background = "linear-gradient(to right, rgba(33, 196, 221, 0.15), rgba(165, 119, 255, 0.2))"; t.style.transform = "scale(1.02)"; }}
+                  onMouseLeave={(e) => { const t = e.target as HTMLButtonElement; t.style.background = "none"; t.style.transform = "scale(1)"; }}
                 >
                   {a === "api_call" ? "⚡ api_call (Integration)" : a}
                 </button>

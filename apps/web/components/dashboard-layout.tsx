@@ -209,7 +209,7 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
     },
     {
       label: "EchoPrism",
-      href: "/dashboard/chat",
+      href: "echo-desktop://echoprism",
       icon: <IconSparkles2 className="h-5 w-5 shrink-0 text-current" />,
     },
     {

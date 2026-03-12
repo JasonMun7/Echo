@@ -1,8 +1,8 @@
 import { BrowserWindow, screen } from "electron";
 import { join } from "path";
 
-const HUD_RECORDING_WIDTH = 500;
-const HUD_RECORDING_HEIGHT = 120;
+const HUD_RECORDING_WIDTH = 375;
+const HUD_RECORDING_HEIGHT = 60;
 const HUD_RUN_WIDTH = 420;
 const HUD_RUN_HEIGHT = 320;
 
@@ -14,7 +14,9 @@ function getRendererUrl(query: string): string {
   return `file://${htmlPath}?${query}`;
 }
 
-export function createHudOverlayWindow(mode: "recording" | "run"): BrowserWindow {
+export function createHudOverlayWindow(
+  mode: "recording" | "run",
+): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
 
@@ -22,7 +24,10 @@ export function createHudOverlayWindow(mode: "recording" | "run"): BrowserWindow
   const w = isRun ? HUD_RUN_WIDTH : HUD_RECORDING_WIDTH;
   const h = isRun ? HUD_RUN_HEIGHT : HUD_RECORDING_HEIGHT;
 
-  const x = Math.floor((screenWidth - w) / 2);
+  const margin = 24;
+  const x = isRun
+    ? Math.floor(screenWidth - w - margin)
+    : Math.floor((screenWidth - w) / 2);
   const y = Math.floor(screenHeight - h - 48);
 
   const win = new BrowserWindow({
@@ -46,19 +51,15 @@ export function createHudOverlayWindow(mode: "recording" | "run"): BrowserWindow
   win.setBackgroundColor("#00000000");
   win.loadURL(getRendererUrl(`windowType=hud&mode=${mode}`));
 
-  // Make HUD click-through so mouse events pass to apps underneath
-  win.webContents.on("did-finish-load", () => {
-    win.setIgnoreMouseEvents(true, { forward: true });
-  });
-
   return win;
 }
 
 export function createHazeOverlayWindow(displayId?: number): BrowserWindow {
   const displays = screen.getAllDisplays();
-  const display = displayId != null && displays[displayId]
-    ? displays[displayId]
-    : screen.getPrimaryDisplay();
+  const display =
+    displayId != null && displays[displayId]
+      ? displays[displayId]
+      : screen.getPrimaryDisplay();
   const { x, y, width, height } = display.bounds;
 
   const win = new BrowserWindow({

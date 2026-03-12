@@ -8,9 +8,27 @@ import WebSocket from "ws";
 import { isDeterministic } from "./direct-executor";
 import * as operator from "../operators/unified-operator";
 import type { OperatorResult } from "../operators/unified-operator";
-import { waitIfPaused } from "../run-control";
+import {
+  waitIfPaused,
+  isCancelRequested,
+  clearCancel,
+} from "../run-control";
 
 export type { Step };
+
+/** Active WebSocket ref — closed by abortActiveRun when user cancels */
+let activeWs: WebSocket | null = null;
+
+export function abortActiveRun(): void {
+  if (activeWs && activeWs.readyState === 1) {
+    try {
+      activeWs.close(1000, "Run cancelled by user");
+    } catch {
+      /* ignore */
+    }
+    activeWs = null;
+  }
+}
 
 export interface RunWorkflowRemoteOptions {
   sourceId?: string;
@@ -33,6 +51,9 @@ async function pollRunSignals(opts: RunWorkflowRemoteOptions): Promise<{
     return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
   }
   try {
+    if (isCancelRequested()) {
+      return { redirectInstruction: null, calluserFeedback: null, cancelRequested: true };
+    }
     const res = await fetch(
       `${opts.backendUrl}/api/run/${opts.workflowId}/${opts.runId}/poll-signals`,
       {
@@ -168,7 +189,17 @@ export async function runWorkflowRemote(
     }
 
     for (let i = 0; i < steps.length; i++) {
+      if (isCancelRequested()) {
+        onProgress("Run cancelled by user", i + 1, undefined, "cancel");
+        await patchRunStatus(options ?? {}, "cancelled");
+        return { success: false, error: "Run cancelled by user" };
+      }
       await waitIfPaused();
+      if (isCancelRequested()) {
+        onProgress("Run cancelled by user", i + 1, undefined, "cancel");
+        await patchRunStatus(options ?? {}, "cancelled");
+        return { success: false, error: "Run cancelled by user" };
+      }
 
       if (i > 0 && options) {
         const signals = await pollRunSignals(options);
@@ -386,7 +417,13 @@ export async function runWorkflowRemote(
     return { success: true };
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    await patchRunStatus(options ?? {}, "failed", { error: err });
+    const isCancelled = err === "WebSocket closed" || err.includes("Run cancelled");
+    await patchRunStatus(options ?? {}, isCancelled ? "cancelled" : "failed", {
+      error: isCancelled ? undefined : err,
+    });
     return { success: false, error: err };
+  } finally {
+    activeWs = null;
+    clearCancel();
   }
 }

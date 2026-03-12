@@ -43,3 +43,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # EchoPrism model overrides
 CHAT_MODEL = os.getenv("ECHOPRISM_CHAT_MODEL", "gemini-3.1-flash-lite-preview")
+
+# LiveKit (for /api/livekit/token, /api/agent/tool)
+LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
+LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
+LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
+LIVEKIT_AGENT_SECRET = os.getenv("LIVEKIT_AGENT_SECRET", "")

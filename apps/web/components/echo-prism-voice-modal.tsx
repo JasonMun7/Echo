@@ -15,6 +15,11 @@ import {
   IconBrandSlack,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AGENT_URL } from "@/lib/api";
 import { MultiStepLoader } from "@/components/ui/multi-step-loader";
 
@@ -469,30 +474,38 @@ export function EchoPrismVoiceModal({
         {/* Controls: X (close) left of mute — both h-14 w-14 */}
         <div className="flex items-center gap-6">
           {/* Close */}
-          <button
-            onClick={handleClose}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-white/60 hover:bg-white/20 transition-all"
-            title="Close"
-          >
-            <IconX className="h-6 w-6" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleClose}
+                className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-white/60 hover:bg-white/20 transition-all"
+              >
+                <IconX className="h-6 w-6" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Close</TooltipContent>
+          </Tooltip>
           {/* Mute / unmute */}
-          <button
-            onClick={toggleMute}
-            className={cn(
-              "flex h-14 w-14 items-center justify-center rounded-full transition-all",
-              isMuted
-                ? "bg-white/10 text-white/40 hover:bg-white/20"
-                : "bg-[#A577FF]/20 text-[#A577FF] hover:bg-[#A577FF]/30",
-            )}
-            title={isMuted ? "Unmute" : "Mute"}
-          >
-            {isMuted ? (
-              <IconMicrophoneOff className="h-6 w-6" />
-            ) : (
-              <IconMicrophone className="h-6 w-6" />
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleMute}
+                className={cn(
+                  "flex h-14 w-14 items-center justify-center rounded-full transition-all",
+                  isMuted
+                    ? "bg-white/10 text-white/40 hover:bg-white/20"
+                    : "bg-[#A577FF]/20 text-[#A577FF] hover:bg-[#A577FF]/30",
+                )}
+              >
+                {isMuted ? (
+                  <IconMicrophoneOff className="h-6 w-6" />
+                ) : (
+                  <IconMicrophone className="h-6 w-6" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{isMuted ? "Unmute" : "Mute"}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </>

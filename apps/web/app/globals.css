@@ -318,4 +318,21 @@
   .echo-btn-cyan-lavender {
     @apply cursor-pointer rounded-lg bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
   }
+  .echo-btn-danger {
+    @apply cursor-pointer rounded-lg border border-echo-error/40 px-5 py-2.5 font-medium text-echo-error transition-colors hover:bg-echo-error/10;
+  }
+  /* Dropdown menu item — Cyan→Lavender gradient highlight + scale on hover/focus */
+  .echo-dropdown-item {
+    @apply transition-all duration-200 ease-out origin-left;
+  }
+  .echo-dropdown-item[data-highlighted],
+  .echo-dropdown-item:focus,
+  .echo-dropdown-item[data-state="open"] {
+    background: linear-gradient(to right, rgba(33, 196, 221, 0.15), rgba(165, 119, 255, 0.2));
+    transform: scale(1.02);
+  }
+  /* Gradient icon for primary actions (Cyan → Lavender) */
+  .echo-icon-gradient {
+    stroke: url(#echoIconGradient);
+  }
 }

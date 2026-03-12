@@ -11,7 +11,7 @@ function getInitialTheme(): Theme {
   } catch {
     // localStorage unavailable
   }
-  return "dark";
+  return "light";
 }
 
 export function useTheme() {

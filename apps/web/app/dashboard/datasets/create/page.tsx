@@ -49,6 +49,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const ACTION_TYPES = [
   "click",
@@ -1310,9 +1315,14 @@ export default function DatasetCreatorPage() {
                     </span>
                     <span><strong>#{a.id}</strong> {a.action_type} - {(a.task_description || "").slice(0, 25)}{(a.task_description?.length ?? 0) > 25 ? "..." : ""}</span>
                   </span>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteAnnotation(a); }}>
-                    <IconTrash className="h-3 w-3 text-echo-error" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteAnnotation(a); }}>
+                        <IconTrash className="h-3 w-3 text-echo-error" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete annotation</TooltipContent>
+                  </Tooltip>
                 </div>
               ))
             ) : (
@@ -1378,13 +1388,18 @@ export default function DatasetCreatorPage() {
                       onChange={(e) => setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: { ...a.custom_metadata, [k]: e.target.value } } : null))}
                       placeholder="Value"
                     />
-                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => {
-                      const next = { ...selectedAnnotation.custom_metadata };
-                      delete next[k];
-                      setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: next } : null));
-                    }}>
-                      <IconX className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => {
+                          const next = { ...selectedAnnotation.custom_metadata };
+                          delete next[k];
+                          setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: next } : null));
+                        }}>
+                          <IconX className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Remove field</TooltipContent>
+                    </Tooltip>
                   </div>
                 ))}
                 <Button

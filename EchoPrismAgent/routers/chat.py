@@ -15,6 +15,7 @@ from pathlib import Path
 
 import firebase_admin.firestore
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from typing import Optional
 from google import genai
 from google.genai import types
 from google.cloud.firestore import SERVER_TIMESTAMP, FieldFilter
@@ -218,8 +219,12 @@ def _sanitize(value):
     return value
 
 
-async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocket) -> dict:
-    """Execute a single named tool and return its result dict."""
+async def _execute_tool(
+    name: str, args: dict, uid: str, db, websocket: Optional[WebSocket] = None
+) -> dict:
+    """Execute a single named tool and return its result dict.
+    When websocket is None (e.g. /api/agent/tool), side-channel notifications are skipped.
+    """
     if name == "list_workflows":
         docs = (
             db.collection("workflows")
@@ -246,17 +251,18 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             "confirmation_status": None,
             "source": "desktop",
         })
-        try:
-            await websocket.send_text(json.dumps({
-                "type": "run_started",
-                "runLink": {
-                    "workflowId": workflow_id,
-                    "runId": run_id,
-                    "name": workflow_name or "Workflow",
-                },
-            }))
-        except Exception:
-            pass
+        if websocket:
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "run_started",
+                    "runLink": {
+                        "workflowId": workflow_id,
+                        "runId": run_id,
+                        "name": workflow_name or "Workflow",
+                    },
+                }))
+            except Exception:
+                pass
         return {"ok": True, "run_id": run_id, "workflow_id": workflow_id, "workflow_name": workflow_name}
 
     elif name == "run_adhoc":
@@ -281,18 +287,19 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             "confirmation_status": None,
             "source": "desktop",
         })
-        try:
-            await websocket.send_text(json.dumps({
-                "type": "run_started",
-                "runLink": {
-                    "workflowId": workflow_id,
-                    "runId": run_id,
-                    "name": workflow_name,
-                    "ephemeral": True,
-                },
-            }))
-        except Exception:
-            pass
+        if websocket:
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "run_started",
+                    "runLink": {
+                        "workflowId": workflow_id,
+                        "runId": run_id,
+                        "name": workflow_name,
+                        "ephemeral": True,
+                    },
+                }))
+            except Exception:
+                pass
         return {
             "ok": True,
             "run_id": run_id,
@@ -309,14 +316,15 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         wf_id = await synthesize_from_description_impl(
             uid=uid, name=workflow_name, description=description, workflow_type=workflow_type, db=db,
         )
-        try:
-            await websocket.send_text(json.dumps({
-                "type": "synthesis_complete",
-                "workflow_id": wf_id,
-                "workflow_name": workflow_name,
-            }))
-        except Exception:
-            pass
+        if websocket:
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "synthesis_complete",
+                    "workflow_id": wf_id,
+                    "workflow_name": workflow_name,
+                }))
+            except Exception:
+                pass
         return {"ok": True, "workflow_id": wf_id, "workflow_name": workflow_name}
 
     elif name == "redirect_run":
@@ -342,10 +350,11 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         return {"ok": True}
 
     elif name == "start_screen_recording":
-        try:
-            await websocket.send_text(json.dumps({"type": "control", "action": "start_screen_recording"}))
-        except Exception:
-            pass
+        if websocket:
+            try:
+                await websocket.send_text(json.dumps({"type": "control", "action": "start_screen_recording"}))
+            except Exception:
+                pass
         return {"control": "start_screen_recording"}
 
     elif name == "list_integrations":

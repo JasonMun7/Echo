@@ -6,6 +6,7 @@ import {
   IconTrash,
   IconExternalLink,
 } from "@tabler/icons-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface StepData {
   id: string;
@@ -119,21 +120,20 @@ export default function WorkflowDetailView({
         <button
           type="button"
           onClick={onBack}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#A577FF",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 14,
-            marginBottom: 16,
-            padding: 0,
-          }}
+          className="echo-btn-secondary-accent mb-3 flex shrink-0 items-center justify-center rounded-lg p-1.5"
+          aria-label="Back"
         >
-          <IconArrowLeft size={18} /> Back
+          <IconArrowLeft size={20} className="echo-icon-gradient" />
         </button>
-        <p style={{ color: "var(--echo-text-secondary)", fontSize: 14 }}>Loading workflow…</p>
+        <Skeleton className="mb-2 h-4 w-48 rounded-md" />
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          <Skeleton className="h-8 w-16 rounded-md" />
+          <Skeleton className="h-8 w-14 rounded-md" />
+          <Skeleton className="h-8 w-14 rounded-md" />
+        </div>
+        <Skeleton className="mb-4 h-4 w-32 rounded-md" />
+        <Skeleton className="h-24 w-full rounded-lg" style={{ marginBottom: 12 }} />
+        <Skeleton className="h-32 w-full rounded-lg" />
       </div>
     );
   }
@@ -144,19 +144,10 @@ export default function WorkflowDetailView({
         <button
           type="button"
           onClick={onBack}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#A577FF",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 14,
-            marginBottom: 16,
-            padding: 0,
-          }}
+          className="echo-btn-secondary-accent mb-4 flex shrink-0 items-center justify-center rounded-lg p-1.5"
+          aria-label="Back"
         >
-          <IconArrowLeft size={18} /> Back
+          <IconArrowLeft size={20} className="echo-icon-gradient" />
         </button>
         <p style={{ color: "#ef4444", fontSize: 14 }}>{error}</p>
       </div>
@@ -170,71 +161,51 @@ export default function WorkflowDetailView({
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ marginBottom: 20 }}>
+        <button
+          type="button"
+          onClick={onBack}
+          className="echo-btn-secondary-accent mb-3 flex shrink-0 items-center justify-center rounded-lg p-1.5"
+          aria-label="Back"
+        >
+          <IconArrowLeft size={20} className="echo-icon-gradient" />
+        </button>
+        <h2
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--echo-text)",
+            margin: "0 0 8px 0",
+            minWidth: 0,
+          }}
+        >
+          {workflow.name || workflowId}
+        </h2>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           <button
             type="button"
-            onClick={onBack}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--echo-text)",
-              opacity: 0.7,
-              display: "flex",
-              alignItems: "center",
-              padding: 4,
-            }}
-          >
-            <IconArrowLeft size={20} />
-          </button>
-          <h2
-            style={{
-              fontSize: "1.5rem",
-              fontWeight: 600,
-              color: "var(--echo-text)",
-              margin: 0,
-            }}
-          >
-            {workflow.name || workflowId}
-          </h2>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            className="echo-btn-danger"
+            className="echo-btn-danger flex items-center gap-1.5 rounded-md px-2 py-1 text-sm"
             onClick={handleDelete}
             disabled={deleting}
-            style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
-            <IconTrash size={16} />
+            <IconTrash size={14} />
             {deleting ? "Deleting…" : "Delete"}
           </button>
           <button
             type="button"
-            className="echo-btn-secondary"
+            className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2 py-1 text-sm"
             onClick={onEdit}
-            style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
-            <IconEdit size={16} />
+            <IconEdit size={14} />
             Edit
           </button>
           <button
             type="button"
-            className="echo-btn-primary"
+            className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-md px-2 py-1 text-sm disabled:opacity-50"
             onClick={handleRun}
             disabled={!canRun || steps.length === 0}
-            style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
-            <IconPlayerPlay size={16} />
+            <IconPlayerPlay size={14} />
             Run
           </button>
         </div>
@@ -415,17 +386,7 @@ export default function WorkflowDetailView({
       <button
         type="button"
         onClick={() => onOpenWebUI(`/dashboard/workflows/${workflowId}`)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 13,
-          color: "#A577FF",
-          background: "none",
-          border: "1px solid rgba(165,119,255,0.3)",
-          borderRadius: 6,
-          padding: "6px 12px",
-        }}
+        className="echo-btn-secondary-accent flex items-center gap-2 text-sm"
       >
         <IconExternalLink size={14} />
         View full details in web

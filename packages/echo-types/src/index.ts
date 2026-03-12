@@ -1,6 +1,6 @@
 /**
  * Shared Echo types for workflows, steps, runs, and operators.
- * Used by apps/web, apps/desktop, and backend (via manual alignment).
+ * Used by apps/desktop and backend (via manual alignment).
  */
 
 /** Workflow execution environment */

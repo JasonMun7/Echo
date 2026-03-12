@@ -22,6 +22,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="light h-full" suppressHydrationWarning>
       <body className={`${inter.className} h-full min-h-screen`}>
+        <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
+          <defs>
+            <linearGradient id="echoIconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#21C4DD" />
+              <stop offset="100%" stopColor="#A577FF" />
+            </linearGradient>
+          </defs>
+        </svg>
         <AuthProvider>{children}</AuthProvider>
         <Toaster richColors position="top-right" />
       </body>

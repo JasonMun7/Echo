@@ -13,14 +13,15 @@
     "build:desktop": "cd apps/desktop && pnpm run build",
     "start": "cd apps/web && pnpm run start",
     "lint": "cd apps/web && pnpm run lint",
-    "backend:dev": "cd backend && doppler run -- uvicorn main:app --reload",
-    "echo-prism-agent:dev": "cd EchoPrismAgent && doppler run -- uvicorn main:app --reload --port 8081",
-    "backend:docker": "cd backend && docker build -t echo-backend . && docker run -p 8000:8000 echo-backend",
+    "dev:backend": "cd backend && doppler run -- uvicorn main:app --reload",
+    "dev:agent": "cd EchoPrismAgent && doppler run -- uvicorn main:app --reload --port 8081",
+    "dev:livekit-agent": "cd EchoPrismAgent && doppler run -- python -m agent.echo_prism.subagents.livekit.main dev",
     "deploy": "doppler run --config prd -- ./scripts/deploy.sh",
     "deploy:build": "doppler run --config prd -- ./scripts/deploy/build.sh",
     "deploy:frontend": "doppler run --config prd -- ./scripts/deploy/deploy-frontend.sh --build",
     "deploy:backend": "doppler run --config prd -- ./scripts/deploy/deploy-backend.sh --build",
     "deploy:echo-prism-agent": "doppler run --config prd -- ./scripts/deploy/deploy-echo-prism-agent.sh --build",
+    "deploy:livekit-agent": "doppler run --config prd -- ./scripts/deploy/deploy-livekit-agent.sh --build",
     "deploy:omniparser": "doppler run --config prd -- ./scripts/deploy/deploy-omniparser.sh --build"
   },
   "devDependencies": {

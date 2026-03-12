@@ -10,6 +10,7 @@
 #   ./scripts/deploy/deploy-backend.sh --build [PROJECT_ID] [REGION]
 #   ./scripts/deploy/deploy-echo-prism-agent.sh --build [PROJECT_ID] [REGION]
 #   ./scripts/deploy/deploy-omniparser.sh --build [PROJECT_ID] [REGION]
+# LiveKit voice agent (optional): ./scripts/deploy/deploy-livekit-agent.sh --build [PROJECT_ID] [REGION]
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,4 +57,5 @@ echo -e "  ${LAVENDER}EchoPrism Agent:${R} $ECHO_PRISM_AGENT_URL"
 echo -e "  ${LAVENDER}OmniParser:${R} $OMNIPARSER_URL"
 echo ""
 echo -e "  ${MUTED}If you see 500 errors: ensure Firebase and GCP use the same project.${R}"
+echo -e "  ${MUTED}For EchoPrism Voice: deploy LiveKit agent separately: pnpm run deploy:livekit-agent${R}"
 echo ""
