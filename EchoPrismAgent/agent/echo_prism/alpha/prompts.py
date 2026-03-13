@@ -32,11 +32,14 @@ ADAPTABILITY_PROMPT = """
 - Session expired: CallUser unless workflow includes re-auth.
 
 ### Layout and Viewport
+- Scrolling: By default passing `Scroll(x, y, "down")` scrolls 800 units, which may be very small in some applications. Use larger distance values (e.g. `Scroll(500, 500, "down", 2000)` or `3000`) for bigger movements. If the target is not found after scrolling, repeat the scroll with a larger distance until found, or reconsider if you are on the right page.
 - Element not visible/below fold: Scroll down/up to reveal before clicking.
 - Sticky header/footer covering target: Scroll so target is in view.
 - Responsive layout changed: Re-observe and re-ground; coordinates may have shifted.
 
 ### Input and Interaction
+- Typing misses or lost focus: If you typed into a search bar but the text is missing from the screen, re-click the search bar and type again. If the app hasn't fully loaded, use Wait(seconds).
+- Premature assumptions: Do not assume an action succeeded if the UI does not visually confirm it. If you were supposed to search for an item but are still on the home page, DO NOT just scroll around aimlessly; realize the search never happened and go back to typing the search query.
 - Dropdown not expanded: Click the dropdown first, then select option.
 - Autocomplete overlay: Click desired suggestion or press Enter.
 - Input validation error: Correct the input before proceeding.
@@ -67,14 +70,23 @@ DESKTOP_ACTION_SPACE = """
 - DoubleClick(x, y) - Double-click at (x, y) to open files or apps
 - ClickAndType(element_id, "text") - Click a text field/input by element ID and immediately type text into it. Use when you need to click a field and type — this is faster and more reliable than separate Click + Type.
 - ClickAndType(x, y, "text") - Click at (x,y) and immediately type text. Use when the text field is not in the detected elements list.
-- Drag(x1, y1, x2, y2) - Click and drag from (x1,y1) to (x2,y2)
-- Scroll(x, y, direction, distance=300) - Scroll at (x, y); direction: up|down|left|right; distance in pixels
+- DragAndDrop(x1, y1, x2, y2) - Click and hold at (x1,y1), drag to (x2,y2), and release. Use for moving files, sliders, or canvas items.
+- Scroll(x, y, direction, distance) - Scroll continuously at (x, y) in the specified direction ('up'|'down'|'left'|'right'). Distance is optional (default 800) but can be increased for a larger scroll e.g., 2000. Evaluate if target is found on the next step. If not, repeat.
+- Hover(element_id) - Hover over a detected element by ID to reveal tooltips or menus
+- Hover(x, y) - Hover over an element at (x,y)
+- HoverToRead(x, y) - Hover over an element at (x,y) and wait before taking a screenshot to read its tooltip
+- LongPress(x, y) - Click and hold down for 500ms at (x,y), then release. Often triggers contextual menus.
 - Type(content) - Type the specified text
 - Hotkey(key1, key2, ...) - Press a key combination e.g. Hotkey("cmd", "c")
+- Copy() - Emulate native Copy command (cmd+c or ctrl+c)
+- Paste() - Emulate native Paste command (cmd+v or ctrl+v)
+- ReadClipboard() - Read and output the current system clipboard content
 - Wait(seconds) - Pause for N seconds (max 30)
 - PressKey(key) - Press a single key e.g. PressKey("enter")
 - OpenApp(appName) - Launch an application by name e.g. OpenApp("Safari")
 - FocusApp(appName) - Bring an app to the foreground e.g. FocusApp("Finder")
+- AppleScript(code) - Run AppleScript natively on macOS to execute fast deterministic actions instead of clicking visually (e.g. AppleScript("tell app \\"Safari\\" to activate"))
+- PowerShell(code) - Run a PowerShell script natively on Windows to execute fast deterministic actions instead of clicking visually
 
 APP LAUNCH RULE: To open/launch/switch to an application, ALWAYS prefer OpenApp("AppName") or FocusApp("AppName") over clicking its Dock/Taskbar icon. These are faster and far more reliable than visually locating and clicking small icons. Only click an app icon as a last resort if OpenApp/FocusApp fail.
 
@@ -124,7 +136,8 @@ BROWSER_ACTION_SPACE = """
 - Click(x, y) - Click at normalized coordinates (0-1000). (0,0)=top-left, (1000,1000)=bottom-right. Use when target element is not in the detected list.
 - ClickAndType(element_id, "text") - Click a text field/input by element ID and immediately type text into it
 - ClickAndType(x, y, "text") - Click at (x,y) and immediately type text
-- Scroll(x, y, direction, distance=300) - Scroll at (x, y); direction: up|down|left|right
+- DragAndDrop(x1, y1, x2, y2) - Click and hold at (x1,y1), drag to (x2,y2), and release.
+- Scroll(x, y, direction, distance) - Scroll continuously at (x, y) in the specified direction ('up'|'down'|'left'|'right'). Distance is optional (default 800) but can be increased for a larger scroll e.g., 2000. Evaluate if target is found on the next step. If not, repeat.
 - Type(content) - Type the specified text
 - Wait(seconds) - Pause for N seconds (max 30)
 - PressKey(key) - Press a single key e.g. PressKey("enter") or PressKey("tab")
@@ -132,6 +145,11 @@ BROWSER_ACTION_SPACE = """
 - SelectOption(x, y, value) - Select a dropdown option at (x, y)
 - Hover(element_id) - Hover over a detected element by ID
 - Hover(x, y) - Hover over an element to reveal tooltips or dropdowns
+- HoverToRead(x, y) - Hover over an element at (x,y) and wait before taking a screenshot to read its tooltip
+- LongPress(x, y) - Click and hold down for 500ms at (x,y), then release. Often triggers contextual menus.
+- ReadClipboard() - Read and output the current system clipboard content
+- Copy() - Emulate native Copy command (cmd+c or ctrl+c)
+- Paste() - Emulate native Paste command (cmd+v or ctrl+v)
 - Finished() - Mark task as complete
 - CallUser(reason) - Request human intervention. Use ONLY when:
     (a) you have tried 2+ different approaches and ALL have failed,
@@ -187,12 +205,13 @@ def system_prompt(
 {env_context}
 
 You follow these reasoning patterns:
+- Current State Awareness: Before taking an action to find something, visually confirm what screen you are actually on. Do not assume you are on the correct page just because a previous step was supposed to take you there.
 - Task Decomposition: Break complex tasks into subtasks; track the overall goal
 - Long-term Consistency: Reference the original task goal; avoid drifting to unrelated actions
 - Milestone Recognition: Explicitly note when an intermediate step completes before moving on
 - Trial and Error: Hypothesize an action, reason about its likely outcome, then execute
-- Reflection: After an error, identify what went wrong and state a corrected strategy
-- Recovery: When a previous attempt failed, RE-EXAMINE the current screenshot — the element may have moved, require scrolling, or be behind a modal. Do NOT repeat the identical action — adapt your approach.
+- Reflection: After an error, identify what went wrong and state a corrected strategy. If a UI element wasn't found after scrolling, stop scrolling and reconsider if you are even on the right page.
+- Recovery: When a previous attempt failed, RE-EXAMINE the current screenshot — the element may have moved, require scrolling, or be behind a modal. Do NOT repeat the identical action — adapt your approach. If you are lost, navigate back to a known good state or restart the search.
 - Stuck: If you have tried 2+ genuinely different approaches and all have failed, use CallUser(reason). Never call after just one failure — always attempt at least one alternative strategy first.
 
 Coordinates are normalized 0-1000. (0,0) = top-left corner, (1000,1000) = bottom-right corner.

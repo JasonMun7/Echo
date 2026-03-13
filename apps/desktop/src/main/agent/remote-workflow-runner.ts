@@ -358,9 +358,8 @@ export async function runWorkflowRemote(
 
             // OS-level actions (openapp, focusapp) are inherently reliable —
             // skip screenshot verification since the app may take time to render.
-            const skipVerifyActions = new Set(["openapp", "focusapp"]);
             const executedAction = ((m.action as Record<string, unknown>)?.action as string ?? "").toLowerCase();
-            if (deterministic || skipVerifyActions.has(executedAction)) {
+            if (deterministic) {
               stepSucceeded = true;
               break;
             }

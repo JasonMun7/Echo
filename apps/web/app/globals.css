@@ -335,4 +335,16 @@
   .echo-icon-gradient {
     stroke: url(#echoIconGradient);
   }
+  /* Flashing indicator for latest workflow */
+  @keyframes echo-indicator-flash {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  .animate-echo-indicator-flash {
+    animation: echo-indicator-flash 1.5s ease-in-out infinite;
+  }
 }

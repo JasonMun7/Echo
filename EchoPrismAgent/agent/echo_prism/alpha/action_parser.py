@@ -160,7 +160,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
     if not action_line:
         # Fallback: look for ActionName(...) anywhere in text without "Action:" prefix
         fb = re.search(
-            r"\b(Click|RightClick|DoubleClick|ClickAndType|Drag|Scroll|Type|Hotkey|Wait|PressKey|Navigate|OpenApp|FocusApp|Finished|CallUser|Hover|SelectOption)\s*\((.*?)\)",
+            r"\b(Click|left_click|left_single|RightClick|right_click|right_single|DoubleClick|double_click|left_double|ClickAndType|DragAndDrop|Drag|Scroll|Type|Hotkey|Wait|PressKey|Navigate|OpenApp|FocusApp|Finished|CallUser|HoverToRead|Hover|LongPress|ReadClipboard|Copy|Paste|AppleScript|PowerShell|mouse_move|SelectOption)\s*\((.*?)\)",
             text,
             re.IGNORECASE,
         )
@@ -181,7 +181,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
         m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
     if not m:
         # Try: "Action: Click 500, 300" (no parens)
-        m = re.search(r"(?:Action):\s*(Click|RightClick|DoubleClick|Hover)\s+([\d,\s]+)$", action_line, re.IGNORECASE)
+        m = re.search(r"(?:Action):\s*(Click|left_click|left_single|RightClick|right_click|right_single|DoubleClick|double_click|left_double|Hover|mouse_move)\s+([\d,\s]+)$", action_line, re.IGNORECASE)
         if m:
             # Wrap the coords so downstream parsing works
             action_line = f"Action: {m.group(1)}({m.group(2)})"
@@ -201,7 +201,8 @@ def parse_action(text: str) -> dict[str, Any] | None:
 
     result: dict[str, Any] = {"action": name}
 
-    if name == "click":
+    if name in ("click", "left_click", "left_single"):
+        result["action"] = "click"
         coords = _parse_coords_multi(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
@@ -209,7 +210,8 @@ def parse_action(text: str) -> dict[str, Any] | None:
             eid = _parse_element_id(args_str)
             if eid is not None:
                 result["element_id"] = eid
-    elif name == "rightclick":
+    elif name in ("rightclick", "right_click", "right_single"):
+        result["action"] = "rightclick"
         coords = _parse_coords_multi(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
@@ -217,7 +219,8 @@ def parse_action(text: str) -> dict[str, Any] | None:
             eid = _parse_element_id(args_str)
             if eid is not None:
                 result["element_id"] = eid
-    elif name == "doubleclick":
+    elif name in ("doubleclick", "double_click", "left_double"):
+        result["action"] = "doubleclick"
         coords = _parse_coords_multi(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
@@ -240,7 +243,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
             if eid is not None:
                 result["element_id"] = eid
         result["content"] = content
-    elif name == "drag":
+    elif name in ("drag", "draganddrop"):
         # Try named params first (start_box / end_box from UI-TARS format)
         start_m = re.search(r"start_box\s*=\s*['\"]?(.+?)['\"]?\s*(?:,\s*end_box|$)", args_str, re.IGNORECASE)
         end_m = re.search(r"end_box\s*=\s*['\"]?(.+?)['\"]?\s*(?:\)|$)", args_str, re.IGNORECASE)
@@ -265,23 +268,20 @@ def parse_action(text: str) -> dict[str, Any] | None:
             if coords:
                 result["x1"], result["y1"], result["x2"], result["y2"] = coords
     elif name == "scroll":
-        # Support both positional and named-arg forms
-        # Named: Scroll(x=400, y=600, direction="down", distance=300)
-        named_x = re.search(r"\bx\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
-        named_y = re.search(r"\by\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
-        named_dir = re.search(
-            r'\bdirection\s*=\s*["\']?(\w+)["\']?', args_str, re.IGNORECASE
-        )
+        named_dir = re.search(r'\bdirection\s*=\s*["\']?(\w+)["\']?', args_str, re.IGNORECASE)
         named_dist = re.search(r"\bdistance\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
-        if named_x and named_y:
-            result["x"] = int(named_x.group(1))
-            result["y"] = int(named_y.group(1))
-            result["direction"] = named_dir.group(1).lower() if named_dir else "down"
-            if named_dist:
-                result["distance"] = int(named_dist.group(1))
+        
+        dir_val = named_dir.group(1).lower() if named_dir else "down"
+        dist_val = int(named_dist.group(1)) if named_dist else None
+
+        coords = _parse_coords_multi(args_str, 2)
+        if coords:
+            result["x"], result["y"] = coords[0], coords[1]
+            result["direction"] = dir_val
+            if dist_val is not None:
+                result["distance"] = dist_val
         else:
-            # Check for <point> format first
-            point_coords = _parse_coords_multi(args_str.split(",")[0] if "," in args_str else args_str, 2)
+            # Fallback for old comma-separated: Scroll(500, 500, "down", 300)
             parts = [p.strip().strip("\"'") for p in args_str.split(",")]
             if len(parts) >= 3:
                 try:
@@ -334,11 +334,15 @@ def parse_action(text: str) -> dict[str, Any] | None:
             result["action"] = "navigate"
             result["url"] = "javascript:history.back()"
         else:
-            url = (
-                _extract_quoted(args_str)
-                if (args_str.startswith('"') or args_str.startswith("'"))
-                else args_str.strip()
-            )
+            content_m = re.search(r"(?:content|url)\s*=\s*['\"](.+?)['\"]", args_str, re.IGNORECASE)
+            if content_m:
+                url = content_m.group(1)
+            else:
+                url = (
+                    _extract_quoted(args_str)
+                    if (args_str.startswith('"') or args_str.startswith("'"))
+                    else args_str.strip()
+                )
             if not url:
                 return None  # Empty URL is not valid
             result["url"] = url
@@ -355,8 +359,8 @@ def parse_action(text: str) -> dict[str, Any] | None:
         elif len(parts) >= 2:
             result["selector"] = parts[0]
             result["value"] = parts[1]
-    elif name == "hover" or name == "mouse_move":
-        result["action"] = "hover"
+    elif name == "hover" or name == "mouse_move" or name == "hovertoread":
+        result["action"] = "hovertoread" if name == "hovertoread" else "hover"
         coords = _parse_coords_multi(args_str, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
@@ -364,6 +368,16 @@ def parse_action(text: str) -> dict[str, Any] | None:
             eid = _parse_element_id(args_str)
             if eid is not None:
                 result["element_id"] = eid
+    elif name == "longpress":
+        coords = _parse_coords_multi(args_str, 2)
+        if coords:
+            result["x"], result["y"] = coords[0], coords[1]
+        else:
+            eid = _parse_element_id(args_str)
+            if eid is not None:
+                result["element_id"] = eid
+    elif name in ("copy", "paste", "readclipboard"):
+        pass # No parameters needed
     elif name == "waitforelement":
         desc = (
             _extract_quoted(args_str)
@@ -381,13 +395,24 @@ def parse_action(text: str) -> dict[str, Any] | None:
             else args_str.strip()
         )
         result["appName"] = app_name
-    elif name in ("finished", "calluser", "call_user"):
-        result["action"] = "finished" if name == "finished" else "calluser"
-        reason = (
+    elif name in ("applescript", "powershell"):
+        script_code = (
             _extract_quoted(args_str)
             if (args_str.startswith('"') or args_str.startswith("'"))
             else args_str.strip()
         )
+        result["script"] = script_code
+    elif name in ("finished", "calluser", "call_user"):
+        result["action"] = "finished" if name == "finished" else "calluser"
+        content_m = re.search(r"(?:content|reason)\s*=\s*['\"](.+?)['\"]", args_str, re.IGNORECASE)
+        if content_m:
+            reason = content_m.group(1)
+        else:
+            reason = (
+                _extract_quoted(args_str)
+                if (args_str.startswith('"') or args_str.startswith("'"))
+                else args_str.strip()
+            )
         if reason:
             result["reason"] = reason
     # else: unknown action — return result with just action name

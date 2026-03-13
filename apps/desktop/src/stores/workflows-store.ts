@@ -7,6 +7,34 @@ export interface WorkflowInfo {
   name?: string;
   status?: string;
   workflow_type?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+/** Extract ms from createdAt/updatedAt (Firestore Timestamp, number, or ISO string). */
+export function getTimeMs(x: unknown): number {
+  if (x == null) return 0;
+  if (typeof x === "number") return x > 1e12 ? x : x * 1000;
+  if (typeof x === "string") return new Date(x).getTime() || 0;
+  const o = x as { seconds?: number; _seconds?: number; toMillis?: () => number };
+  if (typeof o.toMillis === "function") return o.toMillis();
+  const sec = o.seconds ?? o._seconds;
+  return typeof sec === "number" ? sec * 1000 : 0;
+}
+
+/** True if workflow is newest by createdAt or most recently modified (updatedAt). */
+export function isLatestOrLastModified(
+  w: { id: string; createdAt?: unknown; updatedAt?: unknown },
+  all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>
+): boolean {
+  if (all.length === 0) return false;
+  const created = all.map((x) => getTimeMs(x.createdAt));
+  const updated = all.map((x) => getTimeMs(x.updatedAt));
+  const maxCreated = Math.max(...created);
+  const maxUpdated = Math.max(...updated);
+  const wCreated = getTimeMs(w.createdAt);
+  const wUpdated = getTimeMs(w.updatedAt);
+  return wCreated === maxCreated || wUpdated === maxUpdated;
 }
 
 interface WorkflowsState {
@@ -58,7 +86,9 @@ export const useWorkflowsStore = create<WorkflowsState>((set, get) => ({
         }
         set({ workflowsError: result.error ?? "", workflows: [] });
       } else if (result && "workflows" in result) {
-        set({ workflows: result.workflows ?? [] });
+        const list = (result.workflows ?? []) as WorkflowInfo[];
+        list.sort((a, b) => getTimeMs(b.createdAt ?? b.updatedAt) - getTimeMs(a.createdAt ?? a.updatedAt));
+        set({ workflows: list });
       }
     } finally {
       set({ workflowsLoading: false });
