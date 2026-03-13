@@ -59,6 +59,7 @@ import {
   useRunStore,
   useRecordingStore,
 } from "@/stores";
+import { isLatestOrLastModified } from "@/stores/workflows-store";
 import { useRecording } from "@/hooks/use-recording";
 function useWindowType(): { windowType: string; mode: string } {
   const [params, setParams] = useState({ windowType: "", mode: "" });
@@ -1104,15 +1105,23 @@ function MainWindowApp() {
                               id: string;
                               name?: string;
                               workflow_type?: string;
-                            }) => (
+                              createdAt?: unknown;
+                              updatedAt?: unknown;
+                            }) => {
+                              const isLatest = isLatestOrLastModified(w, filtered);
+                              return (
                               <div
                                 key={w.id}
-                                className="group/workflow cursor-default"
+                                className="group/workflow cursor-default relative"
                                 style={{
                                   padding: "10px 12px",
                                   borderRadius: 8,
-                                  border: "1px solid rgba(165,119,255,0.12)",
-                                  background: "var(--echo-surface)",
+                                  border: isLatest
+                                    ? "1px solid rgba(165,119,255,0.4)"
+                                    : "1px solid rgba(165,119,255,0.12)",
+                                  background: isLatest
+                                    ? "rgba(165,119,255,0.06)"
+                                    : "var(--echo-surface)",
                                   display: "flex",
                                   alignItems: "center",
                                   overflow: "hidden",
@@ -1235,7 +1244,8 @@ function MainWindowApp() {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
-                            )}
+                            );
+                            }}
                             maxHeight="280px"
                             displayScrollbar={true}
                             showGradients={true}
