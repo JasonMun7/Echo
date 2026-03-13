@@ -12,6 +12,11 @@ import {
   IconJumpRope,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Workflow {
   id: string;
@@ -21,6 +26,29 @@ interface Workflow {
   thumbnail_gcs_path?: string;
   createdAt: unknown;
   updatedAt: unknown;
+}
+
+function getTime(x: unknown): number {
+  if (typeof (x as { toMillis?: () => number })?.toMillis === "function") {
+    return (x as { toMillis: () => number }).toMillis();
+  }
+  if (typeof x === "number") return x > 1e12 ? x : x * 1000;
+  if (typeof x === "string") return new Date(x).getTime() || 0;
+  const o = x as { seconds?: number; _seconds?: number };
+  const sec = o?.seconds ?? (o as { _seconds?: number })._seconds;
+  return typeof sec === "number" ? sec * 1000 : 0;
+}
+
+function isLatestOrLastModified(
+  w: { id: string; createdAt?: unknown; updatedAt?: unknown },
+  all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>,
+): boolean {
+  if (all.length === 0) return false;
+  const created = all.map((x) => getTime(x.createdAt));
+  const updated = all.map((x) => getTime(x.updatedAt));
+  const maxCreated = Math.max(...created);
+  const maxUpdated = Math.max(...updated);
+  return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
 }
 
 function WorkflowThumbnail({ workflowId }: { workflowId: string }) {
@@ -101,13 +129,9 @@ export default function WorkflowsPage() {
         const list = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
           .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
-          .sort((a, b) => {
-            const getTime = (x: unknown) =>
-              typeof (x as { toMillis?: () => number })?.toMillis === "function"
-                ? (x as { toMillis: () => number }).toMillis()
-                : 0;
-            return getTime(b.updatedAt) - getTime(a.updatedAt);
-          });
+          .sort((a, b) =>
+            getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt),
+          );
         setWorkflows(list);
         setLoading(false);
       },
@@ -170,11 +194,30 @@ export default function WorkflowsPage() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {workflows.map((w) => (
+            {workflows.map((w) => {
+              const isLatest = isLatestOrLastModified(w, workflows);
+              return (
               <div
                 key={w.id}
-                className="group relative echo-card flex flex-col overflow-hidden transition-all hover:border-[#A577FF]/50 hover:shadow-md"
+                className={`group relative echo-card flex flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isLatest ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
               >
+                {isLatest && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="absolute -right-1 -top-1 z-10 h-4 w-4 animate-echo-indicator-flash cursor-default rounded-full bg-[#A577FF] ring-2 ring-white shadow-sm"
+                        onClick={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="border-[#A577FF]/20 bg-[#150A35] text-[#F5F7FC]"
+                    >
+                      Newest or most recently modified workflow
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 {/* Delete button — top-right, shown on hover, stops link navigation */}
                 <button
                   type="button"
@@ -229,7 +272,8 @@ export default function WorkflowsPage() {
                   </div>
                 </Link>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
