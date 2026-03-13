@@ -143,6 +143,7 @@ export const useRunStore = create<RunState>((set, get) => ({
       });
     } finally {
       get().resetRun();
+      await window.electronAPI?.exitRunMode?.();
     }
   },
 
@@ -223,6 +224,7 @@ export const useRunStore = create<RunState>((set, get) => ({
       });
     } finally {
       get().resetRun();
+      await window.electronAPI?.exitRunMode?.();
     }
   },
 

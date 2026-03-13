@@ -106,7 +106,20 @@ def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
     if "direction" in params:
         result["direction"] = str(params["direction"])
     if "distance" in params or "amount" in params:
-        result["distance"] = int(params.get("distance") or params.get("amount", 300))
+        raw_dist = params.get("distance") or params.get("amount", 800)
+        if isinstance(raw_dist, str):
+            dist_lower = raw_dist.lower()
+            if dist_lower == "short": result["distance"] = 300
+            elif dist_lower == "medium": result["distance"] = 800
+            elif dist_lower == "long": result["distance"] = 1500
+            else:
+                try: result["distance"] = int(raw_dist)
+                except ValueError: result["distance"] = 800
+        else:
+            try: result["distance"] = int(raw_dist)
+            except (ValueError, TypeError): result["distance"] = 800
+    else:
+        result["distance"] = 800
     if "selector" in params:
         result["selector"] = str(params["selector"])
     if "value" in params:
@@ -170,7 +183,7 @@ async def execute_step(page: Any, step: dict[str, Any]) -> tuple[bool, str]:
             await asyncio.sleep(min(secs, 60))
         elif action == "scroll":
             direction = (params.get("direction") or "down").lower()
-            amount = params.get("amount", 500)
+            amount = params.get("amount", 800)
             dx = 0
             dy = amount if direction == "down" else -amount
             if direction in ("left", "right"):

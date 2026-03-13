@@ -7,7 +7,7 @@
  * Adapted from UI-TARS NutJSElectronOperator coordinate pipeline.
  */
 import { BrowserWindow, clipboard, desktopCapturer, screen as electronScreen, shell } from "electron";
-import { execFile } from "child_process";
+import { execFile, exec } from "child_process";
 import { promisify } from "util";
 import {
   mouse,
@@ -19,12 +19,17 @@ import {
 } from "@nut-tree-fork/nut-js";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 import type { OperatorAction } from "@echo/types";
+
+// Configure nut-js for stability
+mouse.config.autoDelayMs = 100;
+keyboard.config.autoDelayMs = 50;
 
 const COORD_SCALE = 1000;
 
 /** Delay in ms between mouse movement and click for OS to settle. */
-const MOUSE_MOVE_DELAY_MS = 100;
+const MOUSE_MOVE_DELAY_MS = 250;
 
 export type OperatorResult = boolean | "finished" | "calluser";
 
@@ -96,14 +101,8 @@ function scaleCoords(x: number, y: number): { x: number; y: number } {
 export async function captureScreen(sourceId: string): Promise<Buffer> {
   const { logicalWidth, logicalHeight } = getScreenInfo();
 
-  // Hide overlay windows (HUD, haze) so they don't appear in screenshots.
-  // The VLM must see only the actual desktop — overlay text confuses verification.
-  const overlays = BrowserWindow.getAllWindows().filter(
-    (w) => !w.isDestroyed() && w.isAlwaysOnTop()
-  );
-  for (const w of overlays) w.setOpacity(0);
-  if (overlays.length > 0) await sleep(100); // let compositor update
-
+  // We no longer hide overlays via Opacity(0) here because it causes severe
+  // screen flickering. The HUD overlay has been designed to be unobtrusive.
   const attempt = async (): Promise<Buffer | null> => {
     // Use "screen" only (not "window") to ensure we get the full display.
     // Request logical dimensions — on macOS Retina, Electron's NativeImage stores
@@ -134,10 +133,6 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
     buf = await attempt();
   }
   if (!buf) {
-    // Restore overlays before throwing
-    for (const w of overlays) {
-      if (!w.isDestroyed()) w.setOpacity(1);
-    }
     throw new Error(
       "Screenshot capture failed: blank or missing thumbnail. " +
       "On macOS, grant Screen Recording permission to this app in System Settings → Privacy & Security → Screen Recording, then restart."
@@ -148,10 +143,6 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
       `[desktop-operator] captureScreen: source=${sourceId}, jpeg=${buf.length} bytes, ` +
       `target=${logicalWidth}x${logicalHeight}`
     );
-  }
-  // Restore overlay windows after capture
-  for (const w of overlays) {
-    if (!w.isDestroyed()) w.setOpacity(1);
   }
 
   // Save debug screenshots to disk when ECHO_DEBUG_SCREENSHOTS is set
@@ -207,6 +198,15 @@ export async function rightClick(x: number, y: number): Promise<void> {
   await mouse.setPosition(new Point(wx, wy));
   await sleep(MOUSE_MOVE_DELAY_MS);
   await mouse.rightClick();
+}
+
+/**
+ * Hover over (x, y).
+ */
+export async function hover(x: number, y: number): Promise<void> {
+  const { x: wx, y: wy } = scaleCoords(x, y);
+  await mouse.setPosition(new Point(wx, wy));
+  await sleep(MOUSE_MOVE_DELAY_MS);
 }
 
 /**
@@ -290,23 +290,35 @@ export async function scroll(
   x: number,
   y: number,
   direction: string,
-  distance: number = 300
+  distance: number = 800
 ): Promise<void> {
   const { x: wx, y: wy } = scaleCoords(x, y);
   await mouse.setPosition(new Point(wx, wy));
-  // Convert pixel distance to scroll steps (approximately 100px per step)
-  const steps = Math.min(Math.max(1, Math.round(distance / 100)), 20);
+  
+  // NutJS scroll steps often map to very small units (like lines or single scroll clicks).
+  // 1 OS scroll step on macOS inside an app like Steam is tiny. 
+  // We use a much smaller divisor (e.g., 2) so that 800 "distance" translates to 400 "steps".
+  const steps = Math.max(1, Math.round(distance / 2));
   const dir = direction.toLowerCase();
-  if (dir === "down") {
-    await mouse.scrollDown(steps);
-  } else if (dir === "up") {
-    await mouse.scrollUp(steps);
-  } else if (dir === "left") {
-    await mouse.scrollLeft(steps);
-  } else if (dir === "right") {
-    await mouse.scrollRight(steps);
-  } else {
-    await mouse.scrollDown(steps);
+  
+  // Perform scroll in smaller chunks with a tiny delay to make it smooth and recognizable by the OS/app.
+  // We'll keep chunks small so it streams the scroll smoothly.
+  const chunks = Math.max(1, Math.ceil(steps / 20));
+  const stepsPerChunk = Math.ceil(steps / chunks);
+
+  for (let i = 0; i < chunks; i++) {
+    if (dir === "down") {
+      await mouse.scrollDown(stepsPerChunk);
+    } else if (dir === "up") {
+      await mouse.scrollUp(stepsPerChunk);
+    } else if (dir === "left") {
+      await mouse.scrollLeft(stepsPerChunk);
+    } else if (dir === "right") {
+      await mouse.scrollRight(stepsPerChunk);
+    } else {
+      await mouse.scrollDown(stepsPerChunk);
+    }
+    await sleep(10); // Small pause to allow application to register smooth scroll
   }
 }
 
@@ -428,7 +440,10 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
       }
       await sleep(100);
       await typeText(String(action.content ?? ""));
-    } else if (act === "drag") {
+      await sleep(100);
+      // Automatically press enter after typing, as this is standard UI-TARS behavior for searches
+      await pressKey("enter");
+    } else if (act === "drag" || act === "draganddrop") {
       const { x: wx1, y: wy1 } = scaleCoords(Number(action.x1 ?? 0), Number(action.y1 ?? 0));
       const { x: wx2, y: wy2 } = scaleCoords(Number(action.x2 ?? 0), Number(action.y2 ?? 0));
       // Smooth drag: move to start, press, interpolate through midpoints, release
@@ -447,8 +462,28 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
       }
       await sleep(100);
       await mouse.releaseButton(Button.LEFT);
+    } else if (act === "hover" || act === "mouse_move") {
+      await hover(Number(action.x ?? 0), Number(action.y ?? 0));
+    } else if (act === "hovertoread") {
+      await hover(Number(action.x ?? 0), Number(action.y ?? 0));
+      await sleep(2000); // UI-TARS style wait for tooltip
+    } else if (act === "longpress") {
+      const { x: wx, y: wy } = scaleCoords(Number(action.x ?? 0), Number(action.y ?? 0));
+      await mouse.setPosition(new Point(wx, wy));
+      await sleep(MOUSE_MOVE_DELAY_MS);
+      await mouse.pressButton(Button.LEFT);
+      await sleep(500); // long press
+      await mouse.releaseButton(Button.LEFT);
+    } else if (act === "copy") {
+      await hotkey(process.platform === "darwin" ? ["cmd", "c"] : ["ctrl", "c"]);
+    } else if (act === "paste") {
+      await hotkey(process.platform === "darwin" ? ["cmd", "v"] : ["ctrl", "v"]);
+    } else if (act === "readclipboard") {
+      console.log(`[desktop-operator] readclipboard executed, contents: ${clipboard.readText()}`);
     } else if (act === "type") {
       await typeText(String(action.content ?? ""));
+      await sleep(100);
+      await pressKey("enter");
     } else if (act === "hotkey") {
       const keys = Array.isArray(action.keys) ? (action.keys as string[]) : [];
       if (!keys.length) return false;
@@ -458,7 +493,7 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
     } else if (act === "presskey") {
       await pressKey(String(action.key ?? "enter"));
     } else if (act === "scroll") {
-      const distance = Number((action as Record<string, unknown>).distance ?? action.amount ?? 300);
+      const distance = Number((action as Record<string, unknown>).distance ?? action.amount ?? 800);
       await scroll(Number(action.x ?? 500), Number(action.y ?? 500), String(action.direction ?? "down"), distance);
     } else if (act === "navigate") {
       await shell.openExternal(String(action.url ?? "https://www.google.com"));
@@ -469,6 +504,23 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
     } else if (act === "focusapp") {
       await focusApp(String(action.appName ?? ""));
       await sleep(1000);
+    } else if (act === "applescript") {
+      if (process.platform === "darwin") {
+        const script = String(action.script ?? action.content ?? "");
+        console.log(`[desktop-operator] Executing AppleScript:`, script);
+        // Replace single quotes securely for the shell command or pass via heredoc
+        await execAsync(`osascript -e '${script.replace(/'/g, "'\\''")}'`);
+      } else {
+        console.warn("[desktop-operator] AppleScript is only supported on macOS");
+      }
+    } else if (act === "powershell") {
+      if (process.platform === "win32") {
+        const script = String(action.script ?? action.content ?? "");
+        console.log(`[desktop-operator] Executing PowerShell:`, script);
+        await execAsync(`powershell -Command "${script.replace(/"/g, "\\\"")}"`);
+      } else {
+        console.warn("[desktop-operator] PowerShell is only supported on Windows");
+      }
     } else {
       console.warn("[desktop-operator] Unknown action:", act);
       return false;
