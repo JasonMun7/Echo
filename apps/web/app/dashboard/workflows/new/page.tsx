@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { IconDeviceDesktop } from "@tabler/icons-react";
 
 export default function NewWorkflowPage() {
@@ -18,9 +19,9 @@ export default function NewWorkflowPage() {
       </p>
       <p className="text-center text-xs text-[#150A35]/60">
         Don&apos;t have the app?{" "}
-        <a href="/dashboard/workflows" className="text-[#A577FF] hover:underline">
+        <Link href="/dashboard/workflows" className="text-[#A577FF] hover:underline">
           Go back to workflows
-        </a>
+        </Link>
       </p>
     </div>
   );

@@ -172,7 +172,7 @@ export default function ChatPage() {
     if (user) {
       getIdToken().then(setToken);
     } else {
-      setToken(null);
+      queueMicrotask(() => setToken(null));
       if (!loading && !user) router.replace("/signin");
     }
   }, [user, loading, getIdToken, router]);
