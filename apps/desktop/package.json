@@ -1,16 +1,19 @@
 {
   "name": "echo-desktop",
   "version": "0.1.0",
+  "description": "Echo Desktop — AI-powered voice and agent desktop client",
+  "author": "Echo",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "dist": "electron-vite build && electron-builder",
-    "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:win": "electron-vite build && electron-builder --win",
-    "pack": "electron-vite build && electron-builder --dir",
+    "generate-icon": "node scripts/generate-icon.mjs",
+    "dist": "pnpm run generate-icon && electron-vite build && electron-builder",
+    "dist:mac": "pnpm run generate-icon && electron-vite build && electron-builder --mac",
+    "dist:win": "pnpm run generate-icon && electron-vite build && electron-builder --win",
+    "pack": "pnpm run generate-icon && electron-vite build && electron-builder --dir",
     "postinstall": "playwright install chromium"
   },
   "dependencies": {

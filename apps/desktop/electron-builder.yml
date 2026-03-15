@@ -7,6 +7,7 @@ appId: ai.echo.desktop
 productName: Echo Desktop
 directories:
   output: dist
+  buildResources: build
 files:
   - "out/**/*"
   - "package.json"
@@ -16,6 +17,7 @@ publish:
   url: https://github.com/your-org/echo/releases/download/
 mac:
   category: public.app-category.developer-tools
+  identity: null
   extendInfo:
     CFBundleURLTypes:
       - CFBundleURLName: Echo Desktop
