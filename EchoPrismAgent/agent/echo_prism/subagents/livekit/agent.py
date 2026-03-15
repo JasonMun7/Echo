@@ -16,6 +16,23 @@ from livekit.agents import Agent, RunContext, function_tool, get_job_context
 logger = logging.getLogger(__name__)
 
 
+INTERRUPTION_SYSTEM_PROMPT_PREFIX = """You are EchoPrism in Voice Interruption mode.
+
+A workflow is currently PAUSED and the user wants to guide you before resuming.
+
+Your job in this mode:
+1. Listen to the user's guidance or concern.
+2. Summarise what instruction you will inject into the running workflow (e.g. "I'll tell EchoPrism to skip the login step and go directly to the dashboard").
+3. Ask for confirmation — the user can confirm vocally ("yes", "go ahead") or click Resume in the UI.
+4. Once confirmed, call redirect_run with the instruction, then call resume_run to resume execution.
+5. If the user just wants to resume without changing anything, call resume_run immediately.
+6. If the user wants to cancel, call cancel_run.
+
+Keep responses short and focused. Do not ask follow-up questions unless clarification is truly needed.
+Do not reveal workflow IDs, run IDs, or internal identifiers in responses.
+
+"""
+
 ECHOPRISM_SYSTEM_PROMPT = """You are EchoPrism, an intelligent assistant for the Echo workflow automation platform.
 
 Your capabilities:
@@ -79,6 +96,22 @@ def _get_participant_uid(ctx: RunContext) -> str:
     return "unknown"
 
 
+def _get_interruption_context() -> dict[str, str]:
+    """Return {workflow_id, run_id} from participant attributes if in interruption mode."""
+    try:
+        job_ctx = get_job_context()
+        for p in job_ctx.room.remote_participants.values():
+            attrs = p.attributes or {}
+            if attrs.get("mode") == "voice-interruption":
+                return {
+                    "workflow_id": attrs.get("workflow_id", ""),
+                    "run_id": attrs.get("run_id", ""),
+                }
+    except Exception:
+        pass
+    return {"workflow_id": "", "run_id": ""}
+
+
 async def _publish_run_started(workflow_id: str, run_id: str) -> None:
     """Notify the desktop to start the run via LiveKit data packet."""
     try:
@@ -96,6 +129,25 @@ async def _publish_run_started(workflow_id: str, run_id: str) -> None:
         )
     except Exception as e:
         logger.warning("Failed to publish run_started: %s", e)
+
+
+async def _publish_run_control(event_type: str, workflow_id: str = "", run_id: str = "") -> None:
+    """Publish a run-control event (resume_run, cancel_run) so the voice overlay can act."""
+    try:
+        job_ctx = get_job_context()
+        room = job_ctx.room
+        payload = json.dumps({
+            "type": event_type,
+            "workflowId": workflow_id,
+            "runId": run_id,
+        })
+        await room.local_participant.publish_data(
+            payload.encode("utf-8"),
+            reliable=True,
+            topic="echoprism",
+        )
+    except Exception as e:
+        logger.warning("Failed to publish %s: %s", event_type, e)
 
 
 class LiveKitEchoPrismAgent(Agent):
@@ -131,12 +183,16 @@ class LiveKitEchoPrismAgent(Agent):
     async def redirect_run(
         self,
         context: RunContext,
-        workflow_id: str,
-        run_id: str,
         instruction: str,
+        workflow_id: str = "",
+        run_id: str = "",
     ) -> dict[str, Any]:
-        """Inject a mid-run instruction for EchoPrism to follow."""
+        """Inject a mid-run instruction for EchoPrism to follow. During voice interruption, workflow_id and run_id can be omitted — they are inferred automatically."""
         uid = _get_participant_uid(context)
+        if not workflow_id or not run_id:
+            ctx = _get_interruption_context()
+            workflow_id = workflow_id or ctx["workflow_id"]
+            run_id = run_id or ctx["run_id"]
         return await _call_tool(uid, "redirect_run", {
             "workflow_id": workflow_id,
             "run_id": run_id,
@@ -147,15 +203,39 @@ class LiveKitEchoPrismAgent(Agent):
     async def cancel_run(
         self,
         context: RunContext,
-        workflow_id: str,
-        run_id: str,
+        workflow_id: str = "",
+        run_id: str = "",
     ) -> dict[str, Any]:
         """Cancel a running workflow execution."""
         uid = _get_participant_uid(context)
-        return await _call_tool(uid, "cancel_run", {
+        # Fall back to participant attributes when called during voice interruption
+        if not workflow_id or not run_id:
+            ctx = _get_interruption_context()
+            workflow_id = workflow_id or ctx["workflow_id"]
+            run_id = run_id or ctx["run_id"]
+        result = await _call_tool(uid, "cancel_run", {
             "workflow_id": workflow_id,
             "run_id": run_id,
         })
+        # Signal the voice overlay to close and cancel
+        await _publish_run_control("cancel_run", workflow_id, run_id)
+        return result
+
+    @function_tool()
+    async def resume_run(
+        self,
+        context: RunContext,
+        workflow_id: str = "",
+        run_id: str = "",
+    ) -> dict[str, Any]:
+        """Resume the paused workflow after the user has given guidance. Call this after redirect_run (if redirecting) or on its own to simply continue."""
+        # Fall back to participant attributes when IDs are not provided
+        if not workflow_id or not run_id:
+            ctx = _get_interruption_context()
+            workflow_id = workflow_id or ctx["workflow_id"]
+            run_id = run_id or ctx["run_id"]
+        await _publish_run_control("resume_run", workflow_id, run_id)
+        return {"ok": True, "message": "Resuming workflow"}
 
     @function_tool()
     async def dismiss_calluser(

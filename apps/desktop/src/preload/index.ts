@@ -112,6 +112,33 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   removeRunProgressListener: () => ipcRenderer.removeAllListeners("run-progress"),
 
+  // Voice interruption
+  openVoiceInterruption: () => ipcRenderer.invoke("open-voice-interruption"),
+  closeVoiceInterruption: () => ipcRenderer.invoke("close-voice-interruption"),
+  resumeRunFromVoice: () => ipcRenderer.invoke("resume-run-from-voice"),
+  onVoiceInterruptionContext: (callback: (ctx: {
+    workflowId: string;
+    runId: string;
+    recentThoughts: Array<{ thought: string; action: string; step: number }>;
+  }) => void) => {
+    ipcRenderer.on("voice-interruption-context", (_, ctx) => callback(ctx));
+  },
+  removeVoiceInterruptionContextListener: () => {
+    ipcRenderer.removeAllListeners("voice-interruption-context");
+  },
+  onRunPausedByVoice: (callback: () => void) => {
+    ipcRenderer.on("run-paused-by-voice", () => callback());
+  },
+  removeRunPausedByVoiceListener: () => {
+    ipcRenderer.removeAllListeners("run-paused-by-voice");
+  },
+  onRunResumedByVoice: (callback: () => void) => {
+    ipcRenderer.on("run-resumed-by-voice", () => callback());
+  },
+  removeRunResumedByVoiceListener: () => {
+    ipcRenderer.removeAllListeners("run-resumed-by-voice");
+  },
+
   onUpdateAvailable: (callback: () => void) => {
     ipcRenderer.on("update-available", () => callback());
   },

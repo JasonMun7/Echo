@@ -9,7 +9,7 @@ import {
   shell,
 } from "electron";
 import { createServer } from "http";
-import { autoUpdater } from "electron-updater";
+import { autoUpdater, type UpdateInfo } from "electron-updater";
 import type { Step, WorkflowType } from "@echo/types";
 import {
   runWorkflowRemote,
@@ -18,6 +18,7 @@ import {
 import {
   createHudOverlayWindow,
   createHazeOverlayWindow,
+  createVoiceInterruptionWindow,
   getHudPositionOnCursorDisplay,
 } from "./windows";
 import { join } from "path";
@@ -213,6 +214,7 @@ const COLLAPSED_HEIGHT = 56;
 let mainWindow: BrowserWindow | null = null;
 let hudOverlayWindow: BrowserWindow | null = null;
 let hazeOverlayWindow: BrowserWindow | null = null;
+let voiceInterruptionWindow: BrowserWindow | null = null;
 let isCollapsed = false;
 let hudFollowInterval: ReturnType<typeof setInterval> | null = null;
 let lastHudDisplayId: number | null = null;
@@ -221,6 +223,13 @@ let currentHudMode: "recording" | "run" | null = null;
 /** Stored when enter-run-mode is called, used by cancel-run and send-interrupt */
 let runContext: { workflowId: string; runId: string; token: string } | null =
   null;
+
+/** True while destroyOverlaysAndShowMain() is executing — prevents HUD "closed" from treating
+ *  an intentional teardown as an unexpected close and cancelling the run a second time. */
+let isRunModeExiting = false;
+
+/** Last N run progress entries — sent to voice interruption overlay for context */
+let recentRunProgress: Array<{ thought: string; action: string; step: number }> = [];
 
 function stopHudFollowInterval(): void {
   if (hudFollowInterval) {
@@ -249,6 +258,11 @@ function startHudFollowCursor(mode: "recording" | "run"): void {
 }
 
 function destroyOverlaysAndShowMain(): void {
+  isRunModeExiting = true;
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.destroy();
+    voiceInterruptionWindow = null;
+  }
   stopHudFollowInterval();
   if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
     hudOverlayWindow.destroy();
@@ -259,6 +273,8 @@ function destroyOverlaysAndShowMain(): void {
     hazeOverlayWindow = null;
   }
   runContext = null;
+  recentRunProgress = [];
+  isRunModeExiting = false;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
   }
@@ -345,6 +361,7 @@ ipcMain.handle(
   (_, ctx: { workflowId: string; runId: string; token: string }) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       runContext = ctx;
+      recentRunProgress = [];
       mainWindow.hide();
       if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
         hazeOverlayWindow.destroy();
@@ -360,6 +377,15 @@ ipcMain.handle(
       hudOverlayWindow.on("closed", () => {
         hudOverlayWindow = null;
         stopHudFollowInterval();
+        // If the HUD closes while a run is still active (e.g. user force-quits
+        // the overlay), cancel and abort so the workflow doesn't keep running.
+        if (!isRunModeExiting && runContext) {
+          requestCancel();
+          abortActiveRun();
+          runContext = null;
+          recentRunProgress = [];
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+        }
       });
       startHudFollowCursor("run");
     }
@@ -464,6 +490,60 @@ ipcMain.handle("calluser-feedback", async (_, text: string) => {
   }
 });
 
+// ── Voice Interruption ────────────────────────────────────────────────────────
+
+function openVoiceInterruption(): { ok: boolean; error?: string } {
+  if (!runContext) return { ok: false, error: "No active run" };
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.focus();
+    return { ok: true };
+  }
+  requestPause();
+  hudOverlayWindow?.webContents.send("run-paused-by-voice");
+
+  voiceInterruptionWindow = createVoiceInterruptionWindow(runContext.workflowId, runContext.runId);
+  voiceInterruptionWindow.on("closed", () => {
+    voiceInterruptionWindow = null;
+    // Auto-resume unless the run was cancelled through the voice session
+    if (!isCancelRequested()) {
+      requestResume();
+      hudOverlayWindow?.webContents.send("run-resumed-by-voice");
+    }
+  });
+
+  // Send run context once the window renderer is ready
+  voiceInterruptionWindow.webContents.once("did-finish-load", () => {
+    if (!runContext) return;
+    voiceInterruptionWindow?.webContents.send("voice-interruption-context", {
+      workflowId: runContext.workflowId,
+      runId: runContext.runId,
+      recentThoughts: recentRunProgress,
+    });
+  });
+
+  return { ok: true };
+}
+
+ipcMain.handle("open-voice-interruption", () => openVoiceInterruption());
+
+ipcMain.handle("close-voice-interruption", () => {
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.close(); // triggers "closed" → auto-resume
+  }
+  return { ok: true };
+});
+
+ipcMain.handle("resume-run-from-voice", () => {
+  // Called when the LiveKit agent publishes a resume_run data packet
+  requestResume();
+  hudOverlayWindow?.webContents.send("run-resumed-by-voice");
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.destroy();
+    voiceInterruptionWindow = null;
+  }
+  return { ok: true };
+});
+
 /** Localhost server so web can send auth token when echo-desktop:// isn't handed off (e.g. in dev) */
 function startAuthCallbackServer(): void {
   const server = createServer((req, res) => {
@@ -501,6 +581,16 @@ app.whenReady().then(async () => {
     destroyOverlaysAndShowMain();
   });
 
+  // Voice interruption shortcut — toggles the voice overlay while a run is active
+  globalShortcut.register("Ctrl+Shift+V", () => {
+    if (!runContext) return;
+    if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+      voiceInterruptionWindow.close(); // toggle off → auto-resume via "closed" event
+    } else {
+      openVoiceInterruption();
+    }
+  });
+
   // Required for getDisplayMedia() in the renderer - Electron does not support it by default.
   // useSystemPicker: true shows the OS picker; when the handler runs we supply a fallback.
   // Prefer the screen under the cursor so we don't force the primary display and cause "shift back to desktop".
@@ -531,7 +621,7 @@ app.whenReady().then(async () => {
     autoUpdater.on("update-available", () => {
       mainWindow?.webContents.send("update-available");
     });
-    autoUpdater.on("update-downloaded", (_event, info) => {
+    autoUpdater.on("update-downloaded", (_event: unknown, info: UpdateInfo) => {
       mainWindow?.webContents.send("update-downloaded", {
         version: info?.version ?? "unknown",
       });
@@ -738,6 +828,7 @@ import {
   requestPause,
   requestResume,
   requestCancel,
+  isCancelRequested,
   clearCancel,
 } from "./run-control";
 
@@ -797,6 +888,7 @@ ipcMain.handle(
           step: stepNum ?? 0,
         };
         entries.push(payload);
+        recentRunProgress = [...recentRunProgress.slice(-4), payload];
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("run-progress", payload);
         }

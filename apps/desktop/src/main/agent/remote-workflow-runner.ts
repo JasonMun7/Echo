@@ -188,6 +188,22 @@ export async function runWorkflowRemote(
       return { success: false, error: "Unexpected agent response" };
     }
 
+    /** Applies a redirect instruction to the current step and all remaining ones. */
+    const applyRedirect = (fromIndex: number, instruction: string) => {
+      onProgress(
+        `[Voice redirect] Applying instruction to steps ${fromIndex + 1}–${steps.length}: ${instruction}`,
+        fromIndex + 1,
+        `Voice redirect: ${instruction}`,
+        "redirect",
+      );
+      for (let j = fromIndex; j < steps.length; j++) {
+        steps[j] = {
+          ...steps[j],
+          context: `[USER OVERRIDE — follow this instead]: ${instruction}\n\n[Original context]: ${String(steps[j].context ?? "")}`,
+        } as Step;
+      }
+    };
+
     for (let i = 0; i < steps.length; i++) {
       if (isCancelRequested()) {
         onProgress("Run cancelled by user", i + 1, undefined, "cancel");
@@ -201,7 +217,8 @@ export async function runWorkflowRemote(
         return { success: false, error: "Run cancelled by user" };
       }
 
-      if (i > 0 && options) {
+      // Poll for redirect / cancel signals at every step boundary (not just i > 0)
+      if (options) {
         const signals = await pollRunSignals(options);
         if (signals.cancelRequested) {
           onProgress("Run cancelled by user", i + 1, undefined, "cancel");
@@ -210,18 +227,14 @@ export async function runWorkflowRemote(
         }
         const instruction = signals.redirectInstruction ?? signals.calluserFeedback;
         if (instruction) {
-          steps[i] = {
-            ...steps[i],
-            context: `[User interrupt]: ${instruction}\n${String(steps[i].context ?? "")}`,
-          } as Step;
+          applyRedirect(i, instruction);
         }
       }
 
-      const step = steps[i];
+      // Use `let` so we can refresh the reference after applyRedirect replaces steps[i]
+      let step = steps[i];
       const stepNum = i + 1;
       const total = steps.length;
-      const expectedOutcome =
-        (step as unknown as Record<string, unknown>).expected_outcome as string | undefined ?? "";
 
       onProgress(`Step ${stepNum}/${total}: ${step.action} — ${String(step.context).slice(0, 50)}`, stepNum, undefined, String(step.action));
 
@@ -232,6 +245,28 @@ export async function runWorkflowRemote(
       let screenshotB64: string | undefined;
 
       for (let attempt = 0; attempt <= 3; attempt++) {
+        // Between retry attempts: respect pause and pick up any redirect that arrived
+        // while the voice overlay was open. This also prevents screenshots from being
+        // taken while the voice interruption overlay is visible on screen.
+        if (attempt > 0) {
+          if (isCancelRequested()) break;
+          await waitIfPaused();
+          if (isCancelRequested()) break;
+          if (options) {
+            const midSignals = await pollRunSignals(options);
+            if (midSignals.cancelRequested) { lastError = "cancelled"; break; }
+            const midInstruction = midSignals.redirectInstruction ?? midSignals.calluserFeedback;
+            if (midInstruction) {
+              applyRedirect(i, midInstruction);
+              // Refresh local reference — applyRedirect replaces the steps[i] object
+              step = steps[i];
+            }
+          }
+        }
+
+        const expectedOutcome =
+          (step as unknown as Record<string, unknown>).expected_outcome as string | undefined ?? "";
+
         if (deterministic) {
           send({
             type: "step",
@@ -401,6 +436,11 @@ export async function runWorkflowRemote(
       }
 
       if (!stepSucceeded) {
+        if (lastError === "cancelled" || isCancelRequested()) {
+          onProgress("Run cancelled by user", stepNum, undefined, "cancel");
+          await patchRunStatus(options ?? {}, "cancelled");
+          return { success: false, error: "Run cancelled by user" };
+        }
         const reason = lastError || `Step ${stepNum} failed`;
         onProgress(`Agent stuck at step ${stepNum} — requesting user intervention: ${reason}`, stepNum, undefined, "");
         await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
