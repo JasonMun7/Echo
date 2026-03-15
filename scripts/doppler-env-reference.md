@@ -37,6 +37,8 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase config |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase config |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase config |
+| `NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL` | Mac DMG download URL (e.g. GitHub release asset); when set, download page shows "Download for Mac" |
+| `NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL` | Windows installer download URL; when set, download page shows "Download for Windows" |
 
 ## Desktop (dev + production)
 
