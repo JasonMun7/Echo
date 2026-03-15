@@ -26,6 +26,7 @@ import { EchoPrismLiveKitSession } from "./EchoPrismLiveKitSession";
 import RunHud from "./RunHud";
 import RunLogsSection from "./RunLogsSection";
 import HazeOverlay from "./HazeOverlay";
+import VoiceInterruptionOverlay from "./VoiceInterruptionOverlay";
 import WorkflowDetailView from "./WorkflowDetailView";
 import WorkflowEditView from "./WorkflowEditView";
 import ScheduleView from "./ScheduleView";
@@ -1390,6 +1391,21 @@ export default function App() {
     );
   }
 
+  if (windowType === "voice-interruption") {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "stretch",
+        }}
+      >
+        <VoiceInterruptionOverlay />
+      </div>
+    );
+  }
+
   return <MainWindowApp />;
 }
 
@@ -1420,6 +1436,16 @@ function RunHudWrapper() {
     };
     window.electronAPI?.onRunAwaitingUser?.(handler);
     return () => window.electronAPI?.removeRunAwaitingUserListener?.();
+  }, []);
+
+  // Keep pause indicator in sync when voice interruption opens/closes
+  useEffect(() => {
+    window.electronAPI?.onRunPausedByVoice?.(() => setRunPaused(true));
+    window.electronAPI?.onRunResumedByVoice?.(() => setRunPaused(false));
+    return () => {
+      window.electronAPI?.removeRunPausedByVoiceListener?.();
+      window.electronAPI?.removeRunResumedByVoiceListener?.();
+    };
   }, []);
 
   return (

@@ -5,6 +5,8 @@ const HUD_RECORDING_WIDTH = 375;
 const HUD_RECORDING_HEIGHT = 60;
 const HUD_RUN_WIDTH = 420;
 const HUD_RUN_HEIGHT = 320;
+const VOICE_INTERRUPTION_WIDTH = 420;
+const VOICE_INTERRUPTION_HEIGHT = 560;
 
 function getRendererUrl(query: string): string {
   if (process.env.NODE_ENV === "development") {
@@ -88,6 +90,38 @@ export function createHazeOverlayWindow(displayId?: number): BrowserWindow {
     // Forward mouse events so user can interact with desktop/apps through the purple border
     win.setIgnoreMouseEvents(true, { forward: true });
   });
+
+  return win;
+}
+
+export function createVoiceInterruptionWindow(workflowId: string, runId: string): BrowserWindow {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
+
+  const x = Math.floor((screenWidth - VOICE_INTERRUPTION_WIDTH) / 2);
+  const y = Math.floor((screenHeight - VOICE_INTERRUPTION_HEIGHT) / 2);
+
+  const win = new BrowserWindow({
+    width: VOICE_INTERRUPTION_WIDTH,
+    height: VOICE_INTERRUPTION_HEIGHT,
+    x,
+    y,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  win.setBackgroundColor("#00000000");
+  const query = `windowType=voice-interruption&workflowId=${encodeURIComponent(workflowId)}&runId=${encodeURIComponent(runId)}`;
+  win.loadURL(getRendererUrl(query));
 
   return win;
 }

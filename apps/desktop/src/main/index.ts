@@ -13,7 +13,7 @@ import {
   runWorkflowRemote,
   abortActiveRun,
 } from "./agent/remote-workflow-runner";
-import { createHudOverlayWindow, createHazeOverlayWindow } from "./windows";
+import { createHudOverlayWindow, createHazeOverlayWindow, createVoiceInterruptionWindow } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
@@ -194,13 +194,26 @@ const COLLAPSED_HEIGHT = 56;
 let mainWindow: BrowserWindow | null = null;
 let hudOverlayWindow: BrowserWindow | null = null;
 let hazeOverlayWindow: BrowserWindow | null = null;
+let voiceInterruptionWindow: BrowserWindow | null = null;
 let isCollapsed = false;
 
 /** Stored when enter-run-mode is called, used by cancel-run and send-interrupt */
 let runContext: { workflowId: string; runId: string; token: string } | null =
   null;
 
+/** True while destroyOverlaysAndShowMain() is executing — prevents HUD "closed" from treating
+ *  an intentional teardown as an unexpected close and cancelling the run a second time. */
+let isRunModeExiting = false;
+
+/** Last N run progress entries — sent to voice interruption overlay for context */
+let recentRunProgress: Array<{ thought: string; action: string; step: number }> = [];
+
 function destroyOverlaysAndShowMain(): void {
+  isRunModeExiting = true;
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.destroy();
+    voiceInterruptionWindow = null;
+  }
   if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
     hudOverlayWindow.destroy();
     hudOverlayWindow = null;
@@ -210,6 +223,8 @@ function destroyOverlaysAndShowMain(): void {
     hazeOverlayWindow = null;
   }
   runContext = null;
+  recentRunProgress = [];
+  isRunModeExiting = false;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
   }
@@ -294,6 +309,7 @@ ipcMain.handle(
   (_, ctx: { workflowId: string; runId: string; token: string }) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       runContext = ctx;
+      recentRunProgress = [];
       mainWindow.hide();
       if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
         hazeOverlayWindow.destroy();
@@ -308,6 +324,15 @@ ipcMain.handle(
       hudOverlayWindow = createHudOverlayWindow("run");
       hudOverlayWindow.on("closed", () => {
         hudOverlayWindow = null;
+        // If the HUD closes while a run is still active (e.g. user force-quits
+        // the overlay), cancel and abort so the workflow doesn't keep running.
+        if (!isRunModeExiting && runContext) {
+          requestCancel();
+          abortActiveRun();
+          runContext = null;
+          recentRunProgress = [];
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+        }
       });
     }
     return { ok: true };
@@ -411,6 +436,60 @@ ipcMain.handle("calluser-feedback", async (_, text: string) => {
   }
 });
 
+// ── Voice Interruption ────────────────────────────────────────────────────────
+
+function openVoiceInterruption(): { ok: boolean; error?: string } {
+  if (!runContext) return { ok: false, error: "No active run" };
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.focus();
+    return { ok: true };
+  }
+  requestPause();
+  hudOverlayWindow?.webContents.send("run-paused-by-voice");
+
+  voiceInterruptionWindow = createVoiceInterruptionWindow(runContext.workflowId, runContext.runId);
+  voiceInterruptionWindow.on("closed", () => {
+    voiceInterruptionWindow = null;
+    // Auto-resume unless the run was cancelled through the voice session
+    if (!isCancelRequested()) {
+      requestResume();
+      hudOverlayWindow?.webContents.send("run-resumed-by-voice");
+    }
+  });
+
+  // Send run context once the window renderer is ready
+  voiceInterruptionWindow.webContents.once("did-finish-load", () => {
+    if (!runContext) return;
+    voiceInterruptionWindow?.webContents.send("voice-interruption-context", {
+      workflowId: runContext.workflowId,
+      runId: runContext.runId,
+      recentThoughts: recentRunProgress,
+    });
+  });
+
+  return { ok: true };
+}
+
+ipcMain.handle("open-voice-interruption", () => openVoiceInterruption());
+
+ipcMain.handle("close-voice-interruption", () => {
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.close(); // triggers "closed" → auto-resume
+  }
+  return { ok: true };
+});
+
+ipcMain.handle("resume-run-from-voice", () => {
+  // Called when the LiveKit agent publishes a resume_run data packet
+  requestResume();
+  hudOverlayWindow?.webContents.send("run-resumed-by-voice");
+  if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+    voiceInterruptionWindow.destroy();
+    voiceInterruptionWindow = null;
+  }
+  return { ok: true };
+});
+
 app.whenReady().then(async () => {
   if (!app.isDefaultProtocolClient("echo-desktop")) {
     app.setAsDefaultProtocolClient("echo-desktop");
@@ -419,6 +498,16 @@ app.whenReady().then(async () => {
   // Fail-safe: global shortcut to recover from frozen overlays
   globalShortcut.register("CommandOrControl+Shift+X", () => {
     destroyOverlaysAndShowMain();
+  });
+
+  // Voice interruption shortcut — toggles the voice overlay while a run is active
+  globalShortcut.register("Ctrl+Shift+V", () => {
+    if (!runContext) return;
+    if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+      voiceInterruptionWindow.close(); // toggle off → auto-resume via "closed" event
+    } else {
+      openVoiceInterruption();
+    }
   });
 
   // Required for getDisplayMedia() in the renderer - Electron does not support it by default.
@@ -624,6 +713,7 @@ import {
   requestPause,
   requestResume,
   requestCancel,
+  isCancelRequested,
   clearCancel,
 } from "./run-control";
 
@@ -683,6 +773,7 @@ ipcMain.handle(
           step: stepNum ?? 0,
         };
         entries.push(payload);
+        recentRunProgress = [...recentRunProgress.slice(-4), payload];
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("run-progress", payload);
         }
