@@ -1,0 +1,33 @@
+# Optional: use when packaging the desktop app (e.g. electron-builder).
+# Registers echo-desktop:// so the OS hands off auth and deep links to the app.
+#
+# Build: pnpm dist (or pnpm dist:mac / pnpm dist:win)
+#
+appId: ai.echo.desktop
+productName: Echo Desktop
+directories:
+  output: dist
+files:
+  - "out/**/*"
+  - "package.json"
+# For auto-updates: set publish.provider (e.g. github) and url when you have releases
+publish:
+  provider: generic
+  url: https://github.com/your-org/echo/releases/download/
+mac:
+  category: public.app-category.developer-tools
+  extendInfo:
+    CFBundleURLTypes:
+      - CFBundleURLName: Echo Desktop
+        CFBundleURLSchemes:
+          - echo-desktop
+        CFBundleTypeRole: Editor
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

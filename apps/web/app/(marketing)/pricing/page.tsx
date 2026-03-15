@@ -10,7 +10,7 @@ export const metadata = getSEOTags({
 
 export default function PricingPage() {
   return (
-    <main className="bg-[#F5F7FC]">
+    <main className="bg-[#F5F7FC] pt-20 pb-12 md:pt-24 md:pb-16">
       <Pricing />
       <FAQs />
       <CTA />

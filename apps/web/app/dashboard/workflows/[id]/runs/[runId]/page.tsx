@@ -249,7 +249,7 @@ export default function RunDetailPage() {
             <button
               type="button"
               onClick={() => setVoiceModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-[#A577FF]/40 bg-[#A577FF]/10 px-4 py-2 text-sm font-medium text-[#150A35] transition-colors hover:bg-[#A577FF]/20"
+              className="echo-btn-secondary-accent flex items-center gap-2 px-4 py-2 text-sm font-medium"
               title="Interrupt with voice"
             >
               <IconMicrophone className="h-4 w-4" />
@@ -259,7 +259,7 @@ export default function RunDetailPage() {
               type="button"
               onClick={handleCancel}
               disabled={cancelling}
-              className="rounded-lg border border-[#A577FF]/40 px-4 py-2 text-sm font-medium text-[#150A35] transition-colors hover:border-echo-error hover:bg-echo-error/10 hover:text-echo-error disabled:opacity-40"
+              className="echo-btn-secondary px-4 py-2 text-sm font-medium hover:border-echo-error hover:bg-echo-error/10 hover:text-echo-error disabled:opacity-40"
             >
               {cancelling ? "Cancelling…" : "Cancel run"}
             </button>
@@ -280,8 +280,8 @@ export default function RunDetailPage() {
   if (isAwaitingUser) {
     const reason = run?.callUserReason as string | undefined;
     return (
-      <div className="flex flex-1 overflow-auto">
-        <div className="flex h-full w-full flex-1 flex-col items-center justify-center gap-6 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 p-6 md:p-10">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 border border-amber-200">
               <IconUserQuestion className="h-8 w-8 text-amber-500" />
@@ -313,7 +313,7 @@ export default function RunDetailPage() {
                 type="button"
                 onClick={handleSendFeedback}
                 disabled={sendingFeedback || !feedbackText.trim()}
-                className="cursor-pointer rounded-lg bg-[#A577FF] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#8B5CF6] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="echo-btn-cyan-lavender cursor-pointer px-5 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {sendingFeedback ? "Sending…" : "Send feedback & resume"}
               </button>
@@ -323,7 +323,7 @@ export default function RunDetailPage() {
                 type="button"
                 onClick={handleDismiss}
                 disabled={dismissing}
-                className="cursor-pointer rounded-lg bg-[#A577FF] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#8B5CF6] disabled:opacity-40"
+                className="echo-btn-cyan-lavender cursor-pointer px-5 py-2 text-sm font-semibold disabled:opacity-40"
               >
                 {dismissing ? "Dismissing…" : "Mark as done"}
               </button>
@@ -331,7 +331,7 @@ export default function RunDetailPage() {
                 type="button"
                 onClick={handleCancel}
                 disabled={cancelling}
-                className="cursor-pointer rounded-lg border border-[#150A35]/20 px-5 py-2 text-sm font-medium text-[#150A35]/70 transition-colors hover:border-echo-error hover:text-echo-error disabled:opacity-40"
+                className="echo-btn-secondary cursor-pointer px-5 py-2 text-sm font-medium disabled:opacity-40"
               >
                 {cancelling ? "Cancelling…" : "Cancel run"}
               </button>
@@ -371,8 +371,8 @@ export default function RunDetailPage() {
       : "bg-[#150A35]/10 text-[#150A35]/70";
 
   return (
-    <div className="flex flex-1 overflow-auto">
-      <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -400,18 +400,18 @@ export default function RunDetailPage() {
             </p>
                 <button
                   type="button"
-              onClick={handleRetry}
-              disabled={retrying}
-              className="ml-4 flex shrink-0 items-center gap-1.5 rounded-lg bg-[#A577FF] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              <IconRefresh className="h-3.5 w-3.5" />
-              {retrying ? "Starting…" : "Retry Run"}
+                  onClick={handleRetry}
+                  disabled={retrying}
+                  className="echo-btn-cyan-lavender ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                >
+                  <IconRefresh className="h-3.5 w-3.5" />
+                  {retrying ? "Starting…" : "Retry Run"}
                 </button>
           </div>
         )}
 
         {/* Logs */}
-        <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[#A577FF]/20 bg-[#150A35]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#A577FF]/20 bg-[#150A35]">
           <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
             <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
               Output

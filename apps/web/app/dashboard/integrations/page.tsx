@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -121,10 +122,11 @@ export default function IntegrationsPage() {
   }
 
   async function disconnectIntegration(id: string) {
+    const name = integrations.find((i) => i.id === id)?.name;
     try {
       const resp = await apiFetch(`/api/integrations/${id}`, { method: "DELETE" });
       if (!resp.ok) throw new Error(await resp.text());
-      toast.success(`${id} disconnected`);
+      toast.success(`${name || "Integration"} disconnected`);
       await loadIntegrations();
     } catch {
       toast.error("Failed to disconnect");
@@ -132,7 +134,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 rounded-tl-2xl border border-[#A577FF]/20 bg-white p-6 md:p-10">
+    <div className="flex flex-1 flex-col gap-6 p-6 md:p-10">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-[#1A1A2E]">App Integrations</h1>
@@ -155,7 +157,7 @@ export default function IntegrationsPage() {
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-40 rounded-xl bg-gray-100 animate-pulse" />
+            <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
         </div>
       ) : (
@@ -219,7 +221,7 @@ export default function IntegrationsPage() {
                       size="sm"
                       onClick={() => connectIntegration(integration.id)}
                       disabled={connecting === integration.id}
-                      className="echo-btn-primary h-7 text-xs"
+                      className="echo-btn-cyan-lavender h-7 text-xs"
                     >
                       <IconExternalLink className="mr-1 h-3 w-3" />
                       {connecting === integration.id ? "Connecting..." : "Connect"}

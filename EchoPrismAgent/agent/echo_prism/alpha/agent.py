@@ -32,7 +32,7 @@ import os
 import re
 from typing import Any, Literal
 
-from echo_prism.models_config import GROUNDING_MODEL, ORCHESTRATION_MODEL
+from echo_prism.models_config import LOCATOR_MODEL, ORCHESTRATION_MODEL
 from echo_prism.subagents.runner_agent import resolve_coords_for_action
 
 from .action_parser import extract_thought, parse_action, set_omniparser_element_count
@@ -277,7 +277,7 @@ async def _verify_action(
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 client.models.generate_content,
-                model="gemini-2.5-flash",
+                model=ORCHESTRATION_MODEL,
                 contents=[gtypes.Content(role="user", parts=user_parts)],
                 config=gtypes.GenerateContentConfig(
                     media_resolution=gtypes.MediaResolution.MEDIA_RESOLUTION_LOW,
@@ -489,7 +489,7 @@ async def run_ambiguous_step(
             elif step_action not in _SKIP_SCENE_ACTIONS:
                 compressed_for_scene = compress_screenshot(current_screenshot)
                 scene_caption = await perceive_scene(
-                    client, compressed_for_scene, GROUNDING_MODEL
+                    client, compressed_for_scene, LOCATOR_MODEL
                 )
                 if scene_caption:
                     logger.debug(
@@ -847,7 +847,7 @@ async def run_ambiguous_step_inference(
         if attempt == 0 and not screen_info and step_action not in _SKIP_SCENE_ACTIONS:
             compressed_for_scene = compress_screenshot(current_screenshot)
             scene_caption = await perceive_scene(
-                client, compressed_for_scene, GROUNDING_MODEL
+                client, compressed_for_scene, LOCATOR_MODEL
             )
             if scene_caption:
                 logger.debug(

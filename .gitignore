@@ -70,6 +70,9 @@ coverage.xml
 !apps/web/.env.local.example
 !backend/.env.example
 
+# shadcn/registry config (may contain Aceternity API token)
+apps/web/components.json
+
 # Credentials & service account keys
 backend/service-account.json
 *service-account*.json

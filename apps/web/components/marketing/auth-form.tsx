@@ -49,10 +49,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   useEffect(() => {
     if (!auth) return;
     const unsub = auth.onAuthStateChanged((user) => {
-      if (user) router.replace(isDesktop ? "/auth/desktop-success" : "/dashboard");
+      if (user) {
+        const port = searchParams.get("port");
+        const qs = port ? `?port=${encodeURIComponent(port)}` : "";
+        router.replace(isDesktop ? `/auth/desktop-success${qs}` : "/dashboard");
+      }
     });
     return () => unsub();
-  }, [router, isDesktop]);
+  }, [router, isDesktop, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

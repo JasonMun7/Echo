@@ -20,7 +20,7 @@ export function ContactCard() {
         </a>
       </p>
       <div className="mt-6 flex justify-center">
-        <StatefulButton onClick={handleNotify}>
+        <StatefulButton onClick={handleNotify} className="echo-btn-primary">
           Notify me when ready
         </StatefulButton>
       </div>

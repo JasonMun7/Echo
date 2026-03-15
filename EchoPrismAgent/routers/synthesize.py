@@ -180,7 +180,7 @@ async def synthesize(
                 }
             )
 
-        title = workflow_name or result.get("title") or f"Workflow {workflow_id[:8]}"
+        title = workflow_name or result.get("title") or "Untitled workflow"
         workflow_type = result.get("workflow_type", "browser")
         if workflow_type not in ("browser", "desktop"):
             workflow_type = "browser"
