@@ -7,6 +7,7 @@ import {
   IconBolt,
   IconBrain,
   IconX,
+  IconMicrophone,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -290,7 +291,7 @@ export default function RunHud({
         </div>
       )}
 
-      {/* Controls - icons only */}
+      {/* Controls */}
       <div
         style={{
           display: "flex",
@@ -303,6 +304,27 @@ export default function RunHud({
           appRegion: "no-drag",
         } as CSSProperties}
       >
+        {/* Voice interrupt button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => window.electronAPI?.openVoiceInterruption?.()}
+              className="h-9 w-9 rounded-lg border-[#A577FF]/40 bg-[#A577FF]/5 text-[#A577FF] hover:bg-[#A577FF]/15"
+            >
+              <IconMicrophone size={16} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Voice interruption
+            <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 10 }}>
+              Ctrl+Shift+V
+            </span>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Pause / resume */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -320,6 +342,8 @@ export default function RunHud({
           </TooltipTrigger>
           <TooltipContent>{runPaused ? "Resume" : "Pause"}</TooltipContent>
         </Tooltip>
+
+        {/* Cancel */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

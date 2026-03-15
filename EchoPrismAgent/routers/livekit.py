@@ -101,19 +101,45 @@ async def livekit_token(
         can_subscribe=True,
         can_publish_data=True,
     ))
-    if body and body.room_config and isinstance(body.room_config, dict):
+
+    # Embed participant attributes (e.g. mode=voice-interruption, workflow_id, run_id)
+    participant_attributes: dict[str, str] | None = None
+    if body and body.participant_attributes and isinstance(body.participant_attributes, dict):
+        participant_attributes = {str(k): str(v) for k, v in body.participant_attributes.items()}
         try:
-            from livekit.api import RoomConfiguration, RoomAgentDispatch
-            rc = body.room_config
-            agents = []
-            for a in rc.get("agents") or []:
-                if isinstance(a, dict) and a.get("agent_name"):
-                    agents.append(RoomAgentDispatch(agent_name=a["agent_name"]))
-            if agents:
-                token = token.with_room_config(RoomConfiguration(agents=agents))
+            token = token.with_attributes(participant_attributes)
         except Exception:
+            # Fallback: inject via JWT claims below
             pass
+
     jwt_val = token.to_jwt()
+
+    needs_jwt_patch = (
+        (body and body.room_config and isinstance(body.room_config, dict)) or
+        participant_attributes
+    )
+    if needs_jwt_patch:
+        # Workaround for google.protobuf FieldDescriptor issues in livekit-api 1.1.0 vs protobuf 6.33
+        import jwt
+        claims = jwt.decode(jwt_val, options={"verify_signature": False})
+
+        if body and body.room_config and isinstance(body.room_config, dict):
+            agents_out = []
+            for a in body.room_config.get("agents") or []:
+                if isinstance(a, dict):
+                    agent_name = a.get("agentName") or a.get("agent_name")
+                    if agent_name:
+                        agents_out.append({"agentName": agent_name})
+            if agents_out:
+                claims["roomConfig"] = {"agents": agents_out}
+
+        if participant_attributes:
+            # Always overwrite — with_attributes() may silently produce an empty
+            # map due to the livekit-api/protobuf version conflict, so we force
+            # the correct values here unconditionally.
+            claims["attributes"] = participant_attributes
+
+        jwt_val = jwt.encode(claims, LIVEKIT_API_SECRET, algorithm="HS256")
 
     return {"server_url": LIVEKIT_URL, "participant_token": jwt_val}
 

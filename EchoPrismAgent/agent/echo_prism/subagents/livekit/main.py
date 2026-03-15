@@ -24,7 +24,11 @@ from livekit.agents import AgentSession, room_io
 from livekit.plugins import google
 
 from agent.echo_prism.models_config import VOICE_MODEL
-from agent.echo_prism.subagents.livekit.agent import LiveKitEchoPrismAgent
+from agent.echo_prism.subagents.livekit.agent import (
+    LiveKitEchoPrismAgent,
+    INTERRUPTION_SYSTEM_PROMPT_PREFIX,
+    ECHOPRISM_SYSTEM_PROMPT,
+)
 
 server = agents.AgentServer()
 
@@ -72,17 +76,45 @@ async def entrypoint(ctx: agents.JobContext):
         (t_connected - t_entry) * 1000,
     )
 
+    # Check if this is a voice interruption session and adjust accordingly
+    interruption_attrs: dict[str, str] = {}
+    for p in ctx.room.remote_participants.values():
+        attrs = p.attributes or {}
+        if attrs.get("mode") == "voice-interruption":
+            interruption_attrs = dict(attrs)
+            break
+
+    if interruption_attrs:
+        recent_context = interruption_attrs.get("recent_context", "")
+        interruption_instructions = (
+            INTERRUPTION_SYSTEM_PROMPT_PREFIX + ECHOPRISM_SYSTEM_PROMPT
+        )
+        try:
+            await session.update_instructions(interruption_instructions)
+        except Exception:
+            pass  # Not all SDK versions expose this; graceful fallback
+
     # RPC so the client can interrupt when user speaks during agent speech (barge-in)
     @ctx.room.local_participant.register_rpc_method("interrupt")
     async def _handle_interrupt(_data):
         session.interrupt()
         return "ok"
+
     # Greeting: generate_reply uses realtime LLM. Cached greeting would require
     # TTS plugin + session.say(text, audio=audio_frames_from_file(...)) to skip LLM latency.
     t_before_greeting = time.perf_counter()
-    handle = session.generate_reply(
-        instructions="Greet the user and offer your assistance with workflows and Echo.",
-    )
+
+    if interruption_attrs:
+        recent_context = interruption_attrs.get("recent_context", "")
+        greeting_instructions = (
+            "Greet the user very briefly. Acknowledge that the workflow is paused. "
+            + (f"The most recent activity was: {recent_context}. " if recent_context else "")
+            + "Ask what guidance they'd like to give or if they just want to resume."
+        )
+    else:
+        greeting_instructions = "Greet the user and offer your assistance with workflows and Echo."
+
+    handle = session.generate_reply(instructions=greeting_instructions)
     if handle:
         await handle.wait_for_playout()
         t_greeting_done = time.perf_counter()
