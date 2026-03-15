@@ -5,7 +5,6 @@ import Link from "next/link";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   IconCircleCheck,
@@ -13,12 +12,14 @@ import {
   IconPlus,
   IconArrowRight,
   IconPlayerPlay,
-  IconAlertTriangle,
   IconX,
   IconRocket,
-  IconBrain,
   IconMessageCircle,
 } from "@tabler/icons-react";
+import { ChartAreaInteractive } from "@/components/chart-area-interactive";
+import { DataTable } from "@/components/data-table";
+import { SectionCards } from "@/components/section-cards";
+import data from "./data.json";
 import {
   Tooltip,
   TooltipContent,
@@ -63,21 +64,27 @@ function isLatestOrLastModified(
   const updated = all.map((x) => getTime(x.updatedAt));
   const maxCreated = Math.max(...created);
   const maxUpdated = Math.max(...updated);
-  return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
+  return (
+    getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated
+  );
 }
 
 export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRuns, setTotalRuns] = useState(0);
-  const [awaitingRuns, setAwaitingRuns] = useState<{ workflowId: string; runId: string } | null>(null);
+  const [awaitingRuns, setAwaitingRuns] = useState<{
+    workflowId: string;
+    runId: string;
+  } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const user = auth?.currentUser;
 
   useEffect(() => {
     // Show onboarding for first-time users
     const isNew = localStorage.getItem("echo_user_created") === "true";
-    const dismissed = localStorage.getItem("echo_onboarding_dismissed") === "true";
+    const dismissed =
+      localStorage.getItem("echo_onboarding_dismissed") === "true";
     if (isNew && !dismissed) setTimeout(() => setShowOnboarding(true), 0);
   }, []);
 
@@ -98,14 +105,20 @@ export default function DashboardPage() {
 
     function recomputeRuns() {
       let total = 0;
-      runSizes.forEach((n) => { total += n; });
+      runSizes.forEach((n) => {
+        total += n;
+      });
       setTotalRuns(total);
     }
 
     const unsubWf = onSnapshot(wfQ, (snap) => {
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
-        .sort((a, b) => getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt));
+        .sort(
+          (a, b) =>
+            getTime(b.createdAt ?? b.updatedAt) -
+            getTime(a.createdAt ?? a.updatedAt),
+        );
       setWorkflows(list);
       setLoading(false);
 
@@ -164,91 +177,89 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 overflow-auto">
-        <div className="flex w-full flex-1 flex-col gap-6 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-9 w-52 rounded-lg" />
-              <Skeleton className="h-4 w-72 rounded-lg" />
-            </div>
-            <Skeleton className="h-10 w-36 rounded-lg" />
+      <div className="flex flex-1 flex-col gap-6 px-4 lg:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-9 w-52 rounded-lg" />
+            <Skeleton className="h-4 w-72 rounded-lg" />
           </div>
-          {/* Stats grid */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
-          {/* Recent workflows section */}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-5 w-40 rounded-lg" />
-              <Skeleton className="h-4 w-16 rounded-lg" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-xl border border-[#A577FF]/20 overflow-hidden">
-                  <Skeleton className="h-28 w-full rounded-none" />
-                  <div className="flex flex-col gap-2 p-4">
-                    <Skeleton className="h-4 w-36 rounded-md" />
-                    <div className="flex gap-2">
-                      <Skeleton className="h-5 w-16 rounded-full" />
-                      <Skeleton className="h-5 w-12 rounded-full" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Skeleton className="h-10 w-36 rounded-lg" />
         </div>
+        <SectionCards
+          totalWorkflows={0}
+          activeWorkflows={0}
+          totalRuns={0}
+          awaitingInput={0}
+        />
+        <Skeleton className="h-[280px] w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 overflow-auto">
-      <div className="flex h-full w-full flex-1 flex-col gap-6 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-[#150A35]">
-              Welcome back
-              {user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}
-            </h1>
-            <p className="mt-1 text-sm text-echo-text-muted">
-              Here&apos;s what&apos;s happening with your workflows today.
-            </p>
-          </div>
-          <a
-            href="echo-desktop://capture"
-            className="echo-btn-primary flex shrink-0 items-center gap-2"
-          >
-            <IconPlus className="h-5 w-5" />
-            New Workflow
-          </a>
+    <div className="flex flex-1 flex-col gap-6 px-4 lg:px-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-[#150A35]">
+            Welcome back
+            {user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-echo-text-muted">
+            Here&apos;s what&apos;s happening with your workflows today.
+          </p>
         </div>
+        <a
+          href="echo-desktop://capture"
+          className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2"
+        >
+          <IconPlus className="h-5 w-5" />
+          New Workflow
+        </a>
+      </div>
 
-        {/* Onboarding banner */}
-        {showOnboarding && (
-          <div className="relative rounded-xl border border-[#A577FF]/30 bg-linear-to-r from-[#F5F3FF] to-[#EDE9FF] p-5">
-            <button
-              onClick={() => {
-                setShowOnboarding(false);
-                localStorage.setItem("echo_onboarding_dismissed", "true");
-              }}
-              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-            >
-              <IconX className="h-4 w-4" />
-            </button>
-            <h3 className="text-base font-semibold text-[#150A35]">Welcome to Echo!</h3>
-            <p className="mt-1 text-sm text-gray-500">Get started with these 3 steps:</p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              {[
-                { icon: <IconRocket className="h-4 w-4" />, label: "Create a workflow", href: "echo-desktop://capture" },
-                { icon: <IconPlayerPlay className="h-4 w-4" />, label: "Run it", href: "/dashboard/workflows" },
-                { icon: <IconBrain className="h-4 w-4" />, label: "Review traces", href: "/dashboard/traces" },
-              ].map((step) => (
+      {/* Onboarding banner */}
+      {showOnboarding && (
+        <div className="relative rounded-xl border border-[#A577FF]/30 bg-linear-to-r from-[#F5F3FF] to-[#EDE9FF] p-5">
+          <button
+            onClick={() => {
+              setShowOnboarding(false);
+              localStorage.setItem("echo_onboarding_dismissed", "true");
+            }}
+            className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+          >
+            <IconX className="h-4 w-4" />
+          </button>
+          <h3 className="text-base font-semibold text-[#150A35]">
+            Welcome to Echo!
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Get started with these 3 steps:
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            {[
+              {
+                icon: <IconRocket className="h-4 w-4" />,
+                label: "Create a workflow",
+                href: "echo-desktop://capture",
+              },
+              {
+                icon: <IconPlayerPlay className="h-4 w-4" />,
+                label: "Run it",
+                href: "/dashboard/workflows",
+              },
+            ].map((step) =>
+              step.href.startsWith("echo-desktop") ? (
+                <a
+                  key={step.label}
+                  href={step.href}
+                  className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+                >
+                  {step.icon}
+                  {step.label}
+                </a>
+              ) : (
                 <Link
                   key={step.label}
                   href={step.href}
@@ -257,147 +268,83 @@ export default function DashboardPage() {
                   {step.icon}
                   {step.label}
                 </Link>
-              ))}
-              <a
-                href="echo-desktop://echoprism"
-                className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
-              >
-                <IconMessageCircle className="h-4 w-4" />
-                Try EchoPrismVoice
-              </a>
+              ),
+            )}
+            <a
+              href="echo-desktop://echoprism"
+              className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+            >
+              <IconMessageCircle className="h-4 w-4" />
+              Try EchoPrismVoice
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      <SectionCards
+        totalWorkflows={totalWorkflows}
+        activeWorkflows={activeWorkflows}
+        totalRuns={totalRuns}
+        awaitingInput={awaitingRuns ? 1 : 0}
+        onAwaitingClick={() => {
+          if (awaitingRuns) {
+            window.location.href = `/dashboard/workflows/${awaitingRuns.workflowId}/runs/${awaitingRuns.runId}`;
+          }
+        }}
+      />
+
+      {/* Activity chart */}
+      <div className="px-4 lg:px-6">
+        <ChartAreaInteractive />
+      </div>
+
+      {/* Data table */}
+      <DataTable data={data} />
+
+      {/* Recent Workflows */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[#150A35]">
+            Recent Workflows
+          </h2>
+          <Link
+            href="/dashboard/workflows"
+            className="flex cursor-pointer items-center gap-1 text-sm font-medium text-[#A577FF] hover:underline"
+          >
+            View all
+            <IconArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        {recentWorkflows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
+              <IconJumpRope className="h-7 w-7 text-[#A577FF]" />
             </div>
+            <div className="text-center">
+              <p className="font-medium text-[#150A35]">No workflows yet</p>
+              <p className="mt-1 text-sm text-echo-text-muted">
+                Create your first workflow to get started
+              </p>
+            </div>
+            <a href="echo-desktop://capture" className="echo-btn-cyan-lavender">
+              Create workflow
+            </a>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {recentWorkflows.map((w) => (
+              <WorkflowCard
+                key={w.id}
+                workflow={w}
+                isLatest={isLatestOrLastModified(w, workflows)}
+              />
+            ))}
           </div>
         )}
-
-        {/* Stats grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-          <StatCard
-            title="Total Workflows"
-            value={totalWorkflows}
-            icon={<IconJumpRope className="h-5 w-5 text-[#A577FF]" />}
-            accent="purple"
-          />
-          <StatCard
-            title="Active Workflows"
-            value={activeWorkflows}
-            icon={<IconCircleCheck className="h-5 w-5 text-echo-success" />}
-            accent="green"
-          />
-          <StatCard
-            title="Total Runs"
-            value={totalRuns}
-            icon={<IconPlayerPlay className="h-5 w-5 text-[#A577FF]" />}
-            accent="purple"
-          />
-          <div
-            className={awaitingRuns ? "cursor-pointer" : ""}
-            onClick={() => {
-              if (awaitingRuns) {
-                window.location.href = `/dashboard/workflows/${awaitingRuns.workflowId}/runs/${awaitingRuns.runId}`;
-              }
-            }}
-          >
-            <Card className={`border shadow-sm ${awaitingRuns ? "border-amber-200 bg-amber-50" : "border-[#A577FF]/20 bg-white"}`}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-echo-text-muted">
-                  Awaiting Input
-                </CardTitle>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
-                  <IconAlertTriangle className="h-5 w-5 text-amber-500" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${awaitingRuns ? "text-amber-600" : "text-[#150A35]"}`}>
-                  {awaitingRuns ? 1 : 0}
-                </div>
-                {awaitingRuns && (
-                  <p className="text-xs text-amber-500 mt-0.5">Click to view</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Recent Workflows */}
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[#150A35]">
-              Recent Workflows
-            </h2>
-            <Link
-              href="/dashboard/workflows"
-              className="flex cursor-pointer items-center gap-1 text-sm font-medium text-[#A577FF] hover:underline"
-            >
-              View all
-              <IconArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-
-          {recentWorkflows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
-                <IconJumpRope className="h-7 w-7 text-[#A577FF]" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium text-[#150A35]">No workflows yet</p>
-                <p className="mt-1 text-sm text-echo-text-muted">
-                  Create your first workflow to get started
-                </p>
-              </div>
-              <a
-                href="echo-desktop://capture"
-                className="echo-btn-primary"
-              >
-                Create workflow
-              </a>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {recentWorkflows.map((w) => (
-                <WorkflowCard
-                  key={w.id}
-                  workflow={w}
-                  isLatest={isLatestOrLastModified(w, workflows)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  accent,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  accent: "purple" | "green";
-}) {
-  return (
-    <Card className="border-[#A577FF]/20 bg-white shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-echo-text-muted">
-          {title}
-        </CardTitle>
-        <div
-          className={[
-            "flex h-9 w-9 items-center justify-center rounded-lg",
-            accent === "purple" ? "bg-[#A577FF]/10" : "bg-echo-success/10",
-          ].join(" ")}
-        >
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-[#150A35]">{value}</div>
-      </CardContent>
-    </Card>
   );
 }
 

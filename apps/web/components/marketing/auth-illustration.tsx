@@ -4,16 +4,16 @@ import React from "react";
 
 export const AuthIllustration = () => {
   return (
-    <div className="relative flex min-h-80 flex-col items-start justify-end overflow-hidden rounded-2xl bg-gradient-to-br from-[#150A35] via-[#2d1b69] to-[#0d0620] p-4 md:p-8">
+    <div className="relative flex w-full flex-col items-start justify-end overflow-hidden rounded-xl">
       <div className="relative z-40 mb-2 flex items-center gap-2">
-        <span className="rounded-md bg-white/10 px-2 py-1 text-xs text-white backdrop-blur-sm">
+        <span className="echo-glass-light rounded-md px-2 py-1 text-xs text-white">
           Product Company
         </span>
-        <span className="rounded-md bg-white/10 px-2 py-1 text-xs text-white backdrop-blur-sm">
+        <span className="echo-glass-light rounded-md px-2 py-1 text-xs text-white">
           Cloud Management
         </span>
       </div>
-      <div className="relative z-40 max-w-sm rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md">
+      <div className="echo-glass-light relative z-40 max-w-sm rounded-xl p-4">
         <h2 className="text-white">
           Echo has completely changed how we work. What used to take hours every
           week is now fully automated.

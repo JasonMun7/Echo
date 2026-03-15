@@ -76,8 +76,8 @@ export function CTA() {
           containerClassName="mt-6 h-11"
           className="flex h-full items-center gap-2 px-6 py-2.5 font-medium"
         >
-          <Link href="/sign-in" className="flex items-center gap-2">
-            Get Started
+          <Link href="/get-started" className="flex items-center gap-2">
+            Get started
             <IconArrowRight className="h-4 w-4" />
           </Link>
         </HoverBorderGradient>

@@ -23,6 +23,7 @@ from livekit import agents
 from livekit.agents import AgentSession, room_io
 from livekit.plugins import google
 
+from agent.echo_prism.models_config import VOICE_MODEL
 from agent.echo_prism.subagents.livekit.agent import LiveKitEchoPrismAgent
 
 server = agents.AgentServer()
@@ -35,13 +36,9 @@ async def entrypoint(ctx: agents.JobContext):
     t_entry = time.perf_counter()
     logging.debug("[EchoPrism] Agent dispatch -> entrypoint: job received")
 
-    model = os.environ.get(
-        "ECHOPRISM_VOICE_MODEL",
-        "gemini-2.5-flash-native-audio-preview-12-2025",
-    )
     session = AgentSession(
         llm=google.realtime.RealtimeModel(
-            model=model,
+            model=VOICE_MODEL,
             voice=os.environ.get("ECHOPRISM_VOICE", "Puck"),
             temperature=0.8,
         ),

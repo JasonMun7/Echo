@@ -85,6 +85,12 @@ declare global {
       ) => void;
       removeDesktopStateChangedListener: () => void;
       quitApp: () => Promise<void>;
+      onUpdateAvailable: (callback: () => void) => void;
+      removeUpdateAvailableListener: () => void;
+      onUpdateDownloaded: (callback: (arg: { version: string }) => void) => void;
+      removeUpdateDownloadedListener: () => void;
+      quitAndInstall: () => Promise<void>;
+      checkForUpdates: () => Promise<unknown>;
     };
   }
 }

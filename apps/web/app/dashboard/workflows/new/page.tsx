@@ -10,7 +10,7 @@ export default function NewWorkflowPage() {
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 md:p-10">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4  p-6 md:p-10">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">
         <IconDeviceDesktop className="h-6 w-6 text-[#A577FF]" />
       </div>

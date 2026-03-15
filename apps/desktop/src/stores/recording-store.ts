@@ -9,6 +9,8 @@ const AGENT_URL =
   (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
     ?.VITE_ECHO_AGENT_URL ?? API_URL;
 
+let currentAbortController: AbortController | null = null;
+
 interface RecordingState {
   recording: boolean;
   recordingPaused: boolean;
@@ -25,6 +27,7 @@ interface RecordingState {
   setRecordStatus: (v: string) => void;
   setRecordError: (v: string) => void;
   uploadAndSynthesize: () => Promise<void>;
+  cancelSynthesis: () => void;
   resetRecording: () => void;
 }
 
@@ -56,11 +59,21 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       recordStatus: "",
     }),
 
+  cancelSynthesis: () => {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
+    set({ recordStatus: "", recordError: "" });
+  },
+
   uploadAndSynthesize: async () => {
     const { recordedBlob } = get();
     const token = useAuthStore.getState().token;
     if (!recordedBlob || !token) return;
 
+    currentAbortController = new AbortController();
+    const signal = currentAbortController.signal;
     set({ recordStatus: "Uploading recording…", recordError: "" });
     const apiBase = API_URL.replace(/\/$/, "");
     const agentBase = AGENT_URL.replace(/\/$/, "");
@@ -74,6 +87,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
+        signal,
       });
       if (!uploadRes.ok) {
         if (uploadRes.status === 401) {
@@ -95,6 +109,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: synthFormData,
+        signal,
       });
       if (!synthRes.ok) {
         const d = await synthRes.json().catch(() => ({}));
@@ -102,16 +117,22 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
           (d as { detail?: string }).detail || "Synthesis failed"
         );
       }
-      const { workflow_id } = (await synthRes.json()) as { workflow_id: string };
-      set({ recordStatus: `Created workflow ${workflow_id}`, recordedBlob: null });
+      const _ = (await synthRes.json()) as { workflow_id: string };
+      set({ recordStatus: "Workflow created", recordedBlob: null });
       useWorkflowsStore.getState().loadWorkflows();
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        set({ recordStatus: "", recordError: "" });
+        return;
+      }
       set({
         recordError:
           e instanceof Error ? e.message : "Upload/synthesis failed",
       });
     } finally {
-      setTimeout(() => set({ recordStatus: "" }), 3000);
+      currentAbortController = null;
+      const status = get().recordStatus;
+      if (status) setTimeout(() => set({ recordStatus: "" }), 3000);
     }
   },
 }));

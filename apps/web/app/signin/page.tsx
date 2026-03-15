@@ -7,5 +7,7 @@ export default async function SignInRedirectPage({
 }) {
   const params = await searchParams;
   const desktop = params?.desktop === "1" ? "?desktop=1" : "";
-  redirect(`/sign-in${desktop}`);
+  const port =
+    params?.port && typeof params.port === "string" ? `&port=${params.port}` : "";
+  redirect(`/sign-in${desktop}${port}`);
 }

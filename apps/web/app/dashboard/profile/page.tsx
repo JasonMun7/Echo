@@ -79,7 +79,7 @@ export default function ProfilePage() {
     .slice(0, 2);
 
   return (
-    <div className="flex flex-1 flex-col gap-6 rounded-tl-2xl border border-[#A577FF]/20 bg-white p-6 md:p-10">
+    <div className="flex flex-1 flex-col gap-6  p-6 md:p-10">
       <h1 className="text-2xl font-bold text-[#1A1A2E]">Profile</h1>
 
       <div className="max-w-lg flex flex-col gap-6">

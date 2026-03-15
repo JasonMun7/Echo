@@ -38,13 +38,13 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase config |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase config |
 
-## Desktop (dev)
+## Desktop (dev + production)
 
 | Variable | Description |
 |----------|-------------|
 | `VITE_API_URL` | Backend API URL |
 | `VITE_ECHO_AGENT_URL` | EchoPrism Agent URL |
-| `VITE_APP_URL` | Web app URL (default: http://localhost:3000) |
+| `VITE_APP_URL` | Web app URL (default: http://localhost:3000). **Production:** set to your deployed web app URL (e.g. https://app.echo.ai) so "Sign in" opens the real site. |
 | `VITE_LIVEKIT_SANDBOX_ID` | (Optional) LiveKit Cloud sandbox token server ID; when set, skips backend token fetch for dev |
 
 LiveKit token is fetched from `VITE_ECHO_AGENT_URL` (EchoPrismAgent). Use `VITE_API_URL` = main backend (8000), `VITE_ECHO_AGENT_URL` = EchoPrismAgent (8081) for dual-backend setup.

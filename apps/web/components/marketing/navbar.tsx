@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
+import GradientText from "@/components/reactbits/GradientText";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -67,17 +68,21 @@ export const Navbar = () => {
             : "bg-transparent shadow-none"
         }`}
       >
-        <Link href="/" className="flex items-center">
+        <Link href="/" className="flex items-center gap-2">
           <Image
             src="/echo_logo.png"
             alt="Echo"
-            width={64}
-            height={64}
-            className="size-24 object-contain"
+            width={40}
+            height={40}
+            className="size-10 shrink-0 object-contain"
           />
-          <span className="text-base font-semibold text-[#150A35] sm:text-lg">
-            Echo
-          </span>
+          <GradientText
+            colors={["#A577FF", "#21C4DD", "#A577FF"]}
+            animationSpeed={6}
+            className="text-base font-semibold sm:text-lg"
+          >
+            <span>Echo</span>
+          </GradientText>
         </Link>
 
         <div className="hidden items-center gap-6 lg:flex lg:gap-8">
@@ -86,6 +91,12 @@ export const Navbar = () => {
             className="text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
           >
             Product
+          </Link>
+          <Link
+            href="/datasets/create"
+            className="text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
+          >
+            Playground
           </Link>
           <Link
             href="/pricing"
@@ -112,7 +123,7 @@ export const Navbar = () => {
             containerClassName="h-10"
             className="flex h-full items-center justify-center px-4 py-2 text-sm font-medium"
           >
-            <Link href="/sign-up">Try for free</Link>
+            <Link href="/get-started">Get started</Link>
           </HoverBorderGradient>
         </div>
 
@@ -150,6 +161,13 @@ export const Navbar = () => {
               Product
             </Link>
             <Link
+              href="/datasets/create"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-3.5 text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
+            >
+              Playground
+            </Link>
+            <Link
               href="/pricing"
               onClick={() => setMobileMenuOpen(false)}
               className="rounded-xl px-4 py-3.5 text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
@@ -178,8 +196,8 @@ export const Navbar = () => {
               containerClassName="mt-3 h-12 w-full rounded-xl"
               className="flex h-full w-full items-center justify-center px-4 py-3.5 text-base font-medium"
             >
-              <Link href="/sign-up" onClick={() => setMobileMenuOpen(false)}>
-                Try for free
+              <Link href="/get-started" onClick={() => setMobileMenuOpen(false)}>
+                Get started
               </Link>
             </HoverBorderGradient>
           </div>
