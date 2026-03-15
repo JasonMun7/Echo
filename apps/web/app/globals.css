@@ -300,6 +300,13 @@
   .echo-gradient-secondary {
     background: linear-gradient(to right, #150A35, #21C4DD);
   }
+  .echo-gradient-sidebar-secondary {
+    background: linear-gradient(to bottom, #150A35, #21C4DD);
+  }
+  .echo-sidebar-inset {
+    background: #2d2d2d;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
   .echo-gradient-cyan-lavender {
     background: linear-gradient(to right, #21C4DD, #A577FF);
   }
@@ -314,6 +321,10 @@
   }
   .echo-btn-secondary-accent {
     @apply cursor-pointer rounded-lg border border-[#21C4DD]/40 bg-[#F5F7FC] px-5 py-2.5 font-medium text-[#21C4DD] transition-colors hover:bg-[#21C4DD]/10;
+  }
+  /* Primary to secondary gradient (Cetacean Blue → Cyan); use for secondary CTAs per design system */
+  .echo-btn-primary-to-secondary {
+    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#150A35] to-[#21C4DD] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
   }
   .echo-btn-cyan-lavender {
     @apply cursor-pointer rounded-lg bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
@@ -346,5 +357,27 @@
   }
   .animate-echo-indicator-flash {
     animation: echo-indicator-flash 1.5s ease-in-out infinite;
+  }
+
+  /* Skeleton shimmer: primary (Lavender) → secondary (Cyan) per design system */
+  @keyframes echo-skeleton-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  .animate-echo-skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(165, 119, 255, 0.08) 0%,
+      rgba(165, 119, 255, 0.18) 25%,
+      rgba(33, 196, 221, 0.22) 50%,
+      rgba(165, 119, 255, 0.18) 75%,
+      rgba(165, 119, 255, 0.08) 100%
+    );
+    background-size: 200% 100%;
+    animation: echo-skeleton-shimmer 1.8s ease-in-out infinite;
   }
 }

@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen, type Display } from "electron";
 import { join } from "path";
 
 const HUD_RECORDING_WIDTH = 375;
@@ -16,21 +16,33 @@ function getRendererUrl(query: string): string {
   return `file://${htmlPath}?${query}`;
 }
 
-export function createHudOverlayWindow(
-  mode: "recording" | "run",
-): BrowserWindow {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
+/** Get the display that contains the cursor so the HUD follows the active screen. */
+function getDisplayUnderCursor() {
+  const point = screen.getCursorScreenPoint();
+  return screen.getDisplayNearestPoint(point);
+}
 
-  const isRun = mode === "run";
+function getHudBoundsOnDisplay(
+  display: Display,
+  isRun: boolean,
+): { x: number; y: number; w: number; h: number } {
+  const { width: screenWidth, height: screenHeight } = display.bounds;
   const w = isRun ? HUD_RUN_WIDTH : HUD_RECORDING_WIDTH;
   const h = isRun ? HUD_RUN_HEIGHT : HUD_RECORDING_HEIGHT;
-
   const margin = 24;
   const x = isRun
     ? Math.floor(screenWidth - w - margin)
     : Math.floor((screenWidth - w) / 2);
   const y = Math.floor(screenHeight - h - 48);
+  return { x, y, w, h };
+}
+
+export function createHudOverlayWindow(
+  mode: "recording" | "run",
+): BrowserWindow {
+  const display = getDisplayUnderCursor();
+  const isRun = mode === "run";
+  const { x, y, w, h } = getHudBoundsOnDisplay(display, isRun);
 
   const win = new BrowserWindow({
     width: w,
@@ -51,9 +63,22 @@ export function createHudOverlayWindow(
   });
 
   win.setBackgroundColor("#00000000");
+  // Exclude HUD from screen capture so synthesis recording doesn't capture the controls
+  // (macOS: NSWindowSharingNone; Windows 10 2004+: WDA_EXCLUDEFROMCAPTURE)
+  win.setContentProtection(true);
   win.loadURL(getRendererUrl(`windowType=hud&mode=${mode}`));
 
   return win;
+}
+
+/** Return the display and bounds for positioning the HUD on the display under the cursor. Used by main to move the HUD when the user switches screens. */
+export function getHudPositionOnCursorDisplay(
+  mode: "recording" | "run",
+): { display: Display; x: number; y: number; w: number; h: number } {
+  const display = getDisplayUnderCursor();
+  const isRun = mode === "run";
+  const { x, y, w, h } = getHudBoundsOnDisplay(display, isRun);
+  return { display, x, y, w, h };
 }
 
 export function createHazeOverlayWindow(displayId?: number): BrowserWindow {

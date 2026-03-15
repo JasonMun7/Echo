@@ -18,12 +18,14 @@ import {
   IconInfoCircle,
   IconSparkles,
   IconPower,
-  IconDeviceDesktop,
   IconJumpRope,
+  IconRefresh,
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
 import { EchoPrismLiveKitSession } from "./EchoPrismLiveKitSession";
 import RunHud from "./RunHud";
+import { UpdateBar } from "./UpdateBar";
+import { MultiStepLoader } from "./MultiStepLoader";
 import RunLogsSection from "./RunLogsSection";
 import HazeOverlay from "./HazeOverlay";
 import VoiceInterruptionOverlay from "./VoiceInterruptionOverlay";
@@ -44,7 +46,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 import AnimatedList from "@/components/AnimatedList";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
@@ -131,6 +135,7 @@ function MainWindowApp() {
   const recordStatus = useRecordingStore((s) => s.recordStatus);
   const recordError = useRecordingStore((s) => s.recordError);
   const uploadAndSynthesize = useRecordingStore((s) => s.uploadAndSynthesize);
+  const cancelSynthesis = useRecordingStore((s) => s.cancelSynthesis);
 
   const {
     startRecording,
@@ -242,6 +247,68 @@ function MainWindowApp() {
     return () => window.electronAPI?.removeDesktopStateChangedListener?.();
   }, [setIsCollapsed]);
 
+  // Multi-step loader and toasts (must be before any early return to satisfy Rules of Hooks)
+  const isSynthesizing =
+    recordStatus === "Uploading recording…" ||
+    recordStatus === "Synthesizing workflow…";
+  const [loaderStep, setLoaderStep] = useState(0);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const SYNTHESIZE_LOADER_STEPS = [
+    { text: "Uploading recording…" },
+    { text: "Processing file…" },
+    { text: "Preparing analysis…" },
+    { text: "Analyzing steps…" },
+    { text: "Identifying actions…" },
+    { text: "Mapping parameters…" },
+    { text: "Generating workflow…" },
+    { text: "Validating steps…" },
+    { text: "Saving workflow…" },
+    { text: "Synthesizing workflow…" },
+  ];
+  const stepCount = SYNTHESIZE_LOADER_STEPS.length;
+  useEffect(() => {
+    if (!isSynthesizing) {
+      if (loaderStep > 0) {
+        setShowCompletion(true);
+        const t = setTimeout(() => {
+          setShowCompletion(false);
+          setLoaderStep(0);
+        }, 1200);
+        return () => clearTimeout(t);
+      }
+      setLoaderStep(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setLoaderStep((s) => Math.min(s + 1, stepCount - 1));
+    }, 1800);
+    return () => clearInterval(interval);
+  }, [isSynthesizing, stepCount]);
+  const synthesizeLoaderVisible = isSynthesizing || showCompletion;
+  const synthesizeLoaderValue = showCompletion
+    ? stepCount
+    : Math.min(loaderStep, stepCount - 1);
+  const prevRecordStatusRef = useRef("");
+  const prevRecordErrorRef = useRef("");
+  useEffect(() => {
+    if (recordStatus && recordStatus !== "Uploading recording…" && recordStatus !== "Synthesizing workflow…") {
+      if (recordStatus !== prevRecordStatusRef.current) {
+        toast.success(recordStatus);
+        prevRecordStatusRef.current = recordStatus;
+      }
+    } else {
+      prevRecordStatusRef.current = "";
+    }
+  }, [recordStatus]);
+  useEffect(() => {
+    if (recordError && recordError !== prevRecordErrorRef.current) {
+      toast.error(recordError);
+      prevRecordErrorRef.current = recordError;
+    } else if (!recordError) {
+      prevRecordErrorRef.current = "";
+    }
+  }, [recordError]);
+
   const handleSignOut = async () => {
     await signOut();
     useWorkflowsStore.getState().resetOnSignOut();
@@ -284,8 +351,8 @@ function MainWindowApp() {
           minHeight: "100vh",
           overflow: "hidden",
           background: isDark
-            ? "linear-gradient(135deg, #150a35 0%, #2d1b69 50%, #0d0620 100%)"
-            : "linear-gradient(135deg, #f5f0ff 0%, #ede5fc 50%, #e8e0f5 100%)",
+            ? "linear-gradient(to right, #150a35, #2d1b69)"
+            : "#F5F7FC",
         }}
       >
         <button
@@ -309,51 +376,33 @@ function MainWindowApp() {
             alignItems: "center",
             justifyContent: "center",
             minHeight: "100vh",
-            padding: 32,
+            padding: 24,
           }}
         >
           <div
             style={{
-              maxWidth: 440,
+              maxWidth: 380,
               width: "100%",
-              padding: 40,
+              padding: 24,
               textAlign: "center",
               background: isDark
-                ? "rgba(255, 255, 255, 0.08)"
-                : "rgba(255, 255, 255, 0.9)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
+                ? "rgba(255, 255, 255, 0.12)"
+                : "rgba(21, 10, 53, 0.06)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
               border: isDark
-                ? "1px solid rgba(165, 119, 255, 0.15)"
-                : "1px solid rgba(165, 119, 255, 0.2)",
-              borderRadius: "1rem",
-              boxShadow: isDark
-                ? "0 4px 24px rgba(0, 0, 0, 0.2)"
-                : "0 4px 24px rgba(100, 60, 180, 0.08)",
+                ? "1px solid rgba(255, 255, 255, 0.18)"
+                : "1px solid rgba(165, 119, 255, 0.15)",
+              borderRadius: "0.5rem",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
             }}
           >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: "0.75rem",
-                background: "rgba(165, 119, 255, 0.15)",
-                border: "1px solid rgba(165, 119, 255, 0.25)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 24px",
-                color: "var(--echo-lavender)",
-              }}
-            >
-              <IconDeviceDesktop size={28} stroke={1.5} />
-            </div>
             <h1
               style={{
-                fontSize: "1.5rem",
+                fontSize: "1.25rem",
                 fontWeight: 600,
-                color: "var(--echo-text)",
-                marginBottom: 12,
+                color: isDark ? "#F5F7FC" : "#150A35",
+                marginBottom: 8,
                 lineHeight: 1.3,
               }}
             >
@@ -361,65 +410,32 @@ function MainWindowApp() {
             </h1>
             <p
               style={{
-                fontSize: 15,
-                color: "var(--echo-text-secondary)",
-                marginBottom: 12,
-                lineHeight: 1.6,
-              }}
-            >
-              Echo needs Screen Recording access to capture workflows, run
-              automations, and power EchoPrism.
-            </p>
-            <p
-              style={{
                 fontSize: 14,
-                color: "var(--echo-text-secondary)",
-                marginBottom: 28,
-                lineHeight: 1.6,
+                color: isDark ? "rgba(245,247,252,0.8)" : "#6b7280",
+                marginBottom: 20,
+                lineHeight: 1.5,
               }}
             >
-              Go to{" "}
-              <strong style={{ color: "var(--echo-text)" }}>
+              Echo needs Screen Recording access. In{" "}
+              <strong style={{ color: isDark ? "#F5F7FC" : "#150A35" }}>
                 System Settings → Privacy &amp; Security → Screen Recording
-              </strong>{" "}
-              and enable Echo.
+              </strong>
+              , enable Echo. Permission is detected automatically.
             </p>
             <button
               type="button"
               className="echo-btn-cyan-lavender"
               style={{
                 width: "100%",
-                marginBottom: 20,
-                padding: "0.625rem 1.25rem",
-                borderRadius: "0.75rem",
+                padding: "0.5rem 1rem",
+                borderRadius: "0.5rem",
                 fontWeight: 600,
+                fontSize: 14,
               }}
               onClick={() => window.electronAPI?.openSystemSettings?.()}
             >
               Open System Settings
             </button>
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--echo-text-dim)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: "var(--echo-lavender)",
-                  animation: "echo-pulse 1.2s ease-in-out infinite",
-                }}
-              />
-              Permission will be detected automatically once granted
-            </p>
           </div>
         </div>
       </div>
@@ -566,6 +582,20 @@ function MainWindowApp() {
 
   return (
     <>
+      <Toaster theme={theme} />
+      <UpdateBar />
+      <MultiStepLoader
+        loadingStates={SYNTHESIZE_LOADER_STEPS}
+        loading={synthesizeLoaderVisible}
+        value={synthesizeLoaderValue}
+        title="Synthesizing workflow"
+        onCancel={() => {
+          cancelSynthesis();
+          toast.error("Synthesis cancelled", {
+            icon: <IconTrash size={18} style={{ color: "var(--echo-error)" }} />,
+          });
+        }}
+      />
       <TooltipProvider>
         <AnimatePresence mode="wait">
           {isCollapsed ? (
@@ -682,7 +712,7 @@ function MainWindowApp() {
                           margin: 0,
                         }}
                       >
-                        Echo
+                        Echo Desktop
                       </h1>
                     </GradientText>
                     <p
@@ -807,6 +837,12 @@ function MainWindowApp() {
                         <IconExternalLink size={16} />
                         Open in web
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => window.electronAPI?.checkForUpdates?.()}
+                      >
+                        <IconRefresh size={16} />
+                        Check for updates
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleSignOut}>
                         <IconLogout size={16} />
                         Sign out
@@ -896,19 +932,6 @@ function MainWindowApp() {
                       </div>
                     )}
 
-                    {(recordError || recordStatus) && (
-                      <p
-                        style={{
-                          color: recordError
-                            ? "var(--echo-error)"
-                            : "var(--echo-success)",
-                          fontSize: 13,
-                          marginTop: 8,
-                        }}
-                      >
-                        {recordError || recordStatus}
-                      </p>
-                    )}
                   </div>
 
                   {/* Workflows list */}

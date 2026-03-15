@@ -8,17 +8,37 @@ import {
   session,
   shell,
 } from "electron";
+import { createServer } from "http";
+import { autoUpdater, type UpdateInfo } from "electron-updater";
 import type { Step, WorkflowType } from "@echo/types";
 import {
   runWorkflowRemote,
   abortActiveRun,
 } from "./agent/remote-workflow-runner";
-import { createHudOverlayWindow, createHazeOverlayWindow, createVoiceInterruptionWindow } from "./windows";
+import {
+  createHudOverlayWindow,
+  createHazeOverlayWindow,
+  createVoiceInterruptionWindow,
+  getHudPositionOnCursorDisplay,
+} from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
 const AUTH_TOKEN_FILE = "echo-auth-token.json";
 const WEB_APP_URL = process.env.VITE_APP_URL || "http://localhost:3000";
+
+/** Port for localhost auth callback (used when echo-desktop:// is not handed off in dev) */
+const AUTH_CALLBACK_PORT = 38473;
+
+/**
+ * Auth flow: custom protocol (echo-desktop://) + localhost callback.
+ * - Production: packaged app should register the protocol (e.g. electron-builder
+ *   with build.mac.extendInfo CFBundleURLTypes / protocols config) so the OS
+ *   hands off echo-desktop:// to this app. setAsDefaultProtocolClient() is also
+ *   called at runtime.
+ * - Dev: protocol often not handed off, so we run a local server on AUTH_CALLBACK_PORT
+ *   and the web app sends the token there (same machine only, 127.0.0.1).
+ */
 
 function getAuthTokenPath(): string {
   return join(app.getPath("userData"), AUTH_TOKEN_FILE);
@@ -196,6 +216,9 @@ let hudOverlayWindow: BrowserWindow | null = null;
 let hazeOverlayWindow: BrowserWindow | null = null;
 let voiceInterruptionWindow: BrowserWindow | null = null;
 let isCollapsed = false;
+let hudFollowInterval: ReturnType<typeof setInterval> | null = null;
+let lastHudDisplayId: number | null = null;
+let currentHudMode: "recording" | "run" | null = null;
 
 /** Stored when enter-run-mode is called, used by cancel-run and send-interrupt */
 let runContext: { workflowId: string; runId: string; token: string } | null =
@@ -208,12 +231,39 @@ let isRunModeExiting = false;
 /** Last N run progress entries — sent to voice interruption overlay for context */
 let recentRunProgress: Array<{ thought: string; action: string; step: number }> = [];
 
+function stopHudFollowInterval(): void {
+  if (hudFollowInterval) {
+    clearInterval(hudFollowInterval);
+    hudFollowInterval = null;
+  }
+  lastHudDisplayId = null;
+  currentHudMode = null;
+}
+
+function startHudFollowCursor(mode: "recording" | "run"): void {
+  currentHudMode = mode;
+  lastHudDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+  stopHudFollowInterval();
+  hudFollowInterval = setInterval(() => {
+    if (!hudOverlayWindow || hudOverlayWindow.isDestroyed() || !currentHudMode) {
+      stopHudFollowInterval();
+      return;
+    }
+    const { display, x, y, w, h } = getHudPositionOnCursorDisplay(currentHudMode);
+    if (display.id !== lastHudDisplayId) {
+      lastHudDisplayId = display.id;
+      hudOverlayWindow.setBounds({ x, y, width: w, height: h });
+    }
+  }, 500);
+}
+
 function destroyOverlaysAndShowMain(): void {
   isRunModeExiting = true;
   if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
     voiceInterruptionWindow.destroy();
     voiceInterruptionWindow = null;
   }
+  stopHudFollowInterval();
   if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
     hudOverlayWindow.destroy();
     hudOverlayWindow = null;
@@ -294,7 +344,9 @@ ipcMain.handle("enter-recording-mode", () => {
     hudOverlayWindow = createHudOverlayWindow("recording");
     hudOverlayWindow.on("closed", () => {
       hudOverlayWindow = null;
+      stopHudFollowInterval();
     });
+    startHudFollowCursor("recording");
   }
   return { ok: true };
 });
@@ -324,6 +376,7 @@ ipcMain.handle(
       hudOverlayWindow = createHudOverlayWindow("run");
       hudOverlayWindow.on("closed", () => {
         hudOverlayWindow = null;
+        stopHudFollowInterval();
         // If the HUD closes while a run is still active (e.g. user force-quits
         // the overlay), cancel and abort so the workflow doesn't keep running.
         if (!isRunModeExiting && runContext) {
@@ -334,6 +387,7 @@ ipcMain.handle(
           if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
         }
       });
+      startHudFollowCursor("run");
     }
     return { ok: true };
   },
@@ -490,10 +544,37 @@ ipcMain.handle("resume-run-from-voice", () => {
   return { ok: true };
 });
 
+/** Localhost server so web can send auth token when echo-desktop:// isn't handed off (e.g. in dev) */
+function startAuthCallbackServer(): void {
+  const server = createServer((req, res) => {
+    const url = req.url ?? "";
+    const tokenMatch = url.match(/[?&]token=([^&]+)/);
+    const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+    res.setHeader("Content-Type", "text/plain");
+    if (token) {
+      storeToken(token);
+      mainWindow?.webContents.send("auth-token-received");
+      res.writeHead(200);
+      res.end("OK");
+    } else {
+      res.writeHead(400);
+      res.end("Missing token");
+    }
+  });
+  server.listen(AUTH_CALLBACK_PORT, "127.0.0.1", () => {
+    // Only used for auth callback
+  });
+  server.on("error", () => {
+    // Port in use or permission denied; protocol handler may still work
+  });
+}
+
 app.whenReady().then(async () => {
   if (!app.isDefaultProtocolClient("echo-desktop")) {
     app.setAsDefaultProtocolClient("echo-desktop");
   }
+
+  startAuthCallbackServer();
 
   // Fail-safe: global shortcut to recover from frozen overlays
   globalShortcut.register("CommandOrControl+Shift+X", () => {
@@ -511,23 +592,44 @@ app.whenReady().then(async () => {
   });
 
   // Required for getDisplayMedia() in the renderer - Electron does not support it by default.
-  // Include both "window" and "screen" so the system picker shows individual windows.
-  // When the handler runs (e.g. re-request from applyConstraints), prefer a window to avoid
-  // shifting from the user's chosen window back to the primary desktop.
+  // useSystemPicker: true shows the OS picker; when the handler runs we supply a fallback.
+  // Prefer the screen under the cursor so we don't force the primary display and cause "shift back to desktop".
   session.defaultSession.setDisplayMediaRequestHandler(
     async (_request, callback) => {
       const sources = await desktopCapturer.getSources({
         types: ["window", "screen"],
         thumbnailSize: { width: 150, height: 150 },
       });
-      const windowSource = sources.find((s) => s.id.startsWith("window:"));
-      const source = windowSource ?? sources[0];
-      if (source) callback({ video: source });
+      const cursorDisplay = screen.getDisplayNearestPoint(
+        screen.getCursorScreenPoint(),
+      );
+      const screenSource = sources.find(
+        (s) =>
+          s.id.startsWith("screen:") &&
+          (s as { display_id?: string }).display_id === String(cursorDisplay.id),
+      );
+      const fallbackSource =
+        screenSource ?? sources.find((s) => s.id.startsWith("screen:")) ?? sources[0];
+      if (fallbackSource) callback({ video: fallbackSource });
     },
     { useSystemPicker: true },
   );
 
   createWindow();
+
+  if (app.isPackaged) {
+    autoUpdater.on("update-available", () => {
+      mainWindow?.webContents.send("update-available");
+    });
+    autoUpdater.on("update-downloaded", (_event: unknown, info: UpdateInfo) => {
+      mainWindow?.webContents.send("update-downloaded", {
+        version: info?.version ?? "unknown",
+      });
+    });
+    autoUpdater.checkForUpdates().catch(() => {
+      // Ignore (e.g. no network or invalid publish config)
+    });
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -602,7 +704,20 @@ ipcMain.handle("auth-store-token", (_, token: string) => {
 ipcMain.handle("auth-clear-token", () => clearStoredToken());
 ipcMain.handle("auth-open-signin", () => {
   const base = WEB_APP_URL.replace(/\/$/, "");
-  shell.openExternal(`${base}/signin?desktop=1`);
+  shell.openExternal(`${base}/signin?desktop=1&port=${AUTH_CALLBACK_PORT}`);
+});
+
+ipcMain.handle("quit-and-install", () => {
+  if (app.isPackaged) {
+    autoUpdater.quitAndInstall(false, true);
+  }
+});
+
+ipcMain.handle("check-for-updates", () => {
+  if (app.isPackaged) {
+    return autoUpdater.checkForUpdates().catch(() => null);
+  }
+  return Promise.resolve(null);
 });
 
 ipcMain.handle("desktop-collapse", () => {

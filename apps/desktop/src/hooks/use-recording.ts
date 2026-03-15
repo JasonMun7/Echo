@@ -8,6 +8,7 @@ export function useRecording() {
     null
   );
   const recordingDurationRef = useRef<number>(0);
+  const isDiscardingRef = useRef(false);
 
   const startRecording = useCallback(async () => {
     useRecordingStore.getState().setRecordError("");
@@ -36,6 +37,10 @@ export function useRecording() {
       };
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (isDiscardingRef.current) {
+          isDiscardingRef.current = false;
+          return;
+        }
         useRecordingStore.getState().setRecordedBlob(
           new Blob(localChunks, { type: recorder.mimeType || "video/webm" })
         );
@@ -105,6 +110,7 @@ export function useRecording() {
     }
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
+      isDiscardingRef.current = true;
       rec.stop();
     }
     mediaRecorderRef.current = null;

@@ -138,4 +138,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeRunResumedByVoiceListener: () => {
     ipcRenderer.removeAllListeners("run-resumed-by-voice");
   },
+
+  onUpdateAvailable: (callback: () => void) => {
+    ipcRenderer.on("update-available", () => callback());
+  },
+  removeUpdateAvailableListener: () => {
+    ipcRenderer.removeAllListeners("update-available");
+  },
+  onUpdateDownloaded: (callback: (arg: { version: string }) => void) => {
+    ipcRenderer.on("update-downloaded", (_, arg: { version: string }) => callback(arg));
+  },
+  removeUpdateDownloadedListener: () => {
+    ipcRenderer.removeAllListeners("update-downloaded");
+  },
+  quitAndInstall: () => ipcRenderer.invoke("quit-and-install"),
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
 });

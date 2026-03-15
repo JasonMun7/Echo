@@ -17,18 +17,18 @@ export function ContactFormGridWithDetails() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10 md:px-6 md:py-20">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 py-12 pt-20 md:px-8 md:py-16 md:pt-24">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 lg:grid-cols-2">
-      <div className="relative flex flex-col items-center overflow-hidden lg:items-start">
+      <div className="echo-gradient-secondary relative flex flex-col items-center overflow-hidden rounded-2xl p-6 md:p-8 lg:items-start">
         <div className="flex items-start justify-start">
           <FeatureIconContainer className="flex items-center justify-center overflow-hidden">
-            <IconMailFilled className="h-6 w-6 text-[#21C4DD]" />
+            <IconMailFilled className="h-6 w-6 text-white" />
           </FeatureIconContainer>
         </div>
-        <h2 className="mt-9 bg-gradient-to-b from-[#150A35] to-[#2d1b69] bg-clip-text text-left text-xl font-bold text-transparent md:text-3xl lg:text-5xl">
+        <h2 className="mt-9 bg-gradient-to-r from-white to-white/90 bg-clip-text text-left text-xl font-bold text-transparent md:text-3xl lg:text-5xl">
           Contact us
         </h2>
-        <p className="mt-8 max-w-lg text-center text-base text-gray-600 md:text-left">
+        <p className="mt-8 max-w-lg text-center text-base text-white/80 md:text-left">
           We are always looking for ways to improve our products and services.
           Contact us and let us know how we can help you.
         </p>
@@ -36,16 +36,16 @@ export function ContactFormGridWithDetails() {
         <div className="mt-10 flex flex-col flex-wrap items-center gap-4 md:flex-row">
           <a
             href="mailto:contact@echo.ai"
-            className="text-sm font-medium text-[#21C4DD] hover:underline"
+            className="text-sm font-medium text-white hover:underline"
           >
             contact@echo.ai
           </a>
-          <div className="hidden h-1 w-1 rounded-full bg-[#A577FF]/40 md:block" />
-          <p className="text-sm text-gray-500">+1 (800) 123-4567</p>
-          <div className="hidden h-1 w-1 rounded-full bg-[#A577FF]/40 md:block" />
+          <div className="hidden h-1 w-1 rounded-full bg-white/40 md:block" />
+          <p className="text-sm text-white/70">+1 (800) 123-4567</p>
+          <div className="hidden h-1 w-1 rounded-full bg-white/40 md:block" />
           <a
             href="mailto:support@echo.ai"
-            className="text-sm font-medium text-[#21C4DD] hover:underline"
+            className="text-sm font-medium text-white hover:underline"
           >
             support@echo.ai
           </a>
@@ -62,7 +62,7 @@ export function ContactFormGridWithDetails() {
         </div>
       </div>
 
-      <div className="relative mx-auto flex w-full max-w-2xl flex-col items-start gap-4 overflow-hidden rounded-2xl border border-[#21C4DD]/20 bg-white p-6 shadow-sm sm:p-10">
+      <div className="relative mx-auto flex w-full max-w-2xl flex-col items-start gap-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-10">
         <Grid size={20} />
         <form
           onSubmit={(e) => e.preventDefault()}
@@ -130,7 +130,7 @@ export function ContactFormGridWithDetails() {
           <StatefulButton
             type="submit"
             onClick={handleSubmit}
-            className="mt-2 w-full sm:w-auto"
+            className="echo-btn-primary mt-2 w-full sm:w-auto"
           >
             Send message
           </StatefulButton>
@@ -151,9 +151,9 @@ function ContactMapPin({ className }: { className?: string }) {
       )}
     >
       <div className="h-full w-full">
-        <div className="absolute inset-x-0 top-0 z-20 mx-auto inline-block w-fit rounded-lg border border-[#21C4DD]/30 bg-white px-2 py-1 text-xs font-medium text-[#150A35] shadow-sm">
+        <div className="echo-glass-light absolute inset-x-0 top-0 z-20 mx-auto inline-block w-fit rounded-lg px-2 py-1 text-xs font-medium text-white shadow-sm">
           We are here
-          <span className="absolute -bottom-0 left-[1.125rem] h-px w-[calc(100%-2.25rem)] bg-gradient-to-r from-transparent via-[#21C4DD] to-transparent" />
+          <span className="absolute -bottom-0 left-[1.125rem] h-px w-[calc(100%-2.25rem)] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
         </div>
         <div
           style={{
@@ -166,25 +166,25 @@ function ContactMapPin({ className }: { className?: string }) {
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: [0, 1, 0.5, 0], scale: 1 }}
             transition={{ duration: 6, repeat: Infinity, delay: 0 }}
-            className="absolute top-1/2 left-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#21C4DD]/15 shadow-[0_8px_16px_rgb(0_0_0/0.2)]"
+            className="absolute top-1/2 left-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/15 shadow-[0_8px_16px_rgb(0_0_0/0.2)]"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: [0, 1, 0.5, 0], scale: 1 }}
             transition={{ duration: 6, repeat: Infinity, delay: 2 }}
-            className="absolute top-1/2 left-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#21C4DD]/15 shadow-[0_8px_16px_rgb(0_0_0/0.2)]"
+            className="absolute top-1/2 left-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/15 shadow-[0_8px_16px_rgb(0_0_0/0.2)]"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: [0, 1, 0.5, 0], scale: 1 }}
             transition={{ duration: 6, repeat: Infinity, delay: 4 }}
-            className="absolute top-1/2 left-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#21C4DD]/15 shadow-[0_8px_16px_rgb(0_0_0/0.2)]"
+            className="absolute top-1/2 left-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/15 shadow-[0_8px_16px_rgb(0_0_0/0.2)]"
           />
         </div>
-        <motion.div className="absolute right-1/2 bottom-1/2 h-20 w-px translate-y-[14px] bg-gradient-to-b from-transparent to-[#21C4DD] blur-[2px]" />
-        <motion.div className="absolute right-1/2 bottom-1/2 h-20 w-px translate-y-[14px] bg-gradient-to-b from-transparent to-[#21C4DD]" />
-        <motion.div className="absolute right-1/2 bottom-1/2 z-40 h-[4px] w-[4px] translate-x-[1.5px] translate-y-[14px] rounded-full bg-[#21C4DD] blur-[3px]" />
-        <motion.div className="absolute right-1/2 bottom-1/2 z-40 h-[2px] w-[2px] translate-x-[0.5px] translate-y-[14px] rounded-full bg-[#21C4DD]" />
+        <motion.div className="absolute right-1/2 bottom-1/2 h-20 w-px translate-y-[14px] bg-gradient-to-b from-transparent to-white/70 blur-[2px]" />
+        <motion.div className="absolute right-1/2 bottom-1/2 h-20 w-px translate-y-[14px] bg-gradient-to-b from-transparent to-white/70" />
+        <motion.div className="absolute right-1/2 bottom-1/2 z-40 h-[4px] w-[4px] translate-x-[1.5px] translate-y-[14px] rounded-full bg-white/90 blur-[3px]" />
+        <motion.div className="absolute right-1/2 bottom-1/2 z-40 h-[2px] w-[2px] translate-x-[0.5px] translate-y-[14px] rounded-full bg-white" />
       </div>
     </motion.div>
   );
@@ -200,14 +200,14 @@ const FeatureIconContainer = ({
   return (
     <div
       className={cn(
-        "relative h-14 w-14 rounded-lg border border-[#21C4DD]/30 bg-gradient-to-b from-[#F5F7FC] to-white p-[4px] shadow-sm",
+        "echo-glass-light relative h-14 w-14 rounded-lg p-[4px] shadow-sm",
         className
       )}
     >
-      <div className="relative z-20 flex h-full w-full items-center justify-center rounded-[6px] bg-[#F5F7FC]">
+      <div className="relative z-20 flex h-full w-full items-center justify-center rounded-[6px] bg-white/10">
         {children}
       </div>
-      <div className="absolute inset-x-0 bottom-0 mx-auto h-px w-[60%] bg-gradient-to-r from-transparent via-[#21C4DD]/60 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 mx-auto h-px w-[60%] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
     </div>
   );
 };

@@ -8,13 +8,6 @@ import {
   IconSquare,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
 interface RecordingHudProps {}
 
 function formatDuration(secs: number): string {
@@ -54,7 +47,6 @@ export default function RecordingHud(_props: RecordingHudProps) {
   };
 
   return (
-    <TooltipProvider>
     <div
       className="echo-recording-hud flex w-full min-h-full items-stretch overflow-hidden rounded-lg backdrop-blur-xl border shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
       style={{
@@ -113,35 +105,26 @@ export default function RecordingHud(_props: RecordingHudProps) {
           </button>
 
           {/* Redo - icon only */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleRedo}
-                className="echo-recording-hud-btn-secondary flex shrink-0 items-center justify-center rounded-lg border p-2 transition-all"
-              >
-                <IconRefresh size={16} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Redo: discard and restart</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={handleRedo}
+            className="echo-recording-hud-btn-secondary flex shrink-0 items-center justify-center rounded-lg border p-2 transition-all"
+            aria-label="Redo: discard and restart"
+          >
+            <IconRefresh size={16} />
+          </button>
 
           {/* Discard - icon only */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleDiscard}
-                className="echo-btn-danger flex shrink-0 items-center justify-center rounded-lg p-2"
-              >
-                <IconTrash size={16} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Discard</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={handleDiscard}
+            className="echo-btn-danger flex shrink-0 items-center justify-center rounded-lg p-2"
+            aria-label="Discard"
+          >
+            <IconTrash size={16} />
+          </button>
         </div>
       </div>
     </div>
-    </TooltipProvider>
   );
 }

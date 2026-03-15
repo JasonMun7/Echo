@@ -12,6 +12,7 @@ import {
   IconJumpRope,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import Threads from "@/components/threads";
 import {
   Tooltip,
   TooltipContent,
@@ -146,7 +147,7 @@ export default function WorkflowsPage() {
   if (loading) {
     return (
       <div className="flex flex-1 overflow-auto">
-        <div className="flex w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+        <div className="flex w-full flex-1 flex-col gap-4 p-6 md:p-10">
           {/* Header */}
           <div className="flex items-center justify-between">
             <Skeleton className="h-8 w-36 rounded-lg" />
@@ -173,24 +174,41 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="flex flex-1 overflow-auto">
-      <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
-        <div className="flex items-center justify-between">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
+        <div className="flex shrink-0 items-center justify-between">
           <h1 className="text-2xl font-semibold text-[#150A35]">Workflows</h1>
           <a
             href="echo-desktop://capture"
-            className="echo-btn-primary flex items-center gap-2"
+            className="echo-btn-cyan-lavender flex items-center gap-2"
           >
             <IconPlus className="h-5 w-5" />
             New Workflow
           </a>
         </div>
         {workflows.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
-            <p className="text-[#150A35]/80">No workflows yet</p>
-            <a href="echo-desktop://capture" className="echo-btn-primary">
-              Create your first workflow
-            </a>
+          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-[#A577FF]/40">
+            <div className="absolute inset-0 overflow-hidden rounded-lg">
+              <Threads
+                color={[165 / 255, 119 / 255, 255 / 255]}
+                amplitude={1.3}
+                distance={0.3}
+                enableMouseInteraction={false}
+              />
+            </div>
+            <div className="relative z-[1] flex flex-col items-center gap-3 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#A577FF]/10">
+                <IconJumpRope className="h-6 w-6 text-[#A577FF]" />
+              </div>
+              <p className="text-[#150A35] font-medium">No workflows yet</p>
+              <a
+                href="echo-desktop://capture"
+                className="echo-btn-cyan-lavender inline-flex items-center gap-2"
+              >
+                <IconPlus className="h-5 w-5" />
+                Create your first workflow
+              </a>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -219,15 +237,20 @@ export default function WorkflowsPage() {
                   </Tooltip>
                 )}
                 {/* Delete button — top-right, shown on hover, stops link navigation */}
-                <button
-                  type="button"
-                  onClick={(e) => handleDelete(e, w.id)}
-                  disabled={deletingId === w.id}
-                  className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/80 text-echo-error opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-echo-error hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Delete workflow"
-                >
-                  <IconTrash className="h-3.5 w-3.5" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(e, w.id)}
+                      disabled={deletingId === w.id}
+                      className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/80 text-echo-error opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-echo-error hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Delete workflow"
+                    >
+                      <IconTrash className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Delete workflow</TooltipContent>
+                </Tooltip>
 
                 {/* Entire card is a link */}
                 <Link
