@@ -120,6 +120,7 @@ export const Navbar = () => {
             Sign in
           </Link>
           <HoverBorderGradient
+            as="div"
             containerClassName="h-10"
             className="flex h-full items-center justify-center px-4 py-2 text-sm font-medium"
           >
@@ -193,6 +194,7 @@ export const Navbar = () => {
               Sign in
             </Link>
             <HoverBorderGradient
+              as="div"
               containerClassName="mt-3 h-12 w-full rounded-xl"
               className="flex h-full w-full items-center justify-center px-4 py-3.5 text-base font-medium"
             >

@@ -11,7 +11,7 @@
     "dev:desktop": "cd apps/desktop && doppler run -- pnpm run dev",
     "build": "cd apps/web && pnpm run build",
     "build:desktop": "cd apps/desktop && pnpm run build",
-    "desktop:dist": "cd apps/desktop && pnpm run dist",
+    "desktop:dist": "cd apps/desktop && doppler run --config prd -- pnpm run dist",
     "start": "cd apps/web && pnpm run start",
     "lint": "cd apps/web && pnpm run lint",
     "dev:backend": "cd backend && doppler run -- uvicorn main:app --reload",

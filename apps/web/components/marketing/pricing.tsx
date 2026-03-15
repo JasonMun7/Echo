@@ -150,6 +150,7 @@ function PricingCard({ plan }: { plan: Plan }) {
         </div>
         {plan.featured ? (
           <HoverBorderGradient
+            as="div"
             containerClassName="h-11"
             className="flex h-full items-center justify-center px-6 py-2.5 font-medium"
           >

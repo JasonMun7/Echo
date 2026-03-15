@@ -18,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 
 interface Workflow {
   id: string;
@@ -178,13 +179,12 @@ export default function WorkflowsPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
         <div className="flex shrink-0 items-center justify-between">
           <h1 className="text-2xl font-semibold text-[#150A35]">Workflows</h1>
-          <a
-            href="echo-desktop://capture"
+          <DesktopCaptureLink
             className="echo-btn-cyan-lavender flex items-center gap-2"
           >
             <IconPlus className="h-5 w-5" />
             New Workflow
-          </a>
+          </DesktopCaptureLink>
         </div>
         {workflows.length === 0 ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-[#A577FF]/40">
@@ -201,13 +201,12 @@ export default function WorkflowsPage() {
                 <IconJumpRope className="h-6 w-6 text-[#A577FF]" />
               </div>
               <p className="text-[#150A35] font-medium">No workflows yet</p>
-              <a
-                href="echo-desktop://capture"
+              <DesktopCaptureLink
                 className="echo-btn-cyan-lavender inline-flex items-center gap-2"
               >
                 <IconPlus className="h-5 w-5" />
                 Create your first workflow
-              </a>
+              </DesktopCaptureLink>
             </div>
           </div>
         ) : (

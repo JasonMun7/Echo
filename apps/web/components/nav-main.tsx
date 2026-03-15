@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { IconCirclePlusFilled, type Icon } from "@tabler/icons-react";
+import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 
 import {
   SidebarGroup,
@@ -30,10 +31,10 @@ export function NavMain({
               asChild
               className="min-w-8 rounded-lg echo-btn-cyan-lavender"
             >
-              <a href="echo-desktop://capture">
+              <DesktopCaptureLink>
                 <IconCirclePlusFilled className="size-5" />
                 <span>Quick Create</span>
-              </a>
+              </DesktopCaptureLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

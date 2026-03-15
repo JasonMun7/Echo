@@ -50,6 +50,7 @@ export default function Hero() {
 
         <div className="mt-8 flex flex-wrap items-center gap-4">
           <HoverBorderGradient
+            as="div"
             containerClassName="h-11"
             className="flex h-full items-center gap-2 px-6 py-2.5 font-medium"
           >

@@ -73,6 +73,7 @@ export function CTA() {
           complex workflows, make decisions, and execute tasks autonomously.
         </SubHeading>
         <HoverBorderGradient
+          as="div"
           containerClassName="mt-6 h-11"
           className="flex h-full items-center gap-2 px-6 py-2.5 font-medium"
         >

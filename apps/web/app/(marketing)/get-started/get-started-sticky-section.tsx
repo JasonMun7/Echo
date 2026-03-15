@@ -12,6 +12,7 @@ import {
 import { StickyScroll, type StickyScrollItem } from "@/block/features-with-sticky-scroll";
 import { Button } from "@/components/ui/button";
 import GradientText from "@/components/reactbits/GradientText";
+import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 
 const MAC_URL = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL;
 const WIN_URL = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL;
@@ -159,10 +160,10 @@ export function GetStartedStickySection() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Button asChild className="echo-btn-cyan-lavender h-12 gap-2 px-6 text-base font-semibold">
-              <a href="echo-desktop://capture">
+              <DesktopCaptureLink>
                 <IconRocket className="h-5 w-5" />
                 Open Echo Desktop to record
-              </a>
+              </DesktopCaptureLink>
             </Button>
             <Button asChild variant="secondary" className="h-12 border-[#A577FF]/40 px-6 text-base font-medium text-[#150A35] hover:bg-[#A577FF]/10">
               <Link href="/dashboard">Go to dashboard</Link>

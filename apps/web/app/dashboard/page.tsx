@@ -25,6 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 const STATUS_LABELS: Record<string, string> = {
   draft: "Setting Up",
   processing: "Synthesizing",
@@ -210,13 +211,12 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s happening with your workflows today.
           </p>
         </div>
-        <a
-          href="echo-desktop://capture"
+        <DesktopCaptureLink
           className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2"
         >
           <IconPlus className="h-5 w-5" />
           New Workflow
-        </a>
+        </DesktopCaptureLink>
       </div>
 
       {/* Onboarding banner */}
@@ -243,22 +243,23 @@ export default function DashboardPage() {
                 icon: <IconRocket className="h-4 w-4" />,
                 label: "Create a workflow",
                 href: "echo-desktop://capture",
+                isCapture: true,
               },
               {
                 icon: <IconPlayerPlay className="h-4 w-4" />,
                 label: "Run it",
                 href: "/dashboard/workflows",
+                isCapture: false,
               },
             ].map((step) =>
-              step.href.startsWith("echo-desktop") ? (
-                <a
+              step.isCapture ? (
+                <DesktopCaptureLink
                   key={step.label}
-                  href={step.href}
                   className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
                 >
                   {step.icon}
                   {step.label}
-                </a>
+                </DesktopCaptureLink>
               ) : (
                 <Link
                   key={step.label}
@@ -328,9 +329,9 @@ export default function DashboardPage() {
                 Create your first workflow to get started
               </p>
             </div>
-            <a href="echo-desktop://capture" className="echo-btn-cyan-lavender">
+            <DesktopCaptureLink className="echo-btn-cyan-lavender">
               Create workflow
-            </a>
+            </DesktopCaptureLink>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
