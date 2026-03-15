@@ -576,18 +576,22 @@ app.whenReady().then(async () => {
 
   startAuthCallbackServer();
 
-  // Fail-safe: global shortcut to recover from frozen overlays
-  globalShortcut.register("CommandOrControl+Shift+X", () => {
-    destroyOverlaysAndShowMain();
-  });
-
-  // Voice interruption shortcut — toggles the voice overlay while a run is active
-  globalShortcut.register("Ctrl+Shift+V", () => {
-    if (!runContext) return;
-    if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
-      voiceInterruptionWindow.close(); // toggle off → auto-resume via "closed" event
-    } else {
-      openVoiceInterruption();
+  // Defer globalShortcut so we run after app is fully ready (avoids "cannot be used before app is ready" on macOS when launched via protocol)
+  setImmediate(() => {
+    try {
+      globalShortcut.register("CommandOrControl+Shift+X", () => {
+        destroyOverlaysAndShowMain();
+      });
+      globalShortcut.register("Ctrl+Shift+V", () => {
+        if (!runContext) return;
+        if (voiceInterruptionWindow && !voiceInterruptionWindow.isDestroyed()) {
+          voiceInterruptionWindow.close();
+        } else {
+          openVoiceInterruption();
+        }
+      });
+    } catch {
+      // Ignore if globalShortcut still not available (e.g. app not fully ready)
     }
   });
 

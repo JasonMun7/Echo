@@ -560,6 +560,13 @@ function MainWindowApp() {
                 <IconLogin size={20} />
                 Sign in
               </button>
+              <button
+                type="button"
+                onClick={() => window.electronAPI?.quitApp?.()}
+                className="echo-btn-secondary mt-2.5 w-full rounded-lg px-4 py-2.5 text-sm font-medium"
+              >
+                Close app
+              </button>
             </div>
           </div>
         </div>
