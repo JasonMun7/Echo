@@ -193,8 +193,8 @@ flowchart LR
 ```
 
 **Models:**
-- Grounding uses `GROUNDING_MODEL` (default `gemini-2.5-flash-001` or fine-tuned variant).
-- Orchestration (Think step) uses `ORCHESTRATION_MODEL` (default `gemini-3.1-pro-preview`).
+- Locator (element grounding) uses `LOCATOR_MODEL` (see `models_config.py`).
+- Orchestration (Think step) uses `ORCHESTRATION_MODEL` (see `models_config.py`).
 
 ---
 
@@ -249,7 +249,7 @@ See [subagents.md](../echo_prism/docs/subagents.md) and [synthesis-flow.md](synt
 
 The training pipeline improves EchoPrism over time using UI-TARS self-improvement.
 
-1. **Trace Filter** — Two-pass scoring: rule-based (errors, duplicates, etc.) then Gemini VLM for unknown steps. Produces `corrected_thought` (T+) for bad steps.
+1. **Trace Filter** — Rule-based scoring only (errors, duplicates, excessive waits, etc.); writes to `filtered_traces`.
 2. **COCO Export** — Converts traces to COCO4GUI format for datasets.
 3. **Vertex Export** — Builds JSONL, uploads to GCS, submits tuning job. Updates `global_model/current` when ready.
 
@@ -271,12 +271,10 @@ Models are configured via environment variables (see `echo_prism/models_config.p
 
 | Component | Env Var | Default |
 |-----------|---------|---------|
-| Main Agent (Alpha) | `ECHOPRISM_ORCHESTRATION_MODEL` | gemini-3.1-pro-preview |
-| Grounding / Locator | `ECHOPRISM_GROUNDING_MODEL`, `ECHOPRISM_LOCATOR_MODEL` | gemini-2.5-flash-001 |
-| Trace Scoring | `ECHOPRISM_TRACE_SCORING_MODEL` | gemini-3.1-pro-preview |
+| Main Agent (Alpha) | `ECHOPRISM_ORCHESTRATION_MODEL` | gemini-2.5-flash |
+| Locator | `ECHOPRISM_LOCATOR_MODEL` | gemini-2.5-flash |
 | Synthesis (video + description) | `ECHOPRISM_SYNTHESIS_MODEL` | gemini-3.1-pro-preview |
-| Chat | `ECHOPRISM_CHAT_MODEL` | gemini-3.1-flash-lite-preview |
-| Voice | `ECHOPRISM_VOICE_MODEL` | gemini-live-2.5-flash-native-audio |
+| Voice | `ECHOPRISM_VOICE_MODEL` | gemini-2.5-flash-native-audio-preview-12-2025 |
 
 ---
 

@@ -783,8 +783,8 @@ export default function WorkflowEditPage() {
 
   if (loading || !workflow) {
     return (
-      <div className="flex flex-1">
-        <div className="flex w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
           {/* Header row: Back icon + Save button */}
           <div className="flex items-center justify-between gap-4">
             <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
@@ -810,8 +810,8 @@ export default function WorkflowEditPage() {
   }
 
   return (
-    <div className="flex flex-1">
-      <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
         {/* Header row */}
         <div className="flex items-center justify-between gap-4">
           <Link
@@ -819,7 +819,7 @@ export default function WorkflowEditPage() {
             className="echo-btn-secondary-accent flex shrink-0 items-center justify-center rounded-lg p-1.5"
             aria-label="Back"
           >
-            <IconArrowLeft className="echo-icon-gradient h-5 w-5" />
+            <IconArrowLeft className="h-5 w-5 text-[#21C4DD]" />
           </Link>
           <button
             type="button"
@@ -827,7 +827,7 @@ export default function WorkflowEditPage() {
             disabled={saving}
             className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2 disabled:opacity-50"
           >
-            <IconCheck className="echo-icon-gradient h-5 w-5 shrink-0" />
+            <IconCheck className="h-5 w-5 shrink-0 text-white" />
             {saving ? "Saving..." : "Save & Activate"}
           </button>
         </div>
@@ -879,7 +879,7 @@ export default function WorkflowEditPage() {
                     type="button"
                     className="echo-btn-secondary-accent flex items-center gap-2"
                   >
-                    <IconPlus className="echo-icon-gradient h-5 w-5 shrink-0" />
+                    <IconPlus className="h-5 w-5 shrink-0 text-[#21C4DD]" />
                     Add Step
                   </button>
                 </DropdownMenuTrigger>

@@ -87,7 +87,7 @@ async def create_workflow(
     ref = db.collection("workflows").document(workflow_id)
     ref.set({
         "owner_uid": uid,
-        "name": (body.name if body else None) or f"Workflow {workflow_id[:8]}",
+        "name": (body.name if body else None) or "Untitled workflow",
         "status": "draft",
         "createdAt": SERVER_TIMESTAMP,
         "updatedAt": SERVER_TIMESTAMP,

@@ -15,15 +15,18 @@ interface LinesGradientShaderProps {
   disableHighlights?: boolean;
 }
 
+/** Primary Lavender #A577FF per design system */
 const DEFAULT_COLORS = [
   "rgba(165, 119, 255, 1)",
+  "rgba(165, 119, 255, 0.95)",
   "rgba(165, 119, 255, 0.85)",
-  "rgba(165, 119, 255, 0.7)",
-  "rgba(165, 119, 255, 0.55)",
-  "rgba(165, 119, 255, 0.4)",
+  "rgba(165, 119, 255, 0.75)",
+  "rgba(165, 119, 255, 0.6)",
+  "rgba(165, 119, 255, 0.5)",
+  "rgba(165, 119, 255, 0.35)",
   "rgba(165, 119, 255, 0.25)",
   "rgba(165, 119, 255, 0.15)",
-  "rgba(165, 119, 255, 0.05)",
+  "rgba(165, 119, 255, 0.08)",
 ];
 
 const parseColorToRgba = (

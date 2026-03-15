@@ -21,6 +21,11 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Run {
   id: string;
@@ -132,8 +137,8 @@ export default function WorkflowDetailPage() {
 
   if (loading || !workflow) {
     return (
-      <div className="flex flex-1 overflow-auto">
-        <div className="flex w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
           {/* Header skeleton: Back, Title, Buttons */}
           <div className="flex flex-col gap-3">
             <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
@@ -171,16 +176,21 @@ export default function WorkflowDetailPage() {
           </div>
         </>
       )}
-      <div className="flex flex-1 overflow-auto">
-        <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border border-[#A577FF]/20 border-l-0 bg-white p-6 shadow-sm md:p-10">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
           <div className="flex flex-col gap-3">
-            <Link
-              href="/dashboard/workflows"
-              className="echo-btn-secondary-accent flex w-fit shrink-0 items-center justify-center rounded-lg p-1.5"
-              aria-label="Back"
-            >
-              <IconArrowLeft className="echo-icon-gradient h-5 w-5" />
-            </Link>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href="/dashboard/workflows"
+                  className="echo-btn-secondary-accent flex w-fit shrink-0 items-center justify-center rounded-lg p-1.5"
+                  aria-label="Back"
+                >
+                  <IconArrowLeft className="h-5 w-5 text-[#21C4DD]" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Back to workflows</TooltipContent>
+            </Tooltip>
             <h1 className="min-w-0 truncate text-base font-semibold text-[#150A35]">
               {String(workflow.name || id)}
             </h1>
@@ -198,7 +208,7 @@ export default function WorkflowDetailPage() {
                 href={`/dashboard/workflows/${id}/edit`}
                 className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm"
               >
-                <IconList className="echo-icon-gradient h-4 w-4" />
+                <IconList className="h-4 w-4 text-[#21C4DD]" />
                 Edit
               </Link>
               <button
@@ -210,7 +220,7 @@ export default function WorkflowDetailPage() {
                 }
                 className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm disabled:opacity-50"
               >
-                <IconPlayerPlay className="echo-icon-gradient h-4 w-4" />
+                <IconPlayerPlay className="h-4 w-4 text-white" />
                 {running ? "Starting..." : "Run"}
               </button>
             </div>

@@ -82,7 +82,7 @@ const plans: Plan[] = [
 export function Pricing() {
   return (
     <Container as="section" className="flex w-full flex-col">
-      <div className="relative mx-auto my-12 flex w-full max-w-7xl flex-1 flex-col px-4 py-0 sm:my-10 md:my-20 lg:px-4">
+      <div className="relative mx-auto my-12 flex w-full max-w-7xl flex-1 flex-col px-0 py-0 md:my-16">
         <Heading
           as="h2"
           className="pt-4 text-center text-2xl font-bold tracking-tight text-[#150A35] md:text-4xl"
@@ -153,11 +153,11 @@ function PricingCard({ plan }: { plan: Plan }) {
             containerClassName="h-11"
             className="flex h-full items-center justify-center px-6 py-2.5 font-medium"
           >
-            <Link href="/sign-in">{plan.buttonText}</Link>
+            <Link href="/get-started">{plan.buttonText}</Link>
           </HoverBorderGradient>
         ) : (
           <Link
-            href="/sign-in"
+            href="/get-started"
             className="echo-btn-secondary-accent flex h-11 w-full items-center justify-center rounded-lg font-medium"
           >
             {plan.buttonText}

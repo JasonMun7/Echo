@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { Logo } from "./logo";
 
 const pages = [
   { title: "Product", href: "/#product" },
@@ -23,7 +23,7 @@ const legals = [
 ];
 
 const signups = [
-  { title: "Get Started", href: "/sign-up" },
+  { title: "Get started", href: "/get-started" },
   { title: "Sign in", href: "/sign-in" },
 ];
 
@@ -32,19 +32,9 @@ export function Footer() {
     <div className="relative w-full overflow-hidden border-t border-[#A577FF]/10 bg-white px-8 pt-20">
       <div className="mx-auto flex max-w-7xl flex-col items-start justify-between text-sm text-gray-600 sm:flex-row md:px-8">
         <div>
-          <Link
-            href="/"
-            className="relative z-20 flex items-center gap-2 px-2 py-1"
-          >
-            <Image
-              src="/echo_logo.png"
-              alt="Echo"
-              width={30}
-              height={30}
-              className="size-8 object-contain"
-            />
-            <span className="font-medium text-[#150A35]">Echo</span>
-          </Link>
+          <span className="relative z-20 inline-block px-2 py-1">
+            <Logo size="sm" />
+          </span>
           <div className="mt-4 flex items-center gap-4">
             {socials.map((s) => (
               <Link
