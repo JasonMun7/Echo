@@ -14,8 +14,11 @@ files:
 publish:
   provider: generic
   url: https://github.com/your-org/echo/releases/download/
+# App icon: build/icon.png is the Echo logo (buildResources default dir is build/)
 mac:
+  icon: build/icon.png
   category: public.app-category.developer-tools
+  identity: null  # skip code signing (no Developer ID / cert)
   extendInfo:
     CFBundleURLTypes:
       - CFBundleURLName: Echo Desktop
@@ -23,6 +26,7 @@ mac:
           - echo-desktop
         CFBundleTypeRole: Editor
 win:
+  icon: build/icon.png
   target:
     - target: nsis
       arch:

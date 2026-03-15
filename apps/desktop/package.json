@@ -1,6 +1,8 @@
 {
   "name": "echo-desktop",
   "version": "0.1.0",
+  "description": "Echo Desktop — workflow assistant and screen capture with Echo Prism",
+  "author": "Echo",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
