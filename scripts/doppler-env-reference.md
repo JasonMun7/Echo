@@ -55,3 +55,20 @@ LiveKit token is fetched from `VITE_ECHO_AGENT_URL` (EchoPrismAgent). Use `VITE_
 
 - **dev** — local development; set `NEXT_PUBLIC_API_URL`, `VITE_API_URL` to `http://localhost:8000`, `NEXT_PUBLIC_ECHO_AGENT_URL`, `VITE_ECHO_AGENT_URL` to `http://localhost:8081` when running EchoPrism Agent locally; use `NEXT_PUBLIC_FIREBASE_PROJECT_ID` for Firebase
 - **prd** — production; deploy script injects Cloud Run URLs at build time
+
+---
+
+## Dev vs production (Voice / LiveKit)
+
+| Context | Variable | Dev | Production |
+|--------|----------|-----|------------|
+| **Desktop app** | `VITE_API_URL` | `http://localhost:8000` | Set at **build time** to backend Cloud Run URL (e.g. `https://echo-backend-{PROJECT_NUMBER}.{REGION}.run.app`) |
+| **Desktop app** | `VITE_ECHO_AGENT_URL` | `http://localhost:8081` | Set at **build time** to EchoPrism Cloud Run URL (e.g. `https://echo-prism-agent-{PROJECT_NUMBER}.{REGION}.run.app`) |
+| **Desktop app** | `VITE_LIVEKIT_SANDBOX_ID` | Optional; when set, desktop uses LiveKit Cloud sandbox for tokens and does not call your backend | Leave **unset** so the desktop fetches the token from EchoPrism (`/api/livekit/token`) |
+| **EchoPrism Agent** (Cloud Run) | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Not needed if you only run chat/synthesis locally | **Required** for voice; set in Cloud Run (e.g. via Doppler secrets or `gcloud run services update --set-env-vars`) so `/api/livekit/token` can issue tokens |
+| **EchoPrism Agent** (Cloud Run) | `GEMINI_API_KEY`, `ECHO_GCS_BUCKET` | From Doppler/local env when running locally | Injected by deploy script from your Doppler **prd** (or shell) when you run `deploy-echo-prism-agent.sh` |
+| **LiveKit Agent** (worker, Cloud Run) | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | From Doppler when running `pnpm run dev:livekit-agent` | Set by `deploy-livekit-agent.sh` from your shell/Doppler (same values as LiveKit Cloud project) |
+| **LiveKit Agent** (worker) | `ECHOPRISM_AGENT_URL` | `http://localhost:8081` (EchoPrism local) | Set by deploy script to **EchoPrism Cloud Run URL** so the worker can call `/api/agent/tool` |
+| **LiveKit Agent** (worker) | `LIVEKIT_AGENT_SECRET`, `GEMINI_API_KEY` | From Doppler for local worker | Set by deploy script from shell/Doppler |
+
+Summary: In **dev**, desktop and LiveKit worker point at localhost URLs. In **production**, desktop must be built with Cloud Run URLs; EchoPrism and the LiveKit worker are deployed with the same LiveKit credentials, and the worker’s `ECHOPRISM_AGENT_URL` must be the deployed EchoPrism service URL.

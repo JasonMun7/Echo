@@ -278,13 +278,16 @@ The deploy script injects `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_ECHO_AGENT_URL`
 
 The main `pnpm run deploy` deploys frontend, backend, echo-prism-agent, and omniparser. The **LiveKit voice agent** is a separate Cloud Run service deployed only when EchoPrism Voice is required.
 
+- **Desktop app**: It *does* call the hosted EchoPrism agent (Cloud Run): the app fetches a LiveKit room token from `VITE_ECHO_AGENT_URL/api/livekit/token`. For production desktop builds, set `VITE_ECHO_AGENT_URL` to your EchoPrism Cloud Run URL (e.g. `https://echo-prism-agent-{PROJECT_NUMBER}.us-central1.run.app`).
+- **Voice in room**: For EchoPrism Voice to work, you must deploy the LiveKit agent so a worker joins the room. Without it, the desktop gets a token and connects, but no voice agent will be present.
+
 To deploy the LiveKit agent:
 
 ```bash
 pnpm run deploy:livekit-agent
 ```
 
-Requires Doppler prd config with: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`, `ECHOPRISM_AGENT_URL`, `GEMINI_API_KEY`. See [EchoPrism LiveKit README](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md).
+Requires Doppler prd config with: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`, `ECHOPRISM_AGENT_URL`, `GEMINI_API_KEY`. The **EchoPrism** Cloud Run service must also have `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` set so `/api/livekit/token` can issue tokens. See [EchoPrism LiveKit README](EchoPrismAgent/agent/echo_prism/subagents/livekit/README.md).
 
 ---
 
@@ -345,6 +348,17 @@ Ensure Firebase and GCP use the same project. Verify `ECHO_GCP_PROJECT_ID` is se
 - Confirm `GEMINI_API_KEY` and `ECHO_GCS_BUCKET` are set for the agent
 - Verify the backend SA can execute the agent job (`roles/run.jobsExecutorWithOverrides` or `run.invoker`)
 - Check Cloud Run Job logs for the agent
+
+### EchoPrism Voice doesn’t connect (desktop)
+
+- **Desktop build**: Ensure `VITE_ECHO_AGENT_URL` is set to the EchoPrism Cloud Run URL when building the desktop app for production.
+- **Token**: EchoPrism Cloud Run must have `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` set; otherwise `/api/livekit/token` returns 503.
+- **No agent in room**: Deploy the LiveKit agent (`pnpm run deploy:livekit-agent`) and set `LIVEKIT_AGENT_SECRET` and `ECHOPRISM_AGENT_URL`; otherwise the room has no voice worker.
+
+### 500 on `/api/synthesize` (echo-prism-agent)
+
+- Set **`GEMINI_API_KEY`** and **`ECHO_GCS_BUCKET`** in the EchoPrism Agent Cloud Run service (or in Doppler prd used at deploy). Missing either yields a 500.
+- Check Cloud Run logs for the echo-prism-agent revision; the handler now logs the full exception (`Synthesis failed: ...`) so you can see the exact error.
 
 ### No live screenshots
 

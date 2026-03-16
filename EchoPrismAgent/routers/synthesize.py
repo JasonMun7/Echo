@@ -19,7 +19,7 @@ from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel as PydanticBaseModel
 
 from app.auth import get_current_uid, get_firebase_app
-from app.config import GEMINI_API_KEY
+from app.config import GEMINI_API_KEY, GCS_BUCKET
 from app.services.gcs import upload_file, download_file as gcs_download_file
 
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
@@ -75,6 +75,11 @@ async def synthesize(
     """
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    if not GCS_BUCKET:
+        raise HTTPException(
+            status_code=500,
+            detail="ECHO_GCS_BUCKET not configured (required for synthesis storage)",
+        )
 
     has_video = bool(video or video_gcs_path)
     workflow_id = str(uuid.uuid4())

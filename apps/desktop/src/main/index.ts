@@ -187,23 +187,47 @@ function collapseWindow(): void {
   tick();
 }
 
-function handleEchoPrismUrl(): void {
+function sendOpenEchoPrism(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (isCollapsed) expandWindow();
-    mainWindow.show();
-    mainWindow.focus();
-    mainWindow.moveTop();
     mainWindow.webContents.send("open-echoprism");
   }
 }
 
-function handleCaptureUrl(): void {
+function sendStartCapture(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (isCollapsed) expandWindow();
-    mainWindow.show();
-    mainWindow.focus();
-    mainWindow.moveTop();
     mainWindow.webContents.send("start-capture");
+  }
+}
+
+function handleEchoPrismUrl(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    pendingOpenEchoPrism = true;
+    return;
+  }
+  if (isCollapsed) expandWindow();
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.moveTop();
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once("did-finish-load", () => sendOpenEchoPrism());
+  } else {
+    sendOpenEchoPrism();
+  }
+}
+
+function handleCaptureUrl(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    pendingStartCapture = true;
+    return;
+  }
+  if (isCollapsed) expandWindow();
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.moveTop();
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once("did-finish-load", () => sendStartCapture());
+  } else {
+    sendStartCapture();
   }
 }
 
@@ -230,6 +254,10 @@ let isRunModeExiting = false;
 
 /** Last N run progress entries — sent to voice interruption overlay for context */
 let recentRunProgress: Array<{ thought: string; action: string; step: number }> = [];
+
+/** Set when a deep link (echoprism/capture) is received before the main window is ready; sent once the window loads. */
+let pendingOpenEchoPrism = false;
+let pendingStartCapture = false;
 
 function stopHudFollowInterval(): void {
   if (hudFollowInterval) {
@@ -310,6 +338,17 @@ function createWindow(): void {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  mainWindow.webContents.once("did-finish-load", () => {
+    if (pendingOpenEchoPrism) {
+      pendingOpenEchoPrism = false;
+      sendOpenEchoPrism();
+    }
+    if (pendingStartCapture) {
+      pendingStartCapture = false;
+      sendStartCapture();
+    }
   });
 
   // Appear above fullscreen apps (e.g. browser) when user opens Echo Prism from web
@@ -620,6 +659,12 @@ app.whenReady().then(async () => {
   );
 
   createWindow();
+
+  // Handle protocol URL passed at launch (e.g. macOS when app was not running)
+  const launchUrl = process.argv.find((a) => a.startsWith("echo-desktop://"));
+  if (launchUrl) {
+    dispatchDeepLink(launchUrl);
+  }
 
   if (app.isPackaged) {
     autoUpdater.on("update-available", () => {

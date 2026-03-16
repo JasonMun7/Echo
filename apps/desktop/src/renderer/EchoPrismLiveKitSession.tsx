@@ -109,6 +109,7 @@ export function EchoPrismLiveKitSession({
     if (SANDBOX_ID) return TokenSource.sandboxTokenServer(SANDBOX_ID);
     return TokenSource.custom(async (options) => {
       const t = await getToken();
+      // Token is issued by EchoPrism Agent (Cloud Run): POST /api/livekit/token with Bearer Firebase ID token
       const res = await fetch(
         `${ECHO_AGENT_URL.replace(/\/$/, "")}/api/livekit/token`,
         {

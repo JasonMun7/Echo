@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconDeviceDesktop } from "@tabler/icons-react";
@@ -8,15 +8,38 @@ import { IconDeviceDesktop } from "@tabler/icons-react";
 const CAPTURE_URL = "echo-desktop://capture";
 const REDIRECT_DELAY_MS = 2000;
 
+/**
+ * Only redirect to get-started if the desktop app did not open (page stays visible).
+ * If the user has the app, it steals focus and we skip the redirect.
+ */
 export default function NewWorkflowPage() {
   const router = useRouter();
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     window.location.href = CAPTURE_URL;
-    const t = setTimeout(() => {
-      router.push("/get-started");
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    redirectTimeoutRef.current = setTimeout(() => {
+      redirectTimeoutRef.current = null;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (document.visibilityState === "visible") {
+        router.push("/get-started");
+      }
     }, REDIRECT_DELAY_MS);
-    return () => clearTimeout(t);
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [router]);
 
   return (
