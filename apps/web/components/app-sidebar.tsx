@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   IconCalendarClock,
   IconDashboard,
-  IconDatabase,
   IconInfoCircle,
   IconJumpRope,
   IconPlug,
@@ -34,7 +33,6 @@ import { useAuthStore } from "@/stores";
 const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: IconDashboard },
   { title: "Workflows", url: "/dashboard/workflows", icon: IconJumpRope },
-  { title: "Playground", url: "/datasets/create", icon: IconDatabase },
   { title: "EchoPrism", url: "echo-desktop://echoprism", icon: IconSparkles2 },
   { title: "MCP Tools", url: "/dashboard/mcp", icon: IconTool },
   { title: "Integrations", url: "/dashboard/integrations", icon: IconPlug },

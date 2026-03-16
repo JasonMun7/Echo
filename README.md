@@ -313,7 +313,7 @@ Create a project at [cloud.livekit.io](https://cloud.livekit.io), copy API key/s
 
 ## Firestore data model
 
-- `users/{userId}` – User profiles (synced on sign-in)
+- `users/{userId}` – User profiles (synced on sign-in). Optional `phone` (E.164) for telephony personalization: when a caller’s SIP number matches, the LiveKit agent greets by name and runs tools for that user.
 - `workflows/{workflowId}` – Workflow metadata (name, status)
 - `workflows/{workflowId}/steps/{stepId}` – Workflow steps (order, action, params)
 - `workflows/{workflowId}/runs/{runId}` – Run metadata (status, lastScreenshotUrl, etc.)

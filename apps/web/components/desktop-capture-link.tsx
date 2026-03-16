@@ -8,8 +8,8 @@ const REDIRECT_DELAY_MS = 2000;
 
 /**
  * Link that opens Echo Desktop capture (echo-desktop://capture).
- * Only redirects to /get-started if the app does not open (page stays visible);
- * if the user has the app, it steals focus and we skip the redirect.
+ * If the app does not open (page stays visible after delay), redirect to /dashboard/workflows
+ * so users who have the app but whose browser doesn't report visibility hidden aren't sent to get-started.
  */
 export const DesktopCaptureLink = forwardRef<
   HTMLAnchorElement,
@@ -40,7 +40,7 @@ export const DesktopCaptureLink = forwardRef<
         redirectTimeoutRef.current = null;
         document.removeEventListener("visibilitychange", onVisibilityChange);
         if (document.visibilityState === "visible") {
-          router.push("/get-started");
+          router.push("/dashboard/workflows");
         }
       }, REDIRECT_DELAY_MS);
     },

@@ -9,8 +9,8 @@ const CAPTURE_URL = "echo-desktop://capture";
 const REDIRECT_DELAY_MS = 2000;
 
 /**
- * Only redirect to get-started if the desktop app did not open (page stays visible).
- * If the user has the app, it steals focus and we skip the redirect.
+ * Try to open Echo Desktop capture. If the app does not open (page stays visible after delay),
+ * redirect to /dashboard/workflows so users who have the app aren't sent to get-started.
  */
 export default function NewWorkflowPage() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function NewWorkflowPage() {
       redirectTimeoutRef.current = null;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       if (document.visibilityState === "visible") {
-        router.push("/get-started");
+        router.push("/dashboard/workflows");
       }
     }, REDIRECT_DELAY_MS);
     return () => {

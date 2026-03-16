@@ -240,8 +240,24 @@ async def _execute_tool(
         return {"workflows": workflows}
 
     elif name == "run_workflow":
-        workflow_id = args.get("workflow_id", "")
-        workflow_name = args.get("workflow_name", "")
+        workflow_id = args.get("workflow_id", "").strip()
+        workflow_name = (args.get("workflow_name", "") or "").strip()
+        if not workflow_id and workflow_name:
+            # Resolve workflow by name so the LLM can call with workflow_name only
+            name_docs = (
+                db.collection("workflows")
+                .where(filter=FieldFilter("owner_uid", "==", uid))
+                .where(filter=FieldFilter("name", "==", workflow_name))
+                .limit(1)
+                .stream()
+            )
+            name_docs = list(name_docs)
+            if name_docs:
+                workflow_id = name_docs[0].id
+            else:
+                return {"ok": False, "error": f"No workflow found with name \"{workflow_name}\". Use list_workflows to see names and IDs."}
+        if not workflow_id:
+            return {"ok": False, "error": "Provide workflow_id or workflow_name to run a workflow."}
         run_id = str(uuid.uuid4())
         run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
         run_ref.set({
@@ -263,7 +279,11 @@ async def _execute_tool(
                 }))
             except Exception:
                 pass
-        return {"ok": True, "run_id": run_id, "workflow_id": workflow_id, "workflow_name": workflow_name}
+        result = {"ok": True, "run_id": run_id, "workflow_id": workflow_id, "workflow_name": workflow_name}
+        app_url = (os.environ.get("ECHO_APP_URL") or os.environ.get("FRONTEND_URL") or "").rstrip("/")
+        if app_url:
+            result["run_dashboard_url"] = f"{app_url}/dashboard/workflows/{workflow_id}/runs/{run_id}"
+        return result
 
     elif name == "run_adhoc":
         instruction = args.get("instruction", "")
