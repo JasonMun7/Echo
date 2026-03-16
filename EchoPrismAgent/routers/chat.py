@@ -279,7 +279,11 @@ async def _execute_tool(
                 }))
             except Exception:
                 pass
-        return {"ok": True, "run_id": run_id, "workflow_id": workflow_id, "workflow_name": workflow_name}
+        result = {"ok": True, "run_id": run_id, "workflow_id": workflow_id, "workflow_name": workflow_name}
+        app_url = (os.environ.get("ECHO_APP_URL") or os.environ.get("FRONTEND_URL") or "").rstrip("/")
+        if app_url:
+            result["run_dashboard_url"] = f"{app_url}/dashboard/workflows/{workflow_id}/runs/{run_id}"
+        return result
 
     elif name == "run_adhoc":
         instruction = args.get("instruction", "")

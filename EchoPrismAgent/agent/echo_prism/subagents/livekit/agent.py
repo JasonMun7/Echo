@@ -68,6 +68,7 @@ On first connection, proactively greet the user and offer to list their workflow
 
 When a user asks what a workflow does, use list_workflows to find it, then describe it in plain language based on the name.
 When a user asks to run something, call list_workflows first to find the right workflow, then run it — confirm with the workflow name only.
+When run_workflow succeeds, if the result includes run_dashboard_url, tell the user they can open their Echo dashboard (or the link if you can share it) to see and track the run.
 When synthesizing from description, use synthesize_from_description immediately — do not ask for confirmation first.
 When the user asks to navigate somewhere, do something on a site, or perform a task without explicitly asking for a workflow, use run_adhoc.
 After an ad-hoc run starts, say: "I've started that for you. You can track it in your dashboard. Would you like to save this as a reusable workflow?"

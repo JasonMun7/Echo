@@ -226,6 +226,16 @@ async def agent_tool(
             db,
             websocket=None,
         )
+        extra = ""
+        if body.name == "run_workflow":
+            if result.get("error"):
+                extra = " error=%r" % (result.get("error"),)
+            else:
+                extra = " run_id=%s workflow_id=%s" % (
+                    result.get("run_id"),
+                    result.get("workflow_id"),
+                )
+        logger.info("[agent/tool] %s -> ok=%s%s", body.name, result.get("ok"), extra)
         return result
     except Exception as e:
         logger.exception("Agent tool %s failed: %s", body.name, e)
