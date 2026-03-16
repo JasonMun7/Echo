@@ -24,8 +24,11 @@ echo/
 │   └── desktop/          # Electron + Vite desktop app
 ├── packages/
 │   └── echo-types/       # Shared TypeScript types
-├── backend/              # FastAPI app + EchoPrism agent
-├── firebase/             # Firebase config, rules
+├── backend/              # FastAPI API (datasets, workflows, runs, storage)
+├── EchoPrismAgent/       # EchoPrism agent service (chat, LiveKit, synthesis)
+├── OmniParser/           # UI element grounding service (GPU, Cloud Run)
+├── firebase/             # Firebase config, rules, indexes
+├── docs/                 # Architecture and reference docs
 ├── scripts/              # deploy.sh, deploy/, Python helpers
 └── package.json          # Root scripts (dev, build, deploy)
 ```
