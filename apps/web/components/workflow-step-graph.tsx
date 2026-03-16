@@ -23,13 +23,20 @@ type Step = {
   expected_outcome?: string;
 };
 
+function formatAction(action: string): string {
+  return action
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function stepsToNodes(steps: Step[]): Node[] {
   return steps.map((s, i) => ({
     id: s.id,
     type: "default",
-    position: { x: 100, y: i * 80 },
+    position: { x: 100, y: i * 100 },
     data: {
-      label: s.context ? s.action + ": " + s.context.slice(0, 30) : s.action,
+      label: `${i + 1}. ${formatAction(s.action)}${s.context ? ": " + s.context.slice(0, 30) : ""}`,
     },
   }));
 }
@@ -44,10 +51,10 @@ function stepsToEdges(steps: Step[]): Edge[] {
 
 export function WorkflowStepGraph({
   steps,
-  onNodesChange: _onNodesChange,
+  onNodeSelect,
 }: {
   steps: Step[];
-  onNodesChange?: (nodes: Node[]) => void;
+  onNodeSelect?: (stepId: string | null) => void;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(stepsToNodes(steps));
   const [edges, setEdges, onEdgesChange] = useEdgesState(stepsToEdges(steps));
@@ -70,6 +77,8 @@ export function WorkflowStepGraph({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={(_evt, node) => onNodeSelect?.(node.id)}
+        onPaneClick={() => onNodeSelect?.(null)}
         fitView
       >
         <Background />

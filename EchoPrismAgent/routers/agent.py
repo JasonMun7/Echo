@@ -6,6 +6,7 @@ Alpha orchestrates subagents; returns actions for clients to execute locally (Nu
 
 Auth: Firebase ID token (token query param).
 """
+import asyncio
 import base64
 import json
 import logging
@@ -16,6 +17,7 @@ from pathlib import Path
 import firebase_admin
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from firebase_admin import auth as firebase_auth
+from firebase_admin import firestore as fs_module
 
 from app.auth import get_firebase_app
 
@@ -58,6 +60,28 @@ async def _validate_run_access(uid: str, workflow_id: str, run_id: str) -> bool:
         return data.get("owner_uid") == uid
     except Exception:
         return False
+
+
+def _write_run_log(db, workflow_id: str, run_id: str, thought: str, action: str, step_index: int, level: str = "info") -> None:
+    """Write a thought+action log entry to Firestore (called in a thread)."""
+    try:
+        logs_col = (
+            db.collection("workflows")
+            .document(workflow_id)
+            .collection("runs")
+            .document(run_id)
+            .collection("logs")
+        )
+        logs_col.add({
+            "thought": thought,
+            "action": action,
+            "step_index": step_index,
+            "message": f"Step {step_index + 1}: {action}" if action else thought,
+            "level": level,
+            "timestamp": fs_module.SERVER_TIMESTAMP,
+        })
+    except Exception as e:
+        logger.warning("Failed to write run log: %s", e)
 
 
 @router.websocket("/run")
@@ -213,11 +237,20 @@ async def agent_run_ws(
                 )
 
                 if result == "finished":
+                    if workflow_id and run_id and thought:
+                        asyncio.create_task(asyncio.to_thread(
+                            _write_run_log, db, workflow_id, run_id, thought, "Finished", step_index
+                        ))
                     await send({"type": "action", "thought": thought, "signal": "finished"})
                     await send({"type": "done", "success": True})
                     continue
 
                 if result == "calluser":
+                    if workflow_id and run_id:
+                        reason = err or "Agent needs user intervention"
+                        asyncio.create_task(asyncio.to_thread(
+                            _write_run_log, db, workflow_id, run_id, thought, f"CallUser: {reason}", step_index, "warn"
+                        ))
                     await send({
                         "type": "action",
                         "thought": thought,
@@ -229,6 +262,10 @@ async def agent_run_ws(
                 if result is True and parsed_action:
                     pending_thought = thought
                     pending_action_str = action_str
+                    if workflow_id and run_id:
+                        asyncio.create_task(asyncio.to_thread(
+                            _write_run_log, db, workflow_id, run_id, thought, action_str, step_index
+                        ))
                     await send({
                         "type": "action",
                         "action": parsed_action,

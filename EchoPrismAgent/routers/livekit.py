@@ -90,7 +90,8 @@ async def livekit_token(
             detail="livekit-api package not installed",
         )
 
-    room_name = (body and body.room_name) or f"echoprism-{uid}"
+    import time as _time
+    room_name = (body and body.room_name) or f"echoprism-{uid}-{int(_time.time())}"
     token = AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
     token = token.with_identity(uid).with_name(uid)
     token = token.with_grants(VideoGrants(

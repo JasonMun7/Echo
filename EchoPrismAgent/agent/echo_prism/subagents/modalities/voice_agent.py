@@ -142,6 +142,11 @@ async def run_voice_session(
                     except Exception as e:
                         if not disconnected.is_set():
                             logger.warning("voice recv_from_gemini error: %s", e)
+                            retry_count = getattr(recv_from_gemini, "_retry_count", 0) + 1
+                            recv_from_gemini._retry_count = retry_count  # type: ignore[attr-defined]
+                            if retry_count < 3:
+                                await asyncio.sleep(1.0 * retry_count)
+                                continue
                         break
 
             await asyncio.gather(

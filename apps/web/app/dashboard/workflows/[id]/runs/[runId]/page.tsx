@@ -22,6 +22,7 @@ import {
   IconUserQuestion,
   IconRefresh,
   IconBrain,
+  IconBolt,
   IconMicrophone,
 } from "@tabler/icons-react";
 import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
@@ -39,6 +40,9 @@ interface ThoughtEntry {
 interface LogEntry {
   id: string;
   message: string;
+  thought?: string;
+  action?: string;
+  step_index?: number;
   level?: string;
   timestamp: unknown;
 }
@@ -423,23 +427,53 @@ export default function RunDetailPage() {
               <p className="text-white/30">No log output.</p>
             ) : (
               logs.map((log) => (
-                <div key={log.id} className="flex gap-3 leading-relaxed">
-                  {formatTimestamp(log.timestamp) && (
-                    <span className="shrink-0 text-white/30 text-xs mt-0.5">
-                      {formatTimestamp(log.timestamp)}
-                    </span>
+                <div key={log.id} className="mb-3 leading-relaxed">
+                  {/* Step header with timestamp */}
+                  {(log.thought || log.action) && (
+                    <div className="flex items-center gap-2 mb-1">
+                      {formatTimestamp(log.timestamp) && (
+                        <span className="text-white/25 text-xs">{formatTimestamp(log.timestamp)}</span>
+                      )}
+                      {log.step_index !== undefined && (
+                        <span className="text-white/25 text-xs">Step {log.step_index + 1}</span>
+                      )}
+                    </div>
                   )}
-                  <span
-                    className={
-                      log.level === "error"
-                        ? "text-echo-error"
-                        : log.level === "warn"
-                        ? "text-yellow-400"
-                        : "text-white/80"
-                    }
-                  >
-                  {log.message}
-                  </span>
+                  {/* Thought row */}
+                  {log.thought && (
+                    <div className="flex gap-2 items-start mb-1">
+                      <IconBrain className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#A577FF]" />
+                      <span className="text-white/70 text-xs leading-relaxed">{log.thought}</span>
+                    </div>
+                  )}
+                  {/* Action row */}
+                  {log.action && (
+                    <div className="flex gap-2 items-start">
+                      <IconBolt className="h-3.5 w-3.5 shrink-0 mt-0.5 text-cyan-400" />
+                      <span className="text-cyan-300 text-xs font-mono">{log.action}</span>
+                    </div>
+                  )}
+                  {/* Plain message fallback (no thought/action) */}
+                  {!log.thought && !log.action && (
+                    <div className="flex gap-3">
+                      {formatTimestamp(log.timestamp) && (
+                        <span className="shrink-0 text-white/30 text-xs mt-0.5">
+                          {formatTimestamp(log.timestamp)}
+                        </span>
+                      )}
+                      <span
+                        className={
+                          log.level === "error"
+                            ? "text-echo-error"
+                            : log.level === "warn"
+                            ? "text-yellow-400"
+                            : "text-white/80"
+                        }
+                      >
+                        {log.message}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))
             )}

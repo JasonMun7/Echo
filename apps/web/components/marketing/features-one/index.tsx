@@ -27,17 +27,18 @@ import {
 export function FeaturesOne() {
   return (
     <Container as="section" id="product" className="py-10 md:py-20 lg:py-32">
-      <Heading>Autonomous AI workflow features</Heading>
+      <Heading>How Echo works</Heading>
       <SubHeading className="mt-2">
-        From prototype to production, autonomously
+        Show it once. Run it forever.
       </SubHeading>
       <div className="mx-auto mt-8 grid grid-cols-1 gap-4 md:mt-12 md:grid-cols-3 md:grid-rows-2">
         <MarketingCard className="md:row-span-2">
           <MarketingCardContent className="flex h-full flex-col">
             <MarketingCardHeader>
-              <MarketingCardTitle>Easy auth setup</MarketingCardTitle>
+              <MarketingCardTitle>Show Echo what to do</MarketingCardTitle>
               <MarketingCardDescription>
-                Get started in minutes with our simple authentication flow.
+                Record a video or take screenshots of any workflow. Gemini 2.5
+                Pro synthesizes it into a step-by-step AI plan in seconds.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center overflow-hidden pt-4">
@@ -49,10 +50,10 @@ export function FeaturesOne() {
         <MarketingCard>
           <MarketingCardContent className="flex h-full flex-col">
             <MarketingCardHeader>
-              <MarketingCardTitle>You&apos;re secure, everywhere</MarketingCardTitle>
+              <MarketingCardTitle>Live vision execution</MarketingCardTitle>
               <MarketingCardDescription>
-                Enterprise-grade security that follows your users across the
-                globe. Built-in encryption, compliance, and monitoring.
+                EchoPrism watches your screen in real time, deciding each click
+                and keystroke using OmniParser grounding — not blind guessing.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center pt-4">
@@ -64,10 +65,11 @@ export function FeaturesOne() {
         <MarketingCard className="md:row-span-2">
           <MarketingCardContent className="flex h-full flex-col">
             <MarketingCardHeader>
-              <MarketingCardTitle>Real-time collaboration</MarketingCardTitle>
+              <MarketingCardTitle>Voice control, anytime</MarketingCardTitle>
               <MarketingCardDescription>
-                Connect with your team instantly. AI-powered insights help you
-                work smarter together.
+                Say &ldquo;run my report&rdquo; to start, or interrupt
+                mid-run to redirect. EchoPrism listens via LiveKit + Gemini
+                Live and responds instantly.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 flex-col items-center justify-between gap-2 overflow-hidden pt-4">
@@ -83,10 +85,10 @@ export function FeaturesOne() {
         <MarketingCard>
           <MarketingCardContent className="flex h-full flex-col">
             <MarketingCardHeader>
-              <MarketingCardTitle>SDK available for everything</MarketingCardTitle>
+              <MarketingCardTitle>Browser &amp; desktop, natively</MarketingCardTitle>
               <MarketingCardDescription>
-                Native SDKs for every platform. React, Vue, iOS, Android, and
-                more.
+                Works on any web app in Chrome and on native desktop apps
+                through our Electron agent. No browser extension needed.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center overflow-hidden mask-r-from-50% pt-4">
@@ -99,18 +101,18 @@ export function FeaturesOne() {
       <div className="mx-auto mt-4 grid grid-cols-1 gap-4 md:mt-12 md:grid-cols-3">
         <MarketingFeatureCard
           icon={<IconBolt className="group-hover:text-[#A577FF] size-5" />}
-          title="Lightning-fast deployments"
-          description="Push to production in seconds. Our CI/CD pipeline handles builds, tests, and rollbacks automatically."
-        />
-        <MarketingFeatureCard
-          icon={<IconChartBar className="group-hover:text-[#A577FF] size-5" />}
-          title="Built-in analytics"
-          description="Track user behavior, monitor performance, and gain actionable insights without third-party tools."
+          title="Gemini-powered"
+          description="Vision, synthesis, and native audio all run on Gemini 2.5 Pro — the same model that sees, thinks, and speaks."
         />
         <MarketingFeatureCard
           icon={<IconPuzzle className="group-hover:text-[#A577FF] size-5" />}
-          title="Seamless integrations"
-          description="Connect with your existing stack. Slack, GitHub, Jira, and 100+ integrations out of the box."
+          title="Connect your tools"
+          description="Deep integrations with Slack, Gmail, GitHub, Notion, Google Sheets, Google Calendar, and Linear."
+        />
+        <MarketingFeatureCard
+          icon={<IconChartBar className="group-hover:text-[#A577FF] size-5" />}
+          title="Built on Google Cloud"
+          description="Cloud Run, Firestore, Vertex AI, and GCS — enterprise-grade infrastructure with zero servers to manage."
         />
       </div>
     </Container>
