@@ -308,7 +308,7 @@ Requires `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-Visit the [live demo](https://echo-frontend-607073095974.us-central1.run.app) to try Echo out.
+Visit the [live demo](https://echo-frontend-607073095974.us-central1.run.app) to check out our web app. Make sure to follow the instructions in our [releases](https://github.com/JasonMun7/Echo/releases) page to ensure the desktop app can be ran.
 
 1. **Create a workflow** — record a screen capture, describe steps via chat, or use voice on the desktop app
 2. **Edit steps** — review and modify the auto-generated workflow steps in the dashboard
