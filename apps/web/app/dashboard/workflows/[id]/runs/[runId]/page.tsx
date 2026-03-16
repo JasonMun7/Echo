@@ -62,6 +62,69 @@ function formatTimestamp(ts: unknown): string {
   });
 }
 
+/** Load step screenshot via authenticated API so it works in production (avoids expired signed URLs / CORS). */
+function RunStepScreenshot({
+  workflowId,
+  runId,
+  stepIndex,
+  token,
+  fallbackUrl,
+  alt,
+  className,
+}: {
+  workflowId: string;
+  runId: string;
+  stepIndex: number | undefined;
+  token: string | null;
+  fallbackUrl?: string | null;
+  alt: string;
+  className?: string;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const blobUrlRef = useRef<string | null>(null);
+  const step = stepIndex ?? 0;
+
+  useEffect(() => {
+    if (token && workflowId && runId) {
+      setError(false);
+      const url = `${API_URL}/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
+      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (!res.ok) throw new Error("Screenshot not found");
+          return res.blob();
+        })
+        .then((blob) => {
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = URL.createObjectURL(blob);
+          setSrc(blobUrlRef.current);
+        })
+        .catch(() => setError(true));
+    } else if (fallbackUrl) {
+      setSrc(fallbackUrl);
+    } else {
+      setSrc(null);
+    }
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [workflowId, runId, step, token, fallbackUrl]);
+
+  if (error && !fallbackUrl) return null;
+  const imgSrc = src || (error ? fallbackUrl : null);
+  if (!imgSrc) return null;
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={className}
+    />
+  );
+}
+
 export default function RunDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -455,11 +518,15 @@ export default function RunDetailPage() {
                       <span className="text-cyan-300 text-xs font-mono">{log.action}</span>
                     </div>
                   )}
-                  {/* Screenshot for this step (state after the action) */}
-                  {log.screenshot_url && (
+                  {/* Screenshot for this step (state after the action); use auth API in production so images load reliably */}
+                  {(log.screenshot_url != null || log.step_index != null) && (
                     <div className="mt-2 rounded-lg overflow-hidden border border-white/10 bg-white/5 max-w-full w-fit">
-                      <img
-                        src={log.screenshot_url}
+                      <RunStepScreenshot
+                        workflowId={workflowId}
+                        runId={runId}
+                        stepIndex={log.step_index}
+                        token={token}
+                        fallbackUrl={log.screenshot_url}
                         alt={`Step ${(log.step_index ?? 0) + 1} screenshot`}
                         className="max-h-48 object-contain block"
                       />

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import {
   IconGripVertical,
   IconPlayerPause,
@@ -71,13 +71,15 @@ export default function RunHud({
 
   // Show all entries we have (RunHudWrapper caps at RUN_PROGRESS_MAX_ENTRIES so this stays bounded)
   const recent = liveProgress;
-  // Group by step so each step has one card: thoughts in order, then actions in order
+  // Group by step; dedupe thoughts and actions so the same text doesn't appear twice per step
   const byStep = recent.reduce(
     (acc, e) => {
       const step = e.step || 1;
       if (!acc[step]) acc[step] = { thoughts: [] as string[], actions: [] as string[] };
-      if (e.thought != null && e.thought !== "") acc[step].thoughts.push(e.thought);
-      if (e.action != null && e.action !== "") acc[step].actions.push(e.action);
+      const t = (e.thought ?? "").trim();
+      if (t && !acc[step].thoughts.includes(t)) acc[step].thoughts.push(t);
+      const a = (e.action ?? "").trim();
+      if (a && !acc[step].actions.includes(a)) acc[step].actions.push(a);
       return acc;
     },
     {} as Record<number, { thoughts: string[]; actions: string[] }>
@@ -113,7 +115,9 @@ export default function RunHud({
         {/* Scrollable thought + action stream */}
         <div
           className="echo-hud-no-drag flex min-h-0 flex-1 flex-col overflow-hidden"
-          style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
+          style={
+            { WebkitAppRegion: "no-drag", appRegion: "no-drag" } as CSSProperties
+          }
         >
           <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-3">
             <div className="flex items-center gap-1.5 text-(--echo-text-secondary)">
@@ -188,7 +192,9 @@ export default function RunHud({
           {isAwaitingUser && callUserReason ? (
             <div
               className="echo-hud-no-drag shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-3 py-3"
-              style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
+              style={
+                { WebkitAppRegion: "no-drag", appRegion: "no-drag" } as CSSProperties
+              }
             >
               <p className="mb-1 text-sm font-semibold text-(--echo-text)">
                 EchoPrism needs your help
@@ -221,7 +227,9 @@ export default function RunHud({
           {/* Footer controls (like RecordingHud) */}
           <div
             className="echo-hud-no-drag flex shrink-0 items-center justify-end gap-2 border-t border-(--echo-border) px-3 py-2.5"
-            style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
+            style={
+              { WebkitAppRegion: "no-drag", appRegion: "no-drag" } as CSSProperties
+            }
           >
             <Tooltip>
               <TooltipTrigger asChild>

@@ -57,6 +57,7 @@ declare global {
       resumeRun: () => Promise<{ ok: boolean }>;
       cancelRun: () => Promise<void>;
       sendInterrupt: (text: string) => Promise<void>;
+      openVoiceInterruption: () => Promise<{ ok: boolean; error?: string }>;
       onRunProgress: (
         cb: (entry: { thought: string; action: string; step: number }) => void,
       ) => void;

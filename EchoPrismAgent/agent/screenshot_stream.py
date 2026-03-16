@@ -125,3 +125,30 @@ def upload_step_screenshot(
     except Exception as e:
         logger.warning("Failed to upload step screenshot: %s", e)
         return None
+
+
+def get_step_screenshot_bytes(
+    workflow_id: str,
+    run_id: str,
+    step_index: int,
+) -> bytes | None:
+    """
+    Download step screenshot bytes from GCS for run logs (e.g. for authenticated API serving).
+    Returns the image bytes or None if not found / bucket not configured.
+    """
+    bucket_name = os.environ.get("ECHO_GCS_BUCKET")
+    if not bucket_name:
+        return None
+    blob_name = f"runs/{workflow_id}/{run_id}/step_{step_index}.png"
+    try:
+        from google.cloud import storage
+
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        if not blob.exists():
+            return None
+        return blob.download_as_bytes()
+    except Exception as e:
+        logger.warning("Failed to get step screenshot: %s", e)
+        return None
