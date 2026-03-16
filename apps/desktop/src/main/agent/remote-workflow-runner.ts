@@ -8,16 +8,15 @@ import WebSocket from "ws";
 import { isDeterministic } from "./direct-executor";
 import * as operator from "../operators/unified-operator";
 import type { OperatorResult } from "../operators/unified-operator";
-import {
-  waitIfPaused,
-  isCancelRequested,
-  clearCancel,
-} from "../run-control";
+import { waitIfPaused, isCancelRequested, clearCancel } from "../run-control";
 
 export type { Step };
 
 /** Active WebSocket ref — closed by abortActiveRun when user cancels */
 let activeWs: WebSocket | null = null;
+
+/** Max retries per step: reobserve → think → act → verify. No calluser; agent drives retries. */
+const MAX_STEP_ATTEMPTS = 30;
 
 export function abortActiveRun(): void {
   if (activeWs && activeWs.readyState === 1) {
@@ -38,7 +37,12 @@ export interface RunWorkflowRemoteOptions {
   token?: string;
   backendUrl?: string;
   agentWsUrl?: string;
-  onProgress?: (message: string, stepNum?: number, thought?: string, action?: string) => void;
+  onProgress?: (
+    message: string,
+    stepNum?: number,
+    thought?: string,
+    action?: string,
+  ) => void;
   onAwaitingUser?: (reason: string) => void;
   /** For goal-only (ad-hoc) runs: single instruction, no pre-defined steps */
   goal?: string;
@@ -50,19 +54,32 @@ async function pollRunSignals(opts: RunWorkflowRemoteOptions): Promise<{
   cancelRequested: boolean;
 }> {
   if (!opts.workflowId || !opts.runId || !opts.backendUrl) {
-    return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
+    return {
+      redirectInstruction: null,
+      calluserFeedback: null,
+      cancelRequested: false,
+    };
   }
   try {
     if (isCancelRequested()) {
-      return { redirectInstruction: null, calluserFeedback: null, cancelRequested: true };
+      return {
+        redirectInstruction: null,
+        calluserFeedback: null,
+        cancelRequested: true,
+      };
     }
     const res = await fetch(
       `${opts.backendUrl}/api/run/${opts.workflowId}/${opts.runId}/poll-signals`,
       {
         headers: opts.token ? { Authorization: `Bearer ${opts.token}` } : {},
-      }
+      },
     );
-    if (!res.ok) return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
+    if (!res.ok)
+      return {
+        redirectInstruction: null,
+        calluserFeedback: null,
+        cancelRequested: false,
+      };
     const data = (await res.json()) as {
       redirect_instruction?: string | null;
       calluser_feedback?: string | null;
@@ -75,14 +92,18 @@ async function pollRunSignals(opts: RunWorkflowRemoteOptions): Promise<{
     };
   } catch (e) {
     console.warn("[remote-workflow-runner] pollRunSignals failed:", e);
-    return { redirectInstruction: null, calluserFeedback: null, cancelRequested: false };
+    return {
+      redirectInstruction: null,
+      calluserFeedback: null,
+      cancelRequested: false,
+    };
   }
 }
 
 async function patchRunStatus(
   opts: RunWorkflowRemoteOptions,
   status: string,
-  extra: Record<string, unknown> = {}
+  extra: Record<string, unknown> = {},
 ): Promise<void> {
   if (!opts.workflowId || !opts.runId || !opts.backendUrl) return;
   try {
@@ -95,7 +116,7 @@ async function patchRunStatus(
           ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
         },
         body: JSON.stringify({ status, ...extra }),
-      }
+      },
     );
   } catch (e) {
     console.warn("[remote-workflow-runner] PATCH run status failed:", e);
@@ -107,24 +128,31 @@ function stepToBackendFormat(step: Step): Record<string, unknown> {
     action: step.action,
     params: step.params ?? {},
     context: step.context ?? "",
-    expected_outcome: (step as unknown as Record<string, unknown>).expected_outcome ?? "",
+    expected_outcome:
+      (step as unknown as Record<string, unknown>).expected_outcome ?? "",
   };
 }
 
 export async function runWorkflowRemote(
   steps: Step[],
   options?: RunWorkflowRemoteOptions,
-  _db?: unknown
+  _db?: unknown,
 ): Promise<{ success: boolean; error?: string }> {
   const sourceId = options?.sourceId;
   const workflowType = options?.workflowType ?? "desktop";
   const onProgress = options?.onProgress ?? (() => {});
 
-  if (!sourceId) return { success: false, error: "sourceId required for screen capture" };
-  if (!options?.backendUrl) return { success: false, error: "backendUrl required" };
-  if (!options?.token) return { success: false, error: "token required for WebSocket auth" };
+  if (!sourceId)
+    return { success: false, error: "sourceId required for screen capture" };
+  if (!options?.backendUrl)
+    return { success: false, error: "backendUrl required" };
+  if (!options?.token)
+    return { success: false, error: "token required for WebSocket auth" };
 
-  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
+  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(
+    /^http/,
+    "ws",
+  );
   const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
 
   const backendSteps = steps.map((s) => stepToBackendFormat(s));
@@ -144,7 +172,9 @@ export async function runWorkflowRemote(
           ws.off("error", onError);
           ws.off("close", onClose);
           try {
-            const text = Buffer.isBuffer(data) ? data.toString("utf-8") : String(data);
+            const text = Buffer.isBuffer(data)
+              ? data.toString("utf-8")
+              : String(data);
             resolve(JSON.parse(text) as object);
           } catch {
             reject(new Error("Invalid JSON from agent"));
@@ -187,7 +217,9 @@ export async function runWorkflowRemote(
       return { success: false, error: err };
     }
     if ((msg as { type?: string }).type !== "ready") {
-      await patchRunStatus(options ?? {}, "failed", { error: "Unexpected agent response" });
+      await patchRunStatus(options ?? {}, "failed", {
+        error: "Unexpected agent response",
+      });
       return { success: false, error: "Unexpected agent response" };
     }
 
@@ -228,7 +260,8 @@ export async function runWorkflowRemote(
           await patchRunStatus(options, "cancelled");
           return { success: false, error: "Run cancelled by user" };
         }
-        const instruction = signals.redirectInstruction ?? signals.calluserFeedback;
+        const instruction =
+          signals.redirectInstruction ?? signals.calluserFeedback;
         if (instruction) {
           applyRedirect(i, instruction);
         }
@@ -239,7 +272,12 @@ export async function runWorkflowRemote(
       const stepNum = i + 1;
       const total = steps.length;
 
-      onProgress(`Step ${stepNum}/${total}: ${step.action} — ${String(step.context).slice(0, 50)}`, stepNum, undefined, String(step.action));
+      onProgress(
+        `Step ${stepNum}/${total}: ${step.action} — ${String(step.context).slice(0, 50)}`,
+        stepNum,
+        undefined,
+        String(step.action),
+      );
 
       const deterministic = isDeterministic(step);
 
@@ -247,7 +285,7 @@ export async function runWorkflowRemote(
       let stepSucceeded = false;
       let screenshotB64: string | undefined;
 
-      for (let attempt = 0; attempt <= 3; attempt++) {
+      for (let attempt = 0; attempt < MAX_STEP_ATTEMPTS; attempt++) {
         // Between retry attempts: respect pause and pick up any redirect that arrived
         // while the voice overlay was open. This also prevents screenshots from being
         // taken while the voice interruption overlay is visible on screen.
@@ -259,8 +297,12 @@ export async function runWorkflowRemote(
           await new Promise((r) => setTimeout(r, 200));
           if (options) {
             const midSignals = await pollRunSignals(options);
-            if (midSignals.cancelRequested) { lastError = "cancelled"; break; }
-            const midInstruction = midSignals.redirectInstruction ?? midSignals.calluserFeedback;
+            if (midSignals.cancelRequested) {
+              lastError = "cancelled";
+              break;
+            }
+            const midInstruction =
+              midSignals.redirectInstruction ?? midSignals.calluserFeedback;
             if (midInstruction) {
               applyRedirect(i, midInstruction);
               // Refresh local reference — applyRedirect replaces the steps[i] object
@@ -270,7 +312,9 @@ export async function runWorkflowRemote(
         }
 
         const expectedOutcome =
-          (step as unknown as Record<string, unknown>).expected_outcome as string | undefined ?? "";
+          ((step as unknown as Record<string, unknown>).expected_outcome as
+            | string
+            | undefined) ?? "";
 
         if (deterministic) {
           send({
@@ -301,14 +345,26 @@ export async function runWorkflowRemote(
         msg = await receive();
 
         while ((msg as { type?: string }).type === "thinking") {
-          onProgress((msg as { thought?: string }).thought ?? "", stepNum, (msg as { thought?: string }).thought);
+          onProgress(
+            (msg as { thought?: string }).thought ?? "",
+            stepNum,
+            (msg as { thought?: string }).thought,
+          );
           msg = await receive();
         }
 
-        const m = msg as { type?: string; thought?: string; signal?: string; action?: Record<string, unknown>; action_str?: string; message?: string; reason?: string };
+        const m = msg as {
+          type?: string;
+          thought?: string;
+          signal?: string;
+          action?: Record<string, unknown>;
+          action_str?: string;
+          message?: string;
+          reason?: string;
+        };
         if (m.type === "error") {
           lastError = m.message ?? "Agent error";
-          if (attempt < 3) await new Promise((r) => setTimeout(r, 500));
+          if (attempt < MAX_STEP_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 500));
           continue;
         }
 
@@ -323,53 +379,74 @@ export async function runWorkflowRemote(
           const thought = m.thought ?? "";
 
           if (signal === "step_done") {
-            onProgress(thought || `Step ${stepNum} complete`, stepNum, thought || undefined, "step_done");
+            onProgress(
+              thought || `Step ${stepNum} complete`,
+              stepNum,
+              thought || undefined,
+              "step_done",
+            );
             stepSucceeded = true;
             break;
           }
 
           if (signal === "finished") {
-            onProgress(`Agent signaled Finished at step ${stepNum}. Thought: ${thought}`, stepNum, thought, "finished");
+            onProgress(
+              `Agent signaled Finished at step ${stepNum}. Thought: ${thought}`,
+              stepNum,
+              thought,
+              "finished",
+            );
             await patchRunStatus(options ?? {}, "completed");
             return { success: true };
           }
 
           if (signal === "calluser") {
-            const reason = m.reason ?? "Agent requested user intervention";
-            onProgress(`Step failed: ${reason}`, stepNum, thought, "calluser");
-            await patchRunStatus(options ?? {}, "failed", { callUserReason: reason });
-            return { success: false, error: reason };
+            lastError = m.reason ?? "Agent requested user intervention";
+            onProgress(`Retrying: ${lastError}`, stepNum, thought, "calluser");
+            if (attempt < MAX_STEP_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 500));
+            continue;
           }
 
           if (signal === "execute" && m.action) {
-            const actionStr = m.action_str ?? (typeof (m.action as { action?: string })?.action === "string" ? (m.action as { action: string }).action : "");
+            const actionStr =
+              m.action_str ??
+              (typeof (m.action as { action?: string })?.action === "string"
+                ? (m.action as { action: string }).action
+                : "");
             onProgress(thought || "Executing…", stepNum, thought, actionStr);
             const execResult: OperatorResult = await operator.execute(
-              m.action as import("@echo/types").OperatorAction
+              m.action as import("@echo/types").OperatorAction,
             );
 
             if (execResult === "finished") {
-              onProgress(`Agent signaled Finished at step ${stepNum}`, stepNum, thought, "finished");
+              onProgress(
+                `Agent signaled Finished at step ${stepNum}`,
+                stepNum,
+                thought,
+                "finished",
+              );
               await patchRunStatus(options ?? {}, "completed");
               return { success: true };
             }
 
             if (execResult === "calluser") {
-              const reason = "Operator returned calluser";
-              onProgress(`Step failed: ${reason}`, stepNum, thought, "calluser");
-              await patchRunStatus(options ?? {}, "failed", { callUserReason: reason });
-              return { success: false, error: reason };
+              lastError = "Operator returned calluser";
+              onProgress(`Retrying: ${lastError}`, stepNum, thought, "calluser");
+              if (attempt < MAX_STEP_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 500));
+              continue;
             }
 
             if (execResult === false) {
               lastError = "Operator returned false";
-              if (attempt < 3) await new Promise((r) => setTimeout(r, 500));
+              if (attempt < MAX_STEP_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 500));
               continue;
             }
 
             // OS-level actions (openapp, focusapp) are inherently reliable —
             // skip screenshot verification since the app may take time to render.
-            const executedAction = ((m.action as Record<string, unknown>)?.action as string ?? "").toLowerCase();
+            const executedAction = (
+              ((m.action as Record<string, unknown>)?.action as string) ?? ""
+            ).toLowerCase();
             if (deterministic) {
               stepSucceeded = true;
               break;
@@ -377,7 +454,11 @@ export async function runWorkflowRemote(
 
             const beforeBuf = Buffer.from(screenshotB64!, "base64");
             // Action-specific settle time: doubleclick/click may trigger slow app loads (e.g. IntelliJ opening a project)
-            const settleMs = ["doubleclick", "click", "clickandtype"].includes(executedAction) ? 5000 : 1500;
+            const settleMs = ["doubleclick", "click", "clickandtype"].includes(
+              executedAction,
+            )
+              ? 5000
+              : 1500;
             await new Promise((r) => setTimeout(r, settleMs));
 
             let afterBuf: Buffer;
@@ -402,8 +483,10 @@ export async function runWorkflowRemote(
               break;
             }
             if (v.type === "verify_result" && !v.succeeded) {
-              lastError = (msg as { description?: string }).description ?? "Verification failed";
-              if (attempt < 3) await new Promise((r) => setTimeout(r, 500));
+              lastError =
+                (msg as { description?: string }).description ??
+                "Verification failed";
+              if (attempt < MAX_STEP_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 500));
               continue;
             }
           }
@@ -417,8 +500,15 @@ export async function runWorkflowRemote(
           return { success: false, error: "Run cancelled by user" };
         }
         const reason = lastError || `Step ${stepNum} failed`;
-        onProgress(`Step failed: ${reason}`, stepNum, undefined, "");
-        await patchRunStatus(options ?? {}, "failed", { callUserReason: reason });
+        onProgress(
+          `Step did not complete after ${MAX_STEP_ATTEMPTS} attempts: ${reason}`,
+          stepNum,
+          undefined,
+          "",
+        );
+        await patchRunStatus(options ?? {}, "failed", {
+          callUserReason: reason,
+        });
         return { success: false, error: reason };
       }
 
@@ -430,7 +520,8 @@ export async function runWorkflowRemote(
     return { success: true };
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    const isCancelled = err === "WebSocket closed" || err.includes("Run cancelled");
+    const isCancelled =
+      err === "WebSocket closed" || err.includes("Run cancelled");
     await patchRunStatus(options ?? {}, isCancelled ? "cancelled" : "failed", {
       error: isCancelled ? undefined : err,
     });
@@ -447,19 +538,30 @@ export async function runWorkflowRemote(
  */
 export async function runGoalOnlyRemote(
   goal: string,
-  options: RunWorkflowRemoteOptions
+  options: RunWorkflowRemoteOptions,
 ): Promise<{ success: boolean; error?: string }> {
   const sourceId = options.sourceId;
   const workflowType = options.workflowType ?? "desktop";
   const onProgress = options.onProgress ?? (() => {});
 
-  if (!sourceId) return { success: false, error: "sourceId required for screen capture" };
-  if (!options.backendUrl) return { success: false, error: "backendUrl required" };
-  if (!options.token) return { success: false, error: "token required for WebSocket auth" };
+  if (!sourceId)
+    return { success: false, error: "sourceId required for screen capture" };
+  if (!options.backendUrl)
+    return { success: false, error: "backendUrl required" };
+  if (!options.token)
+    return { success: false, error: "token required for WebSocket auth" };
 
-  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
+  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(
+    /^http/,
+    "ws",
+  );
   const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
-  console.log("[runGoalOnlyRemote] connecting", { agentBase, goal: goal.slice(0, 50), workflowId: options.workflowId, runId: options.runId });
+  console.log("[runGoalOnlyRemote] connecting", {
+    agentBase,
+    goal: goal.slice(0, 50),
+    workflowId: options.workflowId,
+    runId: options.runId,
+  });
 
   try {
     const ws = new WebSocket(wsUrl);
@@ -476,7 +578,9 @@ export async function runGoalOnlyRemote(
           ws.off("error", onError);
           ws.off("close", onClose);
           try {
-            const text = Buffer.isBuffer(data) ? data.toString("utf-8") : String(data);
+            const text = Buffer.isBuffer(data)
+              ? data.toString("utf-8")
+              : String(data);
             resolve(JSON.parse(text) as object);
           } catch {
             reject(new Error("Invalid JSON from agent"));
@@ -521,8 +625,13 @@ export async function runGoalOnlyRemote(
       return { success: false, error: err };
     }
     if ((msg as { type?: string }).type !== "ready") {
-      console.warn("[runGoalOnlyRemote] unexpected response", (msg as { type?: string }).type);
-      await patchRunStatus(options, "failed", { error: "Unexpected agent response" });
+      console.warn(
+        "[runGoalOnlyRemote] unexpected response",
+        (msg as { type?: string }).type,
+      );
+      await patchRunStatus(options, "failed", {
+        error: "Unexpected agent response",
+      });
       return { success: false, error: "Unexpected agent response" };
     }
     console.log("[runGoalOnlyRemote] ready, starting capture loop");
@@ -553,7 +662,9 @@ export async function runGoalOnlyRemote(
 
       let screenshotB64: string;
       try {
-        const buf = await operator.captureScreen(sourceId, { maxDimension: 1280 });
+        const buf = await operator.captureScreen(sourceId, {
+          maxDimension: 1280,
+        });
         screenshotB64 = Buffer.from(buf).toString("base64");
       } catch (e) {
         lastError = `Screenshot capture failed: ${e}`;
@@ -572,7 +683,11 @@ export async function runGoalOnlyRemote(
 
       msg = await receive();
       while ((msg as { type?: string }).type === "thinking") {
-        onProgress((msg as { thought?: string }).thought ?? "", iteration + 1, (msg as { thought?: string }).thought);
+        onProgress(
+          (msg as { thought?: string }).thought ?? "",
+          iteration + 1,
+          (msg as { thought?: string }).thought,
+        );
         msg = await receive();
       }
 
@@ -599,16 +714,24 @@ export async function runGoalOnlyRemote(
           return { success: true };
         }
         if (m.signal === "calluser") {
-          const reason = m.reason ?? "Agent requested user intervention";
-          onProgress(`Step failed: ${reason}`, iteration + 1, thought, "calluser");
-          await patchRunStatus(options, "failed", { callUserReason: reason });
-          return { success: false, error: reason };
+          lastError = m.reason ?? "Agent requested user intervention";
+          onProgress(`Retrying: ${lastError}`, iteration + 1, thought, "calluser");
+          continue;
         }
         if (m.signal === "execute" && m.action) {
-          const actionStr = m.action_str ?? (typeof (m.action as { action?: string })?.action === "string" ? (m.action as { action: string }).action : "");
-          onProgress(thought || "Executing…", iteration + 1, thought, actionStr);
+          const actionStr =
+            m.action_str ??
+            (typeof (m.action as { action?: string })?.action === "string"
+              ? (m.action as { action: string }).action
+              : "");
+          onProgress(
+            thought || "Executing…",
+            iteration + 1,
+            thought,
+            actionStr,
+          );
           const execResult: OperatorResult = await operator.execute(
-            m.action as import("@echo/types").OperatorAction
+            m.action as import("@echo/types").OperatorAction,
           );
           if (execResult === "finished") {
             onProgress(`Done. ${thought}`, iteration + 1, thought, "finished");
@@ -616,10 +739,9 @@ export async function runGoalOnlyRemote(
             return { success: true };
           }
           if (execResult === "calluser") {
-            const reason = "Operator returned calluser";
-            onProgress(`Step failed: ${reason}`, iteration + 1, thought, "calluser");
-            await patchRunStatus(options, "failed", { callUserReason: reason });
-            return { success: false, error: reason };
+            lastError = "Operator returned calluser";
+            onProgress(`Retrying: ${lastError}`, iteration + 1, thought, "calluser");
+            continue;
           }
           if (execResult === false) {
             lastError = "Operator returned false";
@@ -627,8 +749,12 @@ export async function runGoalOnlyRemote(
             continue;
           }
 
-          const executedAction = ((m.action as Record<string, unknown>)?.action as string ?? "").toLowerCase();
-          const skipVerify = ["presskey", "hotkey", "wait"].includes(executedAction);
+          const executedAction = (
+            ((m.action as Record<string, unknown>)?.action as string) ?? ""
+          ).toLowerCase();
+          const skipVerify = ["presskey", "hotkey", "wait"].includes(
+            executedAction,
+          );
           if (skipVerify) {
             lastError = "";
             iteration++;
@@ -638,7 +764,11 @@ export async function runGoalOnlyRemote(
           }
 
           const beforeBuf = Buffer.from(screenshotB64, "base64");
-          const settleMs = ["doubleclick", "click", "clickandtype"].includes(executedAction) ? 5000 : 1500;
+          const settleMs = ["doubleclick", "click", "clickandtype"].includes(
+            executedAction,
+          )
+            ? 5000
+            : 1500;
           await new Promise((r) => setTimeout(r, settleMs));
 
           let afterBuf: Buffer;
@@ -657,7 +787,11 @@ export async function runGoalOnlyRemote(
           });
 
           msg = await receive();
-          const v = msg as { type?: string; succeeded?: boolean; description?: string };
+          const v = msg as {
+            type?: string;
+            succeeded?: boolean;
+            description?: string;
+          };
           if (v.type === "verify_result" && v.succeeded) {
             lastError = "";
             iteration++;
@@ -675,7 +809,8 @@ export async function runGoalOnlyRemote(
     }
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    const isCancelled = err === "WebSocket closed" || err.includes("Run cancelled");
+    const isCancelled =
+      err === "WebSocket closed" || err.includes("Run cancelled");
     await patchRunStatus(options, isCancelled ? "cancelled" : "failed", {
       error: isCancelled ? undefined : err,
     });
