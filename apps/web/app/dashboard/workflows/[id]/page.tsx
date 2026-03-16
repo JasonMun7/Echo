@@ -4,21 +4,26 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  doc,
   collection,
   query,
   orderBy,
   onSnapshot,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
   IconArrowLeft,
   IconPlayerPlay,
   IconList,
   IconTrash,
+  IconShare,
+  IconGitFork,
+  IconX,
+  IconUsers,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +36,22 @@ interface Run {
   id: string;
   status: string;
   createdAt: unknown;
+  completedAt?: unknown;
+}
+
+interface Collaborator {
+  uid: string;
+  email: string;
+  display_name: string;
+}
+
+function formatDuration(r: Run): string | null {
+  const start = (r.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+  const end = (r.completedAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+  if (!start || !end || end <= start) return null;
+  const secs = Math.round((end - start) / 1000);
+  if (secs < 60) return `${secs}s`;
+  return `${Math.floor(secs / 60)}m ${secs % 60}s`;
 }
 
 function formatRunLabel(r: Run, index: number): string {
@@ -59,6 +80,23 @@ export default function WorkflowDetailPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [forking, setForking] = useState(false);
+  const [authUid, setAuthUid] = useState<string | null>(
+    auth?.currentUser?.uid ?? null,
+  );
+
+  // Track auth state so snapshot effect re-runs once Firebase auth is ready
+  useEffect(() => {
+    if (!auth) return;
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setAuthUid(user?.uid ?? null);
+    });
+    return unsub;
+  }, []);
 
   const handleDelete = async () => {
     if (!confirm("Delete this workflow? This cannot be undone.")) return;
@@ -74,44 +112,96 @@ export default function WorkflowDetailPage() {
     }
   };
 
+  // Load workflow via API — works for both owners and shared users
   useEffect(() => {
-    if (!db || !auth?.currentUser) return;
-    const wfRef = doc(db, "workflows", id);
-    const unsubWf = onSnapshot(
-      wfRef,
-      (snap) => {
-        if (snap.exists() && snap.data()?.owner_uid === auth?.currentUser?.uid) {
-          setWorkflow({ id: snap.id, ...snap.data() });
-        } else {
-          setWorkflow(null);
-        }
-      },
-      (err) => {
-        console.warn("Workflow snapshot error (may be deleted):", err);
-        setWorkflow(null);
-      },
-    );
+    if (!authUid) return;
+    let cancelled = false;
+    setLoading(true);
+    apiFetch(`/api/workflows/${id}`)
+      .then((res) => res.ok ? res.json() : Promise.reject(res.status))
+      .then((data) => { if (!cancelled) { setWorkflow(data); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setWorkflow(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [id, authUid]);
+
+  // Runs: keep real-time Firestore listener for live status updates
+  useEffect(() => {
+    if (!db || !authUid) return;
     const runsRef = collection(db, "workflows", id, "runs");
     const q = query(runsRef, orderBy("createdAt", "desc"));
-    const unsubRuns = onSnapshot(
+    const unsub = onSnapshot(
       q,
       (snap) => {
         setRuns(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Run));
       },
       (err) => {
-        console.warn("Runs snapshot error (workflow may be deleted):", err);
+        console.warn("Runs snapshot error:", err);
         setRuns([]);
       },
     );
-    return () => {
-      unsubWf();
-      unsubRuns();
-    };
-  }, [id]);
+    return unsub;
+  }, [id, authUid]);
 
-  useEffect(() => {
-    setLoading(false);
-  }, [workflow]);
+  const loadCollaborators = async () => {
+    try {
+      const res = await apiFetch(`/api/workflows/${id}/collaborators`);
+      if (res.ok) {
+        const data = await res.json();
+        setCollaborators(data.collaborators || []);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleShare = async () => {
+    if (!shareEmail.trim()) return;
+    setSharing(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: shareEmail.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to share");
+      setShareEmail("");
+      toast.success("Workflow shared");
+      await loadCollaborators();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to share workflow");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleUnshare = async (targetUid: string) => {
+    try {
+      const res = await apiFetch(`/api/workflows/${id}/share/${targetUid}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to remove collaborator");
+      setCollaborators((prev) => prev.filter((c) => c.uid !== targetUid));
+      toast.success("Access removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove access");
+    }
+  };
+
+  const handleFork = async () => {
+    setForking(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${id}/fork`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to fork");
+      toast.success("Workflow forked — opening your copy");
+      router.push(`/dashboard/workflows/${data.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to fork workflow");
+    } finally {
+      setForking(false);
+    }
+  };
 
   const handleRun = async () => {
     setRunning(true);
@@ -163,6 +253,8 @@ export default function WorkflowDetailPage() {
     );
   }
 
+  const isOwner = workflow.owner_uid === auth?.currentUser?.uid;
+
   return (
     <>
       {running && (
@@ -195,22 +287,47 @@ export default function WorkflowDetailPage() {
               {String(workflow.name || id)}
             </h1>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="echo-btn-danger flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm disabled:opacity-50"
-              >
-                <IconTrash className="h-4 w-4" />
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-              <Link
-                href={`/dashboard/workflows/${id}/edit`}
-                className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm"
-              >
-                <IconList className="h-4 w-4 text-[#21C4DD]" />
-                Edit
-              </Link>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="echo-btn-danger flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm disabled:opacity-50"
+                >
+                  <IconTrash className="h-4 w-4" />
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+              )}
+              {isOwner && (
+                <Link
+                  href={`/dashboard/workflows/${id}/edit`}
+                  className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm"
+                >
+                  <IconList className="h-4 w-4 text-[#21C4DD]" />
+                  Edit
+                </Link>
+              )}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => { setShareModalOpen(true); loadCollaborators(); }}
+                  className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm"
+                >
+                  <IconUsers className="h-4 w-4 text-[#21C4DD]" />
+                  Share
+                </button>
+              )}
+              {!isOwner && (
+                <button
+                  type="button"
+                  onClick={handleFork}
+                  disabled={forking}
+                  className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm disabled:opacity-50"
+                >
+                  <IconGitFork className="h-4 w-4 text-[#21C4DD]" />
+                  {forking ? "Forking..." : "Fork"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleRun}
@@ -225,6 +342,18 @@ export default function WorkflowDetailPage() {
               </button>
             </div>
           </div>
+
+          {!isOwner && (
+            <p className="text-sm text-[#150A35]/60">
+              Shared with you by{" "}
+              <span className="font-medium">
+                {typeof workflow.owner_name === "string" && workflow.owner_name
+                  ? workflow.owner_name
+                  : "another user"}
+              </span>
+              {" "}· Fork to edit your own copy.
+            </p>
+          )}
 
           <p className="text-[#150A35]/80">
             Status:{" "}
@@ -258,9 +387,16 @@ export default function WorkflowDetailPage() {
                     className="echo-card block cursor-pointer p-4 transition-colors hover:border-[#A577FF]/40"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium text-[#150A35]">
-                        {formatRunLabel(r, idx)}
-                      </span>
+                      <div>
+                        <span className="font-medium text-[#150A35]">
+                          {formatRunLabel(r, idx)}
+                        </span>
+                        {formatDuration(r) && (
+                          <span className="ml-2 text-xs text-[#150A35]/40">
+                            {formatDuration(r)}
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           r.status === "completed"
@@ -286,6 +422,80 @@ export default function WorkflowDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Share modal */}
+      {shareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="echo-card flex w-full max-w-md flex-col gap-4 p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-[#150A35]">
+                <IconShare className="mb-0.5 mr-1.5 inline h-4 w-4 text-echo-cyan" />
+                Share workflow
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(false)}
+                className="rounded p-1 hover:bg-[#150A35]/5"
+              >
+                <IconX className="h-4 w-4 text-[#150A35]/60" />
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                type="email"
+                placeholder="colleague@example.com"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleShare()}
+                className="flex-1 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleShare}
+                disabled={sharing || !shareEmail.trim()}
+                className="echo-btn-cyan-lavender rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+              >
+                {sharing ? "Sharing…" : "Share"}
+              </button>
+            </div>
+
+            {collaborators.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-[#150A35]/60">
+                  <IconUsers className="mb-0.5 mr-1 inline h-3.5 w-3.5" />
+                  Shared with
+                </p>
+                {collaborators.map((c) => (
+                  <div
+                    key={c.uid}
+                    className="flex items-center justify-between rounded-lg bg-[#150A35]/5 px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-[#150A35]">{c.display_name}</p>
+                      <p className="text-xs text-[#150A35]/60">{c.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUnshare(c.uid)}
+                      className="rounded p-1 text-[#150A35]/40 hover:text-echo-error"
+                      title="Remove access"
+                    >
+                      <IconX className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {collaborators.length === 0 && (
+              <p className="text-sm text-[#150A35]/50">
+                No collaborators yet. Enter an email to share.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

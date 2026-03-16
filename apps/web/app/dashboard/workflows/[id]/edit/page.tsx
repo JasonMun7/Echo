@@ -40,6 +40,7 @@ import {
   IconBinaryTree2,
   IconList,
   IconJumpRope,
+  IconX,
 } from "@tabler/icons-react";
 import { WorkflowStepGraph } from "@/components/workflow-step-graph";
 import {
@@ -49,6 +50,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function formatAction(action: string): string {
+  return action
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 const BROWSER_ACTIONS = [
   "navigate",
@@ -146,56 +154,6 @@ function ParamFields({
           rows={2}
           className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="block text-xs text-[#150A35]/70">
-              X <span className="text-[#150A35]/40">(0–1000)</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.x as number) ?? ""}
-              onChange={(e) =>
-                update(
-                  "x",
-                  e.target.value === ""
-                    ? undefined
-                    : Math.max(
-                        0,
-                        Math.min(1000, parseInt(e.target.value, 10) || 0),
-                      ),
-                )
-              }
-              placeholder="500"
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs text-[#150A35]/70">
-              Y <span className="text-[#150A35]/40">(0–1000)</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.y as number) ?? ""}
-              onChange={(e) =>
-                update(
-                  "y",
-                  e.target.value === ""
-                    ? undefined
-                    : Math.max(
-                        0,
-                        Math.min(1000, parseInt(e.target.value, 10) || 0),
-                      ),
-                )
-              }
-              placeholder="500"
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
-            />
-          </div>
-        </div>
         {action === "type_text_at" && (
           <>
             <label className="block text-xs text-[#150A35]/70">Text</label>
@@ -287,56 +245,6 @@ function ParamFields({
           rows={2}
           className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="block text-xs text-[#150A35]/70">
-              X <span className="text-[#150A35]/40">(0–1000)</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.x as number) ?? ""}
-              onChange={(e) =>
-                update(
-                  "x",
-                  e.target.value === ""
-                    ? undefined
-                    : Math.max(
-                        0,
-                        Math.min(1000, parseInt(e.target.value, 10) || 0),
-                      ),
-                )
-              }
-              placeholder="500"
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs text-[#150A35]/70">
-              Y <span className="text-[#150A35]/40">(0–1000)</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.y as number) ?? ""}
-              onChange={(e) =>
-                update(
-                  "y",
-                  e.target.value === ""
-                    ? undefined
-                    : Math.max(
-                        0,
-                        Math.min(1000, parseInt(e.target.value, 10) || 0),
-                      ),
-                )
-              }
-              placeholder="500"
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
-            />
-          </div>
-        </div>
         <label className="block text-xs text-[#150A35]/70">Value</label>
         <input
           type="text"
@@ -436,6 +344,7 @@ function ParamFields({
 
 function StepCard({
   step,
+  index,
   availableActions,
   isNew,
   isInvalid,
@@ -446,6 +355,7 @@ function StepCard({
   onInvalidCleared,
 }: {
   step: Step;
+  index: number;
   availableActions: readonly AnyAction[];
   isNew: boolean;
   isInvalid: boolean;
@@ -498,19 +408,22 @@ function StepCard({
         <IconGripVertical className="h-5 w-5" />
       </button>
       <div className="flex-1 min-w-0 space-y-3 break-words">
-        {isInvalid && (
-          <p className="text-xs font-medium text-echo-error">
-            Context is required before saving
-          </p>
-        )}
-        {!isInvalid && isDirty && (
-          <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
-        )}
-        {!isInvalid && !isDirty && needsContext && (
-          <p className="text-xs font-medium text-[#A577FF]">
-            Fill in the context below to complete this step
-          </p>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-[#A577FF]/70">Step {index + 1}</span>
+          {isInvalid && (
+            <p className="text-xs font-medium text-echo-error">
+              Context is required before saving
+            </p>
+          )}
+          {!isInvalid && isDirty && (
+            <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
+          )}
+          {!isInvalid && !isDirty && needsContext && (
+            <p className="text-xs font-medium text-[#A577FF]">
+              Fill in the context below to complete this step
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           <select
             value={step.action}
@@ -519,7 +432,7 @@ function StepCard({
           >
             {availableActions.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {formatAction(a)}
               </option>
             ))}
           </select>
@@ -571,6 +484,7 @@ export default function WorkflowEditPage() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [newStepId, setNewStepId] = useState<string | null>(null);
   const [invalidStepIds, setInvalidStepIds] = useState<Set<string>>(new Set());
@@ -673,6 +587,7 @@ export default function WorkflowEditPage() {
 
   const handleDeleteStep = async (stepId: string) => {
     if (newStepId === stepId) setNewStepId(null);
+    if (selectedStepId === stepId) setSelectedStepId(null);
     try {
       await apiFetch(`/api/workflows/${id}/steps/${stepId}`, {
         method: "DELETE",
@@ -850,7 +765,7 @@ export default function WorkflowEditPage() {
               <div className="flex rounded-lg border border-[#A577FF]/40 p-0.5">
                 <button
                   type="button"
-                  onClick={() => setViewMode("list")}
+                  onClick={() => { setViewMode("list"); setSelectedStepId(null); }}
                   className={`rounded px-2 py-1 text-sm ${
                     viewMode === "list"
                       ? "bg-[#A577FF]/20 text-[#A577FF]"
@@ -891,9 +806,9 @@ export default function WorkflowEditPage() {
                     <DropdownMenuItem
                       key={a}
                       onSelect={() => handleAddStep(a)}
-                      className="echo-dropdown-item cursor-pointer font-mono text-sm"
+                      className="echo-dropdown-item cursor-pointer text-sm"
                     >
-                      {a === "api_call" ? "⚡ api_call (App Integration)" : a}
+                      {a === "api_call" ? `⚡ ${formatAction(a)} (App Integration)` : formatAction(a)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -903,8 +818,69 @@ export default function WorkflowEditPage() {
 
           {/* Graph view */}
           {viewMode === "graph" && (
-            <div className="flex flex-1 flex-col">
-              <WorkflowStepGraph steps={steps} />
+            <div className="flex flex-1 flex-col gap-4">
+              <WorkflowStepGraph steps={steps} onNodeSelect={setSelectedStepId} />
+              {selectedStepId && (() => {
+                const step = steps.find((s) => s.id === selectedStepId);
+                if (!step) return null;
+                const stepIndex = steps.findIndex((s) => s.id === selectedStepId);
+                return (
+                  <div className="rounded-xl border border-[#A577FF]/40 bg-white p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-[#150A35]">
+                        Step {stepIndex + 1} — Edit
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStepId(null)}
+                        className="rounded p-1 text-[#150A35]/40 hover:text-[#150A35]"
+                      >
+                        <IconX className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {dirtyStepIds.has(step.id) && (
+                      <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
+                    )}
+                    <div>
+                      <label className="block text-xs text-[#150A35]/70">Action</label>
+                      <select
+                        value={step.action}
+                        onChange={(e) => handleStepUpdate(step.id, { action: e.target.value })}
+                        className="mt-1 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
+                      >
+                        {availableActions.map((a) => (
+                          <option key={a} value={a}>
+                            {formatAction(a)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[#150A35]/70">Context</label>
+                      <textarea
+                        value={step.context}
+                        onChange={(e) => handleStepUpdate(step.id, { context: e.target.value })}
+                        placeholder="Description of this step"
+                        rows={2}
+                        className="mt-1 w-full resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+                      />
+                    </div>
+                    <ParamFields
+                      action={step.action}
+                      params={step.params}
+                      onChange={(p) => handleStepUpdate(step.id, { params: p })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteStep(step.id)}
+                      className="flex items-center gap-1.5 text-xs text-echo-text-muted hover:text-echo-error"
+                    >
+                      <IconTrash className="h-3.5 w-3.5" />
+                      Delete step
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -921,10 +897,11 @@ export default function WorkflowEditPage() {
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="flex flex-col gap-3 bg-white">
-                    {steps.map((step) => (
+                    {steps.map((step, idx) => (
                       <StepCard
                         key={step.id}
                         step={step}
+                        index={idx}
                         availableActions={availableActions}
                         isNew={newStepId === step.id}
                         isInvalid={invalidStepIds.has(step.id)}
