@@ -163,7 +163,10 @@ def _build_retry_context(last_error: str) -> str:
     """Build extra context for VLM when retrying after a failed attempt."""
     if not last_error:
         return ""
-    ctx = f"Previous attempt failed: {last_error}"
+    ctx = (
+        "Re-examine the current screenshot. Previous attempt failed: "
+        f"{last_error}. Try a different approach (e.g. different element, PressKey, DoubleClick, or scroll). "
+    )
     lower_err = last_error.lower()
     if "identical" in lower_err or "no visible change" in lower_err or "no effect" in lower_err or "no change" in lower_err or "did not change" in lower_err or "not yet" in lower_err or "did not appear" in lower_err or "did not load" in lower_err:
         ctx += (
@@ -308,19 +311,23 @@ async def _verify_action(
                 r"VERDICT\s*:?\s*(success|failed)", description, re.IGNORECASE
             )
         if not verdict_match:
-            # Last resort: check if description ends with or contains
-            # clear success/fail indicators (model may have been truncated)
-            lower = description.lower()
-            if "identical" in lower or "no change" in lower or "did not change" in lower:
-                logger.info("Inferred VERDICT: failed (no change detected in description)")
-                return description, False
-        if verdict_match:
-            succeeded = verdict_match.group(1).lower() == "success"
+            # Fallback for truncated output: look for success/failed in last 100 chars
+            tail = description[-100:].lower() if len(description) > 100 else description.lower()
+            if "failed" in tail:
+                succeeded = False
+            elif "success" in tail:
+                succeeded = True
+            else:
+                lower = description.lower()
+                if "identical" in lower or "no change" in lower or "did not change" in lower:
+                    logger.info("Inferred VERDICT: failed (no change detected in description)")
+                    return description, False
+                logger.warning(
+                    "No VERDICT found in state-transition response; assuming success"
+                )
+                succeeded = True
         else:
-            logger.warning(
-                "No VERDICT found in state-transition response; assuming success"
-            )
-            succeeded = True
+            succeeded = verdict_match.group(1).lower() == "success"
 
         return description, succeeded
     except asyncio.TimeoutError:
@@ -571,16 +578,7 @@ async def run_ambiguous_step(
             if consensus:
                 thought, parsed = consensus
             elif samples:
-                voice_fallback = os.environ.get(
-                    "ECHO_SYSTEM2_VOICE_FALLBACK", ""
-                ).lower() in ("1", "true", "yes")
-                if voice_fallback:
-                    return (
-                        "calluser",
-                        "I'm seeing a few different buttons here.",
-                        "",
-                        "I'm seeing a few different buttons here - which one did you mean?",
-                    )
+                # CallUser deprecated: pick first sample and continue
                 thought, parsed = samples[0][0], samples[0][1]
                 if parsed is None:
                     last_error = "System-2: no parseable consensus"
@@ -659,12 +657,11 @@ async def run_ambiguous_step(
             return "finished", thought, action_str, None
 
         if result == "calluser":
-            reason = (
-                call_user_prompt(thought)
-                if thought
-                else "Agent requested user intervention"
+            # CallUser deprecated: treat as retry
+            last_error = (
+                call_user_prompt(thought) if thought else "Operator returned calluser (deprecated)"
             )
-            return "calluser", thought, action_str, reason
+            continue
 
         if result is True:
             settle_secs = _SETTLE_TIMES.get(parsed_action_name, 0.5)
@@ -758,12 +755,8 @@ async def run_ambiguous_step(
             "EchoPrism operator failed (attempt %d): %s", attempt + 1, last_error
         )
 
-    return (
-        "calluser",
-        thought,
-        action_str,
-        f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}",
-    )
+    # Stuck after max retries: finish instead of CallUser (deprecated)
+    return "finished", thought, action_str, None
 
 
 # --- Remote inference (WebSocket): no execution, returns action for client to execute ---
@@ -781,12 +774,15 @@ async def run_ambiguous_step_inference(
     db: Any | None = None,
     cached_prompt: str | None = None,
     last_error_from_client: str = "",
+    goal_only: bool = False,
+    goal: str | None = None,
 ) -> tuple[bool | AgentSignal, str, str, dict[str, Any] | None, str | None]:
     """
     Inference-only: no execution. Returns (result, thought, action_str, parsed_action_dict, error).
     Client executes parsed_action_dict locally, captures after screenshot, then calls verify_state_transition.
     - result: True | "finished" | "calluser"
     - parsed_action_dict: OperatorAction to execute (None for finished/calluser)
+    When goal_only is True, goal is used as the sole instruction and the agent decides when to call Finished().
     """
     if not HAS_GENAI:
         return False, "", "", None, "google-genai not installed"
@@ -801,7 +797,14 @@ async def run_ambiguous_step_inference(
     )
 
     history = history or []
-    instruction = step_instruction(step_data, step_index, total)
+    if goal_only and goal:
+        instruction = (
+            goal.strip()
+            + "\n\nIf the goal appears achieved (e.g. button clicked, app open, task done), call Finished(). "
+            "If stuck, try a different approach (scroll, different element, PressKey, DoubleClick); never use CallUser (deprecated)."
+        )
+    else:
+        instruction = step_instruction(step_data, step_index, total)
     expected_outcome = step_data.get("expected_outcome", "")
     step_action = (step_data.get("action") or "").lower().replace("_", "")
 
@@ -918,17 +921,7 @@ async def run_ambiguous_step_inference(
             if consensus:
                 thought, parsed = consensus
             elif samples:
-                voice_fallback = os.environ.get(
-                    "ECHO_SYSTEM2_VOICE_FALLBACK", ""
-                ).lower() in ("1", "true", "yes")
-                if voice_fallback:
-                    return (
-                        "calluser",
-                        "I'm seeing a few different buttons here.",
-                        "",
-                        None,
-                        "I'm seeing a few different buttons here - which one did you mean?",
-                    )
+                # CallUser deprecated: pick first sample and continue
                 thought, parsed = samples[0][0], samples[0][1]
                 if parsed is None:
                     last_error = "System-2: no parseable consensus"
@@ -995,21 +988,22 @@ async def run_ambiguous_step_inference(
         if parsed_action_name == "finished":
             return "finished", thought, action_str, None, None
         if parsed_action_name == "calluser":
-            reason = (
-                call_user_prompt(thought)
-                if thought
-                else "Agent requested user intervention"
+            # CallUser is deprecated: treat as retry — do not return, continue loop with stronger guidance
+            last_error = (
+                (thought.strip() if thought else "Model attempted CallUser (deprecated)")
+                + " — try a different approach (scroll, different element, PressKey, DoubleClick)"
             )
-            return "calluser", thought, action_str, None, reason
+            continue
 
         return True, thought, action_str, parsed, None
 
+    # Stuck after max retries: finish the run instead of calling CallUser (deprecated)
     return (
-        "calluser",
+        "finished",
         thought,
         action_str,
         None,
-        f"Stuck after {MAX_RETRIES + 1} attempts — {last_error or 'no clear reason'}",
+        None,
     )
 
 

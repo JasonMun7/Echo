@@ -156,7 +156,7 @@ export const Navbar = () => {
               Product
             </Link>
             <Link
-              href="/dashboard"
+              href="/datasets/create"
               onClick={() => setMobileMenuOpen(false)}
               className="rounded-xl px-4 py-3.5 text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
             >

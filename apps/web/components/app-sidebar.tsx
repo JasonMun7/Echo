@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  IconBell,
   IconCalendarClock,
   IconDashboard,
   IconInfoCircle,
@@ -33,6 +34,7 @@ import { useAuthStore } from "@/stores";
 const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: IconDashboard },
   { title: "Workflows", url: "/dashboard/workflows", icon: IconJumpRope },
+  { title: "Notifications", url: "/dashboard/notifications", icon: IconBell },
   { title: "EchoPrism", url: "echo-desktop://echoprism", icon: IconSparkles2 },
   { title: "MCP Tools", url: "/dashboard/mcp", icon: IconTool },
   { title: "Integrations", url: "/dashboard/integrations", icon: IconPlug },

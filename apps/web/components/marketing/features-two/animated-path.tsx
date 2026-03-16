@@ -1,5 +1,5 @@
 "use client";
-import React, { useId } from "react";
+import React from "react";
 import { motion } from "motion/react";
 
 export function AnimatedBeamPathIllustration({
@@ -8,14 +8,14 @@ export function AnimatedBeamPathIllustration({
   delay?: number;
 }) {
   const path = "M 0 40 L 100 40 L 200 15 L 400 15 L 500 40 L 600 40";
-  const id = useId();
+  const idPrefix = `beam-${String(delay).replace(".", "-")}`;
 
-  const fadeMaskId = `fadeMask-${id}`;
-  const beamGradientId = `beamGradient-${id}`;
-  const glowId = `glow-${id}`;
-  const fadeEndsMaskId = `fadeEndsMask-${id}`;
-  const beamFadeGradientId = `beamFadeGradient-${id}`;
-  const beamMaskId = `beamMask-${id}`;
+  const fadeMaskId = `fadeMask-${idPrefix}`;
+  const beamGradientId = `beamGradient-${idPrefix}`;
+  const glowId = `glow-${idPrefix}`;
+  const fadeEndsMaskId = `fadeEndsMask-${idPrefix}`;
+  const beamFadeGradientId = `beamFadeGradient-${idPrefix}`;
+  const beamMaskId = `beamMask-${idPrefix}`;
 
   return (
     <div className="flex h-full w-full shrink-0 items-center justify-center overflow-visible [--beam-color-1:#A577FF] [--beam-color-2:#A577FF] [--beam-color-3:#A577FF] [--path-color:var(--color-neutral-300)]">

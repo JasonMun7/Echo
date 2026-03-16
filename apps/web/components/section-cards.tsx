@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  IconAlertTriangle,
   IconCircleCheck,
   IconJumpRope,
+  IconLoader,
   IconPlayerPlay,
 } from "@tabler/icons-react";
 
@@ -19,16 +19,17 @@ export interface SectionCardsProps {
   totalWorkflows?: number;
   activeWorkflows?: number;
   totalRuns?: number;
-  awaitingInput?: number;
-  onAwaitingClick?: () => void;
+  /** Runs that are running, pending, or (legacy) awaiting_user */
+  inProgressCount?: number;
+  onInProgressClick?: () => void;
 }
 
 export function SectionCards({
   totalWorkflows = 0,
   activeWorkflows = 0,
   totalRuns = 0,
-  awaitingInput = 0,
-  onAwaitingClick,
+  inProgressCount = 0,
+  onInProgressClick,
 }: SectionCardsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4 lg:px-6">
@@ -91,30 +92,30 @@ export function SectionCards({
 
       <Card
         className={`rounded-lg border shadow-sm @container/card ${
-          awaitingInput
-            ? "cursor-pointer border-amber-200 bg-amber-50 hover:bg-amber-100/80"
+          inProgressCount
+            ? "cursor-pointer border-[#A577FF]/40 bg-[#F5F3FF] hover:bg-[#EDE9FF]"
             : "border-[#A577FF]/20 bg-[#F5F7FC]"
         }`}
-        onClick={onAwaitingClick}
+        onClick={onInProgressClick}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardDescription className="text-echo-text-muted">
-            Awaiting Input
+            In progress
           </CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
-            <IconAlertTriangle className="size-5 text-amber-500" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A577FF]/10">
+            <IconLoader className="size-5 text-[#A577FF]" />
           </div>
         </CardHeader>
         <CardContent>
           <CardTitle
             className={`text-2xl font-semibold tabular-nums @[250px]/card:text-3xl ${
-              awaitingInput ? "text-amber-600" : "text-[#150A35]"
+              inProgressCount ? "text-[#150A35]" : "text-[#150A35]"
             }`}
           >
-            {awaitingInput}
+            {inProgressCount}
           </CardTitle>
           <p className="text-xs text-echo-text-muted mt-1">
-            {awaitingInput ? "Click to view" : "No runs waiting"}
+            {inProgressCount ? "Click to view" : "No runs in progress"}
           </p>
         </CardContent>
       </Card>

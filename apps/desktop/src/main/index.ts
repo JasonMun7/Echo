@@ -13,6 +13,7 @@ import { autoUpdater, type UpdateInfo } from "electron-updater";
 import type { Step, WorkflowType } from "@echo/types";
 import {
   runWorkflowRemote,
+  runGoalOnlyRemote,
   abortActiveRun,
 } from "./agent/remote-workflow-runner";
 import {
@@ -922,6 +923,69 @@ ipcMain.handle(
     const entries: Array<{ thought: string; action: string; step: number }> =
       [];
     const result = await runWorkflowRemote(steps as unknown as Step[], {
+      sourceId,
+      workflowType: (workflowType as WorkflowType) ?? "desktop",
+      workflowId,
+      runId,
+      token,
+      backendUrl: base,
+      agentWsUrl: agentUrl,
+      onProgress: (msg, stepNum, thought, action) => {
+        progress.push(msg);
+        const payload = {
+          thought: thought || msg,
+          action: action || "",
+          step: stepNum ?? 0,
+        };
+        entries.push(payload);
+        recentRunProgress = [...recentRunProgress.slice(-4), payload];
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-progress", payload);
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-progress", payload);
+        }
+      },
+      onAwaitingUser: (reason) => {
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-awaiting-user", { reason });
+        }
+      },
+    });
+    return { ...result, progress, entries };
+  },
+);
+
+ipcMain.handle(
+  "run-goal-only-local",
+  async (
+    _,
+    args: {
+      goal: string;
+      sourceId: string;
+      workflowType?: string;
+      workflowId: string;
+      runId: string;
+      token: string;
+    },
+  ) => {
+    const { goal, sourceId, workflowType, workflowId, runId, token } = args;
+    if (!goal?.trim() || !sourceId || !workflowId || !runId || !token) {
+      return { success: false, error: "goal, sourceId, workflowId, runId, and token required" };
+    }
+    requestResume();
+    clearCancel();
+    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
+      /\/$/,
+      "",
+    );
+    const agentUrl = (process.env.VITE_ECHO_AGENT_URL || base).replace(
+      /\/$/,
+      "",
+    );
+    const progress: string[] = [];
+    const entries: Array<{ thought: string; action: string; step: number }> = [];
+    const result = await runGoalOnlyRemote(goal, {
       sourceId,
       workflowType: (workflowType as WorkflowType) ?? "desktop",
       workflowId,

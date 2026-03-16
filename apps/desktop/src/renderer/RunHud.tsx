@@ -123,44 +123,7 @@ export default function RunHud({
         </span>
       </div>
 
-      {/* Action section */}
-      {lastEntry?.action && (
-        <div
-          style={{
-            padding: "10px 16px",
-            borderBottom: "1px solid rgba(165, 119, 255, 0.1)",
-            WebkitAppRegion: "no-drag",
-            appRegion: "no-drag",
-          } as CSSProperties}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 10,
-              fontWeight: 600,
-              color: "#A577FF",
-              marginBottom: 4,
-            }}
-          >
-            <IconBolt size={12} />
-            Action
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily: "ui-monospace, monospace",
-              color: "var(--echo-text)",
-              wordBreak: "break-all",
-            }}
-          >
-            {lastEntry.action}
-          </div>
-        </div>
-      )}
-
-      {/* Thought stream - newest at bottom */}
+      {/* Thought + Action stream (like dashboard: actual LLM thought then action) */}
       <div
         style={{
           flex: 1,
@@ -186,7 +149,7 @@ export default function RunHud({
           }}
         >
           <IconBrain size={12} />
-          Thoughts
+          EchoPrism thinking…
         </div>
         {thoughts.length === 0 ? (
           <p
@@ -203,26 +166,76 @@ export default function RunHud({
             <div
               key={i}
               style={{
-                fontSize: 12,
-                color: "var(--echo-text)",
-                lineHeight: 1.5,
-                padding: "8px 10px",
+                padding: "10px 12px",
                 borderRadius: 8,
                 background: "rgba(165, 119, 255, 0.06)",
                 border: "1px solid rgba(165, 119, 255, 0.1)",
               }}
             >
-              <span
+              <div
                 style={{
                   fontSize: 10,
                   fontWeight: 600,
                   color: "var(--echo-text-secondary)",
-                  marginRight: 6,
+                  marginBottom: 6,
                 }}
               >
                 Step {e.step + 1}
-              </span>
-              <span style={{ color: "var(--echo-text)" }}>{e.thought}</span>
+              </div>
+              {e.thought && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "flex-start",
+                    marginBottom: e.action ? 8 : 0,
+                  }}
+                >
+                  <IconBrain
+                    size={14}
+                    style={{ color: "#A577FF", flexShrink: 0, marginTop: 2 }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--echo-text)",
+                      lineHeight: 1.5,
+                      flex: 1,
+                    }}
+                  >
+                    {e.thought}
+                  </span>
+                </div>
+              )}
+              {e.action && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <IconBolt
+                    size={14}
+                    style={{
+                      color: "rgba(33, 196, 221, 0.9)",
+                      flexShrink: 0,
+                      marginTop: 2,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "ui-monospace, monospace",
+                      color: "var(--echo-text)",
+                      wordBreak: "break-all",
+                      flex: 1,
+                    }}
+                  >
+                    {e.action}
+                  </span>
+                </div>
+              )}
             </div>
           ))
         )}

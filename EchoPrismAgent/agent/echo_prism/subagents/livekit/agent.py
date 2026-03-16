@@ -141,16 +141,25 @@ def _get_interruption_context() -> dict[str, str]:
     return {"workflow_id": "", "run_id": ""}
 
 
-async def _publish_run_started(workflow_id: str, run_id: str) -> None:
+async def _publish_run_started(
+    workflow_id: str,
+    run_id: str,
+    goal: str | None = None,
+    goal_only: bool = False,
+) -> None:
     """Notify the desktop to start the run via LiveKit data packet."""
     try:
         job_ctx = get_job_context()
         room = job_ctx.room
-        payload = json.dumps({
+        data: dict[str, Any] = {
             "type": "run_started",
             "workflowId": workflow_id,
             "runId": run_id,
-        })
+        }
+        if goal_only and goal:
+            data["goalOnly"] = True
+            data["goal"] = goal
+        payload = json.dumps(data)
         await room.local_participant.publish_data(
             payload.encode("utf-8"),
             reliable=True,
@@ -299,7 +308,12 @@ class LiveKitEchoPrismAgent(Agent):
             "workflow_name": workflow_name or instruction[:50] or "Ad-hoc run",
         })
         if result.get("ok") and result.get("run_id") and result.get("workflow_id"):
-            await _publish_run_started(result["workflow_id"], result["run_id"])
+            await _publish_run_started(
+                result["workflow_id"],
+                result["run_id"],
+                goal=result.get("goal"),
+                goal_only=result.get("goal_only", False),
+            )
         return result
 
     @function_tool()

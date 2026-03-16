@@ -18,6 +18,14 @@ declare global {
         runId?: string;
         token?: string;
       }) => Promise<{ success: boolean; error?: string; progress?: string[] }>;
+      runGoalOnlyLocal: (args: {
+        goal: string;
+        sourceId: string;
+        workflowType?: string;
+        workflowId: string;
+        runId: string;
+        token: string;
+      }) => Promise<{ success: boolean; error?: string; progress?: string[] }>;
       fetchWorkflow: (args: { workflowId: string; token?: string }) => Promise<
         | {
             workflow: Record<string, unknown>;

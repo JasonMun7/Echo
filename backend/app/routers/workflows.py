@@ -226,6 +226,22 @@ async def share_workflow(
         "status": "pending",
         "createdAt": SERVER_TIMESTAMP,
     })
+    # Create a notification for the recipient so they see it on the notifications page
+    workflow_name = wf_data.get("name", "Untitled workflow")
+    notif_ref = db.collection("notifications").document()
+    notif_ref.set({
+        "to_uid": target_user.uid,
+        "type": "workflow_shared",
+        "title": "Workflow shared with you",
+        "body": f"{from_name} shared the workflow \"{workflow_name}\" with you.",
+        "workflow_id": workflow_id,
+        "workflow_name": workflow_name,
+        "from_uid": uid,
+        "from_name": from_name,
+        "invite_id": invite_ref.id,
+        "read": False,
+        "createdAt": SERVER_TIMESTAMP,
+    })
     return {"ok": True, "invite_id": invite_ref.id}
 
 

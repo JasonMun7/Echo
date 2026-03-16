@@ -28,7 +28,12 @@ const SANDBOX_ID = (
 interface EchoPrismLiveKitSessionProps {
   onClose: () => void;
   getToken: () => Promise<string | null>;
-  onRunStarted?: (arg: { workflowId: string; runId: string }) => void;
+  onRunStarted?: (arg: {
+    workflowId: string;
+    runId: string;
+    goalOnly?: boolean;
+    goal?: string;
+  }) => void;
 }
 
 const BARGE_IN_DEBOUNCE_MS = 280;
@@ -186,7 +191,12 @@ export function EchoPrismLiveKitSession({
           typeof data.workflowId === "string" &&
           typeof data.runId === "string"
         ) {
-          onRunStarted({ workflowId: data.workflowId, runId: data.runId });
+          onRunStarted({
+            workflowId: data.workflowId,
+            runId: data.runId,
+            goalOnly: data.goalOnly === true,
+            goal: typeof data.goal === "string" ? data.goal : undefined,
+          });
         }
       } catch {}
     };

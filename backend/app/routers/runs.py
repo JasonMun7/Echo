@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 import firebase_admin.firestore
-from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, FieldFilter
 
 from app.auth import get_current_uid, get_firebase_app
 from app.routers.workflows import _get_workflow
@@ -120,18 +120,47 @@ async def get_run(
     return {"id": doc.id, **doc.to_dict()}
 
 
+ACTIVE_RUN_STATUSES = ("running", "pending", "awaiting_user")
+
+
+def _cancel_other_active_runs_for_user(uid: str) -> None:
+    """Cancel all runs owned by this user that are running, pending, or awaiting_user."""
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    active = (
+        db.collection_group("runs")
+        .where(filter=FieldFilter("owner_uid", "==", uid))
+        .where(filter=FieldFilter("status", "in", list(ACTIVE_RUN_STATUSES)))
+        .stream()
+    )
+    for doc in active:
+        try:
+            doc.reference.update({
+                "status": "cancelled",
+                "cancel_requested": True,
+                "completedAt": SERVER_TIMESTAMP,
+                "updatedAt": SERVER_TIMESTAMP,
+            })
+            logger.info("Cancelled prior active run %s for user %s", doc.id, uid)
+        except Exception as e:
+            logger.warning("Failed to cancel run %s: %s", doc.id, e)
+
+
 @router.post("/run/{workflow_id}")
 async def create_run(
     workflow_id: str,
     source: str | None = None,
     uid: str = Depends(get_current_uid),
 ):
-    """Create a run. Only source=desktop is supported (desktop runs locally)."""
+    """Create a run. Only source=desktop is supported (desktop runs locally).
+    Any other active run owned by this user is cancelled first (one run at a time per user).
+    """
     if source != "desktop":
         raise HTTPException(
             status_code=400,
             detail="Only source=desktop is supported. Provide ?source=desktop",
         )
+    _cancel_other_active_runs_for_user(uid)
     wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_id = str(uuid.uuid4())
     run_ref = wf_ref.collection("runs").document(run_id)

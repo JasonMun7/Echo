@@ -14,89 +14,25 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import {
-  IconApi,
-  IconAlertTriangle,
-  IconCopy,
-  IconCheck,
-  IconKey,
-} from "@tabler/icons-react";
-import { toast } from "sonner";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { IconAlertTriangle } from "@tabler/icons-react";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [token, setToken] = useState("");
-  const [copied, setCopied] = useState(false);
   const [notifRuns, setNotifRuns] = useState(true);
   const [notifCallUser, setNotifCallUser] = useState(true);
 
   useEffect(() => {
-    const unsub = auth?.onAuthStateChanged(async (u) => {
-      if (!u) { router.replace("/signin"); return; }
-      try {
-        const t = await u.getIdToken();
-        setToken(t);
-      } catch { /* ignore */ }
+    const unsub = auth?.onAuthStateChanged((u) => {
+      if (!u) router.replace("/signin");
     });
     return () => unsub?.();
   }, [router]);
-
-  async function copyToken() {
-    const user = auth?.currentUser;
-    if (!user) return;
-    const t = await user.getIdToken(true);
-    setToken(t);
-    navigator.clipboard.writeText(t).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast.success("Token copied to clipboard");
-    });
-  }
 
   return (
     <div className="flex flex-1 flex-col gap-6 rounded-tl-2xl border border-[#A577FF]/20 bg-white p-6 md:p-10">
       <h1 className="text-2xl font-bold text-[#1A1A2E]">Settings</h1>
 
       <div className="max-w-2xl flex flex-col gap-6">
-        {/* API Access */}
-        <Card className="border-[#A577FF]/20">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <IconKey className="h-5 w-5 text-[#A577FF]" />
-              <CardTitle className="text-base text-[#1A1A2E]">API Access</CardTitle>
-            </div>
-            <CardDescription className="text-sm">
-              Use your Firebase ID token to authenticate API requests. Tokens expire after 1 hour.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-lg border border-[#A577FF]/20 bg-[#F5F3FF] px-3 py-2 font-mono text-xs text-[#5B3FA0] truncate">
-                {token ? `${token.slice(0, 60)}...` : "Loading token..."}
-              </code>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={copyToken}
-                className="shrink-0 border-[#A577FF]/30 text-[#A577FF] hover:bg-[#A577FF]/10"
-              >
-                {copied ? <IconCheck className="h-4 w-4" /> : <IconCopy className="h-4 w-4" />}
-              </Button>
-            </div>
-            <a
-              href={`${API_URL}/docs`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-sm text-[#A577FF] hover:underline"
-            >
-              <IconApi className="h-4 w-4" />
-              Open API Documentation
-            </a>
-          </CardContent>
-        </Card>
-
         {/* Notifications */}
         <Card className="border-[#A577FF]/20">
           <CardHeader>

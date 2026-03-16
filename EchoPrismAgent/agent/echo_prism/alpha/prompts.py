@@ -16,20 +16,20 @@ ADAPTABILITY_PROMPT = """
 - Cookie consent / GDPR banner: Accept/Decline/Close; prefer "Accept All" or "Essential Only".
 - Permission/system dialogs: Click Allow or Deny as appropriate.
 - "Allow notifications?": Dismiss (Block/Not now) unless workflow requires notifications.
-- Subscription/paywall: Use CallUser if workflow cannot proceed; otherwise try Close/X.
+- Subscription/paywall: Try Close/X or navigate away; adapt and continue if possible.
 - Full-screen takeover / interstitial: Look for Skip/Close/X; wait if timer present.
 
 ### Loading and Network
 - Loading spinner/skeleton: Wait 2–5s, then re-check; avoid acting on half-loaded content.
 - "Page is loading" / blank area: Use Wait(seconds), then re-observe.
-- Network error / "Something went wrong": Retry once; if persistent, CallUser.
-- 504/502: Wait and retry; CallUser if repeated.
+- Network error / "Something went wrong": Retry once; if persistent, wait and retry or try an alternative action.
+- 504/502: Wait and retry; try again or navigate back.
 
 ### Navigation and Content
-- 404: CallUser; do not loop.
-- Login wall: If credentials available via workflow variables, fill and submit; else CallUser.
+- 404: Navigate back or try a different URL; do not loop indefinitely.
+- Login wall: If credentials available via workflow variables, fill and submit; otherwise try navigating or Wait and re-observe.
 - Redirect: Adapt; continue on new page if goal still achievable.
-- Session expired: CallUser unless workflow includes re-auth.
+- Session expired: Try re-navigating or Wait and re-observe.
 
 ### Layout and Viewport
 - Scrolling: By default passing `Scroll(x, y, "down")` scrolls 800 units, which may be very small in some applications. Use larger distance values (e.g. `Scroll(500, 500, "down", 2000)` or `3000`) for bigger movements. If the target is not found after scrolling, repeat the scroll with a larger distance until found, or reconsider if you are on the right page.
@@ -55,7 +55,8 @@ ADAPTABILITY_PROMPT = """
 
 ### Recovery
 - Transient failures: Retry same action once or twice before adapting.
-- Verification failed: Re-examine screenshot; element may have moved or require scroll. Try alternative (e.g. PressKey("enter") instead of Click).
+- Verification failed: Re-examine the **current** screenshot; do not repeat the same action. The element may have moved, require scrolling, or the action may need a different target (e.g. PressKey("enter") instead of Click, or DoubleClick instead of Click). Always try a clearly different approach.
+- Example — verification failed after Click: try PressKey("enter") if an item is selected, or DoubleClick, or scroll then click a different element; keep adapting.
 - Proactive overlay dismissal: If overlay detected (GDPR, popup, modal), try PressKey("escape") first, then OS-aware blind-click (macOS top-left, Windows top-right), then re-ground and retry.
 """
 
@@ -93,13 +94,8 @@ APP LAUNCH RULE: To open/launch/switch to an application, ALWAYS prefer OpenApp(
 LIST ITEM RULE: To OPEN items in list views, file browsers, or project lists (especially in IDEs like IntelliJ IDEA, VS Code, Xcode, or file managers like Finder), use DoubleClick — NOT Click. A single Click typically only selects/highlights the item without opening it. Alternatively, Click to select then PressKey("enter") to open.
 
 - Finished() - Mark task as complete
-- CallUser(reason) - Request human intervention. Use ONLY when:
-    (a) you have tried 2+ different approaches and ALL have failed,
-    (b) the task requires credentials, a CAPTCHA, or an irreversible human decision,
-    (c) a required UI element is completely absent after scrolling and waiting,
-    (d) you are in a loop repeating the same failing action with no alternative.
-  DO NOT call after a single failure — try at least one alternative approach first.
-  reason: one sentence explaining what you tried and exactly what is blocking you.
+
+CallUser is DEPRECATED: do not use it. Always adapt — try alternative actions (scroll, different element, PressKey, DoubleClick, Navigate, Wait). Never request human intervention.
 
 When a [Detected UI Elements] list is provided, prefer Click(element_id) for precision. Only use raw Click(x, y) when the target element is not in the detected list.
 
@@ -151,13 +147,8 @@ BROWSER_ACTION_SPACE = """
 - Copy() - Emulate native Copy command (cmd+c or ctrl+c)
 - Paste() - Emulate native Paste command (cmd+v or ctrl+v)
 - Finished() - Mark task as complete
-- CallUser(reason) - Request human intervention. Use ONLY when:
-    (a) you have tried 2+ different approaches and ALL have failed,
-    (b) the task requires credentials, a CAPTCHA, or an irreversible human decision,
-    (c) a required UI element is completely absent after scrolling and waiting,
-    (d) you are in a loop repeating the same failing action with no alternative.
-  DO NOT call after a single failure — try at least one alternative approach first.
-  reason: one sentence explaining what you tried and exactly what is blocking you.
+
+CallUser is DEPRECATED: do not use it. Always adapt — try alternative actions (scroll, different element, PressKey, Navigate, Wait). Never request human intervention.
 
 When a [Detected UI Elements] list is provided, prefer Click(element_id) for precision. Only use raw Click(x, y) when the target element is not in the detected list.
 
@@ -212,7 +203,7 @@ You follow these reasoning patterns:
 - Trial and Error: Hypothesize an action, reason about its likely outcome, then execute
 - Reflection: After an error, identify what went wrong and state a corrected strategy. If a UI element wasn't found after scrolling, stop scrolling and reconsider if you are even on the right page.
 - Recovery: When a previous attempt failed, RE-EXAMINE the current screenshot — the element may have moved, require scrolling, or be behind a modal. Do NOT repeat the identical action — adapt your approach. If you are lost, navigate back to a known good state or restart the search.
-- Stuck: If you have tried 2+ genuinely different approaches and all have failed, use CallUser(reason). Never call after just one failure — always attempt at least one alternative strategy first.
+- Stuck: Never give up. If one approach fails, try another (scroll, different element, PressKey, DoubleClick, Navigate, Wait). Do not use CallUser — it is deprecated; always adapt.
 
 Coordinates are normalized 0-1000. (0,0) = top-left corner, (1000,1000) = bottom-right corner.
 

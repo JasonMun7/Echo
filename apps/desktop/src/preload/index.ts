@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     runId?: string;
     token?: string;
   }) => ipcRenderer.invoke("run-workflow-local", args),
+  runGoalOnlyLocal: (args: {
+    goal: string;
+    sourceId: string;
+    workflowType?: string;
+    workflowId: string;
+    runId: string;
+    token: string;
+  }) => ipcRenderer.invoke("run-goal-only-local", args),
   fetchWorkflow: (args: {
     workflowId: string;
     apiUrl?: string;

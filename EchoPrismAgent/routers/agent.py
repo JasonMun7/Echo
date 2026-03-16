@@ -84,6 +84,41 @@ def _write_run_log(db, workflow_id: str, run_id: str, thought: str, action: str,
         logger.warning("Failed to write run log: %s", e)
 
 
+def _update_log_screenshot(
+    db, workflow_id: str, run_id: str, step_index: int, screenshot_url: str
+) -> None:
+    """Update the most recent log entry for this step_index with screenshot_url (called in a thread)."""
+    try:
+        logs_ref = (
+            db.collection("workflows")
+            .document(workflow_id)
+            .collection("runs")
+            .document(run_id)
+            .collection("logs")
+        )
+        # Get recent logs and find the one matching step_index (avoids composite index)
+        docs = list(logs_ref.order_by("timestamp", direction="DESCENDING").limit(100).stream())
+        for doc in docs:
+            if (doc.to_dict() or {}).get("step_index") == step_index:
+                doc.reference.update({"screenshot_url": screenshot_url})
+                return
+    except Exception as e:
+        logger.warning("Failed to update log screenshot: %s", e)
+
+
+def _upload_and_update_log_screenshot(
+    db, workflow_id: str, run_id: str, step_index: int, after_bytes: bytes
+) -> None:
+    """Upload step screenshot to GCS and set screenshot_url on the matching log entry (called in a thread)."""
+    try:
+        from screenshot_stream import upload_step_screenshot
+        url = upload_step_screenshot(workflow_id, run_id, step_index, after_bytes)
+        if url:
+            _update_log_screenshot(db, workflow_id, run_id, step_index, url)
+    except Exception as e:
+        logger.warning("Failed to upload/update step screenshot: %s", e)
+
+
 @router.websocket("/run")
 async def agent_run_ws(
     websocket: WebSocket,
@@ -124,10 +159,13 @@ async def agent_run_ws(
     run_id: str | None = None
     steps: list[dict] = []
     workflow_type: str = "desktop"
+    goal_only: bool = False
+    goal: str = ""
     history: list[dict] = []
     cached_prompt: str | None = None
     pending_thought: str = ""
     pending_action_str: str = ""
+    pending_step_index: int = -1
 
     async def send(msg: dict) -> None:
         try:
@@ -155,9 +193,16 @@ async def agent_run_ws(
                 workflow_id = data.get("workflow_id", "")
                 run_id = data.get("run_id", "")
                 workflow_type = data.get("workflow_type", "desktop")
-                steps = data.get("steps", [])
-                if not workflow_id or not run_id or not steps:
-                    await send({"type": "error", "message": "start requires workflow_id, run_id, steps"})
+                steps = data.get("steps") if data.get("steps") is not None else []
+                goal = (data.get("goal") or "").strip()
+                goal_only = bool(goal and (not steps or len(steps) == 0))
+                if not goal_only:
+                    goal = ""
+                if not workflow_id or not run_id:
+                    await send({"type": "error", "message": "start requires workflow_id and run_id"})
+                    continue
+                if not goal_only and not steps:
+                    await send({"type": "error", "message": "start requires steps or goal for goal-only run"})
                     continue
                 ok = await _validate_run_access(uid, workflow_id, run_id)
                 if not ok:
@@ -169,16 +214,18 @@ async def agent_run_ws(
 
             elif msg_type == "step":
                 step_index = data.get("step_index", 0)
-                step = data.get("step", {})
+                step = data.get("step") or {}
                 screenshot_b64 = data.get("screenshot_b64")
                 history_summary = data.get("history_summary", "")
                 last_error = data.get("last_error", "")
 
+                if goal_only and not step and goal:
+                    step = {"context": goal, "action": "observe", "params": {}, "expected_outcome": ""}
                 if not step:
-                    await send({"type": "error", "message": "step requires step"})
+                    await send({"type": "error", "message": "step requires step (or goal for goal-only run)"})
                     continue
 
-                if is_deterministic(step):
+                if not goal_only and is_deterministic(step):
                     action = (step.get("action") or "").lower().replace("_", "")
                     logger.info(
                         "WS step %d: deterministic %r, params=%s",
@@ -221,7 +268,7 @@ async def agent_run_ws(
                     await send({"type": "error", "message": "Invalid screenshot_b64"})
                     continue
 
-                total = len(steps) if steps else 1
+                total = 1 if goal_only else (len(steps) if steps else 1)
                 result, thought, action_str, parsed_action, err = await run_ambiguous_step_inference(
                     screenshot_bytes=screenshot_bytes,
                     step_data=step,
@@ -234,6 +281,8 @@ async def agent_run_ws(
                     db=db,
                     cached_prompt=cached_prompt,
                     last_error_from_client=last_error,
+                    goal_only=goal_only,
+                    goal=goal if goal_only else None,
                 )
 
                 if result == "finished":
@@ -262,6 +311,7 @@ async def agent_run_ws(
                 if result is True and parsed_action:
                     pending_thought = thought
                     pending_action_str = action_str
+                    pending_step_index = step_index
                     if workflow_id and run_id:
                         asyncio.create_task(asyncio.to_thread(
                             _write_run_log, db, workflow_id, run_id, thought, action_str, step_index
@@ -306,6 +356,7 @@ async def agent_run_ws(
 
                 if succeeded:
                     from echo_prism.alpha.image_utils import compress_screenshot
+                    step_index_for_screenshot = pending_step_index
                     history.append({
                         "thought": pending_thought,
                         "action": action_str,
@@ -313,6 +364,12 @@ async def agent_run_ws(
                     })
                     pending_thought = ""
                     pending_action_str = ""
+                    pending_step_index = -1
+                    if workflow_id and run_id and step_index_for_screenshot >= 0:
+                        asyncio.create_task(asyncio.to_thread(
+                            _upload_and_update_log_screenshot,
+                            db, workflow_id, run_id, step_index_for_screenshot, after_bytes,
+                        ))
                     await send({"type": "verify_result", "succeeded": True, "description": description})
                 else:
                     await send({"type": "verify_result", "succeeded": False, "description": description})

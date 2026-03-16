@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, collectionGroup, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
@@ -14,6 +14,10 @@ import {
   IconJumpRope,
   IconCheck,
   IconX,
+  IconDots,
+  IconPlayerPlay,
+  IconPencil,
+  IconShare3,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +27,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 
 interface WorkflowInvite {
@@ -114,7 +124,9 @@ export default function WorkflowsPage() {
   const [invites, setInvites] = useState<WorkflowInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [respondingInvite, setRespondingInvite] = useState<string | null>(null);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
   const [authUid, setAuthUid] = useState<string | null>(
     auth?.currentUser?.uid ?? null,
   );
@@ -143,6 +155,24 @@ export default function WorkflowsPage() {
     if (!authUid) return;
     loadInvites();
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUid]);
+
+  useEffect(() => {
+    if (!db || !authUid) return;
+    const q = query(
+      collectionGroup(db, "runs"),
+      where("owner_uid", "==", authUid),
+      where("status", "in", ["running", "pending", "awaiting_user"]),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const first = snap.docs[0];
+        setActiveWorkflowId(first ? first.ref.parent.parent?.id ?? null : null);
+      },
+      () => setActiveWorkflowId(null),
+    );
+    return () => unsub();
   }, [authUid]);
 
   const handleAcceptInvite = async (invite: WorkflowInvite) => {
@@ -180,7 +210,6 @@ export default function WorkflowsPage() {
   const handleDelete = async (e: React.MouseEvent, workflowId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    // Simple confirm — AlertDialog would require refactor of card structure
     if (!window.confirm("Delete this workflow? This cannot be undone.")) return;
     setDeletingId(workflowId);
     try {
@@ -190,9 +219,33 @@ export default function WorkflowsPage() {
       if (!res.ok) throw new Error("Failed to delete");
     } catch (err) {
       console.error("Delete failed:", err);
-      // Toast would require adding Sonner import; log for now
+      toast.error("Failed to delete workflow");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRun = async (e: React.MouseEvent, workflowId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setRunningId(workflowId);
+    try {
+      const res = await apiFetch(`/api/run/${workflowId}?source=desktop`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { detail?: string }).detail || "Failed to start run");
+      }
+      const data = (await res.json()) as { run_id?: string };
+      if (data.run_id) {
+        window.location.href = `echo-desktop://run?workflow_id=${workflowId}&run_id=${data.run_id}`;
+        router.push(`/dashboard/workflows/${workflowId}/runs/${data.run_id}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start run");
+    } finally {
+      setRunningId(null);
     }
   };
 
@@ -361,10 +414,14 @@ export default function WorkflowsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {workflows.map((w) => {
               const isLatest = isLatestOrLastModified(w, workflows);
+              const isRunning = activeWorkflowId === w.id;
               return (
               <div
                 key={w.id}
-                className={`group relative echo-card flex flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isLatest ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
+                className={`relative rounded-xl transition-all ${isRunning ? "bg-linear-to-r from-echo-cyan to-[#A577FF] p-[2px] shadow-lg shadow-[#A577FF]/20" : ""}`}
+              >
+              <div
+                className={`group relative echo-card flex h-full flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isRunning ? "border-0" : ""} ${isLatest && !isRunning ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
               >
                 {isLatest && (
                   <Tooltip>
@@ -383,23 +440,62 @@ export default function WorkflowsPage() {
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {/* Delete button — top-right, owner only, shown on hover */}
-                {w.owner_uid === auth?.currentUser?.uid && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                {/* Three-dots menu — top-right, shown on hover */}
+                <div
+                  className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        onClick={(e) => handleDelete(e, w.id)}
-                        disabled={deletingId === w.id}
-                        className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/80 text-echo-error opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-echo-error hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label="Delete workflow"
+                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-[#150A35] shadow-sm backdrop-blur-sm hover:bg-[#A577FF]/10 hover:text-[#A577FF]"
+                        aria-label="Workflow actions"
                       >
-                        <IconTrash className="h-3.5 w-3.5" />
+                        <IconDots className="h-4 w-4" />
                       </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Delete workflow</TooltipContent>
-                  </Tooltip>
-                )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-40">
+                      <DropdownMenuItem
+                        onClick={(e) => handleRun(e, w.id)}
+                        disabled={
+                          runningId === w.id ||
+                          (w.status !== "ready" && w.status !== "active")
+                        }
+                      >
+                        <IconPlayerPlay className="h-4 w-4" />
+                        {runningId === w.id ? "Starting…" : "Run"}
+                      </DropdownMenuItem>
+                      {w.owner_uid === auth?.currentUser?.uid && (
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/workflows/${w.id}/edit`}>
+                            <IconPencil className="h-4 w-4" />
+                            Edit
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                      {w.owner_uid === auth?.currentUser?.uid && (
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/workflows/${w.id}`}>
+                            <IconShare3 className="h-4 w-4" />
+                            Share
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                      {w.owner_uid === auth?.currentUser?.uid && (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={(e) => handleDelete(e, w.id)}
+                          disabled={deletingId === w.id}
+                        >
+                          <IconTrash className="h-4 w-4" />
+                          {deletingId === w.id ? "Deleting…" : "Delete"}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
                 {/* Entire card is a link */}
                 <Link
@@ -443,6 +539,12 @@ export default function WorkflowsPage() {
                     </div>
                   </div>
                 </Link>
+              </div>
+              {isRunning && (
+                <div className="absolute -right-1 -top-1 z-10 flex items-center gap-1 rounded-full bg-linear-to-r from-echo-cyan to-[#A577FF] px-2 py-0.5 text-[10px] font-medium text-white shadow-sm ring-2 ring-white">
+                  Running
+                </div>
+              )}
               </div>
             );
             })}

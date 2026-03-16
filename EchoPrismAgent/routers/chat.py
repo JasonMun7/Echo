@@ -26,6 +26,32 @@ from app.config import CHAT_MODEL, GEMINI_API_KEY
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
+ACTIVE_RUN_STATUSES = ("running", "pending", "awaiting_user")
+
+
+def _cancel_other_active_runs_for_user(uid: str, db) -> None:
+    """Cancel all runs owned by this user that are running, pending, or awaiting_user (one run at a time per user)."""
+    try:
+        active = (
+            db.collection_group("runs")
+            .where(filter=FieldFilter("owner_uid", "==", uid))
+            .where(filter=FieldFilter("status", "in", list(ACTIVE_RUN_STATUSES)))
+            .stream()
+        )
+        for doc in active:
+            try:
+                doc.reference.update({
+                    "status": "cancelled",
+                    "cancel_requested": True,
+                    "completedAt": SERVER_TIMESTAMP,
+                    "updatedAt": SERVER_TIMESTAMP,
+                })
+                logger.info("Cancelled prior active run %s for user %s", doc.id, uid)
+            except Exception as e:
+                logger.warning("Failed to cancel run %s: %s", doc.id, e)
+    except Exception as e:
+        logger.warning("Failed to cancel other active runs: %s", e)
+
 
 def _ensure_agent_path() -> None:
     """Ensure agent (echo_prism, etc.) is on sys.path."""
@@ -258,6 +284,7 @@ async def _execute_tool(
                 return {"ok": False, "error": f"No workflow found with name \"{workflow_name}\". Use list_workflows to see names and IDs."}
         if not workflow_id:
             return {"ok": False, "error": "Provide workflow_id or workflow_name to run a workflow."}
+        _cancel_other_active_runs_for_user(uid, db)
         run_id = str(uuid.uuid4())
         run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
         run_ref.set({
@@ -286,37 +313,49 @@ async def _execute_tool(
         return result
 
     elif name == "run_adhoc":
-        instruction = args.get("instruction", "")
+        instruction = (args.get("instruction", "") or "").strip()
         workflow_type = args.get("workflow_type", "browser")
         workflow_name = args.get("workflow_name", "") or instruction[:50] or "Ad-hoc run"
-        from routers.synthesize import synthesize_from_description_impl
-        workflow_id = await synthesize_from_description_impl(
-            uid=uid,
-            name=workflow_name,
-            description=instruction,
-            workflow_type=workflow_type,
-            db=db,
-            ephemeral=True,
-        )
+        if not instruction:
+            return {"ok": False, "error": "instruction is required for run_adhoc"}
+
+        # Goal-only run: no step synthesis; create minimal ephemeral workflow and run with goal
+        _cancel_other_active_runs_for_user(uid, db)
+        workflow_id = str(uuid.uuid4())
+        workflow_ref = db.collection("workflows").document(workflow_id)
+        workflow_ref.set({
+            "name": workflow_name,
+            "status": "ready",
+            "owner_uid": uid,
+            "workflow_type": workflow_type if workflow_type in ("browser", "desktop") else "browser",
+            "ephemeral": True,
+            "createdAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        })
         run_id = str(uuid.uuid4())
-        run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
+        run_ref = workflow_ref.collection("runs").document(run_id)
         run_ref.set({
             "status": "pending",
             "owner_uid": uid,
             "createdAt": SERVER_TIMESTAMP,
             "confirmation_status": None,
             "source": "desktop",
+            "goal": instruction,
+            "run_mode": "goal_only",
         })
+        run_link = {
+            "workflowId": workflow_id,
+            "runId": run_id,
+            "name": workflow_name,
+            "ephemeral": True,
+            "goalOnly": True,
+            "goal": instruction,
+        }
         if websocket:
             try:
                 await websocket.send_text(json.dumps({
                     "type": "run_started",
-                    "runLink": {
-                        "workflowId": workflow_id,
-                        "runId": run_id,
-                        "name": workflow_name,
-                        "ephemeral": True,
-                    },
+                    "runLink": run_link,
                 }))
             except Exception:
                 pass
@@ -326,6 +365,8 @@ async def _execute_tool(
             "workflow_id": workflow_id,
             "workflow_name": workflow_name,
             "ephemeral": True,
+            "goal_only": True,
+            "goal": instruction,
         }
 
     elif name == "synthesize_from_description":

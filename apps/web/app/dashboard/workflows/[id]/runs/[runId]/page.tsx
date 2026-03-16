@@ -45,6 +45,8 @@ interface LogEntry {
   step_index?: number;
   level?: string;
   timestamp: unknown;
+  /** URL of the screenshot captured after this step (when available) */
+  screenshot_url?: string;
 }
 
 function formatTimestamp(ts: unknown): string {
@@ -451,6 +453,16 @@ export default function RunDetailPage() {
                     <div className="flex gap-2 items-start">
                       <IconBolt className="h-3.5 w-3.5 shrink-0 mt-0.5 text-cyan-400" />
                       <span className="text-cyan-300 text-xs font-mono">{log.action}</span>
+                    </div>
+                  )}
+                  {/* Screenshot for this step (state after the action) */}
+                  {log.screenshot_url && (
+                    <div className="mt-2 rounded-lg overflow-hidden border border-white/10 bg-white/5 max-w-full w-fit">
+                      <img
+                        src={log.screenshot_url}
+                        alt={`Step ${(log.step_index ?? 0) + 1} screenshot`}
+                        className="max-h-48 object-contain block"
+                      />
                     </div>
                   )}
                   {/* Plain message fallback (no thought/action) */}

@@ -23,9 +23,13 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
   IconLayoutColumns,
+  IconPlayerStop,
+  IconFileText,
 } from "@tabler/icons-react";
 import { z } from "zod";
+import { toast } from "sonner";
 
+import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -50,6 +54,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export const schema = z.object({
   id: z.string(),
@@ -102,6 +111,7 @@ function formatDuration(start: unknown, end: unknown): string {
 
 const STATUS_STYLES: Record<string, string> = {
   running: "bg-blue-100 text-blue-700",
+  pending: "bg-slate-100 text-slate-700",
   completed: "bg-green-100 text-green-700",
   failed: "bg-red-100 text-red-700",
   cancelled: "bg-gray-100 text-gray-600",
@@ -110,13 +120,17 @@ const STATUS_STYLES: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   running: "Running",
+  pending: "Pending",
   completed: "Completed",
   failed: "Failed",
   cancelled: "Cancelled",
-  awaiting_user: "Awaiting Input",
+  awaiting_user: "Paused",
 };
 
-const columns: ColumnDef<Run>[] = [
+const IN_PROGRESS_STATUSES = new Set(["running", "pending", "awaiting_user"]);
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+
+const baseColumns: ColumnDef<Run>[] = [
   {
     accessorKey: "workflowName",
     header: "Workflow",
@@ -128,7 +142,7 @@ const columns: ColumnDef<Run>[] = [
         {row.original.workflowName}
       </Link>
     ),
-    enableHiding: false,
+    enableHiding: true,
   },
   {
     accessorKey: "status",
@@ -176,14 +190,23 @@ const columns: ColumnDef<Run>[] = [
 
 const TABS = [
   { value: "all", label: "All Runs" },
-  { value: "running", label: "Running" },
+  { value: "in_progress", label: "In progress" },
   { value: "completed", label: "Completed" },
   { value: "failed", label: "Failed" },
 ] as const;
 
-export function DataTable({ data: initialData }: { data: Run[] }) {
+export interface DataTableProps {
+  data: Run[];
+  /** When viewing a single workflow, hide the Workflow column */
+  singleWorkflow?: { workflowId: string; workflowName: string };
+}
+
+export function DataTable({ data: initialData, singleWorkflow }: DataTableProps) {
+  const [cancellingId, setCancellingId] = React.useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<VisibilityState>(() =>
+      singleWorkflow ? { workflowName: false } : {}
+    );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
@@ -196,11 +219,88 @@ export function DataTable({ data: initialData }: { data: Run[] }) {
   });
   const [activeTab, setActiveTab] = React.useState("all");
 
+  const handleCancelRun = React.useCallback(
+    async (workflowId: string, runId: string) => {
+      setCancellingId(runId);
+      try {
+        const res = await apiFetch(`/api/run/${workflowId}/${runId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error("Failed to cancel");
+        toast.success("Run cancelled");
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Failed to cancel run"
+        );
+      } finally {
+        setCancellingId(null);
+      }
+    },
+    []
+  );
+
+  const columns = React.useMemo<ColumnDef<Run>[]>(
+    () => [
+      ...baseColumns,
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const r = row.original;
+          const inProgress = IN_PROGRESS_STATUSES.has(r.status);
+          const terminal = TERMINAL_STATUSES.has(r.status);
+          if (inProgress) {
+            const busy = cancellingId === r.id;
+            return (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-echo-error/40 text-echo-error hover:bg-echo-error/10"
+                    onClick={() => handleCancelRun(r.workflowId, r.id)}
+                    disabled={busy}
+                  >
+                    <IconPlayerStop className="h-3.5 w-3.5 shrink-0" />
+                    <span className="ml-1.5">{busy ? "Cancelling…" : "Cancel"}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Cancel this run</TooltipContent>
+              </Tooltip>
+            );
+          }
+          if (terminal) {
+            return (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={`/dashboard/workflows/${r.workflowId}/runs/${r.id}`}
+                    className="echo-btn-secondary-accent inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium"
+                  >
+                    <IconFileText className="h-3.5 w-3.5 shrink-0" />
+                    View logs
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>View run logs and details</TooltipContent>
+              </Tooltip>
+            );
+          }
+          return null;
+        },
+        enableHiding: false,
+      },
+    ],
+    [cancellingId, handleCancelRun]
+  );
+
   const filteredData = React.useMemo(() => {
     if (activeTab === "all") return initialData;
-    if (activeTab === "running")
+    if (activeTab === "in_progress")
       return initialData.filter(
-        (r) => r.status === "running" || r.status === "awaiting_user",
+        (r) =>
+          r.status === "running" ||
+          r.status === "pending" ||
+          r.status === "awaiting_user",
       );
     return initialData.filter((r) => r.status === activeTab);
   }, [initialData, activeTab]);
@@ -229,9 +329,12 @@ export function DataTable({ data: initialData }: { data: Run[] }) {
 
   const countFor = (tab: string) => {
     if (tab === "all") return initialData.length;
-    if (tab === "running")
+    if (tab === "in_progress")
       return initialData.filter(
-        (r) => r.status === "running" || r.status === "awaiting_user",
+        (r) =>
+          r.status === "running" ||
+          r.status === "pending" ||
+          r.status === "awaiting_user",
       ).length;
     return initialData.filter((r) => r.status === tab).length;
   };

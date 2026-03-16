@@ -38,7 +38,12 @@ interface RunState {
     steps: Array<Record<string, unknown>>;
     workflowType: string;
   }) => Promise<void>;
-  handleRunStarted: (arg: { workflowId: string; runId: string }) => Promise<void>;
+  handleRunStarted: (arg: {
+    workflowId: string;
+    runId: string;
+    goalOnly?: boolean;
+    goal?: string;
+  }) => Promise<void>;
   handleCancelRun: () => Promise<void>;
   handleInterrupt: () => Promise<void>;
   resetRun: () => void;
@@ -238,6 +243,54 @@ export const useRunStore = create<RunState>((set, get) => ({
       return;
     }
 
+    const sourceId = await window.electronAPI?.getPrimarySourceId?.();
+    if (!sourceId) return;
+
+    const goalOnly = arg.goalOnly === true && typeof arg.goal === "string" && arg.goal.trim().length > 0;
+
+    if (goalOnly) {
+      useWorkflowsStore.getState().selectWorkflow(arg.workflowId);
+      set({
+        running: true,
+        runResult: null,
+        runResultDismissed: false,
+        liveProgress: [],
+        currentRunId: arg.runId,
+      });
+
+      window.electronAPI?.onRunProgress?.((entry) => {
+        get().appendLiveProgress(entry);
+      });
+
+      try {
+        await window.electronAPI?.enterRunMode?.({
+          workflowId: arg.workflowId,
+          runId: arg.runId,
+          token,
+        });
+        const runResult = await window.electronAPI?.runGoalOnlyLocal?.({
+          goal: arg.goal!.trim(),
+          sourceId,
+          workflowType: "desktop",
+          workflowId: arg.workflowId,
+          runId: arg.runId,
+          token,
+        });
+        window.electronAPI?.removeRunProgressListener?.();
+        set({
+          runResult: {
+            ...(runResult ?? { success: false, error: "No response" }),
+            workflowId: arg.workflowId,
+            runId: arg.runId,
+          },
+        });
+      } finally {
+        get().resetRun();
+        await window.electronAPI?.exitRunMode?.();
+      }
+      return;
+    }
+
     const result = await window.electronAPI?.fetchWorkflow?.({
       workflowId: arg.workflowId,
       token,
@@ -245,9 +298,6 @@ export const useRunStore = create<RunState>((set, get) => ({
     if (!result || "error" in result) return;
     const { workflow, steps } = result;
     if (!steps?.length) return;
-
-    const sourceId = await window.electronAPI?.getPrimarySourceId?.();
-    if (!sourceId) return;
 
     useWorkflowsStore.getState().selectWorkflow(arg.workflowId);
     useWorkflowsStore.getState().setWorkflow(workflow);

@@ -135,6 +135,7 @@ export function WorldMapSkeleton({
       {pinPositions.map((pin, index) => (
         <MapPin
           key={pin.id}
+          pinIndex={index}
           x={(pin.x / width) * 100}
           y={(pin.y / height) * 100}
           image={pin.image}
@@ -147,19 +148,21 @@ export function WorldMapSkeleton({
 }
 
 function MapPin({
+  pinIndex,
   x,
   y,
   image,
   name,
   delay = 0,
 }: {
+  pinIndex: number;
   x: number;
   y: number;
   image: string;
   name?: string;
   delay?: number;
 }) {
-  const pinId = React.useId();
+  const pinId = `map-pin-${pinIndex}`;
 
   const leftPct = Number(x).toFixed(4);
   const topPct = Number(y).toFixed(4);

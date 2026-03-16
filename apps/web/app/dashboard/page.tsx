@@ -5,6 +5,7 @@ import Link from "next/link";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   IconCircleCheck,
@@ -85,7 +86,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [totalRuns, setTotalRuns] = useState(0);
   const [allRuns, setAllRuns] = useState<Run[]>([]);
-  const [awaitingRuns, setAwaitingRuns] = useState<{
+  const [inProgressRun, setInProgressRun] = useState<{
     workflowId: string;
     runId: string;
   } | null>(null);
@@ -99,6 +100,30 @@ export default function DashboardPage() {
       localStorage.getItem("echo_onboarding_dismissed") === "true";
     if (isNew && !dismissed) setTimeout(() => setShowOnboarding(true), 0);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("echo_notifications_toast_shown")) return;
+    apiFetch("/api/notifications")
+      .then((res) => (res.ok ? res.json() : { notifications: [] }))
+      .then((data) => {
+        const list = Array.isArray(data.notifications) ? data.notifications : [];
+        const unread = list.filter((n: { read?: boolean }) => !n.read);
+        if (unread.length > 0 && typeof sessionStorage !== "undefined") {
+          sessionStorage.setItem("echo_notifications_toast_shown", "1");
+          toast.info(
+            `You have ${unread.length} new notification${unread.length === 1 ? "" : "s"}`,
+            {
+              action: {
+                label: "View",
+                onClick: () => window.location.href = "/dashboard/notifications",
+              },
+            }
+          );
+        }
+      })
+      .catch(() => {});
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!db || !user) {
@@ -126,6 +151,15 @@ export default function DashboardPage() {
       flat.sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
       setTotalRuns(total);
       setAllRuns(flat);
+      const first = flat.find(
+        (r) =>
+          r.status === "running" ||
+          r.status === "pending" ||
+          r.status === "awaiting_user"
+      );
+      setInProgressRun(
+        first ? { workflowId: first.workflowId, runId: first.id } : null
+      );
     }
 
     const unsubWf = onSnapshot(wfQ, (snap) => {
@@ -170,11 +204,6 @@ export default function DashboardPage() {
             runSizes.set(wfDoc.id, runsSnap.size);
             runDocsMap.set(wfDoc.id, runs);
             recomputeRuns();
-            runsSnap.docs.forEach((rd) => {
-              if (rd.data().status === "awaiting_user") {
-                setAwaitingRuns({ workflowId: wfDoc.id, runId: rd.id });
-              }
-            });
           },
           () => {
             // Permission error — workflow likely deleted, clean up silently
@@ -216,7 +245,7 @@ export default function DashboardPage() {
           totalWorkflows={0}
           activeWorkflows={0}
           totalRuns={0}
-          awaitingInput={0}
+          inProgressCount={0}
         />
         <Skeleton className="h-70 w-full rounded-lg" />
         <Skeleton className="h-64 w-full rounded-lg" />
@@ -315,10 +344,15 @@ export default function DashboardPage() {
         totalWorkflows={totalWorkflows}
         activeWorkflows={activeWorkflows}
         totalRuns={totalRuns}
-        awaitingInput={awaitingRuns ? 1 : 0}
-        onAwaitingClick={() => {
-          if (awaitingRuns) {
-            window.location.href = `/dashboard/workflows/${awaitingRuns.workflowId}/runs/${awaitingRuns.runId}`;
+        inProgressCount={allRuns.filter(
+          (r) =>
+            r.status === "running" ||
+            r.status === "pending" ||
+            r.status === "awaiting_user"
+        ).length}
+        onInProgressClick={() => {
+          if (inProgressRun) {
+            window.location.href = `/dashboard/workflows/${inProgressRun.workflowId}/runs/${inProgressRun.runId}`;
           }
         }}
       />

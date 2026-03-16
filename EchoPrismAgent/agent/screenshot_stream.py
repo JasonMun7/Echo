@@ -83,3 +83,45 @@ def upload_screenshot(screenshot_bytes: bytes, url: str) -> None:
         })
     except Exception as e:
         logger.warning("Failed to upload screenshot: %s", e)
+
+
+def upload_step_screenshot(
+    workflow_id: str,
+    run_id: str,
+    step_index: int,
+    screenshot_bytes: bytes,
+) -> str | None:
+    """
+    Upload a step screenshot to GCS for run logs. Does not update Firestore.
+    Returns the screenshot URL (public or signed), or None on failure.
+    """
+    bucket_name = os.environ.get("ECHO_GCS_BUCKET")
+    if not bucket_name:
+        return None
+    use_public = os.environ.get("GCS_PUBLIC_BUCKET", "").lower() in ("1", "true", "yes")
+    blob_name = f"runs/{workflow_id}/{run_id}/step_{step_index}.png"
+    try:
+        from google.cloud import storage
+
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(
+            screenshot_bytes,
+            content_type="image/png",
+        )
+        if use_public:
+            return _public_url(bucket_name, blob_name)
+        try:
+            from datetime import timedelta
+
+            return blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(hours=24),
+                method="GET",
+            )
+        except Exception:
+            return _public_url(bucket_name, blob_name)
+    except Exception as e:
+        logger.warning("Failed to upload step screenshot: %s", e)
+        return None
