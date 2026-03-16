@@ -332,6 +332,8 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 | `pnpm run dev:backend` | Start FastAPI backend (Doppler env) |
 | `pnpm run dev:agent` | Start EchoPrism Agent locally (port 8081, Doppler env) |
 | `pnpm run dev:livekit-agent` | Start EchoPrism LiveKit voice agent (Doppler env) |
+| `pnpm run version:desktop` | Bump desktop patch version (0.1.1 → 0.1.2) in `apps/desktop/package.json`; run before `desktop:dist` when cutting a new release |
+| `pnpm run desktop:dist` | Build desktop app and **publish to GitHub Releases** (set `GH_TOKEN`); existing users receive the update via in-app updater |
 | `pnpm run deploy` | Deploy to Cloud Run — frontend, backend, echo-prism-agent, omniparser |
 | `pnpm run deploy:livekit-agent` | Deploy LiveKit voice agent only (optional; requires LiveKit Cloud) |
 

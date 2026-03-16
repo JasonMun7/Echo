@@ -19,6 +19,17 @@ from dotenv import load_dotenv
 load_dotenv(_root / ".env")
 load_dotenv()
 
+# So Cloud Run and local dev show logs; set ECHO_LOG_LEVEL=INFO or DEBUG (default INFO)
+_log_level = getattr(
+    logging, os.environ.get("ECHO_LOG_LEVEL", "INFO").upper(), logging.INFO
+)
+logging.basicConfig(
+    level=_log_level,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stderr,
+)
+
 from livekit import agents
 from livekit.agents import AgentSession, room_io
 from livekit.plugins import google
@@ -38,7 +49,7 @@ async def entrypoint(ctx: agents.JobContext):
     import time
 
     t_entry = time.perf_counter()
-    logging.debug("[EchoPrism] Agent dispatch -> entrypoint: job received")
+    logging.info("[EchoPrism] Agent dispatch -> entrypoint: job received")
 
     session = AgentSession(
         llm=google.realtime.RealtimeModel(
@@ -63,14 +74,14 @@ async def entrypoint(ctx: agents.JobContext):
         ),
     )
     t_session_started = time.perf_counter()
-    logging.debug(
+    logging.info(
         "[EchoPrism] session.start() completed in %.0fms",
         (t_session_started - t_entry) * 1000,
     )
 
     await ctx.connect()
     t_connected = time.perf_counter()
-    logging.debug(
+    logging.info(
         "[EchoPrism] ctx.connect() completed in %.0fms (total since entry: %.0fms)",
         (t_connected - t_session_started) * 1000,
         (t_connected - t_entry) * 1000,
@@ -118,7 +129,7 @@ async def entrypoint(ctx: agents.JobContext):
     if handle:
         await handle.wait_for_playout()
         t_greeting_done = time.perf_counter()
-        logging.debug(
+        logging.info(
             "[EchoPrism] Greeting playout done in %.0fms (total since entry: %.0fms)",
             (t_greeting_done - t_before_greeting) * 1000,
             (t_greeting_done - t_entry) * 1000,
