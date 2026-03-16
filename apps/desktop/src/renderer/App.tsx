@@ -1444,8 +1444,6 @@ function RunHudWrapper() {
   const [liveProgress, setLiveProgress] = useState<
     Array<{ thought: string; action: string; step: number }>
   >([]);
-  const [callUserReason, setCallUserReason] = useState<string | null>(null);
-  const [isAwaitingUser, setIsAwaitingUser] = useState(false);
 
   useEffect(() => {
     const handler = (entry: {
@@ -1457,15 +1455,6 @@ function RunHudWrapper() {
     };
     window.electronAPI?.onRunProgress?.(handler);
     return () => window.electronAPI?.removeRunProgressListener?.();
-  }, []);
-
-  useEffect(() => {
-    const handler = (arg: { reason: string }) => {
-      setCallUserReason(arg.reason);
-      setIsAwaitingUser(true);
-    };
-    window.electronAPI?.onRunAwaitingUser?.(handler);
-    return () => window.electronAPI?.removeRunAwaitingUserListener?.();
   }, []);
 
   // Keep pause indicator in sync when voice interruption opens/closes
@@ -1492,12 +1481,6 @@ function RunHudWrapper() {
         runPaused={runPaused}
         setRunPaused={setRunPaused}
         liveProgress={liveProgress}
-        callUserReason={callUserReason}
-        isAwaitingUser={isAwaitingUser}
-        onCallUserFeedbackSent={() => {
-          setIsAwaitingUser(false);
-          setCallUserReason(null);
-        }}
       />
     </div>
   );

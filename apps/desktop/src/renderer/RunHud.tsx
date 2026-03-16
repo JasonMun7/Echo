@@ -25,21 +25,13 @@ interface RunHudProps {
   runPaused: boolean;
   setRunPaused: (p: boolean) => void;
   liveProgress: LiveEntry[];
-  callUserReason?: string | null;
-  isAwaitingUser?: boolean;
-  onCallUserFeedbackSent?: () => void;
 }
 
 export default function RunHud({
   runPaused,
   setRunPaused,
   liveProgress,
-  callUserReason,
-  isAwaitingUser,
-  onCallUserFeedbackSent,
 }: RunHudProps) {
-  const [callUserInput, setCallUserInput] = useState("");
-  const [sendingCallUserFeedback, setSendingCallUserFeedback] = useState(false);
   const thoughtsEndRef = useRef<HTMLDivElement>(null);
 
   const handlePauseResume = () => {
@@ -51,22 +43,6 @@ export default function RunHud({
   const handleCancel = async () => {
     await window.electronAPI?.cancelRun?.();
     window.electronAPI?.exitRunMode?.();
-  };
-
-  const handleSendCallUserFeedback = async () => {
-    if (!callUserInput.trim()) return;
-    setSendingCallUserFeedback(true);
-    try {
-      const result = await window.electronAPI?.sendCallUserFeedback?.(
-        callUserInput.trim()
-      );
-      if (result?.ok) {
-        setCallUserInput("");
-        onCallUserFeedbackSent?.();
-      }
-    } finally {
-      setSendingCallUserFeedback(false);
-    }
   };
 
   // Show all entries we have (RunHudWrapper caps at RUN_PROGRESS_MAX_ENTRIES so this stays bounded)
@@ -187,42 +163,6 @@ export default function RunHud({
             )}
             <div ref={thoughtsEndRef} />
           </div>
-
-          {/* CallUser section */}
-          {isAwaitingUser && callUserReason ? (
-            <div
-              className="echo-hud-no-drag shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-3 py-3"
-              style={
-                { WebkitAppRegion: "no-drag", appRegion: "no-drag" } as CSSProperties
-              }
-            >
-              <p className="mb-1 text-sm font-semibold text-(--echo-text)">
-                EchoPrism needs your help
-              </p>
-              <p className="mb-3 text-xs text-(--echo-text-secondary)">
-                {callUserReason}
-              </p>
-              <div className="flex gap-2">
-                <input
-                  value={callUserInput}
-                  onChange={(e) => setCallUserInput(e.target.value)}
-                  placeholder="Type feedback to resume…"
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && handleSendCallUserFeedback()
-                  }
-                  className="min-w-0 flex-1 rounded-lg border border-(--echo-input-border) bg-(--echo-input-bg) px-3 py-2 text-sm text-(--echo-text) outline-none placeholder:text-(--echo-text-dim)"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendCallUserFeedback}
-                  disabled={!callUserInput.trim() || sendingCallUserFeedback}
-                  className="echo-btn-cyan-lavender shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {sendingCallUserFeedback ? "Sending…" : "Send"}
-                </button>
-              </div>
-            </div>
-          ) : null}
 
           {/* Footer controls (like RecordingHud) */}
           <div

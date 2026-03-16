@@ -336,25 +336,9 @@ export async function runWorkflowRemote(
 
           if (signal === "calluser") {
             const reason = m.reason ?? "Agent requested user intervention";
-            onProgress(`Agent needs user help at step ${stepNum}: ${reason}`, stepNum, thought, "calluser");
-            await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
-            options?.onAwaitingUser?.(reason);
-            if (!options) return { success: false, error: `calluser:${reason}` };
-            while (true) {
-              await new Promise((r) => setTimeout(r, 2000));
-              const signals = await pollRunSignals(options);
-              if (signals.cancelRequested) {
-                await patchRunStatus(options, "cancelled");
-                return { success: false, error: "Run cancelled by user" };
-              }
-              if (signals.calluserFeedback) {
-                (step as { context?: string }).context = `[User feedback]: ${signals.calluserFeedback}\n${(step as { context?: string }).context ?? ""}`;
-                onProgress(`Resuming with user feedback at step ${stepNum}`, stepNum);
-                break;
-              }
-            }
-            attempt = -1;
-            continue;
+            onProgress(`Step failed: ${reason}`, stepNum, thought, "calluser");
+            await patchRunStatus(options ?? {}, "failed", { callUserReason: reason });
+            return { success: false, error: reason };
           }
 
           if (signal === "execute" && m.action) {
@@ -372,25 +356,9 @@ export async function runWorkflowRemote(
 
             if (execResult === "calluser") {
               const reason = "Operator returned calluser";
-              onProgress(`Agent needs user help at step ${stepNum}: ${reason}`, stepNum, thought, "calluser");
-              await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
-              options?.onAwaitingUser?.(reason);
-              if (!options) return { success: false, error: `calluser:${reason}` };
-              while (true) {
-                await new Promise((r) => setTimeout(r, 2000));
-                const signals = await pollRunSignals(options);
-                if (signals.cancelRequested) {
-                  await patchRunStatus(options, "cancelled");
-                  return { success: false, error: "Run cancelled by user" };
-                }
-                if (signals.calluserFeedback) {
-                  (step as unknown as { context?: string }).context = `[User feedback]: ${signals.calluserFeedback}\n${(step as { context?: string }).context ?? ""}`;
-                  onProgress(`Resuming with user feedback at step ${stepNum}`, stepNum);
-                  break;
-                }
-              }
-              attempt = -1;
-              continue;
+              onProgress(`Step failed: ${reason}`, stepNum, thought, "calluser");
+              await patchRunStatus(options ?? {}, "failed", { callUserReason: reason });
+              return { success: false, error: reason };
             }
 
             if (execResult === false) {
@@ -449,10 +417,9 @@ export async function runWorkflowRemote(
           return { success: false, error: "Run cancelled by user" };
         }
         const reason = lastError || `Step ${stepNum} failed`;
-        onProgress(`Agent stuck at step ${stepNum} — requesting user intervention: ${reason}`, stepNum, undefined, "");
-        await patchRunStatus(options ?? {}, "awaiting_user", { callUserReason: reason });
-        options?.onAwaitingUser?.(reason);
-        return { success: false, error: `calluser:${reason}` };
+        onProgress(`Step failed: ${reason}`, stepNum, undefined, "");
+        await patchRunStatus(options ?? {}, "failed", { callUserReason: reason });
+        return { success: false, error: reason };
       }
 
       onProgress(`✓ Step ${stepNum} complete`, stepNum);
@@ -633,23 +600,9 @@ export async function runGoalOnlyRemote(
         }
         if (m.signal === "calluser") {
           const reason = m.reason ?? "Agent requested user intervention";
-          onProgress(`Need help: ${reason}`, iteration + 1, thought, "calluser");
-          await patchRunStatus(options, "awaiting_user", { callUserReason: reason });
-          options.onAwaitingUser?.(reason);
-          while (true) {
-            await new Promise((r) => setTimeout(r, 2000));
-            const s = await pollRunSignals(options);
-            if (s.cancelRequested) {
-              await patchRunStatus(options, "cancelled");
-              return { success: false, error: "Run cancelled by user" };
-            }
-            if (s.calluserFeedback) {
-              lastError = "";
-              onProgress(`Resuming with feedback`, iteration + 1);
-              break;
-            }
-          }
-          continue;
+          onProgress(`Step failed: ${reason}`, iteration + 1, thought, "calluser");
+          await patchRunStatus(options, "failed", { callUserReason: reason });
+          return { success: false, error: reason };
         }
         if (m.signal === "execute" && m.action) {
           const actionStr = m.action_str ?? (typeof (m.action as { action?: string })?.action === "string" ? (m.action as { action: string }).action : "");
@@ -664,22 +617,9 @@ export async function runGoalOnlyRemote(
           }
           if (execResult === "calluser") {
             const reason = "Operator returned calluser";
-            onProgress(`Need help: ${reason}`, iteration + 1, thought, "calluser");
-            await patchRunStatus(options, "awaiting_user", { callUserReason: reason });
-            options.onAwaitingUser?.(reason);
-            while (true) {
-              await new Promise((r) => setTimeout(r, 2000));
-              const s = await pollRunSignals(options);
-              if (s.cancelRequested) {
-                await patchRunStatus(options, "cancelled");
-                return { success: false, error: "Run cancelled by user" };
-              }
-              if (s.calluserFeedback) {
-                lastError = "";
-                break;
-              }
-            }
-            continue;
+            onProgress(`Step failed: ${reason}`, iteration + 1, thought, "calluser");
+            await patchRunStatus(options, "failed", { callUserReason: reason });
+            return { success: false, error: reason };
           }
           if (execResult === false) {
             lastError = "Operator returned false";
