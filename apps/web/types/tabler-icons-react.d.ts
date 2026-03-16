@@ -81,6 +81,7 @@ declare module "@tabler/icons-react" {
   export const IconMicrophoneOff: TablerIcon;
   export const IconPackage: TablerIcon;
   export const IconPencil: TablerIcon;
+  export const IconPhone: TablerIcon;
   export const IconPhoto: TablerIcon;
   export const IconPlayerPlay: TablerIcon;
   export const IconPlayerRecord: TablerIcon;

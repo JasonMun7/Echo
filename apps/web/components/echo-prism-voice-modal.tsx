@@ -13,7 +13,10 @@ import {
   IconRefresh,
   IconTool,
   IconBrandSlack,
+  IconHelp,
+  IconChevronDown,
 } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -103,6 +106,8 @@ export function EchoPrismVoiceModal({
     id: string;
     name: string;
   } | null>(null);
+  const [isDisconnected, setIsDisconnected] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   // Audio refs — own WS, own AudioContext for mic (16kHz) and playback (24kHz)
   const wsRef = useRef<WebSocket | null>(null);
@@ -232,7 +237,7 @@ export function EchoPrismVoiceModal({
             clearTimeout(transcriptTimerRef.current);
           transcriptTimerRef.current = setTimeout(
             () => setTranscript(""),
-            4000,
+            8000,
           );
         } else if (data.type === "tool_call" && typeof data.name === "string") {
           setActiveTool(data.name);
@@ -272,6 +277,7 @@ export function EchoPrismVoiceModal({
       setActiveTool(null);
       setIsSynthesizing(false);
       setSynthesizedWorkflow(null);
+      setIsDisconnected(false);
     });
     nextPlayTimeRef.current = 0;
 
@@ -281,13 +287,23 @@ export function EchoPrismVoiceModal({
     const ws = new WebSocket(`${WS_URL}/ws/chat?${params.toString()}`);
     wsRef.current = ws;
 
+    let didOpen = false;
     ws.onopen = () => {
+      didOpen = true;
       startMic(ws);
     };
     ws.onmessage = handleMessage;
-    ws.onerror = () => console.error("EchoPrismVoice WS error");
+    ws.onerror = () => {
+      console.error("EchoPrismVoice WS error");
+      if (!didOpen) {
+        toast.error("Couldn't connect to EchoPrism — check your connection");
+      }
+    };
     ws.onclose = () => {
       setVoiceState("idle");
+      if (didOpen) {
+        setIsDisconnected(true);
+      }
     };
 
     return () => {
@@ -319,6 +335,38 @@ export function EchoPrismVoiceModal({
   function handleClose() {
     stopMic();
     onClose();
+  }
+
+  function handleReconnect() {
+    stopMic();
+    stopAudioCheck();
+    if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
+    playbackCtxRef.current?.close().catch(() => {});
+    playbackCtxRef.current = null;
+    wsRef.current?.close();
+    wsRef.current = null;
+    setIsDisconnected(false);
+    setVoiceState("listening");
+    setTranscript("");
+    setActiveTool(null);
+    nextPlayTimeRef.current = 0;
+
+    if (!token) return;
+    const params = new URLSearchParams({ token, mode: "voice" });
+    if (workflowId) params.set("workflow_id", workflowId);
+    if (runId) params.set("run_id", runId);
+    const ws = new WebSocket(`${WS_URL}/ws/chat?${params.toString()}`);
+    wsRef.current = ws;
+    let didOpen = false;
+    ws.onopen = () => { didOpen = true; startMic(ws); };
+    ws.onmessage = handleMessage;
+    ws.onerror = () => {
+      if (!didOpen) toast.error("Couldn't reconnect to EchoPrism");
+    };
+    ws.onclose = () => {
+      setVoiceState("idle");
+      if (didOpen) setIsDisconnected(true);
+    };
   }
 
   if (!isOpen) return null;
@@ -469,6 +517,46 @@ export function EchoPrismVoiceModal({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Disconnected banner */}
+        {isDisconnected && (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-6 py-4">
+            <p className="text-sm font-medium text-white/70">Connection lost</p>
+            <button
+              onClick={handleReconnect}
+              className="flex items-center gap-2 rounded-full bg-[#A577FF] px-5 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+            >
+              <IconRefresh className="h-4 w-4" />
+              Reconnect
+            </button>
+          </div>
+        )}
+
+        {/* "What can I say?" help panel */}
+        <div className="w-full max-w-xs">
+          <button
+            onClick={() => setShowHelp((v) => !v)}
+            className="flex w-full items-center justify-center gap-1.5 text-xs text-white/30 hover:text-white/60 transition-colors"
+          >
+            <IconHelp className="h-3.5 w-3.5" />
+            What can I say?
+            <IconChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                showHelp && "rotate-180",
+              )}
+            />
+          </button>
+          {showHelp && (
+            <ul className="mt-3 space-y-1.5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
+              <li>"Run my <span className="text-white/70 italic">[workflow name]</span>"</li>
+              <li>"Create a workflow for <span className="text-white/70 italic">[description]</span>"</li>
+              <li>"Cancel the current run"</li>
+              <li>"Redirect: <span className="text-white/70 italic">[new instruction]</span>"</li>
+              <li>"What workflows do I have?"</li>
+            </ul>
+          )}
         </div>
 
         {/* Controls: X (close) left of mute — both h-14 w-14 */}

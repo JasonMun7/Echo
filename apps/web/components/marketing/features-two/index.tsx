@@ -18,11 +18,11 @@ export function FeaturesTwo() {
     <Container className="px-4 py-10 md:py-20 lg:py-32">
       <div className="mx-auto mb-16 max-w-2xl text-center">
         <Heading as="h2" className="mb-4">
-          Deploy agents across every platform
+          Run Echo anywhere
         </Heading>
         <SubHeading className="text-balance">
-          Your AI agents work seamlessly on mobile, desktop, and tablet. Monitor
-          and orchestrate from anywhere.
+          From your web dashboard to your desktop to your voice — Echo is always
+          one command away.
         </SubHeading>
       </div>
 
@@ -51,25 +51,28 @@ export function FeaturesTwo() {
       <div className="mx-auto grid w-full grid-cols-1 items-center gap-10 overflow-hidden py-4 md:grid-cols-3 md:flex-row md:items-end md:justify-center md:py-10">
         <FeatureItem>
           <IPhoneSkeleton />
-          <FeatureTitle>Agents in your pocket</FeatureTitle>
+          <FeatureTitle>Voice from any device</FeatureTitle>
           <FeatureDescription>
-            Monitor workflows and receive real-time alerts on the go.
+            Trigger any workflow hands-free. Say it, and EchoPrism handles the
+            rest — no mouse, no keyboard needed.
           </FeatureDescription>
         </FeatureItem>
 
         <FeatureItem>
           <MacbookSkeleton />
-          <FeatureTitle>Full control at your desk</FeatureTitle>
+          <FeatureTitle>Full desktop control</FeatureTitle>
           <FeatureDescription>
-            Build, debug, and deploy agents with powerful desktop tools.
+            Browser tabs, native apps, system dialogs — EchoPrism sees and
+            controls your entire screen.
           </FeatureDescription>
         </FeatureItem>
 
         <FeatureItem>
           <IPadSkeleton />
-          <FeatureTitle>Orchestrate from anywhere</FeatureTitle>
+          <FeatureTitle>Web dashboard</FeatureTitle>
           <FeatureDescription>
-            Manage complex workflows with touch-friendly dashboards.
+            Monitor live runs, review thought logs, share workflows, and manage
+            your team from anywhere.
           </FeatureDescription>
         </FeatureItem>
       </div>
@@ -78,18 +81,18 @@ export function FeaturesTwo() {
       <div className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3">
         <MarketingFeatureBlock
           icon={<SecuritySkeleton />}
-          title="Enterprise-grade security"
-          description="End-to-end encryption and SOC 2 compliance ensure your agent data stays protected across all devices."
+          title="Live thought stream"
+          description="See exactly what EchoPrism is thinking at every step — full transparency into your agent's reasoning and actions."
         />
         <MarketingFeatureBlock
           icon={<EdgeComputing />}
-          title="Edge computing ready"
-          description="Deploy agents closer to your users with our global edge network for ultra-low latency responses."
+          title="Visual grounding, not guessing"
+          description="OmniParser detects real UI elements. EchoPrism clicks what it sees — not estimated coordinates."
         />
         <MarketingFeatureBlock
           icon={<Compliance />}
-          title="SOC2 and HIPAA compliant"
-          description="Built-in encryption and compliance features ensure your agent data stays protected across all devices."
+          title="Gets smarter over time"
+          description="Every completed run is scored and used to fine-tune your personal Echo model — it learns your workflows."
         />
       </div>
     </Container>

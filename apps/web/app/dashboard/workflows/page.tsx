@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
@@ -10,7 +12,10 @@ import {
   IconPlus,
   IconTrash,
   IconJumpRope,
+  IconCheck,
+  IconX,
 } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import Threads from "@/components/threads";
 import {
@@ -20,10 +25,19 @@ import {
 } from "@/components/ui/tooltip";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 
+interface WorkflowInvite {
+  id: string;
+  workflow_id: string;
+  workflow_name: string;
+  from_name: string;
+  from_uid: string;
+}
+
 interface Workflow {
   id: string;
   name?: string;
   status: string;
+  owner_uid?: string;
   workflow_type?: "browser" | "desktop";
   thumbnail_gcs_path?: string;
   createdAt: unknown;
@@ -95,9 +109,73 @@ function WorkflowThumbnail({ workflowId }: { workflowId: string }) {
 }
 
 export default function WorkflowsPage() {
+  const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [invites, setInvites] = useState<WorkflowInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [respondingInvite, setRespondingInvite] = useState<string | null>(null);
+  const [authUid, setAuthUid] = useState<string | null>(
+    auth?.currentUser?.uid ?? null,
+  );
+
+  useEffect(() => {
+    if (!auth) return;
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setAuthUid(user?.uid ?? null);
+    });
+    return unsub;
+  }, []);
+
+  const loadInvites = async () => {
+    try {
+      const res = await apiFetch("/api/workflows/invites");
+      if (res.ok) {
+        const data = await res.json();
+        setInvites(data.invites || []);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (!authUid) return;
+    loadInvites();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUid]);
+
+  const handleAcceptInvite = async (invite: WorkflowInvite) => {
+    setRespondingInvite(invite.id);
+    try {
+      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/accept`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to accept");
+      setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+      toast.success(`"${invite.workflow_name}" copied to your workflows`);
+      if (data.fork_id) {
+        router.push(`/dashboard/workflows/${data.fork_id}`);
+      }
+    } catch {
+      toast.error("Failed to accept invite");
+    } finally {
+      setRespondingInvite(null);
+    }
+  };
+
+  const handleDeclineInvite = async (invite: WorkflowInvite) => {
+    setRespondingInvite(invite.id);
+    try {
+      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/decline`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to decline");
+      setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+      toast.success("Invite declined");
+    } catch {
+      toast.error("Failed to decline invite");
+    } finally {
+      setRespondingInvite(null);
+    }
+  };
 
   const handleDelete = async (e: React.MouseEvent, workflowId: string) => {
     e.preventDefault();
@@ -119,31 +197,64 @@ export default function WorkflowsPage() {
   };
 
   useEffect(() => {
-    if (!db || !auth?.currentUser) {
+    if (!db || !authUid) return;
+    const uid = authUid;
+
+    // API map: initial full list (owned + legacy shared_with + forks) from backend
+    // Firestore map: real-time updates for owned workflows only
+    const apiMap = new Map<string, Workflow>();
+    const ownedMap = new Map<string, Workflow>();
+    let apiReady = false;
+
+    const merge = () => {
+      if (!apiReady) return;
+      // Firestore owned data takes precedence over API data for owned workflows
+      const combined = new Map([...apiMap, ...ownedMap]);
+      const list = Array.from(combined.values())
+        .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
+        .sort((a, b) =>
+          getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt),
+        );
+      setWorkflows(list);
       setLoading(false);
-      return;
-    }
-    const uid = auth.currentUser.uid;
-    const q = query(collection(db, "workflows"), where("owner_uid", "==", uid));
-    const unsub = onSnapshot(
-      q,
+    };
+
+    // 1. Fetch all workflows (owned + forked + legacy shared) via API
+    apiFetch("/api/workflows")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { workflows: Workflow[] }) => {
+        apiMap.clear();
+        for (const w of data.workflows || []) {
+          apiMap.set(w.id, w);
+        }
+        apiReady = true;
+        merge();
+      })
+      .catch(() => {
+        apiReady = true;
+        merge();
+      });
+
+    // 2. Firestore listener for owned workflows — real-time updates (new workflows from desktop)
+    const qOwned = query(collection(db, "workflows"), where("owner_uid", "==", uid));
+    const unsubOwned = onSnapshot(
+      qOwned,
       (snap) => {
-        const list = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
-          .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
-          .sort((a, b) =>
-            getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt),
-          );
-        setWorkflows(list);
-        setLoading(false);
+        ownedMap.clear();
+        for (const d of snap.docs) {
+          ownedMap.set(d.id, { id: d.id, ...d.data() } as Workflow);
+        }
+        merge();
       },
       (err) => {
         console.warn("Workflows snapshot error:", err);
-        setLoading(false);
       },
     );
-    return () => unsub();
-  }, []);
+
+    return () => {
+      unsubOwned();
+    };
+  }, [authUid]);
 
   if (loading) {
     return (
@@ -186,6 +297,43 @@ export default function WorkflowsPage() {
             New Workflow
           </DesktopCaptureLink>
         </div>
+        {invites.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {invites.map((invite) => (
+              <div
+                key={invite.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[#A577FF]/30 bg-[#A577FF]/5 px-4 py-3"
+              >
+                <p className="text-sm text-[#150A35]">
+                  <span className="font-medium">{invite.from_name}</span>
+                  {" invited you to "}
+                  <span className="font-medium">&ldquo;{invite.workflow_name}&rdquo;</span>
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDeclineInvite(invite)}
+                    disabled={respondingInvite === invite.id}
+                    className="flex items-center gap-1 rounded-md border border-[#150A35]/20 px-2.5 py-1 text-xs text-[#150A35]/60 hover:border-echo-error/40 hover:text-echo-error disabled:opacity-50"
+                  >
+                    <IconX className="h-3.5 w-3.5" />
+                    Decline
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAcceptInvite(invite)}
+                    disabled={respondingInvite === invite.id}
+                    className="echo-btn-cyan-lavender flex items-center gap-1 rounded-md px-2.5 py-1 text-xs disabled:opacity-50"
+                  >
+                    <IconCheck className="h-3.5 w-3.5" />
+                    Accept
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {workflows.length === 0 ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-[#A577FF]/40">
             <div className="absolute inset-0 overflow-hidden rounded-lg">
@@ -235,21 +383,23 @@ export default function WorkflowsPage() {
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {/* Delete button — top-right, shown on hover, stops link navigation */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDelete(e, w.id)}
-                      disabled={deletingId === w.id}
-                      className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/80 text-echo-error opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-echo-error hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Delete workflow"
-                    >
-                      <IconTrash className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Delete workflow</TooltipContent>
-                </Tooltip>
+                {/* Delete button — top-right, owner only, shown on hover */}
+                {w.owner_uid === auth?.currentUser?.uid && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDelete(e, w.id)}
+                        disabled={deletingId === w.id}
+                        className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/80 text-echo-error opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-echo-error hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Delete workflow"
+                      >
+                        <IconTrash className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Delete workflow</TooltipContent>
+                  </Tooltip>
+                )}
 
                 {/* Entire card is a link */}
                 <Link

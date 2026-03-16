@@ -22,6 +22,15 @@ export default function DashboardRootLayout({
     }
   }, [loading, user, router]);
 
+  // Prevent body-level scroll — dashboard is a full-screen app
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   if (loading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#F5F7FC]">
@@ -44,12 +53,8 @@ export default function DashboardRootLayout({
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto bg-[#F5F7FC]">
-            <div className="@container/main flex flex-1 flex-col min-h-0 gap-2">
-              <div className="flex min-h-0 flex-1 flex-col gap-4 py-2 pb-4 md:gap-6 md:py-2 md:pb-6">
-                {children}
-              </div>
-            </div>
+          <div className="flex min-h-0 flex-1 flex-col bg-[#F5F7FC]">
+            {children}
           </div>
         </SidebarInset>
       </SidebarProvider>

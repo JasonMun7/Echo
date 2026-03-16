@@ -142,8 +142,8 @@ async def synthesize(
             ct = {
                 "mp4": "video/mp4",
                 "webm": "video/webm",
-                "mov": "video/mp4",
-                "quicktime": "video/mp4",
+                "mov": "video/quicktime",
+                "quicktime": "video/quicktime",
             }.get(ext, "video/mp4")
             content = gcs_download_file(blob_name)
             dest_blob = f"{gcs_prefix}/{blob_name.rsplit('/', 1)[-1]}"

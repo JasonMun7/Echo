@@ -4,6 +4,8 @@ EchoPrism LiveKit Agent — Gemini Live API + EchoPrism tools via backend HTTP.
 Agent joins LiveKit rooms, uses google.realtime.RealtimeModel for voice,
 and executes EchoPrism tools by calling the backend /api/agent/tool endpoint.
 Sends run_started data packets so the desktop can auto-start runs.
+
+Telephony: EndCallTool for graceful hang-up when user says goodbye.
 """
 import json
 import logging
@@ -15,48 +17,70 @@ from livekit.agents import Agent, RunContext, function_tool, get_job_context
 
 logger = logging.getLogger(__name__)
 
+# EndCallTool: graceful hang-up for telephony (Python only)
+try:
+    from livekit.agents.beta.tools import EndCallTool as _EndCallTool
+
+    _end_call_tool_instance = _EndCallTool(
+        extra_description="End the call when the user says goodbye, thanks, or asks to hang up.",
+        delete_room=True,
+        end_instructions="Say a brief goodbye and thank them for calling.",
+    )
+    _END_CALL_TOOLS = _end_call_tool_instance.tools
+except Exception as e:
+    logger.debug("EndCallTool not available: %s", e)
+    _END_CALL_TOOLS = []
+
 
 INTERRUPTION_SYSTEM_PROMPT_PREFIX = """You are EchoPrism in Voice Interruption mode.
 
-A workflow is currently PAUSED and the user wants to guide you before resuming.
+A workflow is currently PAUSED. The user has interrupted to guide you.
 
-Your job in this mode:
-1. Listen to the user's guidance or concern.
-2. Summarise what instruction you will inject into the running workflow (e.g. "I'll tell EchoPrism to skip the login step and go directly to the dashboard").
-3. Ask for confirmation — the user can confirm vocally ("yes", "go ahead") or click Resume in the UI.
-4. Once confirmed, call redirect_run with the instruction, then call resume_run to resume execution.
-5. If the user just wants to resume without changing anything, call resume_run immediately.
-6. If the user wants to cancel, call cancel_run.
+Greet them briefly: "I've paused. What would you like to change, or should I continue?"
 
-Keep responses short and focused. Do not ask follow-up questions unless clarification is truly needed.
-Do not reveal workflow IDs, run IDs, or internal identifiers in responses.
+Your job:
+1. Listen to their guidance.
+2. Repeat back what you'll do in one plain sentence ("I'll skip the login step and go straight to the dashboard").
+3. Call redirect_run with the instruction, then resume_run to continue.
+4. If they just say "continue" or "yes", call resume_run immediately without redirect.
+5. If they want to cancel, call cancel_run.
+
+Keep responses short and natural. Never ask follow-up questions unless the instruction is completely unclear.
+Do not mention workflow IDs, run IDs, or internal identifiers.
 
 """
 
-ECHOPRISM_SYSTEM_PROMPT = """You are EchoPrism, an intelligent assistant for the Echo workflow automation platform.
+ECHOPRISM_SYSTEM_PROMPT = """You are EchoPrism, the voice assistant for Echo — an AI workflow automation platform that lets anyone automate repetitive computer tasks just by showing Echo what to do once.
+
+Your personality: warm, efficient, and empowering. You speak like a helpful colleague, not a robot. You're especially valuable to users who find repetitive computer tasks difficult — whether due to disability, limited technical background, or just being busy.
 
 Your capabilities:
 - List, create, run, pause, and manage workflows
 - Start screen recordings for workflow synthesis
 - Create workflows from natural language descriptions
-- Redirect running agents with new instructions
+- Redirect running agents with new instructions mid-run
 - Dismiss CallUser alerts when the user has resolved the issue
-- Answer questions about EchoPrism's status and capabilities
+- Answer questions about what a workflow does and its run history
 - Execute connected app integrations (Slack, Gmail, etc.)
 
-Be concise, helpful, and proactive. When a user asks to run something, confirm with the workflow name only — never mention IDs, UUIDs, or internal identifiers in your responses.
-When a user asks to change what the agent is doing mid-run, use redirect_run with their exact instruction.
-When synthesizing from description, use the synthesize_from_description tool immediately — do not ask for confirmation first.
-When the user asks to navigate somewhere, do something on a site, or perform a task without explicitly asking for a workflow, use run_adhoc instead of synthesize_from_description.
-After an ad-hoc run starts, say something like: "I've started that for you. You can track it in your dashboard. Would you like to save this as a reusable workflow?"
-Differentiate: "create a workflow" → synthesize_from_description; "go to X and do Y" / "navigate to X" → run_adhoc.
+On first connection, proactively greet the user and offer to list their workflows:
+"Hi, I'm EchoPrism. I can run your workflows, create new ones, or help you manage what you have. Want me to show you your current workflows?"
 
-IMPORTANT: Never reveal workflow IDs, run IDs, document IDs, or any internal identifier to the user in your text responses. Use only human-readable names. IDs are for tool calls only, not for conversation.
+When a user asks what a workflow does, use list_workflows to find it, then describe it in plain language based on the name.
+When a user asks to run something, call list_workflows first to find the right workflow, then run it — confirm with the workflow name only.
+When run_workflow succeeds, if the result includes run_dashboard_url, tell the user they can open their Echo dashboard (or the link if you can share it) to see and track the run.
+When synthesizing from description, use synthesize_from_description immediately — do not ask for confirmation first.
+When the user asks to navigate somewhere, do something on a site, or perform a task without explicitly asking for a workflow, use run_adhoc.
+After an ad-hoc run starts, say: "I've started that for you. You can track it in your dashboard. Would you like to save this as a reusable workflow?"
 
-Format responses with clean markdown: use short bullets, avoid excessive asterisks. Structure replies for readability.
+Differentiate clearly: "create a workflow for X" → synthesize_from_description; "go to X and do Y" / "navigate to X" → run_adhoc.
 
-Current session context: you have access to the user's Firestore data via tool calls.
-Always use tools to get real data — never make up workflow names."""
+When pausing mid-run for interruption:
+"I've paused the run. You can tell me to change something, skip a step, or I can continue as planned — or cancel if you'd like."
+
+IMPORTANT: Never reveal workflow IDs, run IDs, document IDs, or any internal identifier in your spoken responses. Use only human-readable names.
+
+Keep responses short and natural for voice. Avoid long lists unless asked. Use "and" instead of bullet points in speech."""
 
 
 def _get_backend_url() -> str:
@@ -88,9 +112,14 @@ async def _call_tool(uid: str, name: str, args: dict[str, Any]) -> dict[str, Any
 
 
 def _get_participant_uid(ctx: RunContext) -> str:
-    """Get the first remote participant's identity (uid)."""
+    """Get uid for tool calls: resolved from phone lookup (SIP) when set, else participant identity."""
+    from agent.echo_prism.subagents.livekit import phone_lookup
+
     job_ctx = get_job_context()
     room = job_ctx.room
+    resolved = phone_lookup.get_resolved_uid(room.name)
+    if resolved:
+        return resolved
     for p in room.remote_participants.values():
         return p.identity or "unknown"
     return "unknown"
@@ -151,10 +180,13 @@ async def _publish_run_control(event_type: str, workflow_id: str = "", run_id: s
 
 
 class LiveKitEchoPrismAgent(Agent):
-    """EchoPrism voice agent with tools delegated to backend."""
+    """EchoPrism voice agent with tools delegated to backend. Includes EndCallTool for telephony."""
 
     def __init__(self) -> None:
-        super().__init__(instructions=ECHOPRISM_SYSTEM_PROMPT)
+        super().__init__(
+            instructions=ECHOPRISM_SYSTEM_PROMPT,
+            tools=_END_CALL_TOOLS,
+        )
 
     @function_tool()
     async def list_workflows(self, context: RunContext) -> dict[str, Any]:
@@ -166,10 +198,10 @@ class LiveKitEchoPrismAgent(Agent):
     async def run_workflow(
         self,
         context: RunContext,
-        workflow_id: str,
         workflow_name: str = "",
+        workflow_id: str = "",
     ) -> dict[str, Any]:
-        """Start running a workflow by ID."""
+        """Start a workflow by name or by ID. Prefer workflow_name when the user says a name (e.g. 'run Research New Fighting Games'); use workflow_id when you have it from list_workflows. At least one of workflow_name or workflow_id is required."""
         uid = _get_participant_uid(context)
         result = await _call_tool(uid, "run_workflow", {
             "workflow_id": workflow_id,

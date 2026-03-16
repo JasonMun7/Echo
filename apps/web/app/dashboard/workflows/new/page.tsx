@@ -9,8 +9,8 @@ const CAPTURE_URL = "echo-desktop://capture";
 const REDIRECT_DELAY_MS = 2000;
 
 /**
- * Only redirect to get-started if the desktop app did not open (page stays visible).
- * If the user has the app, it steals focus and we skip the redirect.
+ * Try to open Echo Desktop capture. If the app does not open (page stays visible after delay),
+ * redirect to /dashboard/workflows so users who have the app aren't sent to get-started.
  */
 export default function NewWorkflowPage() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function NewWorkflowPage() {
       redirectTimeoutRef.current = null;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       if (document.visibilityState === "visible") {
-        router.push("/get-started");
+        router.push("/dashboard/workflows");
       }
     }, REDIRECT_DELAY_MS);
     return () => {
@@ -43,17 +43,23 @@ export default function NewWorkflowPage() {
   }, [router]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4  p-6 md:p-10">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">
-        <IconDeviceDesktop className="h-6 w-6 text-[#A577FF]" />
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6 md:p-10">
+      <div className="relative flex h-16 w-16 items-center justify-center">
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-[#A577FF]/20 border-t-[#A577FF]" />
+        <IconDeviceDesktop className="h-7 w-7 text-[#A577FF]" />
       </div>
-      <p className="text-center text-sm text-[#150A35]/80">
-        Opening Echo Desktop to create a workflow…
-      </p>
-      <p className="text-center text-xs text-[#150A35]/60">
+      <div className="flex flex-col items-center gap-1.5 text-center">
+        <p className="text-base font-semibold text-[#150A35]">
+          Opening Echo Desktop…
+        </p>
+        <p className="text-sm text-[#150A35]/60">
+          Echo Desktop will open so you can record a workflow.
+        </p>
+      </div>
+      <p className="text-center text-xs text-[#150A35]/50">
         Don&apos;t have the app?{" "}
         <Link href="/get-started" className="text-[#A577FF] hover:underline">
-          Get started
+          Download Echo Desktop
         </Link>
         {" · "}
         <Link href="/dashboard/workflows" className="text-[#A577FF] hover:underline">

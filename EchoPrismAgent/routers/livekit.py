@@ -6,6 +6,7 @@ LiveKit integration: token issuance and agent tool execution.
 """
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -90,7 +91,8 @@ async def livekit_token(
             detail="livekit-api package not installed",
         )
 
-    room_name = (body and body.room_name) or f"echoprism-{uid}"
+    import time as _time
+    room_name = (body and body.room_name) or f"echoprism-{uid}-{int(_time.time())}"
     token = AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
     token = token.with_identity(uid).with_name(uid)
     token = token.with_grants(VideoGrants(
@@ -150,6 +152,54 @@ class AgentToolRequest(BaseModel):
     args: dict = {}
 
 
+def _phone_lookup_candidates(phone: str) -> list[str]:
+    """Return phone values to try for lookup: exact, then E.164-normalized (so +18016741971 and 8016741971 both match)."""
+    s = (phone or "").strip()
+    if not s:
+        return []
+    candidates = [s]
+    digits = re.sub(r"\D", "", s)
+    if len(digits) == 10:
+        candidates.append("+1" + digits)
+        candidates.append(digits)
+    elif len(digits) == 11 and digits.startswith("1"):
+        candidates.append("+" + digits)
+        candidates.append(digits[1:])  # 10 digits without country
+    return list(dict.fromkeys(candidates))  # dedupe, keep order
+
+
+@router.get("/livekit/user-by-phone")
+async def user_by_phone(
+    phone: str,
+    x_agent_secret: str | None = Header(None, alias="X-Agent-Secret"),
+) -> dict:
+    """
+    Look up user by E.164 phone for telephony personalization.
+    Used by the LiveKit agent when a SIP caller joins; requires X-Agent-Secret (LIVEKIT_AGENT_SECRET).
+    Tries exact match then normalized forms (e.g. +18016741971 and 8016741971).
+    Returns 200 { uid, displayName } or 404 if not found.
+    """
+    if not LIVEKIT_AGENT_SECRET or x_agent_secret != LIVEKIT_AGENT_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid agent secret")
+    phone = (phone or "").strip()
+    if not phone:
+        raise HTTPException(status_code=400, detail="phone query param required")
+
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    users_ref = db.collection("users")
+    for candidate in _phone_lookup_candidates(phone):
+        query = users_ref.where("phone", "==", candidate).limit(1)
+        snapshots = list(query.stream())
+        if snapshots:
+            doc = snapshots[0]
+            data = doc.to_dict() or {}
+            uid = data.get("uid") or doc.id
+            display_name = data.get("displayName") or data.get("email") or uid
+            return {"uid": uid, "displayName": display_name}
+    raise HTTPException(status_code=404, detail="User not found for this phone number")
+
+
 @router.post("/agent/tool")
 async def agent_tool(
     body: AgentToolRequest,
@@ -176,6 +226,16 @@ async def agent_tool(
             db,
             websocket=None,
         )
+        extra = ""
+        if body.name == "run_workflow":
+            if result.get("error"):
+                extra = " error=%r" % (result.get("error"),)
+            else:
+                extra = " run_id=%s workflow_id=%s" % (
+                    result.get("run_id"),
+                    result.get("workflow_id"),
+                )
+        logger.info("[agent/tool] %s -> ok=%s%s", body.name, result.get("ok"), extra)
         return result
     except Exception as e:
         logger.exception("Agent tool %s failed: %s", body.name, e)

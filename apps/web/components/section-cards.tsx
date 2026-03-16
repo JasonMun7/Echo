@@ -31,7 +31,7 @@ export function SectionCards({
   onAwaitingClick,
 }: SectionCardsProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4 lg:px-6">
       <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardDescription className="text-echo-text-muted">

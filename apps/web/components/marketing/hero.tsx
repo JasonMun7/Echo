@@ -23,7 +23,7 @@ const LinesGradientShader = dynamic(
         }}
       />
     ),
-  }
+  },
 );
 
 export default function Hero() {
@@ -40,12 +40,12 @@ export default function Hero() {
         <Badge href="/#product">Introducing autonomous AI workflows</Badge>
 
         <h1 className="mt-4 max-w-3xl text-4xl font-medium tracking-tight text-[#150A35] md:text-7xl">
-          Deploy AI agents that work while you sleep.
+          Automate anything. Just show Echo how.
         </h1>
 
         <p className="mt-4 max-w-2xl text-base text-gray-600 md:text-xl">
-          Build, deploy, and orchestrate intelligent AI agents that automate
-          complex workflows, make decisions, and execute tasks autonomously.
+          Record a workflow once — Echo learns it. Then run it forever: by
+          voice, by schedule, or automatically. Powered by Gemini.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -57,27 +57,27 @@ export default function Hero() {
             <Link href="/get-started" className="flex items-center gap-2">
               Get started
               <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="ml-1 inline-block"
-            >
-              <path d="M5 12h14" />
-              <path d="m12 5 7 7-7 7" />
-            </svg>
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="ml-1 inline-block"
+              >
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
             </Link>
           </HoverBorderGradient>
           <Link
             href="/#product"
             className="echo-btn-secondary-accent flex h-11 items-center rounded-lg px-6 font-medium"
           >
-            Learn More
+            See it in action
           </Link>
         </div>
 
@@ -91,7 +91,7 @@ export default function Hero() {
                   <div className="size-3 rounded-full bg-green-500" />
                 </div>
                 <div className="flex-1 text-center">
-                  <span className="text-xs text-gray-500">app.echo.ai</span>
+                  <span className="text-xs text-gray-500">echo.ai</span>
                 </div>
                 <div className="w-12" />
               </div>

@@ -1,9 +1,23 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException
 import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel
 
 from app.auth import get_current_uid, get_current_user, get_firebase_app
+
+
+def _normalize_phone_e164(value: str) -> str:
+    """Normalize to E.164 for storage: 10 digits (US) -> +1XXXXXXXXXX; else strip and keep + if present."""
+    s = (value or "").strip()
+    if not s:
+        return s
+    digits = re.sub(r"\D", "", s)
+    if len(digits) == 10:
+        return "+1" + digits
+    if len(digits) == 11 and digits.startswith("1"):
+        return "+" + digits
+    return s if s.startswith("+") else ("+" + digits if digits else s)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -78,11 +92,12 @@ async def get_me(uid: str = Depends(get_current_uid)):
 class UserUpdateBody(BaseModel):
     display_name: str | None = None
     default_workflow_type: str | None = None
+    phone: str | None = None  # E.164 for telephony personalization (e.g. +15551234567)
 
 
 @router.put("/me")
 async def update_me(body: UserUpdateBody, uid: str = Depends(get_current_uid)):
-    """Update the current user's display name or preferences."""
+    """Update the current user's display name, preferences, or phone (E.164)."""
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     updates: dict = {"updatedAt": SERVER_TIMESTAMP}
@@ -90,5 +105,8 @@ async def update_me(body: UserUpdateBody, uid: str = Depends(get_current_uid)):
         updates["displayName"] = body.display_name
     if body.default_workflow_type is not None:
         updates["defaultWorkflowType"] = body.default_workflow_type
+    if body.phone is not None:
+        raw = body.phone.strip() or None
+        updates["phone"] = _normalize_phone_e164(raw) if raw else None
     db.collection("users").document(uid).update(updates)
     return {"ok": True}

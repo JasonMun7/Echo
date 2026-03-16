@@ -23,7 +23,7 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `LIVEKIT_URL` | LiveKit WebSocket URL (e.g. wss://xxx.livekit.cloud) |
 | `LIVEKIT_API_KEY` | LiveKit API key (from [cloud.livekit.io](https://cloud.livekit.io)) |
 | `LIVEKIT_API_SECRET` | LiveKit API secret |
-| `LIVEKIT_AGENT_SECRET` | Shared secret for /api/agent/tool (LiveKit agent) |
+| `LIVEKIT_AGENT_SECRET` | Shared secret for /api/agent/tool and /api/livekit/user-by-phone (LiveKit agent) |
 
 ## Frontend (web)
 
@@ -73,3 +73,17 @@ LiveKit token is fetched from `VITE_ECHO_AGENT_URL` (EchoPrismAgent). Use `VITE_
 | **LiveKit Agent** (worker) | `LIVEKIT_AGENT_SECRET`, `GEMINI_API_KEY` | From Doppler for local worker | Set by deploy script from shell/Doppler |
 
 Summary: In **dev**, desktop and LiveKit worker point at localhost URLs. In **production**, desktop must be built with Cloud Run URLs; EchoPrism and the LiveKit worker are deployed with the same LiveKit credentials, and the worker’s `ECHOPRISM_AGENT_URL` must be the deployed EchoPrism service URL.
+
+### Voice/phone runs: visibility and execution
+
+When a run is started from a **phone call** (SIP), the run is created in Firestore but no desktop is in the LiveKit room to receive `run_started`, so the run does not auto-execute. The user can:
+- **See the run**: Open the Echo web dashboard; the run appears under that workflow’s runs. Set `ECHO_APP_URL` (or `FRONTEND_URL`) on the EchoPrism Agent so the tool returns `run_dashboard_url` and the agent can tell the user where to look.
+- **Run it**: Open the Echo desktop app and start the same workflow from the UI, or use a future run executor (e.g. Cloud Run Job) if you deploy one.
+
+| Variable | Where | Description |
+|----------|--------|-------------|
+| `ECHO_APP_URL` | EchoPrism Agent | Web app base URL (e.g. `https://echo-frontend-xxx.run.app`). When set, `run_workflow` returns `run_dashboard_url` so the voice agent can tell the user where to track the run. Deploy script sets this from `FRONTEND_URL`. |
+
+### Telephony personalization (phone → user)
+
+When a caller joins via SIP, the LiveKit agent calls EchoPrism `GET /api/livekit/user-by-phone?phone=E164` (with `X-Agent-Secret`). If a Firestore user has a matching `phone` (E.164), the agent uses their **displayName** in the greeting and their **uid** for all tools (list workflows, run workflow, etc.). Users can set `phone` via the main backend `PUT /api/users/me` with `{ "phone": "+15551234567" }`. Ensure `LIVEKIT_AGENT_SECRET` and `ECHOPRISM_AGENT_URL` are set for the LiveKit worker so the lookup succeeds.

@@ -38,7 +38,7 @@ async def patch_run(
     uid: str = Depends(get_current_uid),
 ):
     """Update run status (used by desktop agent to sync progress)."""
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
@@ -61,7 +61,7 @@ async def list_runs(
     workflow_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    _get_workflow(uid, workflow_id)
+    _get_workflow(uid, workflow_id, require_owner=False)
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     runs_ref = db.collection("workflows").document(workflow_id).collection("runs")
@@ -77,7 +77,7 @@ async def poll_run_signals(
     uid: str = Depends(get_current_uid),
 ):
     """Poll for redirect/cancel/calluser_feedback. Used by desktop agent between steps. Returns and clears redirect_instruction and calluser_feedback."""
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
@@ -110,7 +110,7 @@ async def get_run(
     run_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    _get_workflow(uid, workflow_id)
+    _get_workflow(uid, workflow_id, require_owner=False)
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
@@ -132,7 +132,7 @@ async def create_run(
             status_code=400,
             detail="Only source=desktop is supported. Provide ?source=desktop",
         )
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_id = str(uuid.uuid4())
     run_ref = wf_ref.collection("runs").document(run_id)
     run_ref.set({
@@ -151,7 +151,7 @@ async def confirm_run(
     run_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
@@ -169,7 +169,7 @@ async def cancel_run(
     run_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
@@ -195,7 +195,7 @@ async def redirect_run(
     uid: str = Depends(get_current_uid),
 ):
     """Inject a mid-run redirect instruction for the agent to pick up between steps."""
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
@@ -224,7 +224,7 @@ async def calluser_feedback(
     uid: str = Depends(get_current_uid),
 ):
     """Send feedback when run is awaiting_user; stores instruction and sets status to running for agent to resume with."""
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
@@ -252,7 +252,7 @@ async def dismiss_calluser(
     """Dismiss an awaiting_user run (user has resolved the issue manually).
     Marks the run as completed so the frontend moves to the log view.
     """
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()
     if not doc.exists:
