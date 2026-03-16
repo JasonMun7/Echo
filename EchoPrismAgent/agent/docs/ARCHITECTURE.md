@@ -24,7 +24,7 @@ This document describes the architecture of the Echo workflow automation agent �
 
 ## 1. High-Level Overview
 
-The Echo agent automates workflows in browsers (and optionally desktop apps). Workflows are sequences of steps such as *navigate to URL*, *click the "Submit" button*, *type in the search box*, or *call the Slack API*. The agent decides *how* to perform each step using either:
+The Echo agent automates workflows in browsers (and optionally desktop apps). Workflows are sequences of steps such as _navigate to URL_, _click the "Submit" button_, _type in the search box_, or _call the Slack API_. The agent decides _how_ to perform each step using either:
 
 - **Direct execution** — When a step has enough information (URL, selector, coordinates), it is executed deterministically via Playwright without calling an LLM.
 - **EchoPrism** — When a step is ambiguous (e.g., "click the login button" with no selector), a vision-language model observes the screen, reasons about what to do, and executes actions.
@@ -96,13 +96,14 @@ flowchart LR
 ```
 
 **Deterministic steps** are those that have:
+
 - `url` (for navigate)
 - `selector` (DOM selector)
 - `x` and `y` coordinates
 - `api_call` action
 - Other fully specified params (e.g., `key` for press_key)
 
-**Ambiguous steps** require EchoPrism: e.g., *"Click the blue Submit button"* with only a natural-language description.
+**Ambiguous steps** require EchoPrism: e.g., _"Click the blue Submit button"_ with only a natural-language description.
 
 ---
 
@@ -145,6 +146,7 @@ flowchart TB
 ```
 
 **Key behaviors:**
+
 - Uses fine-tuned model from `global_model/current` in Firestore if available; else `gemini-3.1-pro-preview`.
 - Maintains (o, t, a) history — observations, thoughts, actions — for multi-step context.
 - Retries up to 3 times on parse failure or operator failure.
@@ -157,11 +159,11 @@ flowchart TB
 
 EchoPrism uses a **pure VLM** pipeline: no DOM access, only screenshots. The pipeline has three tiers:
 
-| Tier | Function | Purpose |
-|------|----------|---------|
-| **Tier 1** | `perceive_scene` | Dense caption of the full UI (layout, regions, elements). Used as `[Scene Overview]` in the instruction. |
+| Tier       | Function                   | Purpose                                                                                                    |
+| ---------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Tier 1** | `perceive_scene`           | Dense caption of the full UI (layout, regions, elements). Used as `[Scene Overview]` in the instruction.   |
 | **Tier 2** | `ground_element` (Locator) | Given a natural-language description, returns center (x, y) and bounding box. Used for click-type actions. |
-| **Tier 3** | `_verify_action` | Before/after screenshots + expected outcome → Gemini judges success. |
+| **Tier 3** | `_verify_action`           | Before/after screenshots + expected outcome → Gemini judges success.                                       |
 
 For medium-confidence grounding, EchoPrism uses **RegionFocus** (zoom into uncertain region, re-ground at higher resolution).
 
@@ -193,6 +195,7 @@ flowchart LR
 ```
 
 **Models:**
+
 - Locator (element grounding) uses `LOCATOR_MODEL` (see `models_config.py`).
 - Orchestration (Think step) uses `ORCHESTRATION_MODEL` (see `models_config.py`).
 
@@ -200,13 +203,13 @@ flowchart LR
 
 ## 5. Direct Executor vs. EchoPrism
 
-| Aspect | DirectExecutor | EchoPrism |
-|--------|----------------|-----------|
-| **Module** | `direct_executor.py` | `echo_prism/alpha/agent.py` |
-| **LLM** | None | Gemini |
-| **When used** | Steps with selector, URL, coords, or full params | Ambiguous steps (description only) |
-| **Execution** | Playwright `page.click`, `page.fill`, etc. | Runner's PlaywrightOperator after Locator grounding |
-| **Fallback** | If DirectExecutor fails after retries → hand off to EchoPrism | — |
+| Aspect        | DirectExecutor                                                | EchoPrism                                           |
+| ------------- | ------------------------------------------------------------- | --------------------------------------------------- |
+| **Module**    | `direct_executor.py`                                          | `echo_prism/alpha/agent.py`                         |
+| **LLM**       | None                                                          | Gemini                                              |
+| **When used** | Steps with selector, URL, coords, or full params              | Ambiguous steps (description only)                  |
+| **Execution** | Playwright `page.click`, `page.fill`, etc.                    | Runner's PlaywrightOperator after Locator grounding |
+| **Fallback**  | If DirectExecutor fails after retries → hand off to EchoPrism | —                                                   |
 
 ```mermaid
 flowchart TD
@@ -233,13 +236,13 @@ flowchart TD
 
 Subagents handle user-facing interactions, workflow creation, element localization, and execution.
 
-| Agent | File | Purpose |
-|-------|------|---------|
-| **Chat** | `modalities/chat_agent.py` | Alpha's text modality. Function calling: list workflows, run, redirect, cancel, synthesize, integrations. |
-| **Voice** | `modalities/voice_agent.py` | Alpha's voice modality. Gemini Live API; WebSocket bridge for TTS/STT. |
-| **Synthesis** | `synthesis_agent.py` | Workflow creation from video/screenshots/description. |
-| **Locator** | `locator_agent.py` | Element localization: screenshot + description → coords. Swappable model (e.g., UI-TARS). |
-| **Runner** | `runner_agent.py` | Executes deterministic UI steps (Playwright) and api_call steps (integrations). Calls Locator when semantic actions need coords. |
+| Agent         | File                        | Purpose                                                                                                                          |
+| ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Chat**      | `modalities/chat_agent.py`  | Alpha's text modality. Function calling: list workflows, run, redirect, cancel, synthesize, integrations.                        |
+| **Voice**     | `modalities/voice_agent.py` | Alpha's voice modality. Gemini Live API; WebSocket bridge for TTS/STT.                                                           |
+| **Synthesis** | `synthesis_agent.py`        | Workflow creation from video/screenshots/description.                                                                            |
+| **Locator**   | `locator_agent.py`          | Element localization: screenshot + description → coords. Swappable model (e.g., UI-TARS).                                        |
+| **Runner**    | `runner_agent.py`           | Executes deterministic UI steps (Playwright) and api_call steps (integrations). Calls Locator when semantic actions need coords. |
 
 See [subagents.md](../echo_prism/docs/subagents.md) and [synthesis-flow.md](synthesis-flow.md) for details.
 
@@ -269,12 +272,12 @@ See [integrations.md](integrations.md).
 
 Models are configured via environment variables (see `echo_prism/models_config.py`):
 
-| Component | Env Var | Default |
-|-----------|---------|---------|
-| Main Agent (Alpha) | `ECHOPRISM_ORCHESTRATION_MODEL` | gemini-2.5-flash |
-| Locator | `ECHOPRISM_LOCATOR_MODEL` | gemini-2.5-flash |
-| Synthesis (video + description) | `ECHOPRISM_SYNTHESIS_MODEL` | gemini-3.1-pro-preview |
-| Voice | `ECHOPRISM_VOICE_MODEL` | gemini-2.5-flash-native-audio-preview-12-2025 |
+| Component                       | Env Var                         | Default                                       |
+| ------------------------------- | ------------------------------- | --------------------------------------------- |
+| Main Agent (Alpha)              | `ECHOPRISM_ORCHESTRATION_MODEL` | gemini-2.5-flash                              |
+| Locator                         | `ECHOPRISM_LOCATOR_MODEL`       | gemini-2.5-flash                              |
+| Synthesis (video + description) | `ECHOPRISM_SYNTHESIS_MODEL`     | gemini-3.1-pro-preview                        |
+| Voice                           | `ECHOPRISM_VOICE_MODEL`         | gemini-2.5-flash-native-audio-preview-12-2025 |
 
 ---
 

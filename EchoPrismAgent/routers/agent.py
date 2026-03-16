@@ -15,11 +15,15 @@ import sys
 from pathlib import Path
 
 import firebase_admin
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
 from firebase_admin import firestore as fs_module
 
 from app.auth import get_firebase_app
+
+_security = HTTPBearer(auto_error=False)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -117,6 +121,44 @@ def _upload_and_update_log_screenshot(
             _update_log_screenshot(db, workflow_id, run_id, step_index, url)
     except Exception as e:
         logger.warning("Failed to upload/update step screenshot: %s", e)
+
+
+@router.get(
+    "/workflows/{workflow_id}/runs/{run_id}/steps/{step_index}/screenshot",
+    responses={200: {"content": {"image/png": {}}}, 401: {}, 404: {}},
+)
+async def get_step_screenshot(
+    workflow_id: str,
+    run_id: str,
+    step_index: int,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_security),
+):
+    """
+    Return the step screenshot image bytes (PNG). Use this in production so images
+    load reliably (avoids expired signed URLs / CORS). Requires Authorization: Bearer <Firebase ID token>.
+    """
+    token = credentials.credentials if credentials else None
+    uid = _verify_token(token)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization")
+    ok = await _validate_run_access(uid, workflow_id, run_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Run not found")
+    base = Path(__file__).resolve().parent.parent
+    agent_dir = base / "agent" if (base / "agent").exists() else base / "backend" / "agent"
+    if not agent_dir.exists():
+        agent_dir = base.parent.parent / "backend" / "agent"
+    agent_dir = agent_dir.resolve()
+    if agent_dir.exists() and str(agent_dir) not in sys.path:
+        sys.path.insert(0, str(agent_dir))
+    try:
+        from screenshot_stream import get_step_screenshot_bytes
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Screenshot storage not available")
+    data = get_step_screenshot_bytes(workflow_id, run_id, step_index)
+    if not data:
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+    return Response(content=data, media_type="image/png")
 
 
 @router.websocket("/run")

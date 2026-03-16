@@ -54,13 +54,15 @@ export default function RunLogsSection({
           step: i + 1,
         }));
 
-  // Group by step (same layout as Run HUD): one card per step, thoughts then actions
+  // Group by step; dedupe thoughts and actions so the same text doesn't appear twice per step
   const byStep = entries.reduce(
     (acc, e) => {
       const step = e.step || 1;
       if (!acc[step]) acc[step] = { thoughts: [] as string[], actions: [] as string[] };
-      if (e.thought != null && e.thought !== "") acc[step].thoughts.push(e.thought);
-      if (e.action != null && e.action !== "") acc[step].actions.push(e.action);
+      const t = (e.thought ?? "").trim();
+      if (t && !acc[step].thoughts.includes(t)) acc[step].thoughts.push(t);
+      const a = (e.action ?? "").trim();
+      if (a && !acc[step].actions.includes(a)) acc[step].actions.push(a);
       return acc;
     },
     {} as Record<number, { thoughts: string[]; actions: string[] }>
