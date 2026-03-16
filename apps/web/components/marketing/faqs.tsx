@@ -20,52 +20,57 @@ interface FAQSection {
 
 const faqData: FAQSection[] = [
   {
-    title: "Pricing",
+    title: "What Echo can do",
     items: [
       {
-        question: "How much does it cost to deploy AI agents?",
+        question: "What can Echo automate?",
         answer:
-          "Our pricing starts at $19/month for the Starter plan. Scale plans start at $79/month for teams. Enterprise pricing is available for high-volume needs.",
+          "Any repeatable workflow you can do on a computer: data entry, report filing, email management, form submissions, browser tasks, desktop app actions, and more. If you can record it or describe it, Echo can run it.",
       },
       {
-        question: "Is there a free trial available?",
+        question: "How do I create a workflow?",
         answer:
-          "Yes, we offer a 14-day free trial with full access to all features. No credit card required to get started.",
+          "Open the Echo desktop app and hit Record — Echo captures your screen as you work and synthesizes it into a step-by-step AI plan using Gemini 2.5 Pro. You can also describe a workflow in plain English and Echo will generate the steps automatically.",
       },
       {
-        question: "What happens if I exceed my plan limits?",
+        question: "Can I share workflows with others?",
         answer:
-          "We'll notify you when you reach 80% of your limits. You can upgrade at any time to continue uninterrupted.",
+          "Yes. You can share any workflow via email. The recipient can run it with one click or voice command, and fork it to create their own editable copy.",
       },
     ],
   },
   {
-    title: "Agents",
+    title: "Voice & AI",
     items: [
       {
-        question: "What can AI agents automate?",
+        question: "How does the voice control work?",
         answer:
-          "Our AI agents can automate complex workflows including data processing, customer support, content generation, scheduling, and multi-step decision making.",
+          "Echo uses LiveKit + Gemini Live for real-time native audio. You can say \"run my weekly report\", interrupt a run mid-execution with \"skip this step\", or ask \"what workflows do I have?\" — and EchoPrism responds and acts instantly.",
       },
       {
-        question: "How do I deploy and orchestrate my agents?",
+        question: "Can I interrupt a workflow while it's running?",
         answer:
-          "Use our visual workflow builder or SDK to define agent behaviors, then deploy with a single click. Our orchestration handles scaling and inter-agent communication automatically.",
+          "Yes. Click the microphone button in the web dashboard or desktop app during any run to open a live voice session. Echo will pause, listen to your instruction, and redirect or continue as you specify.",
+      },
+      {
+        question: "Does Echo learn from my workflows?",
+        answer:
+          "Yes. Every completed run is automatically scored for quality. High-quality traces feed a fine-tuning loop that gradually improves Echo's accuracy on your specific apps and patterns.",
       },
     ],
   },
   {
-    title: "Legal",
+    title: "Privacy & security",
     items: [
       {
-        question: "How is my data protected?",
+        question: "Is my screen data private?",
         answer:
-          "We use enterprise-grade encryption. Your data is stored in SOC 2 Type II certified data centers. We never use your data to train models.",
+          "Screenshots are processed by Gemini to decide actions and stored encrypted in Google Cloud Storage. They are never used to train public models and are scoped to your account only.",
       },
       {
-        question: "Are you GDPR compliant?",
+        question: "Where is Echo hosted?",
         answer:
-          "Yes, we are fully GDPR compliant. We provide DPAs, support data portability, and offer data deletion capabilities.",
+          "Echo runs entirely on Google Cloud — Cloud Run for compute, Firestore for data, and Cloud Storage for assets. All data is stored in GCP with encryption at rest and in transit.",
       },
     ],
   },
@@ -97,8 +102,8 @@ export function FAQs() {
       <div className="text-center">
         <Heading as="h2">Frequently Asked Questions</Heading>
         <SubHeading as="p" className="mx-auto mt-4 max-w-2xl">
-          Everything you need to know about deploying AI agents and automating
-          your workflows.
+          Everything you need to know about Echo, EchoPrism, and automating
+          your workflows with voice and AI vision.
         </SubHeading>
       </div>
 

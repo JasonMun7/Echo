@@ -3,27 +3,22 @@ import { Logo } from "./logo";
 
 const pages = [
   { title: "Product", href: "/#product" },
-  { title: "Features", href: "#" },
-  { title: "Integrations", href: "#" },
-  { title: "Pricing", href: "/pricing" },
-  { title: "Contact", href: "/contact" },
+  { title: "How it works", href: "/#product" },
+  { title: "Use cases", href: "/#product" },
+  { title: "Early access", href: "/sign-up" },
 ];
 
 const socials = [
-  { title: "Twitter", href: "#" },
-  { title: "LinkedIn", href: "#" },
-  { title: "GitHub", href: "#" },
-  { title: "Discord", href: "#" },
+  { title: "GitHub", href: "https://github.com/Dbzman/echo" },
 ];
 
 const legals = [
-  { title: "Privacy Policy", href: "#" },
-  { title: "Terms of Service", href: "#" },
-  { title: "Cookie Policy", href: "#" },
+  { title: "Privacy Policy", href: "/privacy" },
+  { title: "Terms of Service", href: "/terms" },
 ];
 
 const signups = [
-  { title: "Get started", href: "/get-started" },
+  { title: "Get started", href: "/sign-up" },
   { title: "Sign in", href: "/sign-in" },
 ];
 

@@ -19,7 +19,6 @@ import {
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { DataTable } from "@/components/data-table";
 import { SectionCards } from "@/components/section-cards";
-import data from "./data.json";
 import {
   Tooltip,
   TooltipContent,
@@ -43,6 +42,17 @@ interface Workflow {
   thumbnail_gcs_path?: string;
   createdAt: unknown;
   updatedAt: unknown;
+}
+
+interface Run {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  status: string;
+  createdAt: unknown;
+  completedAt?: unknown;
+  source?: string;
+  error?: string;
 }
 
 function getTime(x: unknown): number {
@@ -74,6 +84,7 @@ export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRuns, setTotalRuns] = useState(0);
+  const [allRuns, setAllRuns] = useState<Run[]>([]);
   const [awaitingRuns, setAwaitingRuns] = useState<{
     workflowId: string;
     runId: string;
@@ -103,13 +114,18 @@ export default function DashboardPage() {
     // Track nested runs listeners so we can clean them up when workflows are deleted
     const runUnsubs = new Map<string, () => void>();
     const runSizes = new Map<string, number>();
+    const runDocsMap = new Map<string, Run[]>();
 
     function recomputeRuns() {
       let total = 0;
       runSizes.forEach((n) => {
         total += n;
       });
+      const flat: Run[] = [];
+      runDocsMap.forEach((runs) => flat.push(...runs));
+      flat.sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
       setTotalRuns(total);
+      setAllRuns(flat);
     }
 
     const unsubWf = onSnapshot(wfQ, (snap) => {
@@ -131,6 +147,7 @@ export default function DashboardPage() {
           unsub();
           runUnsubs.delete(id);
           runSizes.delete(id);
+          runDocsMap.delete(id);
         }
       });
 
@@ -139,11 +156,19 @@ export default function DashboardPage() {
       // Subscribe to runs for newly-seen workflows
       snap.docs.forEach((wfDoc) => {
         if (runUnsubs.has(wfDoc.id)) return;
+        const wfName = (wfDoc.data().name as string | undefined) ?? "Untitled workflow";
         const runsQ = query(collection(db, "workflows", wfDoc.id, "runs"));
         const unsub = onSnapshot(
           runsQ,
           (runsSnap) => {
+            const runs: Run[] = runsSnap.docs.map((rd) => ({
+              id: rd.id,
+              workflowId: wfDoc.id,
+              workflowName: wfName,
+              ...(rd.data() as Omit<Run, "id" | "workflowId" | "workflowName">),
+            }));
             runSizes.set(wfDoc.id, runsSnap.size);
+            runDocsMap.set(wfDoc.id, runs);
             recomputeRuns();
             runsSnap.docs.forEach((rd) => {
               if (rd.data().status === "awaiting_user") {
@@ -178,7 +203,8 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-4 lg:px-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
             <Skeleton className="h-9 w-52 rounded-lg" />
@@ -192,14 +218,16 @@ export default function DashboardPage() {
           totalRuns={0}
           awaitingInput={0}
         />
-        <Skeleton className="h-[280px] w-full rounded-lg" />
+        <Skeleton className="h-70 w-full rounded-lg" />
         <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-4 lg:px-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -297,11 +325,11 @@ export default function DashboardPage() {
 
       {/* Activity chart */}
       <div className="px-4 lg:px-6">
-        <ChartAreaInteractive />
+        <ChartAreaInteractive runs={allRuns} />
       </div>
 
       {/* Data table */}
-      <DataTable data={data} />
+      <DataTable data={allRuns} />
 
       {/* Recent Workflows */}
       <div className="flex flex-col gap-4">
@@ -345,6 +373,7 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

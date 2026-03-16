@@ -99,12 +99,6 @@ export const Navbar = () => {
             Playground
           </Link>
           <Link
-            href="/pricing"
-            className="text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
-          >
-            Pricing
-          </Link>
-          <Link
             href="/contact"
             className="text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
           >
@@ -162,18 +156,11 @@ export const Navbar = () => {
               Product
             </Link>
             <Link
-              href="/datasets/create"
+              href="/dashboard"
               onClick={() => setMobileMenuOpen(false)}
               className="rounded-xl px-4 py-3.5 text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
             >
               Playground
-            </Link>
-            <Link
-              href="/pricing"
-              onClick={() => setMobileMenuOpen(false)}
-              className="rounded-xl px-4 py-3.5 text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
-            >
-              Pricing
             </Link>
             <Link
               href="/contact"
@@ -198,7 +185,10 @@ export const Navbar = () => {
               containerClassName="mt-3 h-12 w-full rounded-xl"
               className="flex h-full w-full items-center justify-center px-4 py-3.5 text-base font-medium"
             >
-              <Link href="/get-started" onClick={() => setMobileMenuOpen(false)}>
+              <Link
+                href="/get-started"
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 Get started
               </Link>
             </HoverBorderGradient>
