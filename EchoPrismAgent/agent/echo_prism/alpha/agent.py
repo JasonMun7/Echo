@@ -160,28 +160,31 @@ def _screenshot_hash(data: bytes) -> str:
 
 
 def _build_retry_context(last_error: str) -> str:
-    """Build extra context for VLM when retrying after a failed attempt."""
+    """Build extra context for VLM when retrying after a failed attempt.
+    Enforces observe → think up new solution → act."""
     if not last_error:
         return ""
     ctx = (
-        "Re-examine the current screenshot. Previous attempt failed: "
-        f"{last_error}. Try a different approach (e.g. different element, PressKey, DoubleClick, or scroll). "
+        "--- RETRY: Observe → Think → New solution ---\n"
+        "The current screenshot shows the state AFTER your previous attempt (which failed).\n"
+        "Previous attempt failed: "
+        f"{last_error}\n\n"
+        "You MUST:\n"
+        "1. OBSERVE: Briefly describe what you see in the current screenshot (what is on screen now).\n"
+        "2. THINK: Explain why the previous action failed or had no effect.\n"
+        "3. ACT: Choose a DIFFERENT approach — different element, PressKey, DoubleClick, scroll, or alternative strategy. Do NOT repeat the same action.\n"
+        "In your Thought, do steps 1–2, then state your new strategy and output exactly one Action.\n"
     )
     lower_err = last_error.lower()
     if "identical" in lower_err or "no visible change" in lower_err or "no effect" in lower_err or "no change" in lower_err or "did not change" in lower_err or "not yet" in lower_err or "did not appear" in lower_err or "did not load" in lower_err:
         ctx += (
-            "\n\nIMPORTANT RETRY GUIDANCE: Your previous action had NO visible effect. "
-            "Try a DIFFERENT approach — in order of priority:\n"
-            "1. PressKey(\"enter\") — if the target item is already selected/highlighted in a list, "
-            "pressing Enter is the MOST RELIABLE way to open it (especially in IDEs like IntelliJ, VS Code, etc.)\n"
-            "2. DoubleClick instead of Click — many apps (IntelliJ, Finder, etc.) require double-click to open items/projects\n"
-            "3. If the step requires typing into a field, use ClickAndType(element_id, \"text\") to click AND type in one action\n"
-            "4. IMPORTANT: If you are trying to open/select a list item and clicking by element_id keeps failing, "
-            "the element you picked may be a text field or search bar — NOT the list item. "
-            "Look for a different element further DOWN the screen (higher y-coordinate), or try Click(x, y) "
-            "with coordinates BELOW the search bar area.\n"
-            "5. Right-click → Open or a keyboard shortcut as alternative\n"
-            "Do NOT repeat the exact same action — try a genuinely different element or approach."
+            "\nIMPORTANT: Your previous action had NO visible effect. Try in order of priority:\n"
+            "1. PressKey(\"enter\") — if an item is already selected/highlighted, Enter is often the most reliable way to open it.\n"
+            "2. DoubleClick instead of Click — many apps (IntelliJ, Finder) require double-click to open.\n"
+            "3. ClickAndType(element_id, \"text\") — click and type in one action when the step requires typing.\n"
+            "4. If clicking a list item keeps failing, the element may be a search bar — pick a different element further down (higher y) or use Click(x, y) below the search area.\n"
+            "5. Right-click → Open or a keyboard shortcut as alternative.\n"
+            "Do NOT repeat the exact same action."
         )
     return ctx
 
@@ -846,8 +849,13 @@ async def run_ambiguous_step_inference(
             set_omniparser_element_count(0)
 
         scene_caption = ""
-        # Skip perceive_scene when OmniParser already provides element context
-        if attempt == 0 and not screen_info and step_action not in _SKIP_SCENE_ACTIONS:
+        # Skip perceive_scene when OmniParser already provides element context, or for goal_only (faster response)
+        if (
+            attempt == 0
+            and not screen_info
+            and step_action not in _SKIP_SCENE_ACTIONS
+            and not goal_only
+        ):
             compressed_for_scene = compress_screenshot(current_screenshot)
             scene_caption = await perceive_scene(
                 client, compressed_for_scene, LOCATOR_MODEL

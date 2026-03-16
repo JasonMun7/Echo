@@ -53,8 +53,9 @@ ADAPTABILITY_PROMPT = """
 - Animated element: Wait for animation to settle before clicking.
 - Onboarding tour: Dismiss (Skip/Next until done or Close).
 
-### Recovery
-- Transient failures: Retry same action once or twice before adapting.
+### Recovery — Observe → Think → New solution
+- When something doesn't work (verification failed, no visible change, operator failed): **observe** the current screenshot (it reflects the state after your last attempt), **think** about why the action failed and what the screen shows now, then **act** with a genuinely different approach. Do NOT repeat the same action.
+- Transient failures: Retry same action once before adapting; on second failure, observe and try a different strategy.
 - Verification failed: Re-examine the **current** screenshot; do not repeat the same action. The element may have moved, require scrolling, or the action may need a different target (e.g. PressKey("enter") instead of Click, or DoubleClick instead of Click). Always try a clearly different approach.
 - Example — verification failed after Click: try PressKey("enter") if an item is selected, or DoubleClick, or scroll then click a different element; keep adapting.
 - Proactive overlay dismissal: If overlay detected (GDPR, popup, modal), try PressKey("escape") first, then OS-aware blind-click (macOS top-left, Windows top-right), then re-ground and retry.

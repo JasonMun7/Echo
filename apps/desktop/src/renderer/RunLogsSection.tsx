@@ -9,7 +9,6 @@ import {
 } from "@tabler/icons-react";
 import SpotlightCard from "./reactbits/SpotlightCard";
 import Threads from "@/components/Threads";
-import AnimatedList from "@/components/AnimatedList";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -52,8 +51,21 @@ export default function RunLogsSection({
       : (runResult?.progress ?? []).map((msg, i) => ({
           thought: msg,
           action: "",
-          step: i,
+          step: i + 1,
         }));
+
+  // Group by step (same layout as Run HUD): one card per step, thoughts then actions
+  const byStep = entries.reduce(
+    (acc, e) => {
+      const step = e.step || 1;
+      if (!acc[step]) acc[step] = { thoughts: [] as string[], actions: [] as string[] };
+      if (e.thought != null && e.thought !== "") acc[step].thoughts.push(e.thought);
+      if (e.action != null && e.action !== "") acc[step].actions.push(e.action);
+      return acc;
+    },
+    {} as Record<number, { thoughts: string[]; actions: string[] }>
+  );
+  const stepNumbers = [...new Set(entries.map((e) => e.step || 1))].sort((a, b) => a - b);
 
   return (
     <SpotlightCard
@@ -223,7 +235,7 @@ export default function RunLogsSection({
                       `/dashboard/workflows/${runResult.workflowId}/runs/${runResult.runId}`,
                     )
                   }
-                  className="text-[var(--echo-lavender)] hover:bg-[#A577FF]/10"
+                  className="text-(--echo-lavender) hover:bg-[#A577FF]/10"
                 >
                   <IconExternalLink size={12} />
                   View in browser
@@ -234,7 +246,7 @@ export default function RunLogsSection({
                 size="icon-xs"
                 onClick={onDismiss}
                 aria-label="Dismiss"
-                className="text-[var(--echo-text-secondary)] hover:bg-[#A577FF]/10"
+                className="text-(--echo-text-secondary) hover:bg-[#A577FF]/10"
               >
                 <IconX size={14} />
               </Button>
@@ -310,19 +322,22 @@ export default function RunLogsSection({
                   color: "var(--echo-text-secondary)",
                 }}
               >
-                {entries.length} step{entries.length !== 1 ? "s" : ""}
+                {stepNumbers.length} step{stepNumbers.length !== 1 ? "s" : ""}
               </span>
             </div>
             <div
               style={{
                 flex: 1,
                 minHeight: 0,
-                overflow: "hidden",
+                overflowY: "auto",
+                overflowX: "hidden",
                 display: "flex",
                 flexDirection: "column",
+                gap: 12,
+                padding: 10,
               }}
             >
-              {entries.length === 0 ? (
+              {stepNumbers.length === 0 ? (
                 <p
                   style={{
                     padding: 16,
@@ -334,106 +349,117 @@ export default function RunLogsSection({
                   No steps recorded.
                 </p>
               ) : (
-                <AnimatedList
-                  items={entries}
-                  showGradients={true}
-                  enableArrowNavigation={false}
-                  className="flex-1 min-h-0"
-                  fillHeight
-                  displayScrollbar={true}
-                  interactive={false}
-                  renderItem={(item: RunResultEntry) => (
+                stepNumbers.map((stepNum) => {
+                  const group = byStep[stepNum];
+                  if (!group || (group.thoughts.length === 0 && group.actions.length === 0))
+                    return null;
+                  return (
                     <div
+                      key={stepNum}
                       style={{
                         padding: "10px 12px",
                         borderRadius: 8,
                         background: "rgba(165, 119, 255, 0.04)",
-                        border: "1px solid rgba(165, 119, 255, 0.1)",
+                        border: "1px solid rgba(165, 119, 255, 0.15)",
                       }}
                     >
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 8,
-                          marginBottom: 6,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: "var(--echo-lavender)",
+                          marginBottom: 8,
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: "var(--echo-lavender)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          Step{" "}
-                          {runResult?.entries?.length
-                            ? item.step
-                            : item.step + 1}
-                        </span>
-                        {item.action && (
+                        Step {stepNum}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {group.thoughts.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {group.thoughts.map((thought, i) => (
+                              <div
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: 8,
+                                }}
+                              >
+                                <IconBrain
+                                  size={12}
+                                  style={{
+                                    color: "var(--echo-lavender)",
+                                    flexShrink: 0,
+                                    marginTop: 2,
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    color: "var(--echo-text)",
+                                    lineHeight: 1.5,
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    flex: 1,
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  {thought}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {group.actions.length > 0 && (
                           <div
                             style={{
                               display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                              flex: 1,
-                              minWidth: 0,
+                              flexDirection: "column",
+                              gap: 6,
+                              paddingTop: group.thoughts.length > 0 ? 8 : 0,
+                              borderTop:
+                                group.thoughts.length > 0
+                                  ? "1px solid rgba(165, 119, 255, 0.12)"
+                                  : undefined,
                             }}
                           >
-                            <IconBolt
-                              size={12}
-                              style={{
-                                color: "var(--echo-cyan)",
-                                flexShrink: 0,
-                              }}
-                            />
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontFamily: "ui-monospace, monospace",
-                                color: "var(--echo-text)",
-                                wordBreak: "break-all",
-                              }}
-                            >
-                              {item.action}
-                            </span>
+                            {group.actions.map((action, i) => (
+                              <div
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: 8,
+                                }}
+                              >
+                                <IconBolt
+                                  size={12}
+                                  style={{
+                                    color: "var(--echo-cyan)",
+                                    flexShrink: 0,
+                                    marginTop: 2,
+                                  }}
+                                />
+                                <code
+                                  style={{
+                                    fontSize: 11,
+                                    fontFamily: "ui-monospace, monospace",
+                                    color: "var(--echo-text)",
+                                    wordBreak: "break-all",
+                                    flex: 1,
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  {action}
+                                </code>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 6,
-                        }}
-                      >
-                        <IconBrain
-                          size={12}
-                          style={{
-                            color: "var(--echo-lavender)",
-                            flexShrink: 0,
-                            marginTop: 2,
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: "var(--echo-text-secondary)",
-                            lineHeight: 1.5,
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {item.thought || "—"}
-                        </span>
-                      </div>
                     </div>
-                  )}
-                />
+                  );
+                })
               )}
             </div>
           </div>

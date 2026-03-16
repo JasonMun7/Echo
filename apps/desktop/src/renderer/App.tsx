@@ -1453,7 +1453,7 @@ function RunHudWrapper() {
       action: string;
       step: number;
     }) => {
-      setLiveProgress((prev) => [...prev.slice(-19), entry]);
+      setLiveProgress((prev) => [...prev, entry]);
     };
     window.electronAPI?.onRunProgress?.(handler);
     return () => window.electronAPI?.removeRunProgressListener?.();

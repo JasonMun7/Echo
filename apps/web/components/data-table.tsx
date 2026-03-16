@@ -24,7 +24,7 @@ import {
   IconChevronsRight,
   IconLayoutColumns,
   IconPlayerStop,
-  IconFileText,
+  IconList,
 } from "@tabler/icons-react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -205,7 +205,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
   const [cancellingId, setCancellingId] = React.useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(() =>
-      singleWorkflow ? { workflowName: false } : {}
+      singleWorkflow ? { workflowName: false } : { workflowName: true }
     );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -277,7 +277,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                     href={`/dashboard/workflows/${r.workflowId}/runs/${r.id}`}
                     className="echo-btn-secondary-accent inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium"
                   >
-                    <IconFileText className="h-3.5 w-3.5 shrink-0" />
+                    <IconList className="h-3.5 w-3.5 shrink-0" />
                     View logs
                   </Link>
                 </TooltipTrigger>

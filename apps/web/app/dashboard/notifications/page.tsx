@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import {
-  IconBell,
+  IconNotification,
   IconCheck,
-  IconShare,
+  IconShare3,
   IconArrowRight,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -112,7 +112,7 @@ export default function NotificationsPage() {
           </div>
         ) : notifications.length === 0 ? (
           <div className="echo-card flex flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white/80 p-12 text-center">
-            <IconBell className="h-12 w-12 text-[#150A35]/20" />
+            <IconNotification className="h-12 w-12 text-[#150A35]/20" />
             <p className="mt-3 text-base font-medium text-[#150A35]">
               No notifications yet
             </p>
@@ -133,7 +133,7 @@ export default function NotificationsPage() {
                 >
                   <div className="flex items-start gap-4 p-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#A577FF]/15">
-                      <IconShare className="h-5 w-5 text-[#A577FF]" />
+                      <IconShare3 className="h-5 w-5 text-[#A577FF]" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">

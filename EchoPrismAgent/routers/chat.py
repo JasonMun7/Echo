@@ -317,8 +317,15 @@ async def _execute_tool(
         workflow_type = args.get("workflow_type", "browser")
         workflow_name = args.get("workflow_name", "") or instruction[:50] or "Ad-hoc run"
         if not instruction:
+            logger.warning("run_adhoc: missing instruction")
             return {"ok": False, "error": "instruction is required for run_adhoc"}
 
+        logger.info(
+            "run_adhoc (goal-only): instruction=%s workflow_type=%s uid=%s",
+            instruction[:80],
+            workflow_type,
+            uid,
+        )
         # Goal-only run: no step synthesis; create minimal ephemeral workflow and run with goal
         _cancel_other_active_runs_for_user(uid, db)
         workflow_id = str(uuid.uuid4())
@@ -359,6 +366,12 @@ async def _execute_tool(
                 }))
             except Exception:
                 pass
+        logger.info(
+            "run_adhoc created goal-only run: workflow_id=%s run_id=%s goal=%s",
+            workflow_id,
+            run_id,
+            instruction[:60],
+        )
         return {
             "ok": True,
             "run_id": run_id,

@@ -255,6 +255,8 @@ export async function runWorkflowRemote(
           if (isCancelRequested()) break;
           await waitIfPaused();
           if (isCancelRequested()) break;
+          // Re-observe: brief settle so UI state is current, then we'll capture a fresh screenshot below
+          await new Promise((r) => setTimeout(r, 200));
           if (options) {
             const midSignals = await pollRunSignals(options);
             if (midSignals.cancelRequested) { lastError = "cancelled"; break; }
@@ -303,7 +305,7 @@ export async function runWorkflowRemote(
           msg = await receive();
         }
 
-        const m = msg as { type?: string; thought?: string; signal?: string; action?: Record<string, unknown>; message?: string; reason?: string };
+        const m = msg as { type?: string; thought?: string; signal?: string; action?: Record<string, unknown>; action_str?: string; message?: string; reason?: string };
         if (m.type === "error") {
           lastError = m.message ?? "Agent error";
           if (attempt < 3) await new Promise((r) => setTimeout(r, 500));
@@ -321,6 +323,7 @@ export async function runWorkflowRemote(
           const thought = m.thought ?? "";
 
           if (signal === "step_done") {
+            onProgress(thought || `Step ${stepNum} complete`, stepNum, thought || undefined, "step_done");
             stepSucceeded = true;
             break;
           }
@@ -355,6 +358,8 @@ export async function runWorkflowRemote(
           }
 
           if (signal === "execute" && m.action) {
+            const actionStr = m.action_str ?? (typeof (m.action as { action?: string })?.action === "string" ? (m.action as { action: string }).action : "");
+            onProgress(thought || "Executing…", stepNum, thought, actionStr);
             const execResult: OperatorResult = await operator.execute(
               m.action as import("@echo/types").OperatorAction
             );
@@ -414,7 +419,6 @@ export async function runWorkflowRemote(
               afterBuf = beforeBuf;
             }
 
-            const actionStr = (m as { action_str?: string }).action_str ?? "";
             send({
               type: "verify",
               before_b64: beforeBuf.toString("base64"),
@@ -488,6 +492,7 @@ export async function runGoalOnlyRemote(
 
   const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
   const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
+  console.log("[runGoalOnlyRemote] connecting", { agentBase, goal: goal.slice(0, 50), workflowId: options.workflowId, runId: options.runId });
 
   try {
     const ws = new WebSocket(wsUrl);
@@ -540,6 +545,7 @@ export async function runGoalOnlyRemote(
       steps: [],
       goal,
     });
+    console.log("[runGoalOnlyRemote] sent start, waiting for ready");
 
     let msg = await receive();
     if ((msg as { type?: string }).type === "error") {
@@ -548,9 +554,11 @@ export async function runGoalOnlyRemote(
       return { success: false, error: err };
     }
     if ((msg as { type?: string }).type !== "ready") {
+      console.warn("[runGoalOnlyRemote] unexpected response", (msg as { type?: string }).type);
       await patchRunStatus(options, "failed", { error: "Unexpected agent response" });
       return { success: false, error: "Unexpected agent response" };
     }
+    console.log("[runGoalOnlyRemote] ready, starting capture loop");
 
     let iteration = 0;
     let lastError = "";
@@ -573,9 +581,12 @@ export async function runGoalOnlyRemote(
         return { success: false, error: "Run cancelled by user" };
       }
 
+      // On retry, brief settle so UI state is current before re-observing
+      if (lastError) await new Promise((r) => setTimeout(r, 200));
+
       let screenshotB64: string;
       try {
-        const buf = await operator.captureScreen(sourceId);
+        const buf = await operator.captureScreen(sourceId, { maxDimension: 1280 });
         screenshotB64 = Buffer.from(buf).toString("base64");
       } catch (e) {
         lastError = `Screenshot capture failed: ${e}`;
@@ -641,6 +652,8 @@ export async function runGoalOnlyRemote(
           continue;
         }
         if (m.signal === "execute" && m.action) {
+          const actionStr = m.action_str ?? (typeof (m.action as { action?: string })?.action === "string" ? (m.action as { action: string }).action : "");
+          onProgress(thought || "Executing…", iteration + 1, thought, actionStr);
           const execResult: OperatorResult = await operator.execute(
             m.action as import("@echo/types").OperatorAction
           );

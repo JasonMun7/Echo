@@ -398,36 +398,61 @@ ipcMain.handle("exit-recording-mode", () => {
 
 ipcMain.handle(
   "enter-run-mode",
-  (_, ctx: { workflowId: string; runId: string; token: string }) => {
+  (_, ctx: { workflowId: string; runId: string; token: string; goalOnly?: boolean }) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       runContext = ctx;
       recentRunProgress = [];
-      mainWindow.hide();
-      if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
-        hazeOverlayWindow.destroy();
-      }
-      if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
-        hudOverlayWindow.destroy();
-      }
-      hazeOverlayWindow = createHazeOverlayWindow();
-      hazeOverlayWindow.on("closed", () => {
-        hazeOverlayWindow = null;
-      });
-      hudOverlayWindow = createHudOverlayWindow("run");
-      hudOverlayWindow.on("closed", () => {
-        hudOverlayWindow = null;
-        stopHudFollowInterval();
-        // If the HUD closes while a run is still active (e.g. user force-quits
-        // the overlay), cancel and abort so the workflow doesn't keep running.
-        if (!isRunModeExiting && runContext) {
-          requestCancel();
-          abortActiveRun();
-          runContext = null;
-          recentRunProgress = [];
-          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+      const goalOnly = ctx.goalOnly === true;
+
+      if (goalOnly) {
+        // Goal-only from voice: show Run HUD for progress/thoughts, but no haze and don't hide main (EchoPrism stays open).
+        // HUD disappears when run completes (exitRunMode).
+        console.log("[enter-run-mode] goal-only: runContext + HUD (no haze, main window stays visible)", {
+          workflowId: ctx.workflowId,
+          runId: ctx.runId,
+        });
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.destroy();
         }
-      });
-      startHudFollowCursor("run");
+        hudOverlayWindow = createHudOverlayWindow("run");
+        hudOverlayWindow.on("closed", () => {
+          hudOverlayWindow = null;
+          stopHudFollowInterval();
+          if (!isRunModeExiting && runContext) {
+            requestCancel();
+            abortActiveRun();
+            runContext = null;
+            recentRunProgress = [];
+            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+          }
+        });
+        startHudFollowCursor("run");
+      } else {
+        mainWindow.hide();
+        if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
+          hazeOverlayWindow.destroy();
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.destroy();
+        }
+        hazeOverlayWindow = createHazeOverlayWindow();
+        hazeOverlayWindow.on("closed", () => {
+          hazeOverlayWindow = null;
+        });
+        hudOverlayWindow = createHudOverlayWindow("run");
+        hudOverlayWindow.on("closed", () => {
+          hudOverlayWindow = null;
+          stopHudFollowInterval();
+          if (!isRunModeExiting && runContext) {
+            requestCancel();
+            abortActiveRun();
+            runContext = null;
+            recentRunProgress = [];
+            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+          }
+        });
+        startHudFollowCursor("run");
+      }
     }
     return { ok: true };
   },
@@ -952,6 +977,10 @@ ipcMain.handle(
         }
       },
     });
+    if (process.env.NODE_ENV === "development") {
+      const withThought = entries.filter((e) => (e.thought ?? "").trim().length > 0).length;
+      console.debug("[run-workflow] Completed: %d progress entries (%d with thought)", entries.length, withThought);
+    }
     return { ...result, progress, entries };
   },
 );
@@ -971,8 +1000,20 @@ ipcMain.handle(
   ) => {
     const { goal, sourceId, workflowType, workflowId, runId, token } = args;
     if (!goal?.trim() || !sourceId || !workflowId || !runId || !token) {
+      console.warn("[run-goal-only] missing args", {
+        hasGoal: !!goal?.trim(),
+        hasSourceId: !!sourceId,
+        workflowId,
+        runId,
+      });
       return { success: false, error: "goal, sourceId, workflowId, runId, and token required" };
     }
+    console.log("[run-goal-only] starting", {
+      goal: goal.slice(0, 80),
+      workflowId,
+      runId,
+      sourceId: sourceId.slice(0, 20),
+    });
     requestResume();
     clearCancel();
     const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
@@ -1001,6 +1042,9 @@ ipcMain.handle(
           step: stepNum ?? 0,
         };
         entries.push(payload);
+        if (entries.length <= 3) {
+          console.log("[run-goal-only] progress", entries.length, { stepNum, thought: (thought || msg).slice(0, 50), action: (action || "").slice(0, 40) });
+        }
         recentRunProgress = [...recentRunProgress.slice(-4), payload];
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("run-progress", payload);
@@ -1010,11 +1054,24 @@ ipcMain.handle(
         }
       },
       onAwaitingUser: (reason) => {
+        console.log("[run-goal-only] awaiting user", reason);
         if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
           hudOverlayWindow.webContents.send("run-awaiting-user", { reason });
         }
       },
     });
+    console.log("[run-goal-only] finished", {
+      success: result.success,
+      error: result.error,
+      entriesCount: entries.length,
+    });
+    if (result.success) {
+      console.log("[run-goal-only] goal met — run complete; HUD will close on exitRunMode");
+    }
+    if (process.env.NODE_ENV === "development") {
+      const withThought = entries.filter((e) => (e.thought ?? "").trim().length > 0).length;
+      console.debug("[run-goal-only] progress entries: %d (%d with thought)", entries.length, withThought);
+    }
     return { ...result, progress, entries };
   },
 );

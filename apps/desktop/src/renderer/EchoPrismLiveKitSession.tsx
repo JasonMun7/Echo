@@ -191,14 +191,24 @@ export function EchoPrismLiveKitSession({
           typeof data.workflowId === "string" &&
           typeof data.runId === "string"
         ) {
+          const goalOnly = data.goalOnly === true;
+          const goal = typeof data.goal === "string" ? data.goal : undefined;
+          console.log("[EchoPrism] run_started received", {
+            workflowId: data.workflowId,
+            runId: data.runId,
+            goalOnly,
+            goal: goal?.slice(0, 60),
+          });
           onRunStarted({
             workflowId: data.workflowId,
             runId: data.runId,
-            goalOnly: data.goalOnly === true,
-            goal: typeof data.goal === "string" ? data.goal : undefined,
+            goalOnly,
+            goal,
           });
         }
-      } catch {}
+      } catch (e) {
+        console.warn("[EchoPrism] run_started parse error", e);
+      }
     };
     room.on(RoomEvent.DataReceived, handler);
     return () => {

@@ -301,6 +301,27 @@ body {
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.15);
 }
 
+/* Run HUD cancel: stronger visibility (filled danger so icon reads clearly) */
+.echo-run-hud-btn-cancel {
+  cursor: pointer;
+  border: none;
+  border-radius: 0.75rem;
+  background: #ef4444;
+  color: white;
+  padding: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+.echo-run-hud-btn-cancel:hover {
+  background: #dc2626;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
+}
+
 /* Dropdown menu item — secondary accent on icons (not whole item) + scale bigger on hover */
 .echo-dropdown-item {
   transition:
@@ -367,6 +388,19 @@ body {
   border-color: var(--echo-border-hover);
 }
 
+/* Run HUD: single Primary → Secondary gradient (DESIGN_SYSTEM: Cyan to Lavender) — same for both Pause and Play */
+.echo-run-hud-btn-gradient {
+  border: none;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #21c4dd 0%, #a577ff 100%);
+  color: white;
+  box-shadow: 0 2px 12px rgba(33, 196, 221, 0.25);
+  transition: all 0.3s ease;
+}
+.echo-run-hud-btn-gradient:hover {
+  box-shadow: 0 4px 20px rgba(165, 119, 255, 0.35);
+}
+
 @keyframes echo-pulse {
   0%,
   100% {
@@ -396,28 +430,20 @@ body {
   }
 }
 
-/* Design system: Primary + Secondary gradient at edges, no border, no rounded */
+/* Original haze: thin border frame around the edges of the screen (laptop-style) */
 .echo-run-haze {
   position: fixed;
   inset: 0;
   z-index: 100;
   pointer-events: none;
-  background:
-    linear-gradient(to right, rgba(21, 10, 53, 0.5) 0%, transparent 12%),
-    linear-gradient(to left, rgba(33, 196, 221, 0.4) 0%, transparent 12%),
-    linear-gradient(to bottom, rgba(165, 119, 255, 0.15) 0%, transparent 15%),
-    linear-gradient(to top, rgba(33, 196, 221, 0.12) 0%, transparent 15%);
-  animation: echo-haze-pulse 2.8s ease-in-out infinite;
-}
-
-@keyframes echo-haze-pulse {
-  0%,
-  100% {
-    opacity: 0.75;
-  }
-  50% {
-    opacity: 1;
-  }
+  background: transparent;
+  box-shadow:
+    inset 0 0 0 24px rgba(165, 119, 255, 0.15),
+    inset 0 0 0 20px rgba(165, 119, 255, 0.25),
+    inset 0 0 0 16px rgba(165, 119, 255, 0.35),
+    inset 0 0 0 12px rgba(165, 119, 255, 0.45),
+    inset 0 0 0 8px rgba(165, 119, 255, 0.3),
+    inset 0 0 0 4px rgba(165, 119, 255, 0.15);
 }
 
 /* Content sits on top of the border haze, pointer-events enabled */
@@ -443,12 +469,11 @@ body {
 }
 
 .echo-run-haze-label {
-  color: #a577ff;
+  color: #150a35;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-align: center;
-  animation: echo-pulse 1.8s ease-in-out infinite;
 }
 
 /* EchoPrism Voice modal orb animations */

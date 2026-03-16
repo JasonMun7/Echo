@@ -208,6 +208,13 @@ async def agent_run_ws(
                 if not ok:
                     await send({"type": "error", "message": "Run not found or access denied"})
                     continue
+                if goal_only:
+                    logger.info(
+                        "agent WS start goal_only: workflow_id=%s run_id=%s goal=%s",
+                        workflow_id,
+                        run_id,
+                        (goal or "")[:80],
+                    )
                 history = []
                 cached_prompt = None
                 await send({"type": "ready"})
@@ -218,6 +225,14 @@ async def agent_run_ws(
                 screenshot_b64 = data.get("screenshot_b64")
                 history_summary = data.get("history_summary", "")
                 last_error = data.get("last_error", "")
+
+                if goal_only and (step_index == 0 or step_index == 1):
+                    logger.info(
+                        "agent WS step (goal_only): step_index=%s has_screenshot=%s last_error=%s",
+                        step_index,
+                        bool(screenshot_b64 and len(screenshot_b64) > 100),
+                        last_error[:50] if last_error else "",
+                    )
 
                 if goal_only and not step and goal:
                     step = {"context": goal, "action": "observe", "params": {}, "expected_outcome": ""}
@@ -316,6 +331,9 @@ async def agent_run_ws(
                         asyncio.create_task(asyncio.to_thread(
                             _write_run_log, db, workflow_id, run_id, thought, action_str, step_index
                         ))
+                    # Send thinking first so desktop Run HUD and other clients can show the full thought
+                    if thought:
+                        await send({"type": "thinking", "thought": thought})
                     await send({
                         "type": "action",
                         "action": parsed_action,

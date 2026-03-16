@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { collection, collectionGroup, query, where, onSnapshot } from "firebase/firestore";
@@ -130,6 +130,11 @@ export default function WorkflowsPage() {
   const [authUid, setAuthUid] = useState<string | null>(
     auth?.currentUser?.uid ?? null,
   );
+  const workflowsSourceRef = useRef<{
+    apiMap: Map<string, Workflow>;
+    ownedMap: Map<string, Workflow>;
+    merge: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (!auth) return;
@@ -217,6 +222,15 @@ export default function WorkflowsPage() {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete");
+      const source = workflowsSourceRef.current;
+      if (source) {
+        source.apiMap.delete(workflowId);
+        source.ownedMap.delete(workflowId);
+        source.merge();
+      } else {
+        setWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
+      }
+      toast.success("Workflow deleted");
     } catch (err) {
       console.error("Delete failed:", err);
       toast.error("Failed to delete workflow");
@@ -272,6 +286,8 @@ export default function WorkflowsPage() {
       setLoading(false);
     };
 
+    workflowsSourceRef.current = { apiMap, ownedMap, merge };
+
     // 1. Fetch all workflows (owned + forked + legacy shared) via API
     apiFetch("/api/workflows")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
@@ -306,6 +322,7 @@ export default function WorkflowsPage() {
 
     return () => {
       unsubOwned();
+      workflowsSourceRef.current = null;
     };
   }, [authUid]);
 

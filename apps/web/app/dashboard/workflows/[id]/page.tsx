@@ -20,10 +20,10 @@ import {
   IconPlayerPlay,
   IconList,
   IconTrash,
-  IconShare,
-  IconGitFork,
+  IconShare3,
+  IconBinaryTree2,
   IconX,
-  IconUsers,
+  IconUser,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -345,7 +345,7 @@ export default function WorkflowDetailPage() {
                   onClick={() => { setShareModalOpen(true); loadCollaborators(); }}
                       className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
                 >
-                      <IconUsers className="h-4 w-4 text-echo-cyan" />
+                      <IconUser className="h-4 w-4 text-echo-cyan" />
                   Share
                 </button>
               )}
@@ -356,7 +356,7 @@ export default function WorkflowDetailPage() {
                   disabled={forking}
                       className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
                 >
-                      <IconGitFork className="h-4 w-4 text-echo-cyan" />
+                      <IconBinaryTree2 className="h-4 w-4 text-echo-cyan" />
                   {forking ? "Forking..." : "Fork"}
                 </button>
               )}
@@ -388,7 +388,7 @@ export default function WorkflowDetailPage() {
                   onClick={() => { setShareModalOpen(true); loadCollaborators(); }}
                   className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
                 >
-                  <IconShare className="h-4 w-4 text-white" />
+                  <IconShare3 className="h-4 w-4 text-white" />
                   Add people
                 </button>
               </div>
@@ -397,7 +397,7 @@ export default function WorkflowDetailPage() {
               </p>
               {collaborators.length === 0 ? (
                 <div className="echo-card rounded-xl border border-[#A577FF]/20 bg-white/80 p-6 text-center">
-                  <IconUsers className="mx-auto h-10 w-10 text-[#150A35]/30" />
+                  <IconUser className="mx-auto h-10 w-10 text-[#150A35]/30" />
                   <p className="mt-2 text-sm font-medium text-[#150A35]">Not shared yet</p>
                   <p className="mt-1 text-sm text-echo-text-muted">Share with teammates by email to let them run this workflow.</p>
                   <button
@@ -405,7 +405,7 @@ export default function WorkflowDetailPage() {
                     onClick={() => setShareModalOpen(true)}
                     className="echo-btn-cyan-lavender mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
                   >
-                    <IconShare className="h-4 w-4 text-white" />
+                    <IconShare3 className="h-4 w-4 text-white" />
                     Share workflow
                   </button>
                       </div>
@@ -458,7 +458,7 @@ export default function WorkflowDetailPage() {
           <div className="echo-card flex w-full max-w-md flex-col gap-4 p-6">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-[#150A35]">
-                <IconShare className="mb-0.5 mr-1.5 inline h-4 w-4 text-echo-cyan" />
+                <IconShare3 className="mb-0.5 mr-1.5 inline h-4 w-4 text-echo-cyan" />
                 Share workflow
               </h3>
               <button
@@ -492,7 +492,7 @@ export default function WorkflowDetailPage() {
             {collaborators.length > 0 && (
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-[#150A35]/60">
-                  <IconUsers className="mb-0.5 mr-1 inline h-3.5 w-3.5" />
+                  <IconUser className="mb-0.5 mr-1 inline h-3.5 w-3.5" />
                   Shared with
                 </p>
                 {collaborators.map((c) => (

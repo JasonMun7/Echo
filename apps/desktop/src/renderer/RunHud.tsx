@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import type { CSSProperties } from "react";
 import {
   IconGripVertical,
   IconPlayerPause,
@@ -9,7 +8,6 @@ import {
   IconX,
   IconMicrophone,
 } from "@tabler/icons-react";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -71,307 +69,211 @@ export default function RunHud({
     }
   };
 
-  const lastEntry =
-    liveProgress.length > 0 ? liveProgress[liveProgress.length - 1] : null;
-  const thoughts = liveProgress.slice(-12);
+  // Show all entries we have (RunHudWrapper caps at RUN_PROGRESS_MAX_ENTRIES so this stays bounded)
+  const recent = liveProgress;
+  // Group by step so each step has one card: thoughts in order, then actions in order
+  const byStep = recent.reduce(
+    (acc, e) => {
+      const step = e.step || 1;
+      if (!acc[step]) acc[step] = { thoughts: [] as string[], actions: [] as string[] };
+      if (e.thought != null && e.thought !== "") acc[step].thoughts.push(e.thought);
+      if (e.action != null && e.action !== "") acc[step].actions.push(e.action);
+      return acc;
+    },
+    {} as Record<number, { thoughts: string[]; actions: string[] }>
+  );
+  const stepNumbers = [...new Set(recent.map((e) => e.step || 1))].sort((a, b) => a - b);
 
   useEffect(() => {
     thoughtsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thoughts.length]);
+  }, [stepNumbers.length]);
 
   return (
     <TooltipProvider>
-    <div
-      className="echo-hud-run"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        width: "100%",
-        minHeight: "100%",
-        boxSizing: "border-box",
-        borderRadius: 12,
-        background: "var(--echo-surface-solid)",
-        border: "1px solid rgba(165, 119, 255, 0.2)",
-        boxShadow: "var(--echo-card-shadow)",
-        overflow: "hidden",
-      }}
-    >
-      {/* Header with grab handle */}
       <div
+        className="echo-run-hud flex w-full min-h-full flex-col overflow-hidden rounded-lg border backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
         style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "10px 12px",
-          borderBottom: "1px solid rgba(165, 119, 255, 0.15)",
-          background: "rgba(165, 119, 255, 0.04)",
+          background: "var(--echo-recording-hud-bg)",
+          borderColor: "var(--echo-recording-hud-border)",
         }}
       >
-        <div
-          className="echo-hud-grab-handle"
-          style={{ width: 24, padding: "0 4px", marginRight: 8 }}
-        >
-          <IconGripVertical size={14} style={{ color: "#A577FF" }} />
-        </div>
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: "var(--echo-text)",
-          }}
-        >
-          EchoPrism
-        </span>
-      </div>
-
-      {/* Thought + Action stream (like dashboard: actual LLM thought then action) */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: "auto",
-          padding: "10px 16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          WebkitAppRegion: "no-drag",
-          appRegion: "no-drag",
-        } as CSSProperties}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 10,
-            fontWeight: 600,
-            color: "#A577FF",
-            marginBottom: 4,
-          }}
-        >
-          <IconBrain size={12} />
-          EchoPrism thinking…
-        </div>
-        {thoughts.length === 0 ? (
-          <p
-            style={{
-              fontSize: 12,
-              color: "var(--echo-text-secondary)",
-              margin: 0,
-            }}
+        {/* Header: grab handle + title (like RecordingHud) */}
+        <div className="flex shrink-0 items-center gap-2 border-b px-2 py-2.5 pr-3">
+          <div
+            className="echo-hud-grab-handle flex w-7 shrink-0 cursor-grab items-center justify-center px-1 text-(--echo-text-secondary) active:cursor-grabbing"
+            aria-hidden
           >
-            EchoPrism is taking control…
-          </p>
-        ) : (
-          thoughts.map((e, i) => (
-            <div
-              key={i}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 8,
-                background: "rgba(165, 119, 255, 0.06)",
-                border: "1px solid rgba(165, 119, 255, 0.1)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "var(--echo-text-secondary)",
-                  marginBottom: 6,
-                }}
-              >
-                Step {e.step + 1}
-              </div>
-              {e.thought && (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "flex-start",
-                    marginBottom: e.action ? 8 : 0,
-                  }}
-                >
-                  <IconBrain
-                    size={14}
-                    style={{ color: "#A577FF", flexShrink: 0, marginTop: 2 }}
-                  />
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--echo-text)",
-                      lineHeight: 1.5,
-                      flex: 1,
-                    }}
-                  >
-                    {e.thought}
-                  </span>
-                </div>
-              )}
-              {e.action && (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <IconBolt
-                    size={14}
-                    style={{
-                      color: "rgba(33, 196, 221, 0.9)",
-                      flexShrink: 0,
-                      marginTop: 2,
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "ui-monospace, monospace",
-                      color: "var(--echo-text)",
-                      wordBreak: "break-all",
-                      flex: 1,
-                    }}
-                  >
-                    {e.action}
-                  </span>
-                </div>
-              )}
+            <IconGripVertical size={16} />
+          </div>
+          <span className="text-sm font-semibold text-(--echo-text)">
+            EchoPrism
+          </span>
+        </div>
+
+        {/* Scrollable thought + action stream */}
+        <div
+          className="echo-hud-no-drag flex min-h-0 flex-1 flex-col overflow-hidden"
+          style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
+        >
+          <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-3">
+            <div className="flex items-center gap-1.5 text-(--echo-text-secondary)">
+              <IconBrain size={12} className="shrink-0" />
+              <span className="text-xs font-semibold">Thinking…</span>
             </div>
-          ))
-        )}
-        <div ref={thoughtsEndRef} />
-      </div>
+            {stepNumbers.length === 0 ? (
+              <p className="text-sm text-(--echo-text-secondary)">
+                EchoPrism is taking control…
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {stepNumbers.map((stepNum) => {
+                  const group = byStep[stepNum];
+                  if (!group || (group.thoughts.length === 0 && group.actions.length === 0))
+                    return null;
+                  return (
+                    <li
+                      key={stepNum}
+                      className="echo-card rounded-lg border border-(--echo-border) bg-(--echo-surface)/80 px-3 py-2.5"
+                    >
+                      <div className="mb-2 text-xs font-semibold text-(--echo-text-secondary)">
+                        Step {stepNum}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {group.thoughts.length > 0 && (
+                          <div className="space-y-1.5">
+                            {group.thoughts.map((thought, i) => (
+                              <div key={i} className="flex gap-2">
+                                <IconBrain
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-(--echo-lavender)"
+                                />
+                                <p
+                                  className="min-w-0 flex-1 text-sm leading-relaxed text-(--echo-text)"
+                                  style={{
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                  }}
+                                >
+                                  {thought}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {group.actions.length > 0 && (
+                          <div className="space-y-1 border-t border-(--echo-border)/60 pt-2">
+                            {group.actions.map((action, i) => (
+                              <div key={i} className="flex gap-2">
+                                <IconBolt
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-(--echo-cyan)"
+                                />
+                                <code className="min-w-0 flex-1 break-all text-xs text-(--echo-text)">
+                                  {action}
+                                </code>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div ref={thoughtsEndRef} />
+          </div>
 
-      {/* CallUser section */}
-      {isAwaitingUser && callUserReason && (
-        <div
-          style={{
-            padding: 12,
-            background: "rgba(251, 191, 36, 0.12)",
-            borderTop: "1px solid rgba(251, 191, 36, 0.3)",
-            WebkitAppRegion: "no-drag",
-            appRegion: "no-drag",
-          } as CSSProperties}
-        >
-          <p
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--echo-text)",
-              margin: "0 0 8px",
-            }}
-          >
-            EchoPrism needs your help
-          </p>
-          <p
-            style={{
-              fontSize: 10,
-              color: "var(--echo-text-secondary)",
-              margin: "0 0 8px",
-            }}
-          >
-            {callUserReason}
-          </p>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input
-              value={callUserInput}
-              onChange={(e) => setCallUserInput(e.target.value)}
-              placeholder="Type feedback to resume…"
-              onKeyDown={(e) =>
-                e.key === "Enter" && handleSendCallUserFeedback()
-              }
-              style={{
-                flex: 1,
-                minWidth: 0,
-                borderRadius: 8,
-                border: "1px solid rgba(251, 191, 36, 0.5)",
-                padding: "8px 12px",
-                fontSize: 12,
-                outline: "none",
-                background: "var(--echo-input-bg)",
-                color: "var(--echo-text)",
-              }}
-            />
-            <Button
-              size="sm"
-              className="echo-btn-primary"
-              onClick={handleSendCallUserFeedback}
-              disabled={!callUserInput.trim() || sendingCallUserFeedback}
+          {/* CallUser section */}
+          {isAwaitingUser && callUserReason ? (
+            <div
+              className="echo-hud-no-drag shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-3 py-3"
+              style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
             >
-              {sendingCallUserFeedback ? "Sending…" : "Send feedback"}
-            </Button>
+              <p className="mb-1 text-sm font-semibold text-(--echo-text)">
+                EchoPrism needs your help
+              </p>
+              <p className="mb-3 text-xs text-(--echo-text-secondary)">
+                {callUserReason}
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={callUserInput}
+                  onChange={(e) => setCallUserInput(e.target.value)}
+                  placeholder="Type feedback to resume…"
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleSendCallUserFeedback()
+                  }
+                  className="min-w-0 flex-1 rounded-lg border border-(--echo-input-border) bg-(--echo-input-bg) px-3 py-2 text-sm text-(--echo-text) outline-none placeholder:text-(--echo-text-dim)"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendCallUserFeedback}
+                  disabled={!callUserInput.trim() || sendingCallUserFeedback}
+                  className="echo-btn-cyan-lavender shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {sendingCallUserFeedback ? "Sending…" : "Send"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Footer controls (like RecordingHud) */}
+          <div
+            className="echo-hud-no-drag flex shrink-0 items-center justify-end gap-2 border-t border-(--echo-border) px-3 py-2.5"
+            style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.electronAPI?.openVoiceInterruption?.()}
+                  className="echo-recording-hud-btn-secondary flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border p-0 transition-all"
+                  aria-label="Voice interruption"
+                >
+                  <IconMicrophone size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Voice interruption
+                <span className="ml-1.5 text-[10px] opacity-70">
+                  Ctrl+Shift+V
+                </span>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handlePauseResume}
+                  className="echo-run-hud-btn-gradient flex h-9 w-9 shrink-0 items-center justify-center p-0"
+                  aria-label={runPaused ? "Resume" : "Pause"}
+                >
+                  {runPaused ? (
+                    <IconPlayerPlay size={16} />
+                  ) : (
+                    <IconPlayerPause size={16} />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{runPaused ? "Resume" : "Pause"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="echo-run-hud-btn-cancel flex shrink-0 items-center justify-center"
+                  aria-label="Cancel run"
+                >
+                  <IconX size={18} strokeWidth={2.5} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Cancel run</TooltipContent>
+            </Tooltip>
           </div>
         </div>
-      )}
-
-      {/* Controls */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 8,
-          padding: "12px 16px",
-          borderTop: "1px solid rgba(165, 119, 255, 0.15)",
-          WebkitAppRegion: "no-drag",
-          appRegion: "no-drag",
-        } as CSSProperties}
-      >
-        {/* Voice interrupt button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => window.electronAPI?.openVoiceInterruption?.()}
-              className="h-9 w-9 rounded-lg border-[#A577FF]/40 bg-[#A577FF]/5 text-[#A577FF] hover:bg-[#A577FF]/15"
-            >
-              <IconMicrophone size={16} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            Voice interruption
-            <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 10 }}>
-              Ctrl+Shift+V
-            </span>
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Pause / resume */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePauseResume}
-              className="h-9 w-9 rounded-lg border-[#A577FF]/40 bg-[#A577FF]/5 text-[#A577FF] hover:bg-[#A577FF]/15"
-            >
-              {runPaused ? (
-                <IconPlayerPlay size={16} />
-              ) : (
-                <IconPlayerPause size={16} />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{runPaused ? "Resume" : "Pause"}</TooltipContent>
-        </Tooltip>
-
-        {/* Cancel */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleCancel}
-              className="h-9 w-9 rounded-lg border-[#ef4444]/50 bg-[#ef4444]/10 text-[#ef4444] hover:bg-[#ef4444]/20"
-            >
-              <IconX size={16} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Cancel run</TooltipContent>
-        </Tooltip>
       </div>
-    </div>
     </TooltipProvider>
   );
 }

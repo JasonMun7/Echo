@@ -84,7 +84,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Mode switching (Main Process as source of truth)
   enterRecordingMode: () => ipcRenderer.invoke("enter-recording-mode"),
   exitRecordingMode: () => ipcRenderer.invoke("exit-recording-mode"),
-  enterRunMode: (ctx: { workflowId: string; runId: string; token: string }) =>
+  enterRunMode: (ctx: { workflowId: string; runId: string; token: string; goalOnly?: boolean }) =>
     ipcRenderer.invoke("enter-run-mode", ctx),
   exitRunMode: () => ipcRenderer.invoke("exit-run-mode"),
 

@@ -8,10 +8,17 @@ export interface LiveProgressEntry {
   step: number;
 }
 
+export interface RunResultEntry {
+  thought: string;
+  action: string;
+  step: number;
+}
+
 export interface RunResult {
   success: boolean;
   error?: string;
   progress?: string[];
+  entries?: RunResultEntry[];
   runId?: string;
   workflowId?: string;
 }
@@ -249,6 +256,12 @@ export const useRunStore = create<RunState>((set, get) => ({
     const goalOnly = arg.goalOnly === true && typeof arg.goal === "string" && arg.goal.trim().length > 0;
 
     if (goalOnly) {
+      const goal = arg.goal!.trim();
+      console.log("[run-store] goal-only run_started", {
+        workflowId: arg.workflowId,
+        runId: arg.runId,
+        goal: goal.slice(0, 80),
+      });
       useWorkflowsStore.getState().selectWorkflow(arg.workflowId);
       set({
         running: true,
@@ -263,13 +276,16 @@ export const useRunStore = create<RunState>((set, get) => ({
       });
 
       try {
+        console.log("[run-store] goal-only: calling enterRunMode (HUD for progress, EchoPrism stays open)");
         await window.electronAPI?.enterRunMode?.({
           workflowId: arg.workflowId,
           runId: arg.runId,
           token,
+          goalOnly: true,
         });
+        console.log("[run-store] goal-only: calling runGoalOnlyLocal", { goal: goal.slice(0, 60), sourceId });
         const runResult = await window.electronAPI?.runGoalOnlyLocal?.({
-          goal: arg.goal!.trim(),
+          goal,
           sourceId,
           workflowType: "desktop",
           workflowId: arg.workflowId,
@@ -277,9 +293,26 @@ export const useRunStore = create<RunState>((set, get) => ({
           token,
         });
         window.electronAPI?.removeRunProgressListener?.();
+        const accumulated = get().liveProgress;
+        console.log("[run-store] goal-only: run finished", {
+          success: runResult?.success,
+          error: runResult?.error,
+          entriesCount: accumulated.length,
+        });
         set({
           runResult: {
             ...(runResult ?? { success: false, error: "No response" }),
+            workflowId: arg.workflowId,
+            runId: arg.runId,
+            entries: accumulated.length > 0 ? [...accumulated] : (runResult?.entries ?? []),
+          },
+        });
+      } catch (err) {
+        console.error("[run-store] goal-only: run failed", err);
+        set({
+          runResult: {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
             workflowId: arg.workflowId,
             runId: arg.runId,
           },
@@ -331,11 +364,13 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
       window.electronAPI?.removeRunProgressListener?.();
+      const accumulated = get().liveProgress;
       set({
         runResult: {
           ...(runResult ?? { success: false, error: "No response" }),
           workflowId: arg.workflowId,
           runId: arg.runId,
+          entries: accumulated.length > 0 ? [...accumulated] : (runResult?.entries ?? []),
         },
       });
     } finally {

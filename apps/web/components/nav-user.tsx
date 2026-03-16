@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -30,6 +31,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { NotificationsDrawer } from "@/components/notifications-drawer";
 import { useAuthStore } from "@/stores";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -45,6 +47,7 @@ export function NavUser({
   const isMobile = useIsMobile();
   const signOut = useAuthStore((s) => s.signOut);
   const router = useRouter();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -118,7 +121,10 @@ export function NavUser({
                 <IconCreditCard className="size-4" />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-[#150A35] focus:bg-[#A577FF]/10">
+              <DropdownMenuItem
+                className="text-[#150A35] focus:bg-[#A577FF]/10"
+                onSelect={() => setNotificationsOpen(true)}
+              >
                 <IconNotification className="size-4" />
                 Notifications
               </DropdownMenuItem>
@@ -140,6 +146,10 @@ export function NavUser({
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onOpenChange={setNotificationsOpen}
+      />
     </SidebarMenu>
   );
 }

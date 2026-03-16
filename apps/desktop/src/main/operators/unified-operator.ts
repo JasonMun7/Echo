@@ -181,7 +181,10 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
 }
 
 /** Capture screenshot. Uses Playwright page if in browser context; else desktop capture. */
-export async function captureScreen(sourceId: string): Promise<Buffer> {
+export async function captureScreen(
+  sourceId: string,
+  options?: { maxDimension?: number }
+): Promise<Buffer> {
   if (hasBrowserContext() && page && !page.isClosed()) {
     try {
       const buf = await page.screenshot({ type: "png" });
@@ -190,7 +193,7 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
       console.warn("[unified-operator] Playwright screenshot failed, falling back to desktop:", e);
     }
   }
-  return desktop.captureScreen(sourceId);
+  return desktop.captureScreen(sourceId, options);
 }
 
 /** Execute action — route to Playwright or NutJS based on action type and context. */

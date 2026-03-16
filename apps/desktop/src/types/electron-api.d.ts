@@ -75,6 +75,7 @@ declare global {
         workflowId: string;
         runId: string;
         token: string;
+        goalOnly?: boolean;
       }) => Promise<{ ok: boolean }>;
       exitRunMode: () => Promise<{ ok: boolean }>;
       onRecordingCommand: (cb: (payload: { action: string }) => void) => void;

@@ -93,12 +93,17 @@ function scaleCoords(x: number, y: number): { x: number; y: number } {
   return { x: wx, y: wy };
 }
 
+export interface CaptureScreenOptions {
+  /** Cap the longest side to this (reduces payload and agent latency). Used for goal-only. */
+  maxDimension?: number;
+}
+
 /**
  * Capture screenshot at the display's full physical resolution.
  * Uses actual display dimensions × scaleFactor instead of hardcoded 1920×1080.
  * Retries up to 3 times with increasing delays.
  */
-export async function captureScreen(sourceId: string): Promise<Buffer> {
+export async function captureScreen(sourceId: string, options?: CaptureScreenOptions): Promise<Buffer> {
   const { logicalWidth, logicalHeight } = getScreenInfo();
 
   // We no longer hide overlays via Opacity(0) here because it causes severe
@@ -117,7 +122,14 @@ export async function captureScreen(sourceId: string): Promise<Buffer> {
     if (!src?.thumbnail) return null;
 
     // Resize to logical pixels — NativeImage may be 2× on Retina
-    const resized = src.thumbnail.resize({ width: logicalWidth, height: logicalHeight });
+    let resized = src.thumbnail.resize({ width: logicalWidth, height: logicalHeight });
+    if (options?.maxDimension && (logicalWidth > options.maxDimension || logicalHeight > options.maxDimension)) {
+      const scale = options.maxDimension / Math.max(logicalWidth, logicalHeight);
+      resized = resized.resize({
+        width: Math.round(logicalWidth * scale),
+        height: Math.round(logicalHeight * scale),
+      });
+    }
     const buf = Buffer.from(resized.toJPEG(75));
     if (buf.length < 5000) return null;
     return buf;
