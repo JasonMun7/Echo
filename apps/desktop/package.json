@@ -4,6 +4,10 @@
   "description": "Echo Desktop — AI-powered voice and agent desktop client",
   "author": "Echo",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JasonMun7/Echo.git"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
