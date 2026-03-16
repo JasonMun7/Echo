@@ -4,12 +4,12 @@
 
 ## Tech Stack
 
-| Layer | Stack |
-|-------|-------|
+| Layer    | Stack                                                        |
+| -------- | ------------------------------------------------------------ |
 | Frontend | Next.js 16, React 19, Tailwind CSS, Firebase Auth, Firestore |
-| Backend | FastAPI, Firebase Admin, Google Cloud Storage |
-| Agent | EchoPrism, Playwright (Cloud Run Job) |
-| Deploy | Cloud Run (services + job), gcloud, Docker |
+| Backend  | FastAPI, Firebase Admin, Google Cloud Storage                |
+| Agent    | EchoPrism, Playwright (Cloud Run Job)                        |
+| Deploy   | Cloud Run (services + job), gcloud, Docker                   |
 
 ## Project Structure
 
@@ -54,11 +54,11 @@ echo/
 
 In **APIs & Services → Enable APIs**, enable:
 
-- Cloud Run API  
-- Cloud Scheduler API  
-- Firestore API  
-- Cloud Storage API  
-- Gemini API  
+- Cloud Run API
+- Cloud Scheduler API
+- Firestore API
+- Cloud Storage API
+- Gemini API
 
 ### 1.3 Create a GCS bucket
 
@@ -240,12 +240,12 @@ Set `HEADLESS=false` to see the browser.
 
 Ensure these are set in `backend/.env`:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ECHO_GCP_PROJECT_ID` | Yes | GCP project ID |
-| `ECHO_GCS_BUCKET` | Yes | GCS bucket name |
-| `GEMINI_API_KEY` | Yes | Gemini API key |
-| `ECHO_CLOUD_RUN_REGION` | No | Default `us-central1` |
+| Variable                | Required | Description           |
+| ----------------------- | -------- | --------------------- |
+| `ECHO_GCP_PROJECT_ID`   | Yes      | GCP project ID        |
+| `ECHO_GCS_BUCKET`       | Yes      | GCS bucket name       |
+| `GEMINI_API_KEY`        | Yes      | Gemini API key        |
+| `ECHO_CLOUD_RUN_REGION` | No       | Default `us-central1` |
 
 ### 6.2 Deploy
 
@@ -260,17 +260,17 @@ GEMINI_API_KEY=your-key ECHO_GCS_BUCKET=your-bucket \
 
 The script will:
 
-1. Build frontend, backend, and agent Docker images  
-2. Push to `gcr.io/YOUR_PROJECT/...`  
-3. Deploy `echo-frontend` and `echo-backend` as Cloud Run services  
-4. Deploy `echo-agent` as a Cloud Run Job  
-5. Configure env vars and CORS  
-6. Grant agent execution permissions  
+1. Build frontend, backend, and agent Docker images
+2. Push to `gcr.io/YOUR_PROJECT/...`
+3. Deploy `echo-frontend` and `echo-backend` as Cloud Run services
+4. Deploy `echo-agent` as a Cloud Run Job
+5. Configure env vars and CORS
+6. Grant agent execution permissions
 
 ### 6.3 Post-deploy
 
-- Frontend URL: `https://echo-frontend-{PROJECT_NUMBER}.{REGION}.run.app`  
-- Backend URL: `https://echo-backend-{PROJECT_NUMBER}.{REGION}.run.app`  
+- Frontend URL: `https://echo-frontend-{PROJECT_NUMBER}.{REGION}.run.app`
+- Backend URL: `https://echo-backend-{PROJECT_NUMBER}.{REGION}.run.app`
 
 The deploy script injects `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_ECHO_AGENT_URL` into the frontend build. No extra config needed for production.
 
@@ -278,7 +278,7 @@ The deploy script injects `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_ECHO_AGENT_URL`
 
 The main `pnpm run deploy` deploys frontend, backend, echo-prism-agent, and omniparser. The **LiveKit voice agent** is a separate Cloud Run service deployed only when EchoPrism Voice is required.
 
-- **Desktop app**: It *does* call the hosted EchoPrism agent (Cloud Run): the app fetches a LiveKit room token from `VITE_ECHO_AGENT_URL/api/livekit/token`. For production desktop builds, set `VITE_ECHO_AGENT_URL` to your EchoPrism Cloud Run URL (e.g. `https://echo-prism-agent-{PROJECT_NUMBER}.us-central1.run.app`).
+- **Desktop app**: It _does_ call the hosted EchoPrism agent (Cloud Run): the app fetches a LiveKit room token from `VITE_ECHO_AGENT_URL/api/livekit/token`. For production desktop builds, set `VITE_ECHO_AGENT_URL` to your EchoPrism Cloud Run URL (e.g. `https://echo-prism-agent-{PROJECT_NUMBER}.us-central1.run.app`).
 - **Voice in room**: For EchoPrism Voice to work, you must deploy the LiveKit agent so a worker joins the room. Without it, the desktop gets a token and connects, but no voice agent will be present.
 
 To deploy the LiveKit agent:
@@ -325,17 +325,17 @@ The backend and agent use Firebase Admin SDK and bypass Firestore rules. The fro
 
 ## Scripts
 
-| Script | Description |
-|--------|-------------|
-| `pnpm run dev` | Start Next.js frontend (Doppler env) |
-| `pnpm run dev:desktop` | Start Electron desktop app (Doppler env) |
-| `pnpm run dev:backend` | Start FastAPI backend (Doppler env) |
-| `pnpm run dev:agent` | Start EchoPrism Agent locally (port 8081, Doppler env) |
-| `pnpm run dev:livekit-agent` | Start EchoPrism LiveKit voice agent (Doppler env) |
-| `pnpm run version:desktop` | Bump desktop patch version (0.1.1 → 0.1.2) in `apps/desktop/package.json`; run before `desktop:dist` when cutting a new release |
-| `pnpm run desktop:dist` | Build desktop app and **publish to GitHub Releases** (set `GH_TOKEN`); existing users receive the update via in-app updater |
-| `pnpm run deploy` | Deploy to Cloud Run — frontend, backend, echo-prism-agent, omniparser |
-| `pnpm run deploy:livekit-agent` | Deploy LiveKit voice agent only (optional; requires LiveKit Cloud) |
+| Script                          | Description                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm run dev`                  | Start Next.js frontend (Doppler env)                                                                                            |
+| `pnpm run dev:desktop`          | Start Electron desktop app (Doppler env)                                                                                        |
+| `pnpm run dev:backend`          | Start FastAPI backend (Doppler env)                                                                                             |
+| `pnpm run dev:agent`            | Start EchoPrism Agent locally (port 8081, Doppler env)                                                                          |
+| `pnpm run dev:livekit-agent`    | Start EchoPrism LiveKit voice agent (Doppler env)                                                                               |
+| `pnpm run version:desktop`      | Bump desktop patch version (0.1.1 → 0.1.2) in `apps/desktop/package.json`; run before `desktop:dist` when cutting a new release |
+| `pnpm run desktop:dist`         | Build desktop app and **publish to GitHub Releases** (set `GH_TOKEN`); existing users receive the update via in-app updater     |
+| `pnpm run deploy`               | Deploy to Cloud Run — frontend, backend, echo-prism-agent, omniparser                                                           |
+| `pnpm run deploy:livekit-agent` | Deploy LiveKit voice agent only (optional; requires LiveKit Cloud)                                                              |
 
 ---
 
