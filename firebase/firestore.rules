@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // User's custom MCP tools — owner CRUD only
+      match /mcp_tools/{toolId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // OAuth integration tokens — owner CRUD only
+      match /integrations/{integrationName} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Workflows: owner has full access; shared_with users can read + run (not edit/delete)
+    match /workflows/{workflowId} {
+      allow create: if request.auth != null && request.resource.data.owner_uid == request.auth.uid;
+      allow read: if request.auth != null
+        && (resource.data.owner_uid == request.auth.uid
+            || (resource.data.shared_with is list && request.auth.uid in resource.data.shared_with));
+      allow update, delete: if request.auth != null && resource.data.owner_uid == request.auth.uid;
+
+      match /steps/{stepId} {
+        allow read: if request.auth != null
+          && exists(/databases/$(database)/documents/workflows/$(workflowId))
+          && (get(/databases/$(database)/documents/workflows/$(workflowId)).data.owner_uid == request.auth.uid
+              || (get(/databases/$(database)/documents/workflows/$(workflowId)).data.shared_with is list
+                  && request.auth.uid in get(/databases/$(database)/documents/workflows/$(workflowId)).data.shared_with));
+        allow write: if request.auth != null
+          && exists(/databases/$(database)/documents/workflows/$(workflowId))
+          && get(/databases/$(database)/documents/workflows/$(workflowId)).data.owner_uid == request.auth.uid;
+      }
+
+      match /runs/{runId} {
+        allow read: if request.auth != null
+          && exists(/databases/$(database)/documents/workflows/$(workflowId))
+          && (get(/databases/$(database)/documents/workflows/$(workflowId)).data.owner_uid == request.auth.uid
+              || (get(/databases/$(database)/documents/workflows/$(workflowId)).data.shared_with is list
+                  && request.auth.uid in get(/databases/$(database)/documents/workflows/$(workflowId)).data.shared_with));
+        // Runs are created/updated by backend service account (admin SDK bypasses rules)
+        allow write: if request.auth != null
+          && exists(/databases/$(database)/documents/workflows/$(workflowId))
+          && get(/databases/$(database)/documents/workflows/$(workflowId)).data.owner_uid == request.auth.uid;
+
+        match /logs/{logId} {
+          allow read: if request.auth != null
+            && exists(/databases/$(database)/documents/workflows/$(workflowId))
+            && (get(/databases/$(database)/documents/workflows/$(workflowId)).data.owner_uid == request.auth.uid
+                || (get(/databases/$(database)/documents/workflows/$(workflowId)).data.shared_with is list
+                    && request.auth.uid in get(/databases/$(database)/documents/workflows/$(workflowId)).data.shared_with));
+          allow write: if false; // backend service account only
+        }
+      }
+    }
+
+    // Filtered traces — owner can read; backend service account writes
+    match /filtered_traces/{traceId} {
+      allow read: if request.auth != null && resource.data.owner_uid == request.auth.uid;
+      allow write: if false;
+
+      match /steps/{stepId} {
+        allow read: if request.auth != null
+          && get(/databases/$(database)/documents/filtered_traces/$(traceId)).data.owner_uid == request.auth.uid;
+        allow write: if false;
+      }
+    }
+
+    // Global model state — any authenticated user can read; no client writes
+    match /global_model/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Notifications — backend creates; recipient can read and update (mark read)
+    match /notifications/{notificationId} {
+      allow read, update: if request.auth != null && resource.data.to_uid == request.auth.uid;
+      allow create: if false;
+      allow delete: if false;
+    }
+
+    // Workflow invites — sender can create; sender/recipient can read; recipient can update (accept/decline)
+    match /workflow_invites/{inviteId} {
+      allow create: if request.auth != null && request.resource.data.from_uid == request.auth.uid;
+      allow read: if request.auth != null
+        && (resource.data.from_uid == request.auth.uid || resource.data.to_uid == request.auth.uid);
+      allow update: if request.auth != null && resource.data.to_uid == request.auth.uid;
+      allow delete: if false;
+    }
+  }
+}

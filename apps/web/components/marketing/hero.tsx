@@ -97,7 +97,7 @@ export default function Hero() {
               </div>
               <div className="relative aspect-[16/10] w-full">
                 <Image
-                  src="/dashboard@3x.png"
+                  src="/dashboard-screenshot.png"
                   width={1000}
                   height={625}
                   alt="Dashboard Preview"

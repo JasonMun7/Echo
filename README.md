@@ -1,48 +1,77 @@
 # Echo
 
-**Echo** is a workflow automation platform that lets you create, edit, and run browser-based workflows. The agent uses **EchoPrism** (vision-language model) to execute steps (navigate, click, type, scroll) in a headless browser. You can stream live screenshots while a run executes.
+<p align="center">
+  <img src="apps/web/public/echo_logo.png" alt="Echo" width="120" />
+</p>
+
+**Echo** is an AI-powered workflow automation platform. Create and edit browser-based workflows (from recordings or AI synthesis), then run them via the **EchoPrism** vision-language agent—which executes steps (navigate, click, type, scroll) in a headless browser and streams live screenshots. Use the **web dashboard** to manage workflows and runs, or the **Electron desktop app** for voice-driven control and EchoPrism chat.
+
+---
+
+## Replicate this project (quick map)
+
+To run the full stack locally or deploy from scratch:
+
+1. **Prerequisites** — Install Node.js 18+, pnpm, Python 3.11+, Docker, gcloud CLI, Firebase CLI, and (optional) Doppler.
+2. **Phase 1: GCP** — Create/enable a GCP project, enable APIs, create a GCS bucket.
+3. **Phase 2: Firebase** — Create/link Firebase project, enable Auth (Email/Password + Google), create Firestore, register web app, deploy Firestore rules from `firebase/`.
+4. **Phase 3: IAM** — Ensure the backend/agent service account has Firestore, Storage, and (for jobs) Cloud Run Jobs permissions.
+5. **Phase 4: Gemini** — Create a Gemini API key in Google AI Studio.
+6. **Phase 5: Local dev** — Clone repo, install deps (pnpm + Python), configure env (Doppler or `.env`), then run backend, web app, and (optional) EchoPrism agent.
+7. **Phase 6: Deploy** — Use `pnpm run deploy` (with Doppler prd or env) to deploy to Cloud Run; optionally deploy LiveKit agent.
+
+The sections below spell out each step in detail.
+
+---
 
 ## Tech Stack
 
-| Layer    | Stack                                                        |
-| -------- | ------------------------------------------------------------ |
-| Frontend | Next.js 16, React 19, Tailwind CSS, Firebase Auth, Firestore |
-| Backend  | FastAPI, Firebase Admin, Google Cloud Storage                |
-| Agent    | EchoPrism, Playwright (Cloud Run Job)                        |
-| Deploy   | Cloud Run (services + job), gcloud, Docker                   |
+| Layer    | Stack |
+| -------- | ----- |
+| **Web** | Next.js 16, React 19, Tailwind CSS 4, Firebase Auth, Firestore, shadcn/ui |
+| **Desktop** | Electron, Vite, LiveKit (voice), Playwright (local browser automation) |
+| **Backend** | FastAPI, Firebase Admin, Google Cloud Storage, Cloud Scheduler |
+| **Agent** | EchoPrism (vision-language), Playwright, Gemini; LiveKit voice agent; synthesis & chat APIs |
+| **Vision** | OmniParser (UI grounding, GPU / Cloud Run) |
+| **Deploy** | Cloud Run (services + jobs), gcloud, Docker |
 
 ## Project Structure
 
 ```
 echo/
 ├── apps/
-│   ├── web/              # Next.js 16 web app
-│   │   ├── app/          # App Router pages
-│   │   ├── components/   # UI components
-│   │   ├── lib/          # Firebase, API, utils
-│   │   └── DESIGN_SYSTEM.md
-│   └── desktop/          # Electron + Vite desktop app
+│   ├── web/                    # Next.js 16 web app
+│   │   ├── app/                 # App Router (marketing, dashboard, auth)
+│   │   ├── components/          # UI, marketing, dashboard components
+│   │   ├── lib/                 # Firebase, API client, utils
+│   │   └── public/              # Static assets (e.g. echo_logo.png)
+│   └── desktop/                 # Electron + Vite desktop app (voice, workflows)
 ├── packages/
-│   └── echo-types/       # Shared TypeScript types
-├── backend/              # FastAPI API (datasets, workflows, runs, storage)
-├── EchoPrismAgent/       # EchoPrism agent service (chat, LiveKit, synthesis)
-├── OmniParser/           # UI element grounding service (GPU, Cloud Run)
-├── firebase/             # Firebase config, rules, indexes
-├── docs/                 # Architecture and reference docs
-├── scripts/              # deploy.sh, deploy/, Python helpers
-└── package.json          # Root scripts (dev, build, deploy)
+│   └── echo-types/              # Shared TypeScript types
+├── backend/                     # FastAPI API (workflows, runs, storage, auth)
+├── EchoPrismAgent/              # EchoPrism service: chat, LiveKit, synthesis, workflow execution
+├── OmniParser/                  # UI element grounding (Cloud Run)
+├── firebase/                    # Firestore & Storage rules, indexes, firebase.json
+├── docs/                        # Architecture and reference docs (optional)
+├── scripts/                     # deploy.sh, deploy/*, install-python-deps.sh
+└── package.json                 # Root pnpm scripts (dev, build, deploy)
 ```
 
 ---
 
 ## Prerequisites
 
-- **Node.js** 18+
-- **Python** 3.11+
-- **Docker** (for deployment)
-- **gcloud** CLI (for deployment)
-- **Firebase** project
-- **Google Cloud** project (same as or linked to Firebase)
+Install the following so you can replicate the project locally and deploy:
+
+- **Node.js** 18+ — [nodejs.org](https://nodejs.org) or `nvm install 18`
+- **pnpm** — `npm install -g pnpm` (project uses `packageManager: pnpm@9.0.0`)
+- **Python** 3.11+ — [python.org](https://www.python.org) or `pyenv install 3.11`
+- **Docker** — for building and deploying images
+- **gcloud** CLI — [Install](https://cloud.google.com/sdk/docs/install); `gcloud auth login` and `gcloud auth application-default login`
+- **Firebase CLI** — `npm install -g firebase-tools`; `firebase login`
+- **Firebase** project — create or link at [Firebase Console](https://console.firebase.google.com)
+- **Google Cloud** project — same as or linked to Firebase; billing enabled
+- **Doppler** (optional but recommended) — `brew install dopplerhq/cli/doppler` for secrets; otherwise use `.env` files
 
 ---
 
@@ -148,8 +177,16 @@ Used for:
 ```bash
 git clone <your-repo>
 cd echo
-npm install
+pnpm install
 ```
+
+Then install backend and agent Python dependencies:
+
+```bash
+pnpm run install:backend
+```
+
+This runs `scripts/install-python-deps.sh` (backend and EchoPrismAgent venv/pip). You may also need `playwright install chromium` inside the agent env if you run workflows locally.
 
 ### 5.2 Option A: Doppler (recommended for teams)
 
@@ -186,54 +223,47 @@ When running EchoPrism Agent locally, set `NEXT_PUBLIC_ECHO_AGENT_URL` (web) and
 
 If you prefer local env files instead of Doppler:
 
-**Frontend**
+**Web app (Next.js)**
 
 ```bash
-cd frontend
+cd apps/web
 cp .env.local.example .env.local
 ```
 
-Edit `.env.local` with your Firebase config and `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+Edit `apps/web/.env.local` with your Firebase config and `NEXT_PUBLIC_API_URL=http://localhost:8000`. From repo root:
 
 ```bash
-pnpm install
 pnpm run dev
 ```
 
-**Backend**
+**Backend (FastAPI)**
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-Edit `.env` with `ECHO_GCP_PROJECT_ID`, `ECHO_GCS_BUCKET`, `GEMINI_API_KEY`.
+Edit `backend/.env` with `ECHO_GCP_PROJECT_ID`, `ECHO_GCS_BUCKET`, `GEMINI_API_KEY`. From repo root:
 
 ```bash
-pip install -r requirements.txt
-uvicorn main:app --reload
+pnpm run dev:backend
 ```
 
-Frontend: [http://localhost:3000](http://localhost:3000)  
-Backend: [http://localhost:8000](http://localhost:8000)  
-Health: [http://localhost:8000/health](http://localhost:8000/health)
+**URLs**
 
-### 5.4 Agent (optional, local runs)
+- Web: [http://localhost:3000](http://localhost:3000)
+- Backend: [http://localhost:8000](http://localhost:8000)
+- Health: [http://localhost:8000/health](http://localhost:8000/health)
+
+### 5.4 EchoPrism Agent (optional, local runs)
+
+From repo root:
 
 ```bash
-cd backend/agent
-pip install -r requirements.txt
-playwright install chromium
+pnpm run dev:agent
 ```
 
-Run manually (for debugging):
-
-```bash
-WORKFLOW_ID=xxx RUN_ID=yyy OWNER_UID=zzz GEMINI_API_KEY=your-key \
-  ECHO_GCS_BUCKET=your-bucket python run_workflow_agent.py
-```
-
-Set `HEADLESS=false` to see the browser.
+(Uses Doppler; ensure `GEMINI_API_KEY`, `ECHO_GCS_BUCKET`, etc. are set.) The agent runs as a FastAPI app on port 8081. For workflow execution, the deploy pipeline uses a Cloud Run Job; see [EchoPrismAgent/agent/docs](EchoPrismAgent/agent/docs) for architecture. Install Playwright browsers if needed: `playwright install chromium`.
 
 ---
 
