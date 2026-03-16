@@ -4,6 +4,8 @@ EchoPrism LiveKit Agent — Gemini Live API + EchoPrism tools via backend HTTP.
 Agent joins LiveKit rooms, uses google.realtime.RealtimeModel for voice,
 and executes EchoPrism tools by calling the backend /api/agent/tool endpoint.
 Sends run_started data packets so the desktop can auto-start runs.
+
+Telephony: EndCallTool for graceful hang-up when user says goodbye.
 """
 import json
 import logging
@@ -14,6 +16,20 @@ import httpx
 from livekit.agents import Agent, RunContext, function_tool, get_job_context
 
 logger = logging.getLogger(__name__)
+
+# EndCallTool: graceful hang-up for telephony (Python only)
+try:
+    from livekit.agents.beta.tools import EndCallTool as _EndCallTool
+
+    _end_call_tool_instance = _EndCallTool(
+        extra_description="End the call when the user says goodbye, thanks, or asks to hang up.",
+        delete_room=True,
+        end_instructions="Say a brief goodbye and thank them for calling.",
+    )
+    _END_CALL_TOOLS = _end_call_tool_instance.tools
+except Exception as e:
+    logger.debug("EndCallTool not available: %s", e)
+    _END_CALL_TOOLS = []
 
 
 INTERRUPTION_SYSTEM_PROMPT_PREFIX = """You are EchoPrism in Voice Interruption mode.
@@ -88,9 +104,14 @@ async def _call_tool(uid: str, name: str, args: dict[str, Any]) -> dict[str, Any
 
 
 def _get_participant_uid(ctx: RunContext) -> str:
-    """Get the first remote participant's identity (uid)."""
+    """Get uid for tool calls: resolved from phone lookup (SIP) when set, else participant identity."""
+    from agent.echo_prism.subagents.livekit import phone_lookup
+
     job_ctx = get_job_context()
     room = job_ctx.room
+    resolved = phone_lookup.get_resolved_uid(room.name)
+    if resolved:
+        return resolved
     for p in room.remote_participants.values():
         return p.identity or "unknown"
     return "unknown"
@@ -151,10 +172,13 @@ async def _publish_run_control(event_type: str, workflow_id: str = "", run_id: s
 
 
 class LiveKitEchoPrismAgent(Agent):
-    """EchoPrism voice agent with tools delegated to backend."""
+    """EchoPrism voice agent with tools delegated to backend. Includes EndCallTool for telephony."""
 
     def __init__(self) -> None:
-        super().__init__(instructions=ECHOPRISM_SYSTEM_PROMPT)
+        super().__init__(
+            instructions=ECHOPRISM_SYSTEM_PROMPT,
+            tools=_END_CALL_TOOLS,
+        )
 
     @function_tool()
     async def list_workflows(self, context: RunContext) -> dict[str, Any]:
@@ -166,10 +190,10 @@ class LiveKitEchoPrismAgent(Agent):
     async def run_workflow(
         self,
         context: RunContext,
-        workflow_id: str,
         workflow_name: str = "",
+        workflow_id: str = "",
     ) -> dict[str, Any]:
-        """Start running a workflow by ID."""
+        """Start a workflow by name or by ID. Prefer workflow_name when the user says a name (e.g. 'run Research New Fighting Games'); use workflow_id when you have it from list_workflows. At least one of workflow_name or workflow_id is required."""
         uid = _get_participant_uid(context)
         result = await _call_tool(uid, "run_workflow", {
             "workflow_id": workflow_id,

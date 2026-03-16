@@ -45,7 +45,7 @@ gcloud run deploy echo-prism-livekit-agent \
   --min-instances 1 \
   --max-instances 3 \
   --cpu 1 \
-  --memory 1Gi \
+  --memory 2Gi \
   --no-cpu-throttling \
   --allow-unauthenticated \
   --project="$PROJECT_ID"

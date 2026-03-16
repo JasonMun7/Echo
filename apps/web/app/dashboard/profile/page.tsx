@@ -4,13 +4,30 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { IconBrandGoogle, IconCheck, IconPencil } from "@tabler/icons-react";
+import {
+  IconBrandGoogle,
+  IconCheck,
+  IconPencil,
+  IconPhone,
+} from "@tabler/icons-react";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/** E.164: optional +, then 10–15 digits (e.g. +18016741971 or 8016741971). */
+function isValidE164(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+")) {
+    return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+  }
+  return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+}
 
 async function apiFetch(path: string, options?: RequestInit) {
   const token = await useAuthStore.getState().getIdToken();
@@ -28,10 +45,18 @@ export default function ProfilePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
-  const [profile, setProfile] = useState<{ display_name?: string; email?: string; createdAt?: unknown } | null>(null);
+  const [profile, setProfile] = useState<{
+    display_name?: string;
+    email?: string;
+    phone?: string | null;
+    createdAt?: unknown;
+  } | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [phone, setPhone] = useState("");
   const [editing, setEditing] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingPhone, setSavingPhone] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -45,8 +70,11 @@ export default function ProfilePage() {
           const data = await resp.json();
           setProfile(data);
           setDisplayName(data.display_name || user.displayName || "");
+          setPhone(data.phone ?? "");
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     })();
   }, [user, loading, router]);
 
@@ -61,14 +89,45 @@ export default function ProfilePage() {
       toast.success("Display name updated");
       setEditing(false);
     } catch (e: unknown) {
-      toast.error(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+      toast.error(
+        `Failed: ${e instanceof Error ? e.message : "Unknown error"}`,
+      );
     } finally {
       setSaving(false);
     }
   }
 
+  async function savePhone() {
+    const value = phone.trim() || null;
+    if (value && !isValidE164(value)) {
+      toast.error(
+        "Enter a valid phone number in E.164 format (e.g. +18016741971)",
+      );
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      const resp = await apiFetch("/api/users/me", {
+        method: "PUT",
+        body: JSON.stringify({ phone: value }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      setProfile((p) => (p ? { ...p, phone: value ?? undefined } : null));
+      toast.success(value ? "Phone number saved" : "Phone number cleared");
+      setEditingPhone(false);
+    } catch (e: unknown) {
+      toast.error(
+        `Failed: ${e instanceof Error ? e.message : "Unknown error"}`,
+      );
+    } finally {
+      setSavingPhone(false);
+    }
+  }
+
   const createdAt = profile?.createdAt
-    ? new Date((profile.createdAt as { _seconds: number })._seconds * 1000).toLocaleDateString()
+    ? new Date(
+        (profile.createdAt as { _seconds: number })._seconds * 1000,
+      ).toLocaleDateString()
     : null;
 
   const initials = (user?.displayName || user?.email || "U")
@@ -97,7 +156,9 @@ export default function ProfilePage() {
             </p>
             <p className="text-sm text-gray-500">{user?.email}</p>
             {createdAt && (
-              <p className="text-xs text-gray-400 mt-0.5">Member since {createdAt}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Member since {createdAt}
+              </p>
             )}
           </div>
         </div>
@@ -143,12 +204,92 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* Phone (for telephony) */}
+        <div className="rounded-xl border border-[#A577FF]/20 bg-[#F5F7FC]/50 p-5 flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <IconPhone className="h-5 w-5 text-[#A577FF]" />
+            <h2 className="font-semibold text-[#150A35]">Phone number</h2>
+          </div>
+          <p className="text-sm text-gray-600">
+            Used when you call Echo by phone so we can greet you by name and
+            show your workflows. Use E.164 format (e.g. +1 555 123 4567).
+          </p>
+          {editingPhone ? (
+            <div className="flex flex-col gap-3">
+              <Field data-invalid={phone.trim() !== "" && !isValidE164(phone)}>
+                <FieldLabel htmlFor="profile-phone">Phone (E.164)</FieldLabel>
+                <Input
+                  id="profile-phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+18016741971"
+                  aria-invalid={phone.trim() !== "" && !isValidE164(phone)}
+                  className={
+                    phone.trim() !== "" && !isValidE164(phone)
+                      ? "border-red-500 focus-visible:ring-red-500"
+                      : "border-[#A577FF]/30 focus-visible:ring-[#A577FF]/50"
+                  }
+                  autoFocus
+                />
+                <FieldDescription
+                  className={
+                    phone.trim() !== "" && !isValidE164(phone)
+                      ? "text-red-600"
+                      : undefined
+                  }
+                >
+                  {phone.trim() !== "" && !isValidE164(phone)
+                    ? "Enter a valid E.164 number (e.g. +1801111111). Include country code so call recognition works."
+                    : "Include + and country code (e.g. +1 for US) so we can recognize you when you call."}
+                </FieldDescription>
+              </Field>
+              <div className="flex gap-2">
+                <Button
+                  onClick={savePhone}
+                  disabled={
+                    savingPhone || (phone.trim() !== "" && !isValidE164(phone))
+                  }
+                  className="bg-gradient-to-r from-[#A577FF] to-[#7C3AED] text-white hover:opacity-90"
+                >
+                  <IconCheck className="mr-2 h-4 w-4" />
+                  {savingPhone ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPhone(false);
+                    setPhone(profile?.phone ?? "");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span className="text-[#150A35]">{phone || "Not set"}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditingPhone(true)}
+                className="text-[#A577FF] hover:bg-[#A577FF]/10"
+              >
+                <IconPencil className="mr-1 h-4 w-4" />
+                Edit
+              </Button>
+            </div>
+          )}
+        </div>
+
         {/* Email (read-only) */}
         <div className="rounded-xl border border-[#A577FF]/20 p-5 flex flex-col gap-3">
           <h2 className="font-semibold text-[#1A1A2E]">Email</h2>
           <div className="flex items-center justify-between">
             <span className="text-[#1A1A2E]">{user?.email}</span>
-            <Badge variant="outline" className="border-gray-200 text-gray-500 text-xs">
+            <Badge
+              variant="outline"
+              className="border-gray-200 text-gray-500 text-xs"
+            >
               Read-only
             </Badge>
           </div>
