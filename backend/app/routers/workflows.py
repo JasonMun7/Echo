@@ -332,7 +332,19 @@ async def unshare_workflow(
 ):
     """Remove a user's access to a shared workflow. Owner only."""
     wf_ref, _ = _get_workflow(uid, workflow_id)
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
     wf_ref.update({"shared_with": ArrayRemove([target_uid]), "updatedAt": SERVER_TIMESTAMP})
+    # Also remove pending invites so the collaborator cannot reappear as "pending".
+    pending_invites = (
+        db.collection("workflow_invites")
+        .where(filter=FieldFilter("workflow_id", "==", workflow_id))
+        .where(filter=FieldFilter("to_uid", "==", target_uid))
+        .where(filter=FieldFilter("status", "==", "pending"))
+        .stream()
+    )
+    for invite_doc in pending_invites:
+        invite_doc.reference.delete()
     return {"ok": True}
 
 
@@ -345,21 +357,23 @@ async def get_collaborators(
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     _, data = _get_workflow(uid, workflow_id, require_owner=False)
+    is_owner = data.get("owner_uid") == uid
     shared_uids: list[str] = data.get("shared_with") or []
     pending_uids: set[str] = set()
-    pending_invites = (
-        db.collection("workflow_invites")
-        .where(filter=FieldFilter("workflow_id", "==", workflow_id))
-        .where(filter=FieldFilter("status", "==", "pending"))
-        .stream()
-    )
-    for invite in pending_invites:
-        invite_data = invite.to_dict() or {}
-        invite_uid = invite_data.get("to_uid")
-        if isinstance(invite_uid, str) and invite_uid:
-            pending_uids.add(invite_uid)
+    if is_owner:
+        pending_invites = (
+            db.collection("workflow_invites")
+            .where(filter=FieldFilter("workflow_id", "==", workflow_id))
+            .where(filter=FieldFilter("status", "==", "pending"))
+            .stream()
+        )
+        for invite in pending_invites:
+            invite_data = invite.to_dict() or {}
+            invite_uid = invite_data.get("to_uid")
+            if isinstance(invite_uid, str) and invite_uid:
+                pending_uids.add(invite_uid)
 
-    all_collaborator_uids = list(dict.fromkeys([*shared_uids, *pending_uids]))
+    all_collaborator_uids = list(dict.fromkeys([*shared_uids, *pending_uids])) if is_owner else shared_uids
     collaborators = []
     for shared_uid in all_collaborator_uids:
         status = "pending" if shared_uid in pending_uids else "accepted"
