@@ -41,6 +41,40 @@ async function apiFetch(path: string, options?: RequestInit) {
   });
 }
 
+function parseProfileDate(value: unknown): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof value === "object") {
+    const maybeTimestamp = value as {
+      _seconds?: number;
+      seconds?: number;
+      toDate?: () => Date;
+    };
+
+    if (typeof maybeTimestamp.toDate === "function") {
+      const parsed = maybeTimestamp.toDate();
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const seconds = maybeTimestamp._seconds ?? maybeTimestamp.seconds;
+    if (typeof seconds === "number") {
+      const parsed = new Date(seconds * 1000);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
+
+  return null;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -50,6 +84,7 @@ export default function ProfilePage() {
     email?: string;
     phone?: string | null;
     createdAt?: unknown;
+    created_at?: unknown;
   } | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
@@ -124,11 +159,8 @@ export default function ProfilePage() {
     }
   }
 
-  const createdAt = profile?.createdAt
-    ? new Date(
-        (profile.createdAt as { _seconds: number })._seconds * 1000,
-      ).toLocaleDateString()
-    : null;
+  const createdAtDate = parseProfileDate(profile?.createdAt ?? profile?.created_at);
+  const createdAt = createdAtDate ? createdAtDate.toLocaleDateString() : null;
 
   const initials = (user?.displayName || user?.email || "U")
     .split(" ")
