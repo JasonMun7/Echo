@@ -134,7 +134,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 md:p-10">
+    <div className="flex flex-1 flex-col gap-6 p-6 pb-24 md:p-10 md:pb-24">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-[#1A1A2E]">App Integrations</h1>
