@@ -233,14 +233,14 @@ pnpm run dev
 # Terminal 3 – desktop app
 pnpm run dev:desktop
 
-# Terminal 4 – EchoPrism Agent
+# Terminal 4 – Echo Prism agent (LangGraph + OpenRouter + Gemini; `agent/`)
 pnpm run dev:agent
 
-# Terminal 5 – LiveKit voice agent
+# Terminal 5 – LiveKit voice worker (optional; run from repo root so `agent.*` imports resolve)
 pnpm run dev:livekit-agent
 ```
 
-Set `NEXT_PUBLIC_ECHO_AGENT_URL` (web) and `VITE_ECHO_AGENT_URL` (desktop) to `http://localhost:8081` in Doppler for local agent access.
+Set `NEXT_PUBLIC_ECHO_AGENT_URL` (web) and `VITE_ECHO_AGENT_URL` (desktop) to `http://localhost:8081` in Doppler for local agent access. Set `OPENROUTER_API_KEY` for UI-Tars inference (ambiguous steps); the default OpenRouter model is `bytedance/ui-tars-1.5-7b` unless you override `UI_TARS_MODEL_ID`.
 
 **Option B: .env files**
 
@@ -257,7 +257,7 @@ cd backend && cp .env.example .env
 **Local URLs:**
 - Frontend: [http://localhost:3000](http://localhost:3000)
 - Backend: [http://localhost:8000](http://localhost:8000)
-- EchoPrism Agent: [http://localhost:8081](http://localhost:8081)
+- Echo Prism agent: [http://localhost:8081](http://localhost:8081)
 
 **Environment Variables Reference:**
 
@@ -267,10 +267,11 @@ cd backend && cp .env.example .env
 | `ECHO_GCS_BUCKET` | Yes | GCS bucket name |
 | `GEMINI_API_KEY` | Yes | Gemini API key |
 | `NEXT_PUBLIC_API_URL` | Yes | Backend URL (web) |
-| `NEXT_PUBLIC_ECHO_AGENT_URL` | Yes | EchoPrism Agent URL (web) |
+| `NEXT_PUBLIC_ECHO_AGENT_URL` | Yes | Echo Prism agent URL (web) |
 | `NEXT_PUBLIC_FIREBASE_*` | Yes | Firebase config (web) |
 | `VITE_API_URL` | Yes | Backend URL (desktop) |
-| `VITE_ECHO_AGENT_URL` | Yes | EchoPrism Agent URL (desktop) |
+| `VITE_ECHO_AGENT_URL` | Yes | Echo Prism agent URL (desktop) |
+| `OPENROUTER_API_KEY` | Recommended | OpenRouter key for LangGraph/UI-Tars inference |
 | `LIVEKIT_URL` | Voice only | LiveKit server URL |
 | `LIVEKIT_API_KEY` | Voice only | LiveKit API key |
 | `LIVEKIT_API_SECRET` | Voice only | LiveKit API secret |
@@ -291,9 +292,9 @@ GEMINI_API_KEY=your-key ECHO_GCS_BUCKET=your-bucket \
   ./scripts/deploy.sh YOUR_GCP_PROJECT_ID us-central1
 ```
 
-The script builds and pushes Docker images, deploys frontend and backend as Cloud Run services, and deploys the EchoPrism agent as a Cloud Run Job.
+The script builds and pushes Docker images, deploys frontend and backend as Cloud Run services, and deploys the Echo Prism agent (LangGraph) to Cloud Run (`pnpm run deploy:agent`).
 
-**To deploy the LiveKit voice agent (optional):**
+**To deploy the LiveKit voice worker (optional):**
 
 ```sh
 pnpm run deploy:livekit-agent
@@ -327,7 +328,7 @@ Visit the [live demo](https://echo-frontend-607073095974.us-central1.run.app) to
 - [ ] **Expanded integrations** — Add third-party app connectors like Slack, Notion, and G-Suite
 - [ ] **Workflow marketplace** — Create a library of community-shared automations users can install and customize
 - [ ] **Schedule workflows** — Allow users to schedule workflows to run at specific times
-- [ ] **Reduce costs** — Optimize calls to OmniParser service to reduce time and monetary costs
+- [ ] **Reduce costs** — Optimize OpenRouter / Gemini calls for vision steps
 
 See the [open issues](https://github.com/JasonMun7/echo/issues) for a full list of proposed features and known issues.
 
@@ -384,7 +385,7 @@ Project Link: [https://github.com/JasonMun7/echo](https://github.com/JasonMun7/e
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-* [OmniParser](https://github.com/microsoft/OmniParser) — UI element grounding for vision-based automation
+* [OpenRouter](https://openrouter.ai/) — UI-Tars–compatible models for LangGraph inference
 * [LiveKit](https://livekit.io) — Real-time voice and video infrastructure
 * [Gemini](https://deepmind.google/technologies/gemini/) — Vision-language model powering EchoPrism
 * [UI-TARS](https://github.com/bytedance/UI-TARS) — GUI agent model for automated UI interaction

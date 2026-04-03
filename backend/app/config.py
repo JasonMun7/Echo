@@ -24,7 +24,7 @@ _origins = (
 CORS_ORIGINS = ",".join(_origins)
 # Optional: path to service account JSON. Needed for GCS signed URLs and Firebase when using
 # gcloud auth application-default login (user creds can't sign). Leave unset on Cloud Run (uses ADC).
-# Resolve relative paths against backend/ so EchoPrism Agent (running from EchoPrismAgent/) finds it.
+# Resolve relative paths against backend/ so relative credential paths resolve from repo root.
 _creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 if _creds and not os.path.isabs(_creds):
     _creds_path = Path(_creds)

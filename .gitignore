@@ -153,8 +153,8 @@ Desktop.ini
 # -----------------------------------------------------------------------------
 # Cursor IDE (project-specific config; optional to share via separate rule files)
 # -----------------------------------------------------------------------------
-.cursor/
-.cursorignore
+# .cursor/
+# .cursorignore
 
 # -----------------------------------------------------------------------------
 # Deployment / hosting

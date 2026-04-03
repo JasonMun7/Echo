@@ -1,0 +1,21 @@
+---
+description: Prefer MCP tools when available for the task
+alwaysApply: true
+---
+
+# Use MCP Tools
+
+When a task involves an MCP server's domain, **use MCP tools instead of web search or manual lookup**.
+
+- **LiveKit**: Use the `user-livekit-docs` MCP (docs_search, get_pages, get_docs_overview, etc.) for LiveKit Agents, sessions, Agents UI, and self-hosting.
+- **Firebase**: Use the `user-Firebase` MCP for Firestore, Auth, and Firebase setup.
+- **Supabase**: Use the `user-Supabase` MCP for Supabase auth, database, and storage.
+- **LangChain**: Use the `user-docs-langchain` MCP for LangChain documentation, API reference, and patterns.
+- **Tailwind**: Use the `user-tailwindcss-server` MCP for Tailwind classes, config, and design tokens.
+- **shadcn/ui**: Use the `user-shadcn/ui` MCP when adding or customizing shadcn components.
+- **Playwright**: Use the `user-Playwright` MCP for browser automation and end-to-end tests.
+- **Slack**: Use the `plugin-slack-slack` MCP for Slack integration.
+- **Vercel Platform**: Use the `plugin-vercel-vercel` MCP for Vercel deployments, environments, and platform APIs.
+- **Browser**: Use the `cursor-ide-browser` MCP for web testing, visual inspection, and interactive canvases.
+
+Before calling an MCP tool, check its schema/descriptor in the MCP folder under `mcps/<server>/tools/`.
