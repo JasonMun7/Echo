@@ -45,15 +45,25 @@ interface Collaborator {
   uid: string;
   email: string;
   display_name: string;
+  status?: "pending" | "accepted";
+}
+
+interface WorkflowDetail {
+  id: string;
+  name?: string;
+  status?: string;
+  error?: string;
+  owner_uid?: string;
+  owner_name?: string;
+  source_recording_id?: string;
+  [key: string]: unknown;
 }
 
 export default function WorkflowDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const [workflow, setWorkflow] = useState<Record<string, unknown> | null>(
-    null,
-  );
+  const [workflow, setWorkflow] = useState<WorkflowDetail | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -66,6 +76,8 @@ export default function WorkflowDetailPage() {
   const [authUid, setAuthUid] = useState<string | null>(
     auth?.currentUser?.uid ?? null,
   );
+  const getCollaboratorStatusLabel = (status?: Collaborator["status"]) =>
+    status === "pending" ? "Pending invite" : "Accepted";
 
   // Track auth state so snapshot effect re-runs once Firebase auth is ready
   useEffect(() => {
@@ -97,7 +109,7 @@ export default function WorkflowDetailPage() {
     setLoading(true);
     apiFetch(`/api/workflows/${id}`)
       .then((res) => res.ok ? res.json() : Promise.reject(res.status))
-      .then((data) => { if (!cancelled) { setWorkflow(data); setLoading(false); } })
+      .then((data) => { if (!cancelled) { setWorkflow(data as WorkflowDetail); setLoading(false); } })
       .catch(() => { if (!cancelled) { setWorkflow(null); setLoading(false); } });
     return () => { cancelled = true; };
   }, [id, authUid]);
@@ -253,6 +265,18 @@ export default function WorkflowDetailPage() {
   }
 
   const isOwner = workflow.owner_uid === auth?.currentUser?.uid;
+  const status = workflow.status ?? "unknown";
+  const statusLabel = (
+    {
+      draft: "Setting Up",
+      processing: "Synthesizing",
+      ready: "Ready",
+      active: "Live",
+      failed: "Failed",
+    } as Record<string, string>
+  )[status] ?? String(status);
+  const failureReason =
+    typeof workflow.error === "string" ? workflow.error.trim() : "";
 
   return (
     <>
@@ -303,7 +327,7 @@ export default function WorkflowDetailPage() {
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
                     <span className="text-echo-text-muted">Status:</span>
                     <span className="rounded-full bg-[#A577FF]/15 px-2.5 py-0.5 font-medium text-[#150A35]">
-                      {String(workflow.status)}
+                      {statusLabel}
                     </span>
                     {typeof workflow.source_recording_id === "string" && workflow.source_recording_id && (
                       <span
@@ -317,6 +341,19 @@ export default function WorkflowDetailPage() {
                       </span>
                     )}
                   </div>
+                  {status === "failed" && failureReason && (
+                    <div className="mt-3 rounded-lg border border-echo-error/30 bg-echo-error/10 px-3 py-2">
+                      <p className="text-sm font-medium text-echo-error">
+                        Workflow synthesis failed
+                      </p>
+                      <p className="mt-1 text-sm text-echo-error/90">
+                        {failureReason}
+                      </p>
+                      <p className="mt-1 text-xs text-[#150A35]/70">
+                        Retry with a clearer recording or edit steps manually once fixed.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
               {isOwner && (
@@ -419,7 +456,18 @@ export default function WorkflowDetailPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-[#150A35]">{c.display_name}</p>
-                          <p className="truncate text-xs text-echo-text-muted">{c.email || "No email"}</p>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <p className="truncate text-xs text-echo-text-muted">{c.email || "No email"}</p>
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                c.status === "pending"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-emerald-100 text-emerald-700"
+                              }`}
+                            >
+                              {getCollaboratorStatusLabel(c.status)}
+                            </span>
+                          </div>
                     </div>
                         <button
                           type="button"
@@ -502,7 +550,18 @@ export default function WorkflowDetailPage() {
                   >
                     <div>
                       <p className="text-sm font-medium text-[#150A35]">{c.display_name}</p>
-                      <p className="text-xs text-[#150A35]/60">{c.email}</p>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <p className="text-xs text-[#150A35]/60">{c.email || "No email"}</p>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            c.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {getCollaboratorStatusLabel(c.status)}
+                        </span>
+                      </div>
                     </div>
                     <button
                       type="button"
