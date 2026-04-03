@@ -210,12 +210,7 @@ async def share_workflow(
         .stream()
     )
     if existing:
-        # Backfill access for legacy pending invites that predate shared_with updates.
-        wf_ref.update({
-            "shared_with": ArrayUnion([target_user.uid]),
-            "updatedAt": SERVER_TIMESTAMP,
-        })
-        return {"ok": True, "invite_id": existing[0].id}
+        raise HTTPException(status_code=400, detail="Invite already sent to this user")
     # Resolve sender display name
     try:
         sender = firebase_admin.auth.get_user(uid)
@@ -320,7 +315,11 @@ async def decline_invite(
     )
     if not invites:
         raise HTTPException(status_code=404, detail="No pending invite found")
-    invites[0].reference.update({"status": "declined"})
+    invite = invites[0]
+    invite.reference.update({"status": "declined"})
+    # If the inviter granted immediate visibility/access, remove it on decline.
+    wf_ref = db.collection("workflows").document(workflow_id)
+    wf_ref.update({"shared_with": ArrayRemove([uid]), "updatedAt": SERVER_TIMESTAMP})
     return {"ok": True}
 
 
