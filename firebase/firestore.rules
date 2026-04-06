@@ -1,23 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ── CollectionGroup queries for subcollections ──────────────────────────
-    // Firestore blocks collectionGroup queries when rules use get() on a parent
-    // document. These wildcard rules allow collectionGroup reads directly by
-    // checking owner_uid on the document itself (runs store their owner_uid).
-    match /{path=**}/runs/{runId} {
-      allow read: if request.auth != null
-        && resource.data.owner_uid == request.auth.uid;
-      allow write: if false; // backend admin SDK only
-    }
-    match /{path=**}/runs/{runId}/logs/{logId} {
-      allow read: if request.auth != null
-        && get(/databases/$(database)/documents/$(path)/runs/$(runId)).data.owner_uid == request.auth.uid;
-      allow write: if false;
-    }
-    // ───────────────────────────────────────────────────────────────────────
-
     // Allow authenticated users to read/write their own user document
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -30,15 +13,6 @@ service cloud.firestore {
       // OAuth integration tokens — owner CRUD only
       match /integrations/{integrationName} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-
-      // Chat conversations — owner CRUD only
-      match /conversations/{conversationId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-
-        match /messages/{messageId} {
-          allow read, write: if request.auth != null && request.auth.uid == userId;
-        }
       }
     }
 

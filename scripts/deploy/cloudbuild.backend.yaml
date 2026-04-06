@@ -9,7 +9,7 @@ steps:
       - "backend/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
-      - "."
+      - "backend"
   - name: "gcr.io/cloud-builders/docker"
     id: push-backend
     args: ["push", "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"]

@@ -13,8 +13,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     workflowId?: string;
     runId?: string;
     token?: string;
-    variableValues?: Record<string, string>;
-    typingOverride?: string;
   }) => ipcRenderer.invoke("run-workflow-local", args),
   runGoalOnlyLocal: (args: {
     goal: string;
@@ -121,31 +119,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("run-progress", (_, entry) => callback(entry));
   },
   removeRunProgressListener: () => ipcRenderer.removeAllListeners("run-progress"),
-  onRunThinkingDelta: (callback: (payload: { delta: string; step: number }) => void) => {
-    ipcRenderer.on("run-thinking-delta", (_, payload) => callback(payload));
-  },
-  removeRunThinkingDeltaListener: () => ipcRenderer.removeAllListeners("run-thinking-delta"),
-
-  onRunHitl: (
-    callback: (evt: {
-      kind: string;
-      payload: Record<string, unknown>;
-      step: number;
-    }) => void,
-  ) => {
-    ipcRenderer.on("run-hitl", (_, evt) => callback(evt));
-  },
-  removeRunHitlListener: () => ipcRenderer.removeAllListeners("run-hitl"),
-  onRunHitlClear: (callback: () => void) => {
-    ipcRenderer.on("run-hitl-clear", callback);
-  },
-  removeRunHitlClearListener: () => ipcRenderer.removeAllListeners("run-hitl-clear"),
-  hitlSubmitResume: (resume?: unknown) =>
-    ipcRenderer.invoke("hitl-submit-resume", resume) as Promise<{ ok: boolean }>,
-  hitlReopenOauth: () =>
-    ipcRenderer.invoke("hitl-reopen-oauth") as Promise<
-      { ok: true } | { ok: false; error: string }
-    >,
 
   // Voice interruption
   openVoiceInterruption: () => ipcRenderer.invoke("open-voice-interruption"),

@@ -1,16 +1,11 @@
-# Build from repository root: docker build -f backend/Dockerfile .
 FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY backend/requirements.txt ./requirements.txt
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/ .
-# Shared EchoPrism integration connectors + Token Vault helpers (see README Auth0 section)
-COPY agent/echo_prism_agent /app/agent/echo_prism_agent
-
-ENV PYTHONPATH=/app/agent
+COPY . .
 
 EXPOSE 8080
 ENV PORT=8080

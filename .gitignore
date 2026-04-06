@@ -100,14 +100,6 @@ backend/service-account.json
 *.pem
 *.key
 
-# Google Cloud / OAuth client downloads (gcloud, Google Cloud Console) — never commit
-application_default_credentials.json
-**/application_default_credentials.json
-client_secret*.json
-*-oauth-client.json
-google-credentials.json
-gcp-local-*.json
-
 # -----------------------------------------------------------------------------
 # Testing & coverage
 # -----------------------------------------------------------------------------
@@ -161,14 +153,8 @@ Desktop.ini
 # -----------------------------------------------------------------------------
 # Cursor IDE (project-specific config; optional to share via separate rule files)
 # -----------------------------------------------------------------------------
-# .cursor/
-# .cursorignore
-
-# -----------------------------------------------------------------------------
-# Claude Code IDE (project-specific config; optional to share via separate rule files)
-# -----------------------------------------------------------------------------
-.claude/
-CLAUDE.md
+.cursor/
+.cursorignore
 
 # -----------------------------------------------------------------------------
 # Deployment / hosting

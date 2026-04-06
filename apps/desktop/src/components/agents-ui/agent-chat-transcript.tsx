@@ -59,9 +59,7 @@ export function AgentChatTranscript({
           const locale = navigator?.language ?? 'en-US';
           const messageOrigin = from?.isLocal ? 'user' : 'assistant';
           const time = new Date(timestamp);
-          const title = Number.isNaN(time.getTime())
-            ? ''
-            : time.toLocaleTimeString(locale, { timeStyle: 'full' });
+          const title = time.toLocaleTimeString(locale, { timeStyle: 'full' });
 
           return (
             <Message key={id} title={title} from={messageOrigin}>

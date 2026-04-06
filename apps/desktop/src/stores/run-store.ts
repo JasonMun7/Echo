@@ -39,8 +39,6 @@ interface RunState {
   setInterruptText: (text: string) => void;
   dismissRunResult: () => void;
   appendLiveProgress: (entry: LiveProgressEntry) => void;
-  /** Streamed VLM tokens (OpenRouter) merged into the current step row */
-  appendLiveThoughtDelta: (step: number, delta: string) => void;
   handleRun: () => Promise<void>;
   handleRunWorkflow: (args: {
     workflowId: string;
@@ -71,47 +69,7 @@ export const useRunStore = create<RunState>((set, get) => ({
   setInterruptText: (text) => set({ interruptText: text }),
   dismissRunResult: () => set({ runResultDismissed: true }),
   appendLiveProgress: (entry) =>
-    set((s) => {
-      const next = [...s.liveProgress];
-      const last = next[next.length - 1];
-      if (
-        last &&
-        last.step === entry.step &&
-        last.action === "" &&
-        entry.action
-      ) {
-        next[next.length - 1] = { ...entry };
-        return { liveProgress: next };
-      }
-      if (
-        last &&
-        last.step === entry.step &&
-        last.action === "" &&
-        entry.thought &&
-        !entry.action
-      ) {
-        next[next.length - 1] = { ...last, thought: entry.thought };
-        return { liveProgress: next };
-      }
-      return { liveProgress: [...next, entry] };
-    }),
-
-  appendLiveThoughtDelta: (step, delta) =>
-    set((s) => {
-      if (!delta) return s;
-      const next = [...s.liveProgress];
-      const last = next[next.length - 1];
-      if (last && last.step === step && last.action === "") {
-        next[next.length - 1] = {
-          ...last,
-          thought: (last.thought || "") + delta,
-        };
-        return { liveProgress: next };
-      }
-      return {
-        liveProgress: [...next, { thought: delta, action: "", step }],
-      };
-    }),
+    set((s) => ({ liveProgress: [...s.liveProgress, entry] })),
 
   resetRun: () =>
     set({
@@ -154,9 +112,6 @@ export const useRunStore = create<RunState>((set, get) => ({
     window.electronAPI?.onRunProgress?.((entry) => {
       get().appendLiveProgress(entry);
     });
-    window.electronAPI?.onRunThinkingDelta?.((payload) => {
-      get().appendLiveThoughtDelta(payload.step, payload.delta);
-    });
 
     try {
       const createRes = await window.electronAPI?.createRun?.({
@@ -164,8 +119,6 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
       if (createRes && "error" in createRes) {
-        window.electronAPI?.removeRunProgressListener?.();
-        window.electronAPI?.removeRunThinkingDeltaListener?.();
         set({
           runResult: {
             success: false,
@@ -193,7 +146,6 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
       window.electronAPI?.removeRunProgressListener?.();
-      window.electronAPI?.removeRunThinkingDeltaListener?.();
       set({
         runResult: {
           ...(result ?? { success: false, error: "No response" }),
@@ -241,9 +193,6 @@ export const useRunStore = create<RunState>((set, get) => ({
     window.electronAPI?.onRunProgress?.((entry) => {
       get().appendLiveProgress(entry);
     });
-    window.electronAPI?.onRunThinkingDelta?.((payload) => {
-      get().appendLiveThoughtDelta(payload.step, payload.delta);
-    });
 
     try {
       const createRes = await window.electronAPI?.createRun?.({
@@ -251,8 +200,6 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
       if (createRes && "error" in createRes) {
-        window.electronAPI?.removeRunProgressListener?.();
-        window.electronAPI?.removeRunThinkingDeltaListener?.();
         set({
           runResult: {
             success: false,
@@ -280,7 +227,6 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
       window.electronAPI?.removeRunProgressListener?.();
-      window.electronAPI?.removeRunThinkingDeltaListener?.();
       set({
         runResult: {
           ...(result ?? { success: false, error: "No response" }),
@@ -328,9 +274,6 @@ export const useRunStore = create<RunState>((set, get) => ({
       window.electronAPI?.onRunProgress?.((entry) => {
         get().appendLiveProgress(entry);
       });
-      window.electronAPI?.onRunThinkingDelta?.((payload) => {
-        get().appendLiveThoughtDelta(payload.step, payload.delta);
-      });
 
       try {
         console.log("[run-store] goal-only: calling enterRunMode (HUD for progress, EchoPrism stays open)");
@@ -350,7 +293,6 @@ export const useRunStore = create<RunState>((set, get) => ({
           token,
         });
         window.electronAPI?.removeRunProgressListener?.();
-        window.electronAPI?.removeRunThinkingDeltaListener?.();
         const accumulated = get().liveProgress;
         console.log("[run-store] goal-only: run finished", {
           success: runResult?.success,
@@ -362,10 +304,7 @@ export const useRunStore = create<RunState>((set, get) => ({
             ...(runResult ?? { success: false, error: "No response" }),
             workflowId: arg.workflowId,
             runId: arg.runId,
-            entries:
-              accumulated.length > 0
-                ? [...accumulated]
-                : ((runResult as RunResult | undefined)?.entries ?? []),
+            entries: accumulated.length > 0 ? [...accumulated] : (runResult?.entries ?? []),
           },
         });
       } catch (err) {
@@ -408,9 +347,6 @@ export const useRunStore = create<RunState>((set, get) => ({
     window.electronAPI?.onRunProgress?.((entry) => {
       get().appendLiveProgress(entry);
     });
-    window.electronAPI?.onRunThinkingDelta?.((payload) => {
-      get().appendLiveThoughtDelta(payload.step, payload.delta);
-    });
 
     try {
       await window.electronAPI?.enterRunMode?.({
@@ -428,17 +364,13 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
       window.electronAPI?.removeRunProgressListener?.();
-      window.electronAPI?.removeRunThinkingDeltaListener?.();
       const accumulated = get().liveProgress;
       set({
         runResult: {
           ...(runResult ?? { success: false, error: "No response" }),
           workflowId: arg.workflowId,
           runId: arg.runId,
-          entries:
-            accumulated.length > 0
-              ? [...accumulated]
-              : ((runResult as RunResult | undefined)?.entries ?? []),
+          entries: accumulated.length > 0 ? [...accumulated] : (runResult?.entries ?? []),
         },
       });
     } finally {

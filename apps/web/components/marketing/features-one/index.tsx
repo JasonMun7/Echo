@@ -53,7 +53,7 @@ export function FeaturesOne() {
               <MarketingCardTitle>Live vision execution</MarketingCardTitle>
               <MarketingCardDescription>
                 EchoPrism watches your screen in real time, deciding each click
-                and keystroke using on-screen vision grounding — not blind guessing.
+                and keystroke using OmniParser grounding — not blind guessing.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center pt-4">

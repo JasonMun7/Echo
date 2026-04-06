@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
-from app.routers import health, storage, users, workflows, runs, schedule, stream, mcp_tools, integrations, datasets, notifications, auth0_link
+from app.routers import health, storage, users, workflows, runs, schedule, stream, mcp_tools, integrations, datasets, notifications
 
 app = FastAPI(title="Echo API", version="0.1.0")
 
@@ -33,6 +33,5 @@ app.include_router(schedule.router, prefix="/api")
 app.include_router(stream.router, prefix="/api")
 app.include_router(mcp_tools.router, prefix="/api")
 app.include_router(integrations.router, prefix="/api")
-app.include_router(auth0_link.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")

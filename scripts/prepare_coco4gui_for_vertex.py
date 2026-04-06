@@ -120,16 +120,16 @@ def main():
             image_base_url,
         )
 
-    # Agent service package (echo_prism_agent) lives under repo agent/
+    # Add backend/agent to path
     repo_root = Path(__file__).resolve().parent.parent
-    agent_dir = repo_root / "agent"
+    agent_dir = repo_root / "backend" / "agent"
     backend_dir = repo_root / "backend"
     for d in (str(agent_dir), str(backend_dir)):
         if d not in sys.path:
             sys.path.insert(0, d)
 
     try:
-        from echo_prism_agent.training.datasets.coco4gui_importer import coco4gui_to_vertex_examples
+        from echo_prism.datasets.coco4gui_importer import coco4gui_to_vertex_examples
     except ImportError as e:
         logger.error("Import failed: %s. Run from repo root with backend/agent on PYTHONPATH.", e)
         sys.exit(1)

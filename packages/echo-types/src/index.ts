@@ -68,7 +68,7 @@ export interface StepParams {
   amount?: number;
   /** Rich visual description: "<element_type> labeled '<text>' in the <region>" */
   description?: string;
-  /** api_call step: integration name e.g. "slack", "github", "google" */
+  /** api_call step: integration name e.g. "slack", "gmail", "github" */
   integration?: string;
   /** api_call step: method name e.g. "send_message", "send_email" */
   method?: string;

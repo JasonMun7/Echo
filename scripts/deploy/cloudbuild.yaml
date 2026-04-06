@@ -35,17 +35,29 @@ steps:
       - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
       - "backend"
 
-  # Build echo-prism-agent (Cloud Run — LangGraph + OpenRouter + Gemini)
+  # Build echo-prism-agent (Cloud Run service)
   - name: "gcr.io/cloud-builders/docker"
     id: build-echo-prism-agent
     args:
       - "build"
       - "--platform=linux/amd64"
       - "-f"
-      - "agent/Dockerfile"
+      - "EchoPrismAgent/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
       - "."
+
+  # Build OmniParser (GPU service — YOLO + Florence2)
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-omniparser
+    args:
+      - "build"
+      - "--platform=linux/amd64"
+      - "-f"
+      - "OmniParser/Dockerfile.cloudrun"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/echo-omniparser:${_IMAGE_TAG}"
+      - "OmniParser"
 
   # Push images (each waits for its build)
   - name: "gcr.io/cloud-builders/docker"
@@ -68,6 +80,13 @@ steps:
       - "push"
       - "gcr.io/$PROJECT_ID/echo-prism-agent:${_IMAGE_TAG}"
     waitFor: ["build-echo-prism-agent"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-omniparser
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/echo-omniparser:${_IMAGE_TAG}"
+    waitFor: ["build-omniparser"]
 
 # Default substitution values (overridden by deploy.sh)
 substitutions:

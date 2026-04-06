@@ -1,0 +1,19 @@
+# EchoPrism LiveKit Agent — Cloud Run (long-running worker)
+# Connects to LiveKit Cloud and joins rooms for voice; calls EchoPrism Agent /api/agent/tool
+# Build context: repo root (.)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy agent code and entrypoint (LiveKit agent calls EchoPrism backend via HTTP)
+COPY EchoPrismAgent/requirements.txt /app/requirements.txt
+COPY EchoPrismAgent/agent /app/agent
+COPY scripts/run-livekit-with-health.py /app/scripts/run-livekit-with-health.py
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+EXPOSE 8080
+ENV PORT=8080
+
+# Health server on PORT (Cloud Run requirement) + LiveKit agent in foreground
+CMD ["python", "/app/scripts/run-livekit-with-health.py"]
