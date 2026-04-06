@@ -9,18 +9,16 @@
  */
 import { chromium, type Browser, type Page } from "playwright";
 import * as desktop from "./desktop-operator";
+import type { CaptureScreenResult } from "./desktop-operator";
 import type { OperatorAction } from "@echo/types";
+import { BROWSER_ONLY_ACTIONS, DESKTOP_ONLY_ACTIONS } from "./execute-route";
+import { parseUiTarsTypeContent } from "./type-content";
+
+export type { CaptureScreenResult };
 
 export type OperatorResult = boolean | "finished" | "calluser";
 
 const COORD_SCALE = 1000;
-const BROWSER_ONLY_ACTIONS = new Set([
-  "navigate",
-  "waitforelement",
-  "selectoption",
-  "hover",
-]);
-const DESKTOP_ONLY_ACTIONS = new Set(["openapp", "focusapp"]);
 
 let browser: Browser | null = null;
 let page: Page | null = null;
@@ -45,8 +43,8 @@ async function ensureBrowserPage(): Promise<Page> {
   return page;
 }
 
-/** Close browser and clear context (call when switching to desktop). */
-async function closeBrowser(): Promise<void> {
+/** Close browser and clear Playwright context — call when starting a desktop workflow so clicks/types hit NutJS, not a stale browser page. */
+export async function closeBrowser(): Promise<void> {
   try {
     if (page && !page.isClosed()) await page.close();
   } catch { /* ignore */ }
@@ -63,6 +61,18 @@ function scaleToViewport(x: number, y: number, viewport: { width: number; height
     x: Math.round((x * viewport.width) / COORD_SCALE),
     y: Math.round((y * viewport.height) / COORD_SCALE),
   };
+}
+
+/** Match desktop-operator + UI-TARS: insert text, then Enter only when raw ended with \\n. */
+async function playwrightTypeOrSubmit(p: Page, raw: unknown): Promise<void> {
+  const { body, submit } = parseUiTarsTypeContent(raw);
+  if (body) {
+    await p.keyboard.insertText(body);
+  }
+  if (submit) {
+    await new Promise((r) => setTimeout(r, 80));
+    await p.keyboard.press("Enter");
+  }
 }
 
 /** Execute action via Playwright (browser). */
@@ -94,12 +104,12 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
     } else if (act === "clickandtype") {
       const { x, y } = scaleToViewport(Number(action.x ?? 500), Number(action.y ?? 500), vp);
       await p.mouse.click(x, y);
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 350));
       // Select all existing text before typing to replace (not append)
       const selKey = process.platform === "darwin" ? "Meta+a" : "Control+a";
       await p.keyboard.press(selKey);
       await new Promise((r) => setTimeout(r, 100));
-      await p.keyboard.type(String(action.content ?? ""));
+      await playwrightTypeOrSubmit(p, action.content);
     } else if (act === "drag") {
       const x1 = scaleToViewport(Number(action.x1 ?? 0), Number(action.y1 ?? 0), vp);
       const x2 = scaleToViewport(Number(action.x2 ?? 0), Number(action.y2 ?? 0), vp);
@@ -108,7 +118,7 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
       await p.mouse.move(x2.x, x2.y);
       await p.mouse.up();
     } else if (act === "type") {
-      await p.keyboard.type(String(action.content ?? ""));
+      await playwrightTypeOrSubmit(p, action.content);
     } else if (act === "hotkey") {
       const keys = Array.isArray(action.keys) ? (action.keys as string[]) : [];
       if (keys.length) {
@@ -184,11 +194,13 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
 export async function captureScreen(
   sourceId: string,
   options?: { maxDimension?: number }
-): Promise<Buffer> {
+): Promise<CaptureScreenResult> {
   if (hasBrowserContext() && page && !page.isClosed()) {
     try {
       const buf = await page.screenshot({ type: "png" });
-      return Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
+      const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
+      const vp = page.viewportSize() ?? { width: 1280, height: 900 };
+      return { buffer, width: vp.width, height: vp.height };
     } catch (e) {
       console.warn("[unified-operator] Playwright screenshot failed, falling back to desktop:", e);
     }
@@ -203,6 +215,8 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
   if (act === "finished") return "finished";
   if (act === "calluser") return "calluser";
 
+  const has = hasBrowserContext();
+
   if (DESKTOP_ONLY_ACTIONS.has(act)) {
     await closeBrowser();
     return desktop.execute(action);
@@ -212,7 +226,7 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
     return executePlaywright(action);
   }
 
-  if (hasBrowserContext()) {
+  if (has) {
     return executePlaywright(action);
   }
 

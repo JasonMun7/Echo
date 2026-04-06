@@ -1,6 +1,0 @@
-weights/.cache
-__pycache__
-*.pyc
-*.pyo
-.git
-.venv

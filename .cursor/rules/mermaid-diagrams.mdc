@@ -1,0 +1,27 @@
+---
+description: 
+alwaysApply: true
+---
+
+# Mermaid Diagrams
+
+When creating or explaining architecture, flow, sequence, or system diagrams, **always use Mermaid** syntax.
+
+- Use Mermaid code blocks in markdown: ` ```mermaid ` … ` ``` `
+- Prefer Mermaid over ASCII art, ASCII boxes, or plain text diagrams
+- Supported chart types: flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, etc.
+
+## Example
+
+```mermaid
+flowchart TB
+    subgraph Brain
+        A[echo_prism_agent]
+    end
+    subgraph Modality
+        B[LiveKit]
+        C[Browser]
+    end
+    B --> A
+    C --> A
+```
