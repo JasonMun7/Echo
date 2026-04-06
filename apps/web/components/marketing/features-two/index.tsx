@@ -87,7 +87,7 @@ export function FeaturesTwo() {
         <MarketingFeatureBlock
           icon={<EdgeComputing />}
           title="Visual grounding, not guessing"
-          description="OmniParser detects real UI elements. EchoPrism clicks what it sees — not estimated coordinates."
+          description="Vision-language grounding finds real UI targets. EchoPrism clicks what it sees — not blind coordinates."
         />
         <MarketingFeatureBlock
           icon={<Compliance />}

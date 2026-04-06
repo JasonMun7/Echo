@@ -17,6 +17,8 @@ declare global {
         workflowId?: string;
         runId?: string;
         token?: string;
+        variableValues?: Record<string, string>;
+        typingOverride?: string;
       }) => Promise<{ success: boolean; error?: string; progress?: string[] }>;
       runGoalOnlyLocal: (args: {
         goal: string;
@@ -62,6 +64,26 @@ declare global {
         cb: (entry: { thought: string; action: string; step: number }) => void,
       ) => void;
       removeRunProgressListener: () => void;
+      onRunThinkingDelta: (cb: (payload: { delta: string; step: number }) => void) => void;
+      removeRunThinkingDeltaListener: () => void;
+      onRunHitl: (
+        cb: (evt: {
+          kind: string;
+          payload: Record<string, unknown>;
+          step: number;
+        }) => void,
+      ) => void;
+      removeRunHitlListener: () => void;
+      onRunHitlClear: (cb: () => void) => void;
+      removeRunHitlClearListener: () => void;
+      hitlSubmitResume: (resume?: unknown) => Promise<{ ok: boolean }>;
+      hitlReopenOauth: () => Promise<
+        { ok: true } | { ok: false; error: string }
+      >;
+      onRunPausedByVoice: (callback: () => void) => void;
+      removeRunPausedByVoiceListener: () => void;
+      onRunResumedByVoice: (callback: () => void) => void;
+      removeRunResumedByVoiceListener: () => void;
       onRunFromUrl: (
         cb: (arg: { workflowId: string; runId: string }) => void,
       ) => void;
