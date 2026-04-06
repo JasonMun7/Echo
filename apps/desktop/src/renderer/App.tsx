@@ -23,7 +23,7 @@ import {
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
 import { EchoPrismLiveKitSession } from "./EchoPrismLiveKitSession";
-import RunHud from "./RunHud";
+import RunHud, { type RunHitlState } from "./RunHud";
 import { UpdateBar } from "./UpdateBar";
 import { MultiStepLoader } from "./MultiStepLoader";
 import RunLogsSection from "./RunLogsSection";
@@ -66,6 +66,7 @@ import {
 } from "@/stores";
 import { isLatestOrLastModified } from "@/stores/workflows-store";
 import { useRecording } from "@/hooks/use-recording";
+import { usePendingRunListener } from "@/hooks/use-pending-run-listener";
 function useWindowType(): { windowType: string; mode: string } {
   const [params, setParams] = useState({ windowType: "", mode: "" });
   useEffect(() => {
@@ -128,6 +129,9 @@ function MainWindowApp() {
   const dismissRunResult = useRunStore((s) => s.dismissRunResult);
   const handleRunWorkflow = useRunStore((s) => s.handleRunWorkflow);
   const handleRunStarted = useRunStore((s) => s.handleRunStarted);
+
+  // Poll for pending runs triggered from mobile chat/voice
+  usePendingRunListener(token, handleRunStarted);
 
   const recording = useRecordingStore((s) => s.recording);
   const recordedBlob = useRecordingStore((s) => s.recordedBlob);
@@ -993,7 +997,7 @@ function MainWindowApp() {
                           <button
                             type="button"
                             onClick={() =>
-                              setWorkflowSearchOpen((open) => !open)
+                              setWorkflowSearchOpen(!workflowSearchOpen)
                             }
                             style={{
                               background: "none",
@@ -1441,6 +1445,7 @@ export default function App() {
 
 function RunHudWrapper() {
   const [runPaused, setRunPaused] = useState(false);
+  const [hitl, setHitl] = useState<RunHitlState>(null);
   const [liveProgress, setLiveProgress] = useState<
     Array<{ thought: string; action: string; step: number }>
   >([]);
@@ -1451,10 +1456,67 @@ function RunHudWrapper() {
       action: string;
       step: number;
     }) => {
-      setLiveProgress((prev) => [...prev, entry]);
+      setLiveProgress((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (
+          last &&
+          last.step === entry.step &&
+          last.action === "" &&
+          entry.action
+        ) {
+          next[next.length - 1] = { ...entry };
+          return next;
+        }
+        if (
+          last &&
+          last.step === entry.step &&
+          last.action === "" &&
+          entry.thought &&
+          !entry.action
+        ) {
+          next[next.length - 1] = { ...last, thought: entry.thought };
+          return next;
+        }
+        return [...next, entry];
+      });
     };
     window.electronAPI?.onRunProgress?.(handler);
-    return () => window.electronAPI?.removeRunProgressListener?.();
+    const onDelta = (payload: { delta: string; step: number }) => {
+      if (!payload.delta) return;
+      setLiveProgress((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last && last.step === payload.step && last.action === "") {
+          next[next.length - 1] = {
+            ...last,
+            thought: (last.thought || "") + payload.delta,
+          };
+          return next;
+        }
+        return [
+          ...next,
+          { thought: payload.delta, action: "", step: payload.step },
+        ];
+      });
+    };
+    window.electronAPI?.onRunThinkingDelta?.(onDelta);
+    const onHitl = (evt: {
+      kind: string;
+      payload: Record<string, unknown>;
+      step: number;
+    }) => {
+      setHitl(evt);
+    };
+    const onHitlClear = () => setHitl(null);
+    window.electronAPI?.onRunHitl?.(onHitl);
+    window.electronAPI?.onRunHitlClear?.(onHitlClear);
+    return () => {
+      window.electronAPI?.removeRunProgressListener?.();
+      window.electronAPI?.removeRunThinkingDeltaListener?.();
+      window.electronAPI?.removeRunHitlListener?.();
+      window.electronAPI?.removeRunHitlClearListener?.();
+    };
   }, []);
 
   // Keep pause indicator in sync when voice interruption opens/closes
@@ -1481,6 +1543,7 @@ function RunHudWrapper() {
         runPaused={runPaused}
         setRunPaused={setRunPaused}
         liveProgress={liveProgress}
+        hitl={hitl}
       />
     </div>
   );

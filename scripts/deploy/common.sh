@@ -76,7 +76,6 @@ load_config() {
   export BACKEND_URL="https://echo-backend-${PROJECT_NUMBER}.${REGION}.run.app"
   export FRONTEND_URL="https://echo-frontend-${PROJECT_NUMBER}.${REGION}.run.app"
   export ECHO_PRISM_AGENT_URL="https://echo-prism-agent-${PROJECT_NUMBER}.${REGION}.run.app"
-  export OMNIPARSER_URL="https://echo-omniparser-${PROJECT_NUMBER}.${REGION}.run.app"
   export IMAGE_BASE="gcr.io/${PROJECT_ID}"
 }
 

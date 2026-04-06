@@ -296,12 +296,8 @@ function ParamFields({
           >
             <option value="">— select integration —</option>
             <option value="slack">Slack</option>
-            <option value="gmail">Gmail</option>
-            <option value="google_sheets">Google Sheets</option>
-            <option value="google_calendar">Google Calendar</option>
-            <option value="notion">Notion</option>
             <option value="github">GitHub</option>
-            <option value="linear">Linear</option>
+            <option value="google">Google</option>
           </select>
         </div>
         <div>
