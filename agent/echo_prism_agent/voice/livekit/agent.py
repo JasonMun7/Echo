@@ -161,20 +161,6 @@ async def _publish_tool_event(event_type: str, **kwargs: Any) -> None:
         logger.warning("Failed to publish %s: %s", event_type, e)
 
 
-async def _publish_tool_event(event_type: str, **kwargs: Any) -> None:
-    """Publish a tool lifecycle event (tool_call, synthesis_complete) to connected clients."""
-    try:
-        job_ctx = get_job_context()
-        payload = json.dumps({"type": event_type, **kwargs})
-        await job_ctx.room.local_participant.publish_data(
-            payload.encode("utf-8"),
-            reliable=True,
-            topic="echoprism",
-        )
-    except Exception as e:
-        logger.warning("Failed to publish %s: %s", event_type, e)
-
-
 class LiveKitEchoPrismAgent(Agent):
     """EchoPrism voice agent with tools delegated to backend. Includes EndCallTool for telephony."""
 
