@@ -14,6 +14,41 @@ interface StepData {
   action: string;
   context: string;
   params: Record<string, unknown>;
+  expected_outcome?: string;
+}
+
+const HIDDEN_PARAM_KEYS = new Set(["x", "y", "x1", "y1", "x2", "y2"]);
+
+function formatParamLabel(key: string): string {
+  const map: Record<string, string> = {
+    description: "Target",
+    text: "Text",
+    url: "URL",
+    value: "Value",
+    key: "Key",
+    keys: "Keys",
+    seconds: "Seconds",
+    direction: "Direction",
+    distance: "Distance",
+    amount: "Amount",
+    app: "App",
+    appName: "App",
+    integration: "Integration",
+    method: "Method",
+    args: "Args",
+  };
+  return map[key] ?? key;
+}
+
+function renderParamValue(key: string, v: unknown): string {
+  if (v !== null && typeof v === "object") {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
 }
 
 interface WorkflowData {
@@ -347,16 +382,29 @@ export default function WorkflowDetailView({
                       {step.context}
                     </p>
                   )}
+                  {step.expected_outcome && (
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "var(--echo-text-secondary)",
+                        margin: "6px 0 0",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: "var(--echo-text)" }}>Expected: </span>
+                      {step.expected_outcome}
+                    </p>
+                  )}
                   {step.params && Object.keys(step.params).length > 0 && (
                     <div
                       style={{
                         marginTop: 6,
                         fontSize: 11,
                         color: "var(--echo-text-secondary)",
-                        fontFamily: "monospace",
                       }}
                     >
                       {Object.entries(step.params)
+                        .filter(([k]) => !HIDDEN_PARAM_KEYS.has(k))
                         .filter(([, v]) => v !== undefined && v !== null && v !== "")
                         .map(([k, v]) => (
                           <span
@@ -368,9 +416,10 @@ export default function WorkflowDetailView({
                               borderRadius: 3,
                               marginRight: 4,
                               marginBottom: 2,
+                              fontFamily: "system-ui, sans-serif",
                             }}
                           >
-                            {k}={typeof v === "object" ? JSON.stringify(v) : String(v)}
+                            {formatParamLabel(k)}: {renderParamValue(k, v)}
                           </span>
                         ))}
                     </div>
