@@ -52,6 +52,21 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 
 LiveKit token is fetched from `VITE_ECHO_AGENT_URL` (EchoPrismAgent). Use `VITE_API_URL` = main backend (8000), `VITE_ECHO_AGENT_URL` = EchoPrismAgent (8081) for dual-backend setup.
 
+## Mobile (React Native / Expo)
+
+The mobile app reads from the **same Doppler variables** as the web frontend — no extra secrets needed. The `app.config.ts` maps `NEXT_PUBLIC_*` vars into Expo's runtime config. Optionally, you can set `EXPO_PUBLIC_*` overrides if the mobile app needs different values.
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Backend API URL (reused from web; override with `EXPO_PUBLIC_API_URL`) |
+| `NEXT_PUBLIC_ECHO_AGENT_URL` | EchoPrism Agent URL (reused from web; override with `EXPO_PUBLIC_ECHO_AGENT_URL`) |
+| `NEXT_PUBLIC_FIREBASE_*` | Firebase config (reused from web; override with `EXPO_PUBLIC_FIREBASE_*`) |
+| `GOOGLE_CLIENT_ID_WEB` | Google OAuth Web Client ID for expo-auth-session (from Firebase project's GCP Console) |
+| `GOOGLE_CLIENT_ID_IOS` | (Optional) iOS-specific Google OAuth Client ID |
+| `GOOGLE_CLIENT_ID_ANDROID` | (Optional) Android-specific Google OAuth Client ID |
+
+Run locally: `pnpm dev:mobile` (wraps `doppler run -- pnpm run start`)
+
 ## Configs
 
 - **dev** — local development; set `NEXT_PUBLIC_API_URL`, `VITE_API_URL` to `http://localhost:8000`, `NEXT_PUBLIC_ECHO_AGENT_URL`, `VITE_ECHO_AGENT_URL` to `http://localhost:8081` when running EchoPrism Agent locally; use `NEXT_PUBLIC_FIREBASE_PROJECT_ID` for Firebase
