@@ -16,7 +16,7 @@ When creating or explaining architecture, flow, sequence, or system diagrams, **
 ```mermaid
 flowchart TB
     subgraph Brain
-        A[EchoPrismAgent]
+        A[echo_prism_agent]
     end
     subgraph Modality
         B[LiveKit]

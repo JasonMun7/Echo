@@ -66,6 +66,7 @@ import {
 } from "@/stores";
 import { isLatestOrLastModified } from "@/stores/workflows-store";
 import { useRecording } from "@/hooks/use-recording";
+import { usePendingRunListener } from "@/hooks/use-pending-run-listener";
 function useWindowType(): { windowType: string; mode: string } {
   const [params, setParams] = useState({ windowType: "", mode: "" });
   useEffect(() => {
@@ -128,6 +129,9 @@ function MainWindowApp() {
   const dismissRunResult = useRunStore((s) => s.dismissRunResult);
   const handleRunWorkflow = useRunStore((s) => s.handleRunWorkflow);
   const handleRunStarted = useRunStore((s) => s.handleRunStarted);
+
+  // Poll for pending runs triggered from mobile chat/voice
+  usePendingRunListener(token, handleRunStarted);
 
   const recording = useRecordingStore((s) => s.recording);
   const recordedBlob = useRecordingStore((s) => s.recordedBlob);

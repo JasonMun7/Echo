@@ -19,7 +19,11 @@
     "lint": "cd apps/web && pnpm run lint",
     "dev:backend": "cd backend && doppler run -- env PYTHONPATH=../agent uvicorn main:app --reload",
     "dev:agent": "cd agent && doppler run -- uvicorn main:app --reload --port 8083",
-    "dev:livekit-agent": "doppler run -- env PYTHONPATH=. python -m agent.echo_prism_agent.voice.livekit.main dev",
+    "dev:mobile": "cd apps/mobile && doppler run -- pnpm run start",
+    "dev:mobile:prebuild": "cd apps/mobile && doppler run -- pnpm run prebuild",
+    "dev:ios": "cd apps/mobile && doppler run -- pnpm run ios",
+    "dev:android": "cd apps/mobile && doppler run -- pnpm run android",
+    "dev:livekit-agent": "doppler run -- env PYTHONPATH=agent python -m echo_prism_agent.voice.livekit.main dev",
     "deploy": "doppler run --config prd -- ./scripts/deploy.sh",
     "deploy:build": "doppler run --config prd -- ./scripts/deploy/build.sh",
     "deploy:frontend": "doppler run --config prd -- ./scripts/deploy/deploy-frontend.sh --build",
@@ -28,7 +32,13 @@
     "deploy:livekit-agent": "doppler run --config prd -- ./scripts/deploy/deploy-livekit-agent.sh --build"
   },
   "devDependencies": {
+    "@expo/ngrok": "^4.1.3",
     "dotenv-cli": "^11.0.0"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "dependencies": {
+    "expo": "~55.0.8",
+    "react": "19.2.0",
+    "react-native": "0.83.2"
+  }
 }

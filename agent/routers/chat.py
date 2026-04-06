@@ -187,13 +187,6 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
                             await websocket.send_text(json.dumps({"type": "tool_call", "name": fc.name}))
                         except Exception:
                             pass
-                        if fc.name == "synthesize_from_description":
-                            try:
-                                await websocket.send_text(
-                                    json.dumps({"type": "tool_call", "name": "synthesize_from_description"})
-                                )
-                            except Exception:
-                                pass
 
                     tool_parts: list[types.Part] = []
                     for fc in fn_calls:
