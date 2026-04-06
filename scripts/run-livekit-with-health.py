@@ -35,7 +35,7 @@ def main():
     env["PYTHONPATH"] = agent_dir if not _pp else f"{agent_dir}{os.pathsep}{_pp}"
     sys.exit(
         subprocess.run(
-            [sys.executable, "-m", "echo_prism_agent.modalities.voice.livekit.main", "start"],
+            [sys.executable, "-m", "echo_prism_agent.voice.livekit.main", "start"],
             env=env,
         ).returncode
     )

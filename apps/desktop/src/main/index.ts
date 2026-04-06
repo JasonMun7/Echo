@@ -15,12 +15,20 @@ import {
   runWorkflowRemote,
   runGoalOnlyRemote,
   abortActiveRun,
-} from "./agent/remote-workflow-runner";
+  openAuth0ConnectForIntegration,
+} from "./agent-client/remote-workflow-runner";
+import {
+  clearUserHitlWait,
+  getPendingIntegrationAuth,
+  notifyUserHitlResume,
+} from "./hitl-coordinator";
+import { getAgentServiceBaseUrl, getBackendApiBaseUrl } from "./agent-client/agent-service-url";
 import {
   createHudOverlayWindow,
   createHazeOverlayWindow,
   createVoiceInterruptionWindow,
   getHudPositionOnCursorDisplay,
+  getHazeBoundsOnCursorDisplay,
 } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -242,7 +250,8 @@ let hazeOverlayWindow: BrowserWindow | null = null;
 let voiceInterruptionWindow: BrowserWindow | null = null;
 let isCollapsed = false;
 let hudFollowInterval: ReturnType<typeof setInterval> | null = null;
-let lastHudDisplayId: number | null = null;
+/** Last display id for HUD + haze so both follow the cursor when switching desktops / monitors. */
+let lastOverlayDisplayId: number | null = null;
 let currentHudMode: "recording" | "run" | null = null;
 
 /** Stored when enter-run-mode is called, used by cancel-run and send-interrupt */
@@ -265,25 +274,41 @@ function stopHudFollowInterval(): void {
     clearInterval(hudFollowInterval);
     hudFollowInterval = null;
   }
-  lastHudDisplayId = null;
+  lastOverlayDisplayId = null;
   currentHudMode = null;
+}
+
+/** Move HUD (and haze when present) to the display under the cursor. */
+function positionHudAndHazeOnCursorDisplay(mode: "recording" | "run"): void {
+  if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) return;
+  const { display, x, y, w, h } = getHudPositionOnCursorDisplay(mode);
+  lastOverlayDisplayId = display.id;
+  hudOverlayWindow.setBounds({ x, y, width: w, height: h });
+  if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
+    const b = getHazeBoundsOnCursorDisplay();
+    hazeOverlayWindow.setBounds(b);
+  }
 }
 
 function startHudFollowCursor(mode: "recording" | "run"): void {
   currentHudMode = mode;
-  lastHudDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+  lastOverlayDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
   stopHudFollowInterval();
+  positionHudAndHazeOnCursorDisplay(mode);
   hudFollowInterval = setInterval(() => {
     if (!hudOverlayWindow || hudOverlayWindow.isDestroyed() || !currentHudMode) {
       stopHudFollowInterval();
       return;
     }
     const { display, x, y, w, h } = getHudPositionOnCursorDisplay(currentHudMode);
-    if (display.id !== lastHudDisplayId) {
-      lastHudDisplayId = display.id;
+    if (display.id !== lastOverlayDisplayId) {
+      lastOverlayDisplayId = display.id;
       hudOverlayWindow.setBounds({ x, y, width: w, height: h });
+      if (hazeOverlayWindow && !hazeOverlayWindow.isDestroyed()) {
+        hazeOverlayWindow.setBounds(getHazeBoundsOnCursorDisplay());
+      }
     }
-  }, 500);
+  }, 400);
 }
 
 function destroyOverlaysAndShowMain(): void {
@@ -488,10 +513,9 @@ ipcMain.handle("recording-discard", () => {
 ipcMain.handle("cancel-run", async () => {
   if (!runContext) return { ok: false, error: "No active run" };
   const { workflowId, runId, token } = runContext;
-  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-    /\/$/,
-    "",
-  );
+  const base = getBackendApiBaseUrl();
+  // Unblock HITL wait (OAuth / Continue) before closing the socket
+  clearUserHitlWait();
   // Signal cancel and abort the active run immediately — closes WebSocket so remote-workflow-runner exits
   requestCancel();
   abortActiveRun();
@@ -510,10 +534,7 @@ ipcMain.handle("send-interrupt", async (_, text: string) => {
   if (!runContext || !text?.trim())
     return { ok: false, error: "No run or text" };
   const { workflowId, runId, token } = runContext;
-  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-    /\/$/,
-    "",
-  );
+  const base = getBackendApiBaseUrl();
   try {
     const res = await fetch(`${base}/api/run/${workflowId}/${runId}/redirect`, {
       method: "POST",
@@ -533,10 +554,7 @@ ipcMain.handle("calluser-feedback", async (_, text: string) => {
   if (!runContext || !text?.trim())
     return { ok: false, error: "No run or text" };
   const { workflowId, runId, token } = runContext;
-  const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-    /\/$/,
-    "",
-  );
+  const base = getBackendApiBaseUrl();
   try {
     const res = await fetch(
       `${base}/api/run/${workflowId}/${runId}/calluser-feedback`,
@@ -822,10 +840,7 @@ ipcMain.handle(
     error?: string;
   }> => {
     const { token } = args;
-    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-      /\/$/,
-      "",
-    );
+    const base = getBackendApiBaseUrl();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -871,10 +886,7 @@ ipcMain.handle(
   "create-run",
   async (_, args: { workflowId: string; token: string }) => {
     const { workflowId, token } = args;
-    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-      /\/$/,
-      "",
-    );
+    const base = getBackendApiBaseUrl();
     try {
       const res = await fetch(`${base}/api/run/${workflowId}?source=desktop`, {
         method: "POST",
@@ -917,6 +929,22 @@ ipcMain.handle("resume-run", () => {
   return { ok: true };
 });
 
+ipcMain.handle("hitl-submit-resume", (_, resume: unknown) => {
+  notifyUserHitlResume(resume);
+  return { ok: true };
+});
+
+ipcMain.handle("hitl-reopen-oauth", async () => {
+  const pending = getPendingIntegrationAuth();
+  if (!pending) return { ok: false as const, error: "no_pending" };
+  await openAuth0ConnectForIntegration(
+    { backendUrl: pending.backendUrl, token: pending.token },
+    pending.integration,
+    pending.auth0Linked,
+  );
+  return { ok: true as const };
+});
+
 ipcMain.handle(
   "run-workflow-local",
   async (
@@ -928,33 +956,63 @@ ipcMain.handle(
       workflowId?: string;
       runId?: string;
       token?: string;
+      variableValues?: Record<string, string>;
+      typingOverride?: string;
     },
   ) => {
-    const { steps, sourceId, workflowType, workflowId, runId, token } = args;
+    const {
+      steps,
+      sourceId,
+      workflowType,
+      workflowId,
+      runId,
+      token,
+      variableValues,
+      typingOverride,
+    } = args;
     if (!steps?.length || !sourceId) {
       return { success: false, error: "steps and sourceId required" };
     }
     requestResume();
     clearCancel();
-    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-      /\/$/,
-      "",
-    );
-    const agentUrl = (process.env.VITE_ECHO_AGENT_URL || base).replace(
-      /\/$/,
-      "",
-    );
+    const base = getBackendApiBaseUrl();
+    const agentUrl = getAgentServiceBaseUrl();
     const progress: string[] = [];
     const entries: Array<{ thought: string; action: string; step: number }> =
       [];
+    const hitlIpc = {
+      onHitl: (evt: {
+        kind: string;
+        payload: Record<string, unknown>;
+        step: number;
+      }) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-hitl", evt);
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-hitl", evt);
+        }
+      },
+      onHitlClear: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-hitl-clear");
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-hitl-clear");
+        }
+      },
+    };
     const result = await runWorkflowRemote(steps as unknown as Step[], {
       sourceId,
       workflowType: (workflowType as WorkflowType) ?? "desktop",
       workflowId,
       runId,
       token,
+      variableValues,
+      typingOverride,
       backendUrl: base,
       agentWsUrl: agentUrl,
+      ...hitlIpc,
       onProgress: (msg, stepNum, thought, action) => {
         progress.push(msg);
         const payload = {
@@ -969,6 +1027,15 @@ ipcMain.handle(
         }
         if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
           hudOverlayWindow.webContents.send("run-progress", payload);
+        }
+      },
+      onThinkingDelta: (delta, stepNum) => {
+        const d = { delta, step: stepNum };
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-thinking-delta", d);
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-thinking-delta", d);
         }
       },
       onAwaitingUser: (reason) => {
@@ -1016,16 +1083,32 @@ ipcMain.handle(
     });
     requestResume();
     clearCancel();
-    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-      /\/$/,
-      "",
-    );
-    const agentUrl = (process.env.VITE_ECHO_AGENT_URL || base).replace(
-      /\/$/,
-      "",
-    );
+    const base = getBackendApiBaseUrl();
+    const agentUrl = getAgentServiceBaseUrl();
     const progress: string[] = [];
     const entries: Array<{ thought: string; action: string; step: number }> = [];
+    const hitlIpcGoal = {
+      onHitl: (evt: {
+        kind: string;
+        payload: Record<string, unknown>;
+        step: number;
+      }) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-hitl", evt);
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-hitl", evt);
+        }
+      },
+      onHitlClear: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-hitl-clear");
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-hitl-clear");
+        }
+      },
+    };
     const result = await runGoalOnlyRemote(goal, {
       sourceId,
       workflowType: (workflowType as WorkflowType) ?? "desktop",
@@ -1034,6 +1117,7 @@ ipcMain.handle(
       token,
       backendUrl: base,
       agentWsUrl: agentUrl,
+      ...hitlIpcGoal,
       onProgress: (msg, stepNum, thought, action) => {
         progress.push(msg);
         const payload = {
@@ -1051,6 +1135,15 @@ ipcMain.handle(
         }
         if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
           hudOverlayWindow.webContents.send("run-progress", payload);
+        }
+      },
+      onThinkingDelta: (delta, stepNum) => {
+        const d = { delta, step: stepNum };
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("run-thinking-delta", d);
+        }
+        if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+          hudOverlayWindow.webContents.send("run-thinking-delta", d);
         }
       },
       onAwaitingUser: (reason) => {
@@ -1080,10 +1173,7 @@ ipcMain.handle(
   "fetch-workflow",
   async (_, args: { workflowId: string; token?: string }) => {
     const { workflowId, token } = args;
-    const base = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-      /\/$/,
-      "",
-    );
+    const base = getBackendApiBaseUrl();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };

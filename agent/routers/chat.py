@@ -21,7 +21,8 @@ from google.genai import types
 from google.cloud.firestore import SERVER_TIMESTAMP, FieldFilter
 
 from app.auth import get_firebase_app
-from app.config import CHAT_MODEL, GEMINI_API_KEY
+from app.config import GEMINI_API_KEY
+from echo_prism_agent.models_config import CHAT_MODEL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
@@ -437,13 +438,19 @@ async def _execute_tool(
         integration = args.get("integration", "")
         method = args.get("method", "")
         call_args = args.get("args", {})
-        token_doc = db.collection("users").document(uid).collection("integrations").document(integration).get()
-        if not token_doc.exists:
-            return {"ok": False, "error": f"Integration '{integration}' not connected"}
-        token_data = token_doc.to_dict() or {}
         try:
-            mod = __import__(f"agent.integrations.{integration}", fromlist=["call"])
-            result = await mod.call(method=method, access_token=token_data.get("access_token", ""), args=call_args)
+            from echo_prism_agent.integrations.resolver import get_integration_access_token
+
+            access_token = await get_integration_access_token(uid, integration, db)
+            if not access_token:
+                return {
+                    "ok": False,
+                    "error": f"Integration '{integration}' not connected — link Auth0 and connect via Token Vault.",
+                }
+            mod = __import__(
+                f"echo_prism_agent.integrations.{integration}", fromlist=["execute"]
+            )
+            result = await mod.execute(method, call_args, access_token)
             return {"ok": True, "result": result}
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -453,7 +460,7 @@ async def _execute_tool(
 
 def _voice_system_prompt(workflow_id: str | None, run_id: str | None) -> str:
     _ensure_agent_path()
-    from echo_prism_agent.modalities.chat import SYSTEM_PROMPT
+    from echo_prism_agent.utils.tools import SYSTEM_PROMPT
     base = SYSTEM_PROMPT
     if workflow_id and run_id:
         base += f"\n\nACTIVE RUN: There is currently an active workflow run (workflow_id={workflow_id}, run_id={run_id}). When the user gives mid-run instructions (e.g. pause, stop, change what to click, do something different), immediately use redirect_run with workflow_id={workflow_id}, run_id={run_id}, and instruction set to the user's exact words."
@@ -466,8 +473,8 @@ async def _voice_live_session(
 ) -> None:
     """EchoPrismVoice: Gemini Live API with AUDIO modality. Delegates to `voice.live_session`."""
     _ensure_agent_path()
-    from echo_prism_agent.modalities.chat import get_tools
-    from echo_prism_agent.modalities import run_voice_session, LIVE_MODEL_VOICE
+    from echo_prism_agent.utils.tools import get_tools
+    from echo_prism_agent.voice import LIVE_MODEL_VOICE, run_voice_session
 
     system_prompt = _voice_system_prompt(workflow_id, run_id)
     config = types.LiveConnectConfig(

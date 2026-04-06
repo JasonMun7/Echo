@@ -12,7 +12,27 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
+from echo_prism_agent.constants import (
+    DEFAULT_PLAYWRIGHT_VIEWPORT_HEIGHT,
+    DEFAULT_PLAYWRIGHT_VIEWPORT_WIDTH,
+    GROUNDING_ACTIONS,
+    UI_TARS_COORD_SCALE,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _parse_ui_tars_type_content(raw: object) -> tuple[str, bool]:
+    """Match desktop `parseUiTarsTypeContent`: strip trailing ``\\n`` / newline only; submit if raw ended that way."""
+    raw_content = str(raw or "")
+    body = raw_content
+    if body.endswith("\\n"):
+        body = body[:-2]
+    if body.endswith("\n"):
+        body = body[:-1]
+    submit = raw_content.endswith("\n") or raw_content.endswith("\\n")
+    return body, submit
+
 
 # --- Operators (Playwright / API) -------------------------------------------------
 
@@ -34,9 +54,14 @@ class BaseOperator(ABC):
 class PlaywrightOperator(BaseOperator):
     """Playwright-based operator for browser control."""
 
-    def __init__(self, page: Any, screen_width: int = 1280, screen_height: int = 936):
+    def __init__(
+        self,
+        page: Any,
+        screen_width: int = DEFAULT_PLAYWRIGHT_VIEWPORT_WIDTH,
+        screen_height: int = DEFAULT_PLAYWRIGHT_VIEWPORT_HEIGHT,
+    ):
         self._page = page
-        self._coord_scale = 1000
+        self._coord_scale = UI_TARS_COORD_SCALE
         try:
             vp = page.viewport_size
             self._screen_width = (vp or {}).get("width", screen_width)
@@ -84,7 +109,12 @@ class PlaywrightOperator(BaseOperator):
                 await self._page.mouse.up()
             elif act == "type":
                 content = action.get("content", "")
-                await self._page.keyboard.type(content)
+                body, submit = _parse_ui_tars_type_content(content)
+                if body:
+                    await self._page.keyboard.insert_text(body)
+                if submit:
+                    await asyncio.sleep(0.08)
+                    await self._page.keyboard.press("Enter")
             elif act == "navigate":
                 url = action.get("url", "https://www.google.com")
                 await self._page.goto(url, timeout=15000, wait_until="domcontentloaded")
@@ -191,16 +221,15 @@ class ApiCallOperator(BaseOperator):
             return False
 
         try:
-            token_doc = await asyncio.to_thread(
-                lambda: self._db.collection("users")
-                .document(self._uid)
-                .collection("integrations")
-                .document(integration)
-                .get()
-            )
-            access_token = (token_doc.to_dict() or {}).get("access_token", "") if token_doc.exists else ""
+            from echo_prism_agent.integrations.resolver import get_integration_access_token
 
-            connector = importlib.import_module(f"integrations.{integration}")
+            access_token = await get_integration_access_token(
+                self._uid, integration, self._db
+            )
+
+            connector = importlib.import_module(
+                f"echo_prism_agent.integrations.{integration}"
+            )
             result = await connector.execute(method, args, access_token)
             return True if result.get("ok") else False
         except Exception:
@@ -214,6 +243,7 @@ class ApiCallOperator(BaseOperator):
 
 
 def is_deterministic(step: dict[str, Any]) -> bool:
+    """Return True when the step can be executed without VLM (must match desktop `isDeterministic`)."""
     params = step.get("params", {})
     action = (step.get("action") or "").lower().replace("_", "")
 
@@ -237,6 +267,10 @@ def is_deterministic(step: dict[str, Any]) -> bool:
         return True
     if action == "waitforelement" and params.get("selector"):
         return True
+    if action == "typetextat":
+        text = str(params.get("text") or params.get("content") or "").strip()
+        if text and params.get("x") is not None and params.get("y") is not None:
+            return True
 
     return False
 
@@ -249,6 +283,23 @@ def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
     if action == "clickat":
         op_action = "click"
     elif action == "typetextat":
+        text = str(params.get("text") or params.get("content") or "").strip()
+        if text and params.get("x") is not None and params.get("y") is not None:
+            result = {
+                "action": "clickandtype",
+                "x": int(params["x"]),
+                "y": int(params["y"]),
+                "content": text,
+            }
+            if "distance" in params or "amount" in params:
+                raw_dist = params.get("distance") or params.get("amount", 800)
+                try:
+                    result["distance"] = int(raw_dist) if not isinstance(raw_dist, str) else int(raw_dist)
+                except (ValueError, TypeError):
+                    result["distance"] = 800
+            else:
+                result["distance"] = 800
+            return result
         op_action = "type"
     elif action == "presskey":
         op_action = "presskey"
@@ -317,6 +368,88 @@ def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
         result["args"] = params["args"]
 
     return result
+
+
+def distance_from_workflow_params(params: dict[str, Any]) -> int:
+    """Default scroll distance for clickandtype when merging VLM output with workflow params."""
+    if not ("distance" in params or "amount" in params):
+        return 800
+    raw_dist = params.get("distance") or params.get("amount", 800)
+    if isinstance(raw_dist, str):
+        dist_lower = raw_dist.lower()
+        if dist_lower == "short":
+            return 300
+        if dist_lower == "medium":
+            return 800
+        if dist_lower == "long":
+            return 1500
+        try:
+            return int(raw_dist)
+        except ValueError:
+            return 800
+    try:
+        return int(raw_dist)
+    except (ValueError, TypeError):
+        return 800
+
+
+def merge_type_text_at_workflow_literal(
+    step_data: dict[str, Any],
+    parsed: dict[str, Any],
+    *,
+    typing_override: str = "",
+) -> dict[str, Any]:
+    """
+    For ``type_text_at`` without coords on the workflow step, the VLM often returns only
+    ``click`` / ``hover``. Upgrade to ``clickandtype`` using workflow ``params.text`` (or
+    ``typing_override``). Also forces ``type`` / ``clickandtype`` ``content`` to that literal
+    so execution matches the editor, not a model paraphrase.
+
+    Idempotent when the workflow step already has grounded ``x``/``y`` (deterministic path).
+    """
+    a = (step_data.get("action") or "").lower().replace("_", "")
+    if a != "typetextat":
+        return parsed
+    params = step_data.get("params") or {}
+    if params.get("x") is not None and params.get("y") is not None:
+        return parsed
+    override = (typing_override or "").strip()
+    wf_text = override or str(params.get("text") or params.get("content") or "").strip()
+    if not wf_text:
+        return parsed
+
+    pa = (parsed.get("action") or "").lower()
+    dist = distance_from_workflow_params(params)
+
+    if pa in ("click", "rightclick", "doubleclick", "hover", "longpress"):
+        x, y = parsed.get("x"), parsed.get("y")
+        if x is None or y is None:
+            return parsed
+        try:
+            xi, yi = int(x), int(y)
+        except (TypeError, ValueError):
+            return parsed
+        return {
+            "action": "clickandtype",
+            "x": xi,
+            "y": yi,
+            "content": wf_text,
+            "distance": dist,
+        }
+
+    if pa == "clickandtype":
+        merged = dict(parsed)
+        merged["content"] = wf_text
+        if merged.get("distance") is None:
+            merged["distance"] = dist
+        return merged
+
+    if pa == "type":
+        merged = dict(parsed)
+        merged["content"] = wf_text
+        return merged
+
+    return parsed
 
 
 async def execute_step(page: Any, step: dict[str, Any]) -> tuple[bool, str]:
@@ -519,8 +652,6 @@ def get_step_screenshot_bytes(
 
 # --- Step bridge (coords, deterministic runner, API calls) ------------------------
 
-_GROUNDING_ACTIONS = {"click", "doubleclick", "rightclick", "hover", "drag", "clickandtype"}
-
 
 async def resolve_coords_for_action(
     parsed: dict[str, Any],
@@ -529,7 +660,7 @@ async def resolve_coords_for_action(
     step_data: dict[str, Any],
 ) -> tuple[dict[str, Any], None]:
     parsed_action_name = (parsed.get("action") or "").lower()
-    if parsed_action_name not in _GROUNDING_ACTIONS:
+    if parsed_action_name not in GROUNDING_ACTIONS:
         return parsed, None
 
     has_coords = ("x" in parsed and "y" in parsed) or ("x1" in parsed and "y1" in parsed)
@@ -543,37 +674,58 @@ async def resolve_coords_for_action(
     return parsed, None
 
 
-async def execute_api_call(step: dict[str, Any], uid: str, db: Any) -> tuple[bool, str]:
+async def execute_api_call(
+    step: dict[str, Any], uid: str, db: Any
+) -> tuple[bool, str, dict[str, Any] | None]:
     params = step.get("params", {})
-    integration = params.get("integration", "")
-    method = params.get("method", "")
+    from echo_prism_agent.auth0_token_vault import (
+        connection_name_for_integration,
+        normalize_integration_id,
+    )
+
+    integration = normalize_integration_id(params.get("integration") or "")
+    method = (params.get("method") or "").strip()
     args = params.get("args", {}) or {}
 
     if not integration or not method:
-        return False, "api_call requires integration and method"
+        return False, "api_call requires integration and method", None
+
+    from echo_prism_agent.integrations.resolver import (
+        get_integration_access_token,
+        integration_connect_hint,
+    )
+
+    if not connection_name_for_integration(integration):
+        return False, f"Unknown integration: {integration}", None
 
     try:
-        token_doc = await asyncio.to_thread(
-            lambda: db.collection("users")
-            .document(uid)
-            .collection("integrations")
-            .document(integration)
-            .get()
-        )
-        access_token = (
-            (token_doc.to_dict() or {}).get("access_token", "") if token_doc.exists else ""
+        importlib.import_module(f"echo_prism_agent.integrations.{integration}")
+    except ImportError as e:
+        return False, f"Unknown integration module: {integration} ({e})", None
+
+    access_token = (await get_integration_access_token(uid, integration, db)).strip()
+    if not access_token:
+        hint = await integration_connect_hint(uid, integration, db)
+        return (
+            False,
+            "Integration not connected — a browser window should open for sign-in. "
+            "After you connect, run this workflow again.",
+            {"integration_auth_required": True, **hint},
         )
 
-        connector = importlib.import_module(f"integrations.{integration}")
+    try:
+        connector = importlib.import_module(
+            f"echo_prism_agent.integrations.{integration}"
+        )
         result = await connector.execute(method, args, access_token)
         ok = result.get("ok", False)
         if not ok:
             err = result.get("error", "Integration returned ok=False")
-            return False, str(err)
-        return True, ""
+            return False, str(err), None
+        return True, "", None
     except Exception as e:
         logger.exception("api_call failed for %s.%s: %s", integration, method, e)
-        return False, str(e)
+        return False, str(e), None
 
 
 async def execute_deterministic_step(
@@ -584,6 +736,7 @@ async def execute_deterministic_step(
 ) -> tuple[bool, str]:
     action = (step.get("action") or "").lower().replace("_", "")
     if action == "apicall" or step.get("action") == "api_call":
-        return await execute_api_call(step, uid, db)
+        ok, err, _meta = await execute_api_call(step, uid, db)
+        return ok, err
 
     return await execute_step(page, step)

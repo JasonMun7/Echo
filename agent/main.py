@@ -12,6 +12,17 @@ import sys
 from pathlib import Path
 
 _log_level = getattr(logging, _os.environ.get("ECHO_LOG_LEVEL", "INFO").upper(), logging.INFO)
+
+# google-genai warns when both GOOGLE_API_KEY and GEMINI_API_KEY are set. Doppler
+# sometimes defines GEMINI_API_KEY="" or duplicates the same key under both names.
+_gem = (_os.environ.get("GEMINI_API_KEY") or "").strip()
+if not _gem:
+    _os.environ.pop("GEMINI_API_KEY", None)
+else:
+    _goo = (_os.environ.get("GOOGLE_API_KEY") or "").strip()
+    if _goo and _gem == _goo:
+        _os.environ.pop("GEMINI_API_KEY", None)
+
 logging.basicConfig(
     level=_log_level,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",

@@ -3,8 +3,8 @@ import { join } from "path";
 
 const HUD_RECORDING_WIDTH = 375;
 const HUD_RECORDING_HEIGHT = 60;
-const HUD_RUN_WIDTH = 420;
-const HUD_RUN_HEIGHT = 320;
+const HUD_RUN_WIDTH = 520;
+const HUD_RUN_HEIGHT = 440;
 const VOICE_INTERRUPTION_WIDTH = 420;
 const VOICE_INTERRUPTION_HEIGHT = 560;
 
@@ -16,8 +16,8 @@ function getRendererUrl(query: string): string {
   return `file://${htmlPath}?${query}`;
 }
 
-/** Get the display that contains the cursor so the HUD follows the active screen. */
-function getDisplayUnderCursor() {
+/** Display that contains the cursor — use so overlays follow the active Space / monitor. */
+export function getDisplayUnderCursor(): Display {
   const point = screen.getCursorScreenPoint();
   return screen.getDisplayNearestPoint(point);
 }
@@ -81,12 +81,23 @@ export function getHudPositionOnCursorDisplay(
   return { display, x, y, w, h };
 }
 
+/** Full-screen bounds on the display under the cursor (same as HUD follow target). */
+export function getHazeBoundsOnCursorDisplay(): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const { x, y, width, height } = getDisplayUnderCursor().bounds;
+  return { x, y, width, height };
+}
+
 export function createHazeOverlayWindow(displayId?: number): BrowserWindow {
   const displays = screen.getAllDisplays();
   const display =
     displayId != null && displays[displayId]
       ? displays[displayId]
-      : screen.getPrimaryDisplay();
+      : getDisplayUnderCursor();
   const { x, y, width, height } = display.bounds;
 
   const win = new BrowserWindow({

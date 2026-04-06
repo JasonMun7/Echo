@@ -21,15 +21,20 @@ import {
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
 import type { OperatorAction } from "@echo/types";
+import { parseUiTarsTypeContent } from "./type-content";
 
-// Configure nut-js for stability
+// Configure nut-js for stability (align with UI-TARS-desktop NutJSOperator)
 mouse.config.autoDelayMs = 100;
+// @nut-tree-fork: match upstream mouse speed where supported
+if ("mouseSpeed" in mouse.config) {
+  (mouse.config as { mouseSpeed: number }).mouseSpeed = 3600;
+}
 keyboard.config.autoDelayMs = 50;
 
 const COORD_SCALE = 1000;
 
-/** Delay in ms between mouse movement and click for OS to settle. */
-const MOUSE_MOVE_DELAY_MS = 250;
+/** Delay in ms between mouse movement and click (NutJSOperator uses 100ms). */
+const MOUSE_MOVE_DELAY_MS = 100;
 
 export type OperatorResult = boolean | "finished" | "calluser";
 
@@ -44,8 +49,11 @@ interface ScreenInfo {
   scaleFactor: number;
 }
 
-// Cache screen dimensions at module level — refreshed on first call and cached
+// Cache screen dimensions — cleared before each capture so resolution/DPI changes apply.
 let _screenInfo: ScreenInfo | null = null;
+/** Last successful capture dimensions — 0–1000 VLM coords map to this rectangle (logical px). */
+let _lastCaptureSize: { width: number; height: number } | null = null;
+
 function getScreenInfo(): ScreenInfo {
   if (!_screenInfo) {
     const primary = electronScreen.getPrimaryDisplay();
@@ -81,13 +89,14 @@ function getScreenSize(): { width: number; height: number } {
  * On Windows/Linux, logical == physical when scaleFactor is 1.
  */
 function scaleCoords(x: number, y: number): { x: number; y: number } {
-  const { logicalWidth, logicalHeight } = getScreenInfo();
-  const wx = Math.round((x * logicalWidth) / COORD_SCALE);
-  const wy = Math.round((y * logicalHeight) / COORD_SCALE);
+  const w = _lastCaptureSize?.width ?? getScreenInfo().logicalWidth;
+  const h = _lastCaptureSize?.height ?? getScreenInfo().logicalHeight;
+  const wx = Math.round((x * w) / COORD_SCALE);
+  const wy = Math.round((y * h) / COORD_SCALE);
   if (process.env.ECHO_DEBUG_COORDS) {
     console.log(
       `[desktop-operator] scaleCoords: (${x}, ${y}) / 1000 → (${wx}, ${wy}) px ` +
-      `(screen ${logicalWidth}x${logicalHeight})`
+      `(capture ${w}x${h})`
     );
   }
   return { x: wx, y: wy };
@@ -98,17 +107,25 @@ export interface CaptureScreenOptions {
   maxDimension?: number;
 }
 
+export interface CaptureScreenResult {
+  buffer: Buffer;
+  width: number;
+  height: number;
+}
+
 /**
  * Capture screenshot at the display's full physical resolution.
  * Uses actual display dimensions × scaleFactor instead of hardcoded 1920×1080.
  * Retries up to 3 times with increasing delays.
+ * Refreshes primary display metrics each call; records dimensions for coordinate scaling.
  */
-export async function captureScreen(sourceId: string, options?: CaptureScreenOptions): Promise<Buffer> {
+export async function captureScreen(sourceId: string, options?: CaptureScreenOptions): Promise<CaptureScreenResult> {
+  _screenInfo = null;
   const { logicalWidth, logicalHeight } = getScreenInfo();
 
   // We no longer hide overlays via Opacity(0) here because it causes severe
   // screen flickering. The HUD overlay has been designed to be unobtrusive.
-  const attempt = async (): Promise<Buffer | null> => {
+  const attempt = async (): Promise<CaptureScreenResult | null> => {
     // Use "screen" only (not "window") to ensure we get the full display.
     // Request logical dimensions — on macOS Retina, Electron's NativeImage stores
     // at 2× DPR internally. We resize down to logical before encoding so the
@@ -130,30 +147,32 @@ export async function captureScreen(sourceId: string, options?: CaptureScreenOpt
         height: Math.round(logicalHeight * scale),
       });
     }
+    const dim = resized.getSize();
     const buf = Buffer.from(resized.toJPEG(75));
     if (buf.length < 5000) return null;
-    return buf;
+    return { buffer: buf, width: dim.width, height: dim.height };
   };
 
-  let buf = await attempt();
-  if (!buf) {
+  let shot = await attempt();
+  if (!shot) {
     await sleep(500);
-    buf = await attempt();
+    shot = await attempt();
   }
-  if (!buf) {
+  if (!shot) {
     await sleep(1000);
-    buf = await attempt();
+    shot = await attempt();
   }
-  if (!buf) {
+  if (!shot) {
     throw new Error(
       "Screenshot capture failed: blank or missing thumbnail. " +
       "On macOS, grant Screen Recording permission to this app in System Settings → Privacy & Security → Screen Recording, then restart."
     );
   }
+  _lastCaptureSize = { width: shot.width, height: shot.height };
   if (process.env.ECHO_DEBUG_COORDS) {
     console.log(
-      `[desktop-operator] captureScreen: source=${sourceId}, jpeg=${buf.length} bytes, ` +
-      `target=${logicalWidth}x${logicalHeight}`
+      `[desktop-operator] captureScreen: source=${sourceId}, jpeg=${shot.buffer.length} bytes, ` +
+      `dims=${shot.width}x${shot.height}`
     );
   }
 
@@ -165,13 +184,13 @@ export async function captureScreen(sourceId: string, options?: CaptureScreenOpt
       const dir = process.env.ECHO_DEBUG_SCREENSHOTS;
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const ts = Date.now();
-      fs.writeFileSync(path.join(dir, `screenshot-${ts}.jpg`), buf);
+      fs.writeFileSync(path.join(dir, `screenshot-${ts}.jpg`), shot.buffer);
       console.log(`[desktop-operator] Saved debug screenshot: screenshot-${ts}.jpg`);
     } catch (e) {
       console.warn("[desktop-operator] Failed to save debug screenshot:", e);
     }
   }
-  return buf;
+  return shot;
 }
 
 /**
@@ -222,20 +241,45 @@ export async function hover(x: number, y: number): Promise<void> {
 }
 
 /**
- * Type text via keyboard.
- * On Windows, uses clipboard + Ctrl+V for reliability (avoids character loss).
- * On macOS/Linux, uses direct keyboard.type().
+ * Type text into the focused app.
+ * Windows: clipboard + Ctrl+V (reliable for most apps).
+ * macOS: clipboard + Cmd+V — matches UI-TARS-desktop reliability; native apps (Messages, etc.)
+ * often miss or garble characters with `keyboard.type()` alone.
+ * Linux: fallback to `keyboard.type()`.
  */
 export async function typeText(text: string): Promise<void> {
-  if (process.platform === "win32" && text.length > 1) {
-    clipboard.writeText(text);
-    await keyboard.pressKey(Key.LeftControl);
-    await keyboard.pressKey(Key.V);
-    await keyboard.releaseKey(Key.V);
-    await keyboard.releaseKey(Key.LeftControl);
-    await sleep(50);
-  } else {
-    await keyboard.type(text);
+  const prevDelay = keyboard.config.autoDelayMs;
+  keyboard.config.autoDelayMs = 0;
+  try {
+    if (text.length === 0) return;
+
+    if (process.platform === "win32" && text.length > 1) {
+      clipboard.writeText(text);
+      await keyboard.pressKey(Key.LeftControl);
+      await keyboard.pressKey(Key.V);
+      await keyboard.releaseKey(Key.V);
+      await keyboard.releaseKey(Key.LeftControl);
+      await sleep(50);
+    } else if (process.platform === "darwin") {
+      const original = clipboard.readText();
+      clipboard.writeText(text);
+      await sleep(30);
+      // Same chord order as Windows Ctrl+V (sequential press/release).
+      await keyboard.pressKey(Key.LeftSuper);
+      await keyboard.pressKey(Key.V);
+      await keyboard.releaseKey(Key.V);
+      await keyboard.releaseKey(Key.LeftSuper);
+      await sleep(80);
+      try {
+        clipboard.writeText(original);
+      } catch {
+        /* ignore restore failures */
+      }
+    } else {
+      await keyboard.type(text);
+    }
+  } finally {
+    keyboard.config.autoDelayMs = prevDelay;
   }
 }
 
@@ -292,7 +336,14 @@ function mapKeyName(name: string): Key {
     F11: Key.F11,
     F12: Key.F12,
   };
-  return (map[k] as Key) ?? Key.Return;
+  if (map[k] !== undefined) return map[k];
+  // Single letter A–Z (e.g. hotkey(["cmd","a"]) must map to Key.A, not Return).
+  if (k.length === 1 && k >= "A" && k <= "Z") {
+    const letter = (Key as unknown as Record<string, Key | undefined>)[k];
+    if (letter !== undefined) return letter;
+  }
+  console.warn(`[desktop-operator] Unknown key name "${name}", using Return`);
+  return Key.Return;
 }
 
 /**
@@ -344,11 +395,14 @@ export async function wait(seconds: number): Promise<void> {
 
 /**
  * Press a hotkey combination e.g. ["cmd", "c"].
+ * Release keys in reverse order (modifier last) for correct chord behavior.
  */
 export async function hotkey(keys: string[]): Promise<void> {
   const mapped = keys.map(mapKeyName);
   await keyboard.pressKey(...mapped);
-  await keyboard.releaseKey(...mapped);
+  for (let i = mapped.length - 1; i >= 0; i--) {
+    await keyboard.releaseKey(mapped[i]!);
+  }
 }
 
 /**
@@ -442,19 +496,21 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
     } else if (act === "doubleclick") {
       await doubleClick(Number(action.x ?? 0), Number(action.y ?? 0));
     } else if (act === "clickandtype") {
+      const { body, submit } = parseUiTarsTypeContent(action.content);
       await click(Number(action.x ?? 0), Number(action.y ?? 0));
-      await sleep(200);
+      await sleep(350);
       // Select all existing text before typing to replace (not append)
       if (process.platform === "darwin") {
         await hotkey(["cmd", "a"]);
       } else {
         await hotkey(["ctrl", "a"]);
       }
-      await sleep(100);
-      await typeText(String(action.content ?? ""));
-      await sleep(100);
-      // Automatically press enter after typing, as this is standard UI-TARS behavior for searches
-      await pressKey("enter");
+      await sleep(150);
+      await typeText(body);
+      await sleep(120);
+      if (submit) {
+        await pressKey("enter");
+      }
     } else if (act === "drag" || act === "draganddrop") {
       const { x: wx1, y: wy1 } = scaleCoords(Number(action.x1 ?? 0), Number(action.y1 ?? 0));
       const { x: wx2, y: wy2 } = scaleCoords(Number(action.x2 ?? 0), Number(action.y2 ?? 0));
@@ -493,9 +549,12 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
     } else if (act === "readclipboard") {
       console.log(`[desktop-operator] readclipboard executed, contents: ${clipboard.readText()}`);
     } else if (act === "type") {
-      await typeText(String(action.content ?? ""));
+      const { body, submit } = parseUiTarsTypeContent(action.content);
+      await typeText(body);
       await sleep(100);
-      await pressKey("enter");
+      if (submit) {
+        await pressKey("enter");
+      }
     } else if (act === "hotkey") {
       const keys = Array.isArray(action.keys) ? (action.keys as string[]) : [];
       if (!keys.length) return false;

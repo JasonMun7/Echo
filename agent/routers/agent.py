@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import firebase_admin
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -27,6 +28,15 @@ _security = HTTPBearer(auto_error=False)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+def _interrupt_payload(intr: Any) -> Any:
+    """Extract JSON-serializable value from LangGraph ``__interrupt__`` list."""
+    lst = intr if isinstance(intr, (list, tuple)) else [intr]
+    if not lst:
+        return None
+    first = lst[0]
+    return getattr(first, "value", first)
 
 
 def _ensure_agent_path() -> None:
@@ -162,8 +172,9 @@ async def agent_run_ws(
     EchoPrism agent WebSocket. Clients send step + screenshot; returns action.
     Auth: Firebase ID token (token query param).
     Message types:
-      Client -> Server: start, step, verify
-      Server -> Client: thinking, action, done, error
+      Client -> Server: start, step, verify, resume (after interrupt), cancel_interrupt
+      Server -> Client: thinking_delta, thinking, action, done, error, verify_result
+      action.signal interrupt: LangGraph HITL pause (e.g. integration_auth) — client opens Auth0 then sends resume.
     """
     uid = _verify_token(token)
     if not uid:
@@ -174,7 +185,6 @@ async def agent_run_ws(
 
     _ensure_agent_path()
     from echo_prism_agent.execution.operator import (
-        execute_api_call,
         is_deterministic,
         step_to_action,
     )
@@ -206,6 +216,7 @@ async def agent_run_ws(
     pending_thought: str = ""
     pending_action_str: str = ""
     pending_step_index: int = -1
+    pending_api_call_resume: dict[str, Any] | None = None
 
     async def send(msg: dict) -> None:
         try:
@@ -228,6 +239,73 @@ async def agent_run_ws(
                 continue
 
             msg_type = data.get("type", "")
+
+            if pending_api_call_resume and msg_type in (
+                "start",
+                "step",
+                "verify",
+            ):
+                await send(
+                    {
+                        "type": "error",
+                        "message": "Pending interrupt: send resume or cancel_interrupt first",
+                    }
+                )
+                continue
+
+            if msg_type == "resume":
+                if not pending_api_call_resume:
+                    await send(
+                        {"type": "error", "message": "No interrupt to resume"}
+                    )
+                    continue
+                from echo_prism_agent.hitl.api_call_gate import get_api_call_gate_graph
+                from langgraph.types import Command
+
+                cfg = pending_api_call_resume["config"]
+                graph = get_api_call_gate_graph()
+                resume_val = data.get("resume", True)
+                result = await graph.ainvoke(Command(resume=resume_val), config=cfg)
+                step_ix = pending_api_call_resume.get("step_index", -1)
+                pending_api_call_resume = None
+                intr = result.get("__interrupt__")
+                if intr:
+                    payload = _interrupt_payload(intr)
+                    pending_api_call_resume = {"config": cfg, "step_index": step_ix}
+                    await send(
+                        {
+                            "type": "action",
+                            "signal": "interrupt",
+                            "thought": "",
+                            "payload": payload,
+                            "step_index": step_ix,
+                        }
+                    )
+                    continue
+                if result.get("ok"):
+                    await send(
+                        {
+                            "type": "action",
+                            "thought": "",
+                            "signal": "step_done",
+                        }
+                    )
+                else:
+                    await send(
+                        {
+                            "type": "error",
+                            "message": result.get("error") or "api_call failed",
+                        }
+                    )
+                continue
+
+            if msg_type == "cancel_interrupt":
+                if pending_api_call_resume:
+                    pending_api_call_resume = None
+                    await send({"type": "ready", "cancelled_interrupt": True})
+                else:
+                    await send({"type": "error", "message": "No pending interrupt"})
+                continue
 
             if msg_type == "start":
                 workflow_id = data.get("workflow_id", "")
@@ -265,6 +343,7 @@ async def agent_run_ws(
                 screenshot_b64 = data.get("screenshot_b64")
                 history_summary = data.get("history_summary", "")
                 last_error = data.get("last_error", "")
+                typing_override = (data.get("typing_override") or "").strip()
 
                 if goal_only and (step_index == 0 or step_index == 1):
                     logger.info(
@@ -289,15 +368,46 @@ async def agent_run_ws(
                         step.get("params", {}),
                     )
                     if action == "apicall" or step.get("action") == "api_call":
-                        ok, err = await execute_api_call(step, uid, db)
-                        if ok:
-                            await send({
-                                "type": "action",
-                                "thought": "",
-                                "signal": "step_done",
-                            })
+                        from echo_prism_agent.hitl.api_call_gate import get_api_call_gate_graph
+
+                        # Stable thread so HITL resumes match this step; random id caused each retry to restart approval.
+                        tid = f"{workflow_id}-{run_id}-s{step_index}"
+                        gate_cfg = {"configurable": {"thread_id": tid, "uid": uid, "db": db}}
+                        graph = get_api_call_gate_graph()
+                        result = await graph.ainvoke({"step": step}, config=gate_cfg)
+                        intr = result.get("__interrupt__")
+                        if intr:
+                            payload = _interrupt_payload(intr)
+                            pending_api_call_resume = {
+                                "config": gate_cfg,
+                                "step_index": step_index,
+                            }
+                            await send(
+                                {
+                                    "type": "action",
+                                    "signal": "interrupt",
+                                    "thought": "",
+                                    "payload": payload,
+                                    "step_index": step_index,
+                                }
+                            )
+                            continue
+                        if result.get("ok"):
+                            await send(
+                                {
+                                    "type": "action",
+                                    "thought": "",
+                                    "signal": "step_done",
+                                }
+                            )
                         else:
-                            await send({"type": "error", "message": err or "api_call failed"})
+                            await send(
+                                {
+                                    "type": "error",
+                                    "message": result.get("error")
+                                    or "api_call failed",
+                                }
+                            )
                     else:
                         action_dict = step_to_action(step)
                         logger.info(
@@ -323,6 +433,25 @@ async def agent_run_ws(
                     await send({"type": "error", "message": "Invalid screenshot_b64"})
                     continue
 
+                capture_w = data.get("capture_width")
+                capture_h = data.get("capture_height")
+                if capture_w is not None and capture_h is not None:
+                    try:
+                        cw, ch = int(capture_w), int(capture_h)
+                        if cw > 0 and ch > 0:
+                            logger.debug(
+                                "WS step %d: client capture dimensions %dx%d",
+                                step_index,
+                                cw,
+                                ch,
+                            )
+                    except (TypeError, ValueError):
+                        pass
+
+                async def send_thinking_delta(piece: str) -> None:
+                    if piece:
+                        await send({"type": "thinking_delta", "delta": piece})
+
                 total = 1 if goal_only else (len(steps) if steps else 1)
                 result, thought, action_str, parsed_action, err = await run_ambiguous_step_inference(
                     screenshot_bytes=screenshot_bytes,
@@ -334,10 +463,14 @@ async def agent_run_ws(
                     api_key=api_key,
                     owner_uid=uid,
                     db=db,
+                    workflow_id=workflow_id,
+                    run_id=run_id,
                     cached_prompt=cached_prompt,
                     last_error_from_client=last_error,
                     goal_only=goal_only,
                     goal=goal if goal_only else None,
+                    thinking_delta_cb=send_thinking_delta,
+                    typing_override=typing_override,
                 )
 
                 if result == "finished":

@@ -1,4 +1,4 @@
-"""OpenRouter chat/completions (HTTP) for UI-Tars vision models."""
+"""OpenRouter chat/completions (HTTP) for UI-TARS vision models — mirrors UI-TARS-desktop ``UITarsModel`` + OpenRouter."""
 
 from __future__ import annotations
 
@@ -11,11 +11,21 @@ from typing import Any
 
 import requests
 
+from echo_prism_agent.constants import (
+    OPENROUTER_BASE_URL_DEFAULT,
+    effective_ui_tars_model_id,
+    OPENROUTER_HTTP_REFERER_DEFAULT,
+    OPENROUTER_TITLE_DEFAULT,
+)
+
 logger = logging.getLogger(__name__)
 
 
 def system_prompt_suffix() -> str:
-    """Append when `UI_TARS_PROVIDER_PROFILE` is set (e.g. ui-tars-1.5/v1_5)."""
+    """Append when ``ECHOPRISM_VLM_SYSTEM_SUFFIX`` or legacy ``UI_TARS_PROVIDER_PROFILE`` is set."""
+    extra = (os.environ.get("ECHOPRISM_VLM_SYSTEM_SUFFIX") or "").strip()
+    if extra:
+        return f"\n\n{extra}"
     profile = (os.environ.get("UI_TARS_PROVIDER_PROFILE") or "").strip()
     if not profile:
         return ""
@@ -24,6 +34,19 @@ def system_prompt_suffix() -> str:
         f"Follow UI-TARS conventions for profile `{profile}` "
         f"(coordinate frame 0–1000, Thought/Action lines).\n"
     )
+
+
+def _data_url_for_image(data: bytes) -> str:
+    b64 = base64.standard_b64encode(data).decode("ascii")
+    if len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n":
+        mime = "image/png"
+    elif len(data) >= 2 and data[:2] == b"\xff\xd8":
+        mime = "image/jpeg"
+    elif len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        mime = "image/webp"
+    else:
+        mime = "image/png"
+    return f"data:{mime};base64,{b64}"
 
 
 def _post_chat_completions(
@@ -49,8 +72,10 @@ async def chat_completions_vision(
     extra_image_parts: list[bytes] | None = None,
 ) -> tuple[str | None, str | None]:
     """
-    Call OpenRouter chat/completions with one primary screenshot + optional extra images.
-    Returns (assistant_text, error_message).
+    Call OpenRouter ``/chat/completions`` with one primary screenshot + optional extras.
+
+    Defaults follow UI-TARS-desktop ``UITarsModel`` / ``Model.ts`` (temperature 0, top_p 0.7,
+    OpenAI-compatible client pointed at OpenRouter).
     """
     api_key = (os.environ.get("OPENROUTER_API_KEY") or "").strip()
     if not api_key:
@@ -58,35 +83,36 @@ async def chat_completions_vision(
 
     system = system + system_prompt_suffix()
 
-    model = os.environ.get("UI_TARS_MODEL_ID", "bytedance/ui-tars-1.5-7b")
-    base = (os.environ.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
+    model = effective_ui_tars_model_id()
+    base = (os.environ.get("OPENROUTER_BASE_URL") or OPENROUTER_BASE_URL_DEFAULT).rstrip("/")
     chat_url = f"{base}/chat/completions"
-
-    def _b64(data: bytes) -> str:
-        return base64.standard_b64encode(data).decode("ascii")
 
     content: list[dict[str, Any]] = [
         {"type": "text", "text": user_text},
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{_b64(image_png_bytes)}"},
-        },
+        {"type": "image_url", "image_url": {"url": _data_url_for_image(image_png_bytes)}},
     ]
     if extra_image_parts:
-        for img in extra_image_parts[:2]:
-            content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{_b64(img)}"},
-                }
-            )
+        for img in extra_image_parts[: max(0, int(os.environ.get("ECHOPRISM_OPENROUTER_EXTRA_IMAGES_MAX", "4") or 4))]:
+            content.append({"type": "image_url", "image_url": {"url": _data_url_for_image(img)}})
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": os.environ.get("OPENROUTER_HTTP_REFERER", "https://echo.local"),
-        "X-OpenRouter-Title": os.environ.get("OPENROUTER_TITLE", "Echo Prism LangGraph"),
+        "HTTP-Referer": os.environ.get("OPENROUTER_HTTP_REFERER", OPENROUTER_HTTP_REFERER_DEFAULT),
+        "X-Title": os.environ.get("OPENROUTER_TITLE", OPENROUTER_TITLE_DEFAULT),
+        "X-OpenRouter-Title": os.environ.get("OPENROUTER_TITLE", OPENROUTER_TITLE_DEFAULT),
     }
+
+    # UI-TARS-desktop ``UITarsModel`` uses temperature=0, top_p=0.7 by default.
+    temperature = float(os.environ.get("ECHOPRISM_OPENROUTER_TEMPERATURE", "0"))
+    top_p = float(os.environ.get("ECHOPRISM_OPENROUTER_TOP_P", "0.7"))
+    max_tokens = int(
+        os.environ.get(
+            "ECHOPRISM_OPENROUTER_MAX_TOKENS",
+            os.environ.get("ECHOPRISM_OPENROUTER_MAX_TOKENS_1_5", "2048"),
+        )
+        or 2048
+    )
 
     payload: dict[str, Any] = {
         "model": model,
@@ -94,8 +120,9 @@ async def chat_completions_vision(
             {"role": "system", "content": system},
             {"role": "user", "content": content},
         ],
-        "temperature": float(os.environ.get("ECHOPRISM_OPENROUTER_TEMPERATURE", "0.2")),
-        "max_tokens": int(os.environ.get("ECHOPRISM_OPENROUTER_MAX_TOKENS", "1024")),
+        "temperature": temperature,
+        "top_p": top_p,
+        "max_tokens": max_tokens,
     }
 
     timeout = float(os.environ.get("ECHOPRISM_OPENROUTER_TIMEOUT_S", "120"))

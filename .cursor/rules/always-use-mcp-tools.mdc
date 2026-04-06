@@ -9,6 +9,8 @@ When a task involves an MCP server's domain, **use MCP tools instead of web sear
 
 - **LiveKit**: Use the `user-livekit-docs` MCP (docs_search, get_pages, get_docs_overview, etc.) for LiveKit Agents, sessions, Agents UI, and self-hosting.
 - **Firebase**: Use the `user-Firebase` MCP for Firestore, Auth, and Firebase setup.
+- **Auth0 (tenant / Management API)**: Use the `user-auth0` MCP for Auth0 applications, Actions, Forms, resource servers (APIs), logs, and tenant configuration—instead of manual Dashboard steps or generic web search.
+- **Auth0 for AI Agents (documentation)**: Use the `user-Auth0_for_AI_Agents` MCP (`search_auth0`, `get_page_auth0`) for Auth0 for AI Agents product docs—Token Vault, Connected Accounts, Connections, OAuth/token exchange, and SDK quickstarts. Prefer it over web search; use the [Auth0 AI docs index](https://auth0.com/ai/docs/llms.txt) to discover page paths before fetching full pages.
 - **Supabase**: Use the `user-Supabase` MCP for Supabase auth, database, and storage.
 - **LangChain**: Use the `user-docs-langchain` MCP for LangChain documentation, API reference, and patterns.
 - **Tailwind**: Use the `user-tailwindcss-server` MCP for Tailwind classes, config, and design tokens.
@@ -18,4 +20,4 @@ When a task involves an MCP server's domain, **use MCP tools instead of web sear
 - **Vercel Platform**: Use the `plugin-vercel-vercel` MCP for Vercel deployments, environments, and platform APIs.
 - **Browser**: Use the `cursor-ide-browser` MCP for web testing, visual inspection, and interactive canvases.
 
-Before calling an MCP tool, check its schema/descriptor in the MCP folder under `mcps/<server>/tools/`.
+Before calling an MCP tool, check its schema/descriptor in the MCP folder under `mcps/<server>/tools/` (Auth0: `user-auth0` for Management API tools; `user-Auth0_for_AI_Agents` for docs search).

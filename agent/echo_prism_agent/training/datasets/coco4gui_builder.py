@@ -7,26 +7,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from echo_prism_agent.constants import DEFAULT_CATEGORIES
+
 from .coco4gui_schema import (
     COCO4GUIAnnotation,
     COCO4GUICategory,
     COCO4GUIDataset,
     COCO4GUIImage,
 )
-
-DEFAULT_CATEGORIES = [
-    {"id": 1, "name": "click", "supercategory": "interaction"},
-    {"id": 2, "name": "type", "supercategory": "interaction"},
-    {"id": 3, "name": "select", "supercategory": "interaction"},
-    {"id": 4, "name": "hover", "supercategory": "interaction"},
-    {"id": 5, "name": "drag", "supercategory": "interaction"},
-    {"id": 6, "name": "right_click", "supercategory": "interaction"},
-    {"id": 7, "name": "double_click", "supercategory": "interaction"},
-    {"id": 8, "name": "scroll", "supercategory": "interaction"},
-    {"id": 9, "name": "swipe", "supercategory": "interaction"},
-    {"id": 10, "name": "long_press", "supercategory": "interaction"},
-    {"id": 11, "name": "focus", "supercategory": "interaction"},
-]
 
 
 def _round3(v: float) -> float:

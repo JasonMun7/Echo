@@ -2,6 +2,9 @@
 POST /api/synthesize: create workflow from video or screenshots.
 
 Delegates synthesis logic to synthesis.pipeline; handles HTTP, auth, GCS, Firestore.
+Workflow JSON may include ``api_call`` steps; allowed integrations and methods are injected into
+synthesis prompts from ``echo_prism_agent.integrations.api_call_catalog`` (see ``METHODS`` on each
+connector in ``echo_prism_agent.integrations.{slack,github,google}``).
 """
 import os
 import re
@@ -262,6 +265,7 @@ async def synthesize_from_description_impl(
         description, name, workflow_type, client
     )
     steps_data = result.get("steps", [])
+    variables = result.get("variables", [])
     actual_type = result.get("workflow_type", workflow_type)
     if actual_type not in ("browser", "desktop"):
         actual_type = "browser"
@@ -284,6 +288,7 @@ async def synthesize_from_description_impl(
             "workflow_type": actual_type,
             "status": "ready",
             "updatedAt": SERVER_TIMESTAMP,
+            "variables": sorted(variables) if variables else [],
         }
     )
     return workflow_id

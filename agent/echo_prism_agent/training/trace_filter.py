@@ -9,7 +9,7 @@ Two-pass scoring:
     - error field present → bad
     - empty/unparseable action → bad
     - duplicate consecutive action → bad (redundant)
-    - Wait(seconds > 10) → bad (excessive)
+    - Wait(seconds > WAIT_EXCESS_THRESHOLD_SECONDS) → bad (excessive)
     - steps not flagged → unknown
 
   Pass 2 — Gemini VLM scoring (unknown steps only):
@@ -27,34 +27,15 @@ import os
 import re
 from typing import Any
 
+from echo_prism_agent.constants import DEFAULT_TRACE_SCORING_MODEL, WAIT_EXCESS_THRESHOLD_SECONDS
+from echo_prism_agent.model_prompts import TRACE_SCORING_PROMPT as _SCORING_PROMPT
+
 logger = logging.getLogger(__name__)
 
 # Pass 2 VLM scoring (offline / CLI only; override via env)
 TRACE_SCORING_MODEL = os.environ.get(
-    "ECHOPRISM_TRACE_SCORING_MODEL", "gemini-3-flash-preview"
+    "ECHOPRISM_TRACE_SCORING_MODEL", DEFAULT_TRACE_SCORING_MODEL
 )
-
-
-_SCORING_PROMPT = """You are reviewing a step from an AI UI automation agent.
-The agent output a Thought (its reasoning) and an Action (what it did).
-
-Thought: {thought}
-Action: {action}
-
-Evaluate:
-1. Does the Thought correctly reason about the UI state?
-2. Does the Action logically follow from the Thought?
-3. Is there a more accurate or efficient Thought that would lead to the same or better Action?
-
-Respond in exactly this format (no extra lines):
-QUALITY: good
-REASON: <one sentence>
-
-OR if the thought/action pair has problems:
-QUALITY: bad
-REASON: <one sentence explaining the problem>
-CORRECTED_THOUGHT: <an improved thought that better describes the reasoning>
-"""
 
 
 def _is_duplicate(entry: dict, prior_entry: dict | None) -> bool:
@@ -74,10 +55,10 @@ def _is_duplicate(entry: dict, prior_entry: dict | None) -> bool:
 
 
 def _is_excessive_wait(action_str: str) -> bool:
-    """Return True if action is Wait(N) with N > 10."""
+    """Return True if action is Wait(N) with N > WAIT_EXCESS_THRESHOLD_SECONDS."""
     m = re.match(r"wait\((\d+(?:\.\d+)?)\)", action_str.strip(), re.IGNORECASE)
     if m:
-        return float(m.group(1)) > 10
+        return float(m.group(1)) > WAIT_EXCESS_THRESHOLD_SECONDS
     return False
 
 

@@ -1,0 +1,318 @@
+"""
+EchoPrism LiveKit Agent — Gemini Live API + EchoPrism tools via backend HTTP.
+
+Agent joins LiveKit rooms, uses google.realtime.RealtimeModel for voice,
+and executes EchoPrism tools by calling the backend /api/agent/tool endpoint.
+Sends run_started data packets so the desktop can auto-start runs.
+
+Telephony: EndCallTool for graceful hang-up when user says goodbye.
+"""
+import json
+import logging
+import os
+from typing import Any
+
+import httpx
+from livekit.agents import Agent, RunContext, function_tool, get_job_context
+
+from echo_prism_agent.constants import DEFAULT_AGENT_BACKEND_URL, LIVEKIT_DATA_TOPIC, LIVEKIT_TOOL_HTTP_TIMEOUT_S
+
+logger = logging.getLogger(__name__)
+
+# EndCallTool: graceful hang-up for telephony (Python only)
+try:
+    from livekit.agents.beta.tools import EndCallTool as _EndCallTool
+
+    _end_call_tool_instance = _EndCallTool(
+        extra_description="End the call when the user says goodbye, thanks, or asks to hang up.",
+        delete_room=True,
+        end_instructions="Say a brief goodbye and thank them for calling.",
+    )
+    _END_CALL_TOOLS = _end_call_tool_instance.tools
+except Exception as e:
+    logger.debug("EndCallTool not available: %s", e)
+    _END_CALL_TOOLS = []
+
+
+from echo_prism_agent.model_prompts import (
+    ECHOPRISM_SYSTEM_PROMPT,
+    INTERRUPTION_SYSTEM_PROMPT_PREFIX,
+)
+
+
+def _get_backend_url() -> str:
+    return (
+        os.environ.get("VITE_ECHO_AGENT_URL")
+        or os.environ.get("ECHOPRISM_AGENT_URL")
+        or DEFAULT_AGENT_BACKEND_URL
+    ).rstrip("/")
+
+
+def _get_agent_secret() -> str:
+    return os.environ.get("LIVEKIT_AGENT_SECRET", "")
+
+
+async def _call_tool(uid: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Call backend /api/agent/tool and return the result."""
+    url = f"{_get_backend_url()}/api/agent/tool"
+    secret = _get_agent_secret()
+    if not secret:
+        return {"ok": False, "error": "LIVEKIT_AGENT_SECRET not configured"}
+    async with httpx.AsyncClient(timeout=LIVEKIT_TOOL_HTTP_TIMEOUT_S) as client:
+        resp = await client.post(
+            url,
+            json={"uid": uid, "name": name, "args": args},
+            headers={"X-Agent-Secret": secret},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+def _get_participant_uid(ctx: RunContext) -> str:
+    """Get uid for tool calls: resolved from phone lookup (SIP) when set, else participant identity."""
+    from echo_prism_agent.voice.livekit import phone_lookup
+
+    job_ctx = get_job_context()
+    room = job_ctx.room
+    resolved = phone_lookup.get_resolved_uid(room.name)
+    if resolved:
+        return resolved
+    for p in room.remote_participants.values():
+        return p.identity or "unknown"
+    return "unknown"
+
+
+def _get_interruption_context() -> dict[str, str]:
+    """Return {workflow_id, run_id} from participant attributes if in interruption mode."""
+    try:
+        job_ctx = get_job_context()
+        for p in job_ctx.room.remote_participants.values():
+            attrs = p.attributes or {}
+            if attrs.get("mode") == "voice-interruption":
+                return {
+                    "workflow_id": attrs.get("workflow_id", ""),
+                    "run_id": attrs.get("run_id", ""),
+                }
+    except Exception:
+        pass
+    return {"workflow_id": "", "run_id": ""}
+
+
+async def _publish_run_started(
+    workflow_id: str,
+    run_id: str,
+    goal: str | None = None,
+    goal_only: bool = False,
+) -> None:
+    """Notify the desktop to start the run via LiveKit data packet."""
+    try:
+        job_ctx = get_job_context()
+        room = job_ctx.room
+        data: dict[str, Any] = {
+            "type": "run_started",
+            "workflowId": workflow_id,
+            "runId": run_id,
+        }
+        if goal_only and goal:
+            data["goalOnly"] = True
+            data["goal"] = goal
+        payload = json.dumps(data)
+        await room.local_participant.publish_data(
+            payload.encode("utf-8"),
+            reliable=True,
+            topic=LIVEKIT_DATA_TOPIC,
+        )
+    except Exception as e:
+        logger.warning("Failed to publish run_started: %s", e)
+
+
+async def _publish_run_control(event_type: str, workflow_id: str = "", run_id: str = "") -> None:
+    """Publish a run-control event (resume_run, cancel_run) so the voice overlay can act."""
+    try:
+        job_ctx = get_job_context()
+        room = job_ctx.room
+        payload = json.dumps({
+            "type": event_type,
+            "workflowId": workflow_id,
+            "runId": run_id,
+        })
+        await room.local_participant.publish_data(
+            payload.encode("utf-8"),
+            reliable=True,
+            topic=LIVEKIT_DATA_TOPIC,
+        )
+    except Exception as e:
+        logger.warning("Failed to publish %s: %s", event_type, e)
+
+
+class LiveKitEchoPrismAgent(Agent):
+    """EchoPrism voice agent with tools delegated to backend. Includes EndCallTool for telephony."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            instructions=ECHOPRISM_SYSTEM_PROMPT,
+            tools=_END_CALL_TOOLS,
+        )
+
+    @function_tool()
+    async def list_workflows(self, context: RunContext) -> dict[str, Any]:
+        """List the user's workflows. Returns names and IDs."""
+        uid = _get_participant_uid(context)
+        return await _call_tool(uid, "list_workflows", {})
+
+    @function_tool()
+    async def run_workflow(
+        self,
+        context: RunContext,
+        workflow_name: str = "",
+        workflow_id: str = "",
+    ) -> dict[str, Any]:
+        """Start a workflow by name or by ID. Prefer workflow_name when the user says a name (e.g. 'run Research New Fighting Games'); use workflow_id when you have it from list_workflows. At least one of workflow_name or workflow_id is required."""
+        uid = _get_participant_uid(context)
+        result = await _call_tool(uid, "run_workflow", {
+            "workflow_id": workflow_id,
+            "workflow_name": workflow_name,
+        })
+        if result.get("ok") and result.get("run_id") and result.get("workflow_id"):
+            await _publish_run_started(result["workflow_id"], result["run_id"])
+        return result
+
+    @function_tool()
+    async def redirect_run(
+        self,
+        context: RunContext,
+        instruction: str,
+        workflow_id: str = "",
+        run_id: str = "",
+    ) -> dict[str, Any]:
+        """Inject a mid-run instruction for EchoPrism to follow. During voice interruption, workflow_id and run_id can be omitted — they are inferred automatically."""
+        uid = _get_participant_uid(context)
+        if not workflow_id or not run_id:
+            ctx = _get_interruption_context()
+            workflow_id = workflow_id or ctx["workflow_id"]
+            run_id = run_id or ctx["run_id"]
+        return await _call_tool(uid, "redirect_run", {
+            "workflow_id": workflow_id,
+            "run_id": run_id,
+            "instruction": instruction,
+        })
+
+    @function_tool()
+    async def cancel_run(
+        self,
+        context: RunContext,
+        workflow_id: str = "",
+        run_id: str = "",
+    ) -> dict[str, Any]:
+        """Cancel a running workflow execution."""
+        uid = _get_participant_uid(context)
+        # Fall back to participant attributes when called during voice interruption
+        if not workflow_id or not run_id:
+            ctx = _get_interruption_context()
+            workflow_id = workflow_id or ctx["workflow_id"]
+            run_id = run_id or ctx["run_id"]
+        result = await _call_tool(uid, "cancel_run", {
+            "workflow_id": workflow_id,
+            "run_id": run_id,
+        })
+        # Signal the voice overlay to close and cancel
+        await _publish_run_control("cancel_run", workflow_id, run_id)
+        return result
+
+    @function_tool()
+    async def resume_run(
+        self,
+        context: RunContext,
+        workflow_id: str = "",
+        run_id: str = "",
+    ) -> dict[str, Any]:
+        """Resume the paused workflow after the user has given guidance. Call this after redirect_run (if redirecting) or on its own to simply continue."""
+        # Fall back to participant attributes when IDs are not provided
+        if not workflow_id or not run_id:
+            ctx = _get_interruption_context()
+            workflow_id = workflow_id or ctx["workflow_id"]
+            run_id = run_id or ctx["run_id"]
+        await _publish_run_control("resume_run", workflow_id, run_id)
+        return {"ok": True, "message": "Resuming workflow"}
+
+    @function_tool()
+    async def dismiss_calluser(
+        self,
+        context: RunContext,
+        workflow_id: str,
+        run_id: str,
+    ) -> dict[str, Any]:
+        """Dismiss a workflow run awaiting user input."""
+        uid = _get_participant_uid(context)
+        return await _call_tool(uid, "dismiss_calluser", {
+            "workflow_id": workflow_id,
+            "run_id": run_id,
+        })
+
+    @function_tool()
+    async def run_adhoc(
+        self,
+        context: RunContext,
+        instruction: str,
+        workflow_type: str = "browser",
+        workflow_name: str = "",
+    ) -> dict[str, Any]:
+        """Execute a one-off task immediately without saving a workflow."""
+        uid = _get_participant_uid(context)
+        result = await _call_tool(uid, "run_adhoc", {
+            "instruction": instruction,
+            "workflow_type": workflow_type,
+            "workflow_name": workflow_name or instruction[:50] or "Ad-hoc run",
+        })
+        if result.get("ok") and result.get("run_id") and result.get("workflow_id"):
+            await _publish_run_started(
+                result["workflow_id"],
+                result["run_id"],
+                goal=result.get("goal"),
+                goal_only=result.get("goal_only", False),
+            )
+        return result
+
+    @function_tool()
+    async def synthesize_from_description(
+        self,
+        context: RunContext,
+        description: str,
+        workflow_name: str,
+        workflow_type: str = "browser",
+    ) -> dict[str, Any]:
+        """Create a new workflow from a natural language description."""
+        uid = _get_participant_uid(context)
+        return await _call_tool(uid, "synthesize_from_description", {
+            "description": description,
+            "workflow_name": workflow_name,
+            "workflow_type": workflow_type,
+        })
+
+    @function_tool()
+    async def start_screen_recording(self, context: RunContext) -> dict[str, Any]:
+        """Tell the frontend to start a screen recording for workflow synthesis."""
+        uid = _get_participant_uid(context)
+        return await _call_tool(uid, "start_screen_recording", {})
+
+    @function_tool()
+    async def list_integrations(self, context: RunContext) -> dict[str, Any]:
+        """List the user's connected app integrations (Slack, Gmail, etc.)."""
+        uid = _get_participant_uid(context)
+        return await _call_tool(uid, "list_integrations", {})
+
+    @function_tool()
+    async def call_integration(
+        self,
+        context: RunContext,
+        integration: str,
+        method: str,
+        args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Execute a connected app integration action."""
+        uid = _get_participant_uid(context)
+        return await _call_tool(uid, "call_integration", {
+            "integration": integration,
+            "method": method,
+            "args": args or {},
+        })

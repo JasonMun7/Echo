@@ -6,12 +6,26 @@ Token optimization for screenshot-heavy workloads.
 - Observation window (last N screenshots)
 - Text summaries for older steps
 """
+from __future__ import annotations
+
 import io
 import logging
 import math
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
+
+from echo_prism_agent.constants import (
+    HIGH_DETAIL_MAX_PIXELS,
+    LOW_DETAIL_MAX_PIXELS,
+    MAX_PIXELS_UI_TARS_1_5,
+    MAX_PIXELS_V1_0,
+    MAX_RATIO,
+    MIN_PIXELS,
+    RESIZE_FACTOR,
+    effective_ui_tars_model_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +37,8 @@ try:
 except ImportError:
     HAS_PIL = False
 
-# --- UI-TARS Smart Resize Constants ---
-# These ensure consistent coordinate scaling for VLM input.
-MIN_PIXELS = 300 * 300        # Don't shrink below this
-MAX_PIXELS = 1024 * 1024      # Don't exceed this (matches VLM context windows)
-MAX_RATIO = 4.0               # Max aspect ratio before padding
-RESIZE_FACTOR = 28            # Round dimensions to this factor (VLM patch size)
-
-# --- Detail level thresholds (adapted from UI-TARS) ---
-LOW_DETAIL_MAX_PIXELS = 1024 * 1024      # ≤ this → low detail
-HIGH_DETAIL_MAX_PIXELS = 2048 * 1960     # ≤ this → high detail
+# Legacy alias (non–1.5 heuristic)
+MAX_PIXELS = MAX_PIXELS_V1_0
 
 
 def smart_resize(
@@ -40,7 +46,7 @@ def smart_resize(
     height: int,
     factor: int = RESIZE_FACTOR,
     min_pixels: int = MIN_PIXELS,
-    max_pixels: int = MAX_PIXELS,
+    max_pixels: int = MAX_PIXELS_V1_0,
     max_ratio: float = MAX_RATIO,
 ) -> tuple[int, int]:
     """
@@ -79,6 +85,77 @@ def smart_resize(
     new_h = max(factor, round(height / factor) * factor)
 
     return new_w, new_h
+
+
+def _round_by_factor(num: float, factor: int) -> int:
+    return int(round(num / factor) * factor)
+
+
+def _floor_by_factor(num: float, factor: int) -> int:
+    return int(math.floor(num / factor) * factor)
+
+
+def _ceil_by_factor(num: float, factor: int) -> int:
+    return int(math.ceil(num / factor) * factor)
+
+
+def smart_resize_for_v15(
+    width: int,
+    height: int,
+    *,
+    max_ratio: float = MAX_RATIO,
+    factor: int = RESIZE_FACTOR,
+    min_pixels: int = MIN_PIXELS,
+    max_pixels: int = MAX_PIXELS_UI_TARS_1_5,
+) -> tuple[int, int] | None:
+    """Parity with UI-TARS-desktop ``smartResizeForV15`` (``actionParser.ts``)."""
+    if width <= 0 or height <= 0:
+        return None
+    if max(width, height) / min(width, height) > max_ratio:
+        return None
+    w_bar = max(factor, _round_by_factor(width, factor))
+    h_bar = max(factor, _round_by_factor(height, factor))
+    if h_bar * w_bar > max_pixels:
+        beta = math.sqrt((height * width) / max_pixels)
+        h_bar = _floor_by_factor(height / beta, factor)
+        w_bar = _floor_by_factor(width / beta, factor)
+    elif h_bar * w_bar < min_pixels:
+        beta = math.sqrt(min_pixels / (height * width))
+        h_bar = _ceil_by_factor(height * beta, factor)
+        w_bar = _ceil_by_factor(width * beta, factor)
+    return (w_bar, h_bar)
+
+
+def centered_square_letterbox_margins(
+    content_w: int,
+    content_h: int,
+    square: int,
+) -> tuple[float, float, float, float]:
+    """Fractional LTRB margins when ``content_w``×``content_h`` is letterboxed in a ``square`` canvas."""
+    s = float(square)
+    scale = min(s / float(content_w), s / float(content_h))
+    fw = content_w * scale
+    fh = content_h * scale
+    ox = (s - fw) / 2.0
+    oy = (s - fh) / 2.0
+    return (ox / s, oy / s, ox / s, oy / s)
+
+
+def _use_ui_tars_v15() -> bool:
+    mid = effective_ui_tars_model_id().lower()
+    if "1.5" in mid or "ui-tars-1.5" in mid:
+        return True
+    ver = (os.environ.get("ECHOPRISM_UI_TARS_VERSION") or "").strip().lower()
+    return ver in ("1.5", "v1.5", "v1_5")
+
+
+def vlm_resize_dimensions(width: int, height: int) -> tuple[int, int]:
+    """Dimensions after UI-TARS-style preprocessing (``observe_screen`` / coord remap)."""
+    if _use_ui_tars_v15():
+        out = smart_resize_for_v15(width, height)
+        if out is not None:
+            return out
+    return smart_resize(width, height)
 
 
 def get_detail_level(width: int, height: int) -> str:
@@ -126,7 +203,15 @@ def compress_screenshot(
         w, h = img.size
 
         if use_smart_resize:
-            new_w, new_h = smart_resize(w, h)
+            if _use_ui_tars_v15():
+                dims = smart_resize_for_v15(w, h)
+                if dims is not None:
+                    new_w, new_h = dims
+                else:
+                    # Match ``vlm_resize_dimensions`` fallback (not raw w×h).
+                    new_w, new_h = smart_resize(w, h)
+            else:
+                new_w, new_h = smart_resize(w, h)
             if (new_w, new_h) != (w, h):
                 img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                 logger.debug(

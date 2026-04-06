@@ -1,3 +1,3 @@
-"""EchoPrism — LangGraph (`agent.py`), modalities, OpenRouter inference."""
+"""EchoPrism — LangGraph (`agent.py`), voice, OpenRouter inference."""
 
-__version__ = "0.1.0"
+from echo_prism_agent.constants import PACKAGE_VERSION as __version__

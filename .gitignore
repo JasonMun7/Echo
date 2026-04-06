@@ -100,6 +100,14 @@ backend/service-account.json
 *.pem
 *.key
 
+# Google Cloud / OAuth client downloads (gcloud, Google Cloud Console) — never commit
+application_default_credentials.json
+**/application_default_credentials.json
+client_secret*.json
+*-oauth-client.json
+google-credentials.json
+gcp-local-*.json
+
 # -----------------------------------------------------------------------------
 # Testing & coverage
 # -----------------------------------------------------------------------------

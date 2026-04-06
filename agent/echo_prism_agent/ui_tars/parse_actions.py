@@ -28,12 +28,24 @@ class CoordinateTransformer:
 
     screen_width_px: int
     screen_height_px: int
+    margin_ltrb: tuple[float, float, float, float] | None = None
 
     def to_pixel(self, x_norm: float, y_norm: float) -> tuple[int, int]:
         """Convert normalized 0–1000 coords to integer pixel coords."""
-        x = round(float(x_norm) / 1000.0 * self.screen_width_px)
-        y = round(float(y_norm) / 1000.0 * self.screen_height_px)
-        return max(0, min(self.screen_width_px, x)), max(0, min(self.screen_height_px, y))
+        xn = float(x_norm)
+        yn = float(y_norm)
+        if self.margin_ltrb:
+            ml, mt, mr, mb = self.margin_ltrb
+            cw = max(1e-9, 1.0 - ml - mr)
+            ch = max(1e-9, 1.0 - mt - mb)
+            x = ml * self.screen_width_px + (xn / 1000.0) * cw * self.screen_width_px
+            y = mt * self.screen_height_px + (yn / 1000.0) * ch * self.screen_height_px
+        else:
+            x = (xn / 1000.0) * self.screen_width_px
+            y = (yn / 1000.0) * self.screen_height_px
+        xi = int(round(x))
+        yi = int(round(y))
+        return max(0, min(self.screen_width_px, xi)), max(0, min(self.screen_height_px, yi))
 
 
 def _strip_markdown_code_fences(text: str) -> str:
@@ -136,6 +148,48 @@ def _parse_coords_multi(s: str, count: int) -> list[int] | None:
     return [int(round(n)) for n in nums[:count]]
 
 
+def _parse_quoted_string_literal(s: str) -> tuple[str, int] | None:
+    """
+    Parse a Python-like quoted string whose opening quote is s[0] (' or ").
+    Backslash escapes the next character (e.g. \\', \\", \\\\).
+    Returns (decoded_text, end_index_exclusive) or None if unclosed or not a literal.
+    """
+    if not s:
+        return None
+    q = s[0]
+    if q not in "'\"":
+        return None
+    i = 1
+    out: list[str] = []
+    while i < len(s):
+        c = s[i]
+        if c == "\\":
+            if i + 1 < len(s):
+                out.append(s[i + 1])
+                i += 2
+            else:
+                out.append("\\")
+                i += 1
+        elif c == q:
+            return ("".join(out), i + 1)
+        else:
+            out.append(c)
+            i += 1
+    return None
+
+
+def _extract_named_string_param(args_str: str, param: str) -> str | None:
+    """Parse param='...' or param=\"...\" with correct handling of \\\\' inside quotes."""
+    m = re.search(rf"\b{re.escape(param)}\s*=\s*", args_str, re.IGNORECASE)
+    if not m:
+        return None
+    rest = args_str[m.end() :].lstrip()
+    parsed = _parse_quoted_string_literal(rest)
+    if parsed is None:
+        return None
+    return parsed[0]
+
+
 def parse_action(text: str) -> dict[str, Any] | None:
     """
     Extract Action: <action>(<params>) from model output.
@@ -165,7 +219,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
     if not action_line:
         # Fallback: look for ActionName(...) anywhere in text without "Action:" prefix
         fb = re.search(
-            r"\b(Click|left_click|left_single|RightClick|right_click|right_single|DoubleClick|double_click|left_double|ClickAndType|DragAndDrop|Drag|Scroll|Type|Hotkey|Wait|PressKey|Navigate|OpenApp|FocusApp|Finished|CallUser|HoverToRead|Hover|LongPress|ReadClipboard|Copy|Paste|AppleScript|PowerShell|mouse_move|SelectOption)\s*\((.*?)\)",
+            r"\b(click|left_double|right_single|Click|left_click|left_single|RightClick|right_click|right_single|DoubleClick|double_click|left_double|ClickAndType|DragAndDrop|Drag|Scroll|Type|Hotkey|Wait|PressKey|Navigate|OpenApp|FocusApp|Finished|CallUser|call_user|HoverToRead|Hover|LongPress|ReadClipboard|Copy|Paste|AppleScript|PowerShell|mouse_move|SelectOption)\s*\((.*?)\)",
             text,
             re.IGNORECASE,
         )
@@ -223,11 +277,24 @@ def parse_action(text: str) -> dict[str, Any] | None:
             result["x"], result["y"] = coords[0], coords[1]
     elif name == "clickandtype":
         # ClickAndType(element_id, "text") or ClickAndType(x, y, "text")
-        # Extract the quoted text content (last quoted string argument)
-        content_m = re.search(r'["\']([^"\']*)["\']', args_str)
-        content = content_m.group(1) if content_m else ""
-        # Remove the text content portion to parse coords/element_id
-        coord_part = args_str[:content_m.start()].rstrip(", ") if content_m else args_str
+        # Last quoted argument may contain escaped quotes (e.g. 'I\'m here')
+        lit_start: int | None = None
+        for cm in re.finditer(r",\s*(['\"])", args_str):
+            lit_start = cm.start(1)
+        if lit_start is not None:
+            rest = args_str[lit_start:]
+            plit = _parse_quoted_string_literal(rest)
+            content = plit[0] if plit else ""
+            coord_part = args_str[:lit_start].rstrip(", ")
+        else:
+            stripped = args_str.strip()
+            if stripped.startswith(('"', "'")):
+                plit = _parse_quoted_string_literal(stripped)
+                content = plit[0] if plit else ""
+                coord_part = ""
+            else:
+                content = ""
+                coord_part = args_str
         coords = _parse_coords_multi(coord_part, 2)
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
@@ -282,17 +349,17 @@ def parse_action(text: str) -> dict[str, Any] | None:
                 except (ValueError, IndexError):
                     pass
     elif name == "type":
-        # Support content='...' named param (UI-TARS format)
-        content_m = re.search(r"content\s*=\s*['\"](.+?)['\"]", args_str, re.IGNORECASE)
-        if content_m:
-            result["content"] = content_m.group(1)
+        # Support content='...' named param (UI-TARS format); escapes must not end the string early
+        named = _extract_named_string_param(args_str, "content")
+        if named is not None:
+            result["content"] = named
         else:
-            content = (
-                _extract_quoted(args_str)
-                if (args_str.startswith('"') or args_str.startswith("'"))
-                else args_str
-            )
-            result["content"] = content or args_str
+            stripped = args_str.strip()
+            if stripped.startswith(('"', "'")):
+                plit = _parse_quoted_string_literal(stripped)
+                result["content"] = plit[0] if plit else _extract_quoted(stripped)
+            else:
+                result["content"] = stripped
     elif name == "hotkey":
         # Hotkey("cmd", "c") or Hotkey("ctrl", "shift", "t") or hotkey(key='ctrl c')
         key_m = re.search(r"key\s*=\s*['\"](.+?)['\"]", args_str, re.IGNORECASE)
@@ -323,10 +390,13 @@ def parse_action(text: str) -> dict[str, Any] | None:
             result["action"] = "navigate"
             result["url"] = "javascript:history.back()"
         else:
-            content_m = re.search(r"(?:content|url)\s*=\s*['\"](.+?)['\"]", args_str, re.IGNORECASE)
-            if content_m:
-                url = content_m.group(1)
-            else:
+            url = None
+            for param in ("content", "url"):
+                u = _extract_named_string_param(args_str, param)
+                if u is not None:
+                    url = u
+                    break
+            if url is None:
                 url = (
                     _extract_quoted(args_str)
                     if (args_str.startswith('"') or args_str.startswith("'"))
@@ -385,10 +455,13 @@ def parse_action(text: str) -> dict[str, Any] | None:
         result["script"] = script_code
     elif name in ("finished", "calluser", "call_user"):
         result["action"] = "finished" if name == "finished" else "calluser"
-        content_m = re.search(r"(?:content|reason)\s*=\s*['\"](.+?)['\"]", args_str, re.IGNORECASE)
-        if content_m:
-            reason = content_m.group(1)
-        else:
+        reason = None
+        for param in ("content", "reason"):
+            r = _extract_named_string_param(args_str, param)
+            if r is not None:
+                reason = r
+                break
+        if reason is None:
             reason = (
                 _extract_quoted(args_str)
                 if (args_str.startswith('"') or args_str.startswith("'"))
