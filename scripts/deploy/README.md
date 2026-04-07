@@ -19,7 +19,7 @@ Shared substitution values for the **frontend** Docker build are built in `echo_
 | `pnpm run deploy` | [`deploy.sh`](./../deploy.sh) → [`build.sh`](./build.sh) (all images) then deploy frontend, backend, Echo Prism agent |
 | `pnpm run deploy:build` | [`build.sh`](./build.sh) only |
 | `pnpm run deploy:frontend` | [`deploy-frontend.sh`](./deploy-frontend.sh) `--build` then deploy |
-| `pnpm run deploy:backend` | [`deploy-backend.sh`](./deploy-backend.sh) `--build` then deploy |
+| `pnpm run deploy:backend` | [`deploy-backend.sh`](./deploy-backend.sh) `--build` then deploy (env from [`backend_env_to_yaml.py`](./backend_env_to_yaml.py); set `AUTH0_*` in Doppler **prd** so Link/Connect work on Cloud Run) |
 | `pnpm run deploy:agent` | [`deploy-echo-prism-agent.sh`](./deploy-echo-prism-agent.sh) `--build` then deploy |
 | `pnpm run deploy:livekit-agent` | [`deploy-livekit-agent.sh`](./deploy-livekit-agent.sh) optional voice worker |
 

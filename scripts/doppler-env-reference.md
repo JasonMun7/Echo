@@ -23,6 +23,8 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 
 ## Backend only
 
+**Cloud Run:** `pnpm run deploy:backend` and `pnpm run deploy` inject backend environment variables from Doppler **prd** using [`scripts/deploy/backend_env_to_yaml.py`](deploy/backend_env_to_yaml.py) (including `AUTH0_*`). Changing Doppler alone does not update a running service until you redeploy the backend.
+
 | Variable | Description |
 |----------|-------------|
 | `AUTH0_DOMAIN` | Auth0 tenant domain, e.g. `your-tenant.us.auth0.com` (no `https://`) |
