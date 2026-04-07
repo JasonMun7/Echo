@@ -50,12 +50,6 @@ def _auth0_configured() -> bool:
     return bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
 
 
-def _vault_authorize_omit_audience() -> bool:
-    """If true, /vault-url does not pass `audience` (some tenants store federated RT only without it)."""
-    v = (os.getenv("AUTH0_VAULT_AUTHORIZE_OMIT_AUDIENCE") or "").strip().lower()
-    return v in ("1", "true", "yes")
-
-
 def _vault_use_my_account_connect() -> bool:
     """True unless ``AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT`` is ``0``, ``false``, ``no``, or ``off``."""
     v = (os.getenv("AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT") or "").strip().lower()
@@ -374,7 +368,7 @@ async def auth0_vault_url(
     )
     if is_google_vault:
         params["prompt"] = "consent"
-    if AUTH0_AUDIENCE and not _vault_authorize_omit_audience():
+    if AUTH0_AUDIENCE:
         params["audience"] = AUTH0_AUDIENCE
     url = f"https://{AUTH0_DOMAIN}/authorize?" + urlencode(params)
     return {"auth_url": url}
