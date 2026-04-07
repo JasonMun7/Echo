@@ -2,6 +2,7 @@
 Auth0 Token Vault: federated connection access token via refresh token exchange.
 
 See: https://auth0.com/docs/secure/tokens/token-vault/refresh-token-exchange-with-token-vault
+Auth0 AI (product) overview: https://auth0.com/ai/docs/intro/token-vault
 """
 from __future__ import annotations
 
@@ -16,6 +17,10 @@ logger = logging.getLogger(__name__)
 GRANT_FEDERATED = "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
 REQUESTED_TOKEN_TYPE = "http://auth0.com/oauth/token-type/federated-connection-access-token"
 SUBJECT_REFRESH = "urn:ietf:params:oauth:token-type:refresh_token"
+
+# Auth0 documents: POST /oauth/token with Content-Type: application/x-www-form-urlencoded
+# and Accept: application/json (response body is JSON).
+OAUTH_TOKEN_REQUEST_HEADERS: dict[str, str] = {"Accept": "application/json"}
 
 
 def _domain() -> str:
@@ -62,13 +67,14 @@ async def federated_token_exchange_response(
 ) -> tuple[int, dict[str, Any]]:
     """
     POST federated Token Vault exchange; returns (http_status, body_json).
-    Does not raise on 4xx — callers use this for diagnostics.
+    Does not raise on 4xx — callers inspect status and body.
     """
     domain = _domain()
     if not domain:
         return 0, {"error": "config", "error_description": "AUTH0_DOMAIN is not set"}
 
     url = f"https://{domain}/oauth/token"
+    # Auth0 requires application/x-www-form-urlencoded and string parameters (not JSON body).
     payload = {
         "client_id": _client_id(),
         "client_secret": _client_secret(),
@@ -79,7 +85,7 @@ async def federated_token_exchange_response(
         "connection": connection,
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, json=payload)
+        resp = await client.post(url, data=payload, headers=OAUTH_TOKEN_REQUEST_HEADERS)
     try:
         data = resp.json()
     except Exception:
@@ -118,7 +124,10 @@ async def exchange_authorization_code(
     code: str,
     redirect_uri: str,
 ) -> dict[str, Any]:
-    """Exchange Auth0 authorization code for tokens (link / callback)."""
+    """Exchange Auth0 authorization code for tokens (link / callback).
+
+    Uses ``application/x-www-form-urlencoded`` as required by Auth0 for ``POST /oauth/token``.
+    """
     domain = _domain()
     url = f"https://{domain}/oauth/token"
     payload = {
@@ -129,7 +138,7 @@ async def exchange_authorization_code(
         "redirect_uri": redirect_uri,
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, json=payload)
+        resp = await client.post(url, data=payload, headers=OAUTH_TOKEN_REQUEST_HEADERS)
         data = resp.json()
     if resp.status_code >= 400:
         err = data.get("error_description") or data.get("error") or resp.text

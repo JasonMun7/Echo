@@ -30,15 +30,17 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `AUTH0_CLIENT_SECRET` | Application client secret (server-side only) |
 | `AUTH0_AUDIENCE` | Auth0 API identifier (audience) for access tokens — required for many Token Vault flows |
 | `AUTH0_CALLBACK_URL` | Optional fixed callback URL, e.g. `https://<echo-backend>/api/auth0/callback` (must match Auth0 Application settings) |
-| `AUTH0_LINK_CONNECTION` | Optional. Auth0 connection name sent as `connection=` on **Link Auth0** (`GET /api/auth0/link-url`) only — e.g. `Username-Password-Authentication` when **Social → Google** is **Connected Accounts for Token Vault** only (Google must not be used for Universal Login). Google stays for **Connect Google** via `vault-url`. Query `?connection=` on `link-url` overrides this for one request. |
+| `AUTH0_LINK_CONNECTION` | Optional. If set, sent as `connection=` on **Link Auth0** (`GET /api/auth0/link-url`) to force that IdP (e.g. `google-oauth2`). If unset, Universal Login shows all connections with **Authentication** enabled (default Echo UX: Google). Query `?connection=` on `link-url` overrides this for one request. |
 | `AUTH0_VAULT_VERIFY_ATTEMPTS` | Optional. After Connect (vault) OAuth, Echo verifies Token Vault with repeated federated exchanges (default `4`, max `12`) with 0.5s delay — reduces false “not connected” if Auth0 commits vault state slightly late. |
-| `AUTH0_VAULT_AUTHORIZE_OMIT_AUDIENCE` | Optional. If `1`/`true`, **Connect** (`GET /api/auth0/vault-url`) omits the `audience` query param on Auth0 `/authorize` (Link Auth0 still uses `AUTH0_AUDIENCE`). Try when `vault_probe` returns `federated_connection_refresh_token_not_found` after a successful Connect redirect but Dashboard still shows no connected account / federated token. |
+| `AUTH0_VAULT_AUTHORIZE_OMIT_AUDIENCE` | Optional. If `1`/`true`, **Connect** (`GET /api/auth0/vault-url`) omits the `audience` query param on Auth0 `/authorize` (Link Auth0 still uses `AUTH0_AUDIENCE`). Try when federated exchange returns `federated_connection_refresh_token_not_found` after Connect but Auth0 Dashboard shows no connected account yet. |
 | `AUTH0_VAULT_CALLBACK_URL` | Optional. Full **Connect** OAuth redirect URI (must match Auth0 Application → Allowed Callback URLs). If unset, Connect uses the same URL as Link (`AUTH0_CALLBACK_URL` or `…/api/auth0/callback`) — same idea as Auth0’s **preferred** Token Vault sample (`mount_connected_account_routes`, see `call-others-apis-on-users-behalf-langchain-fastapi-py-sample/ECHO-PARITY.md`). Set to e.g. `https://<backend>/api/auth0/connect/callback` only if you want parity with the **legacy** `mount_connect_routes` sample (`authenticate-users-langchain-fastapi-py-sample/ECHO-PARITY.md`); Echo exposes `GET /api/auth0/connect/callback` for that. |
+| `AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT` | **Default: on** (unset). **Connect** (`GET /api/auth0/vault-url`) uses Auth0 **My Account API** `POST …/me/v1/connected-accounts/connect` + `…/complete` (see `agent/echo_prism_agent/auth0_my_account_connect.py`). Set to `0`/`false`/`no`/`off` to use legacy `/authorize?connection=` instead. Requires **My Account API** enabled, **MRRT** for audience `https://<tenant>/me/`, and a valid Auth0 refresh token after Link. |
+| `AUTH0_MY_ACCOUNT_GOOGLE_SCOPES` | Optional. If **unset**, Connect Google omits upstream scopes so Auth0 uses **Social → Google** permissions from the Dashboard. If **set**, comma-separated scope URLs (override). Do **not** include **`offline_access`** unless on your GCP consent screen. |
 | `AUTH0_TOKEN_VAULT` | Set to `0` to disable the Auth0 federated exchange path in the agent (default: enabled). Pair with `ECHO_INTEGRATIONS_TOKEN_VAULT_ONLY=0` if you need legacy Firestore-stored OAuth tokens. |
 | `AUTH0_CONNECTION_SLACK` | Override Auth0 connection name for Slack (default: `slack`) |
 | `AUTH0_CONNECTION_GITHUB` | Override for GitHub (default: `github`) |
 | `AUTH0_CONNECTION_GOOGLE` | Override for Google (default: `google-oauth2`; Echo integration id remains `google`) |
-| `AUTH0_MGMT_CLIENT_ID` | Optional. Machine-to-Machine application client ID for Auth0 Management API (backend only). Enables Integrations debug button “Connected accounts (Management API)”. Grant scopes for `GET .../users/{id}/connected-accounts` and `GET .../users/{id}/federated-connections-tokensets` (often `read:users`; if 403, add the scope Auth0 documents for that endpoint). |
+| `AUTH0_MGMT_CLIENT_ID` | Optional. Machine-to-Machine client ID if you call Auth0 Management API yourself (not required for Echo’s Integrations UI). |
 | `AUTH0_MGMT_CLIENT_SECRET` | M2M client secret (server-side only; never `NEXT_PUBLIC_`). |
 | `ECHO_CLOUD_RUN_REGION` | Cloud Run region (default: us-central1) |
 | `FRONTEND_ORIGIN` | Allowed CORS origin (set by deploy) |
@@ -49,12 +51,14 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `LIVEKIT_API_SECRET` | LiveKit API secret |
 | `LIVEKIT_AGENT_SECRET` | Shared secret for /api/agent/tool and /api/livekit/user-by-phone (LiveKit agent) |
 
+**Google Connect:** Leave **`AUTH0_MY_ACCOUNT_GOOGLE_SCOPES` unset** so My Account Connect mirrors **Auth0 → Social → Google** (and GCP OAuth consent). Set it only to force an explicit scope list. Re-Connect Google after changing Dashboard permissions.
+
 ## Frontend (web)
 
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_API_URL` | Backend API URL |
-| `NEXT_PUBLIC_AUTH0_LINK_CONNECTION` | Optional. Same as backend `AUTH0_LINK_CONNECTION`: passed as `?connection=` on Link Auth0 (`/api/auth0/link-url`). Example: `Username-Password-Authentication`. Prefer setting `AUTH0_LINK_CONNECTION` on the backend only; use this when the web app must override without redeploying the API. |
+| `NEXT_PUBLIC_AUTH0_LINK_CONNECTION` | **Deprecated for default Echo web:** the web app calls `/api/auth0/link-url` with no `connection` param. Set only if you fork the app to append `?connection=` for Link. Prefer backend `AUTH0_LINK_CONNECTION` or Auth0 Dashboard defaults. |
 | `NEXT_PUBLIC_ECHO_AGENT_URL` | Echo Prism agent URL (chat WebSocket `/ws/chat`, voice, synthesis). **Local `next dev`:** defaults to `http://127.0.0.1:8083` when unset so chat targets `pnpm dev:agent`. Set explicitly if the agent runs on another host/port. |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | GCP project ID for Firebase client config |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase config |
@@ -72,7 +76,7 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `ECHO_DEBUG_COORDS` | Electron **main** process: log `scaleCoords` (0–1000 → pixels) and `captureScreen` dimensions (UI-TARS / NutJS parity). |
 | `ECHO_DEBUG_SCREENSHOTS` | Optional directory path; saves each captured JPEG for debugging. |
 | `VITE_API_URL` | Backend API URL |
-| `VITE_AUTH0_LINK_CONNECTION` | Optional. Same as `AUTH0_LINK_CONNECTION` / `NEXT_PUBLIC_AUTH0_LINK_CONNECTION`: appended to desktop `GET /api/auth0/link-url` when opening Auth0 from the Electron app (email/password when Google is vault-only). |
+| `VITE_AUTH0_LINK_CONNECTION` | Optional. If set, desktop app calls `GET /api/auth0/link-url?connection=…`. If unset, same as web (Universal Login, no forced connection). |
 | `VITE_ECHO_AGENT_URL` | Echo Prism agent URL |
 | `VITE_APP_URL` | Web app URL (default: http://localhost:3000). **Production:** set to your deployed web app URL (e.g. https://app.echo.ai) so "Sign in" opens the real site. |
 | `VITE_LIVEKIT_SANDBOX_ID` | (Optional) LiveKit Cloud sandbox token server ID; when set, skips backend token fetch for dev |

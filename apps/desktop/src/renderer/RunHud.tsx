@@ -6,6 +6,8 @@ import {
   IconBrain,
   IconX,
   IconBrandGoogle,
+  IconBrandGithub,
+  IconBrandSlack,
   IconExternalLink,
   IconShieldCheck,
   IconCircleCheck,
@@ -27,6 +29,98 @@ const dragStyle = {
   WebkitAppRegion: "no-drag",
   appRegion: "no-drag",
 } as CSSProperties;
+
+function IntegrationBrandIcon({ integration }: { integration: string }) {
+  const i = integration.trim().toLowerCase();
+  const common = { size: 26 as const, stroke: 1.5 as const };
+  if (i === "google") return <IconBrandGoogle {...common} className="text-[#4285F4]" />;
+  if (i === "github") return <IconBrandGithub {...common} className="text-(--echo-text)" />;
+  if (i === "slack") return <IconBrandSlack {...common} className="text-[#4A154B]" />;
+  return <IconShieldCheck size={26} stroke={1.5} className="text-(--echo-cyan)" />;
+}
+
+function formatArgValue(v: unknown): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "string") {
+    return v.length > 1200 ? `${v.slice(0, 1200)}…` : v;
+  }
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch {
+    return String(v);
+  }
+}
+
+const API_ARG_ORDER = [
+  "to",
+  "to_email",
+  "subject",
+  "body",
+  "text",
+  "channel",
+  "owner",
+  "repo",
+  "title",
+  "verb",
+  "url",
+  "timeMin",
+  "timeMax",
+  "timeZone",
+];
+
+function ApiCallArgsPreview({ preview }: { preview: string }) {
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    const p = JSON.parse(preview) as unknown;
+    if (p && typeof p === "object" && !Array.isArray(p)) {
+      parsed = p as Record<string, unknown>;
+    }
+  } catch {
+    /* not JSON */
+  }
+
+  if (!parsed) {
+    return (
+      <div
+        className="max-h-[200px] overflow-y-auto rounded-lg border border-(--echo-border)/50 bg-(--echo-surface)/50 px-3 py-2 text-xs leading-relaxed text-(--echo-text)"
+        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+      >
+        {preview.trim() || "—"}
+      </div>
+    );
+  }
+
+  const keys = Object.keys(parsed);
+  if (keys.length === 0) {
+    return (
+      <p className="rounded-lg border border-(--echo-border)/40 bg-(--echo-surface)/40 px-3 py-2 text-xs text-(--echo-text-secondary)">
+        No arguments
+      </p>
+    );
+  }
+
+  const rest = keys.filter((k) => !API_ARG_ORDER.includes(k)).sort();
+  const ordered = [...API_ARG_ORDER.filter((k) => k in parsed), ...rest];
+
+  return (
+    <div className="max-h-[220px] min-h-0 flex-1 space-y-3 overflow-y-auto rounded-lg border border-(--echo-border)/50 bg-(--echo-surface)/50 p-3">
+      {ordered.map((key) => (
+        <div key={key} className="space-y-0.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-(--echo-text-secondary)">
+            {key.replace(/_/g, " ")}
+          </p>
+          <p
+            className="text-sm leading-snug text-(--echo-text)"
+            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+          >
+            {formatArgValue(parsed![key])}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface LiveEntry {
   thought: string;
@@ -95,11 +189,11 @@ function RunHitlCard({
         >
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex shrink-0 gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--echo-cyan)/12 text-(--echo-cyan)">
-                <IconShieldCheck size={24} stroke={1.5} />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-(--echo-border)/50 bg-(--echo-surface)/80 shadow-sm">
+                <IntegrationBrandIcon integration={integration} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold tracking-tight text-(--echo-text)">
+                <p className="font-mono text-sm font-semibold tracking-tight text-(--echo-text)">
                   {integration}.{method}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-(--echo-text-secondary)">
@@ -110,12 +204,12 @@ function RunHitlCard({
                 </p>
               </div>
             </div>
-            <pre
-              className="min-h-[100px] flex-1 overflow-y-auto rounded-lg border border-(--echo-border)/50 bg-(--echo-surface)/50 p-3 text-[11px] leading-relaxed text-(--echo-text)"
-              style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-            >
-              {argsPreview}
-            </pre>
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-(--echo-text-secondary)/90">
+                Request details
+              </p>
+              <ApiCallArgsPreview preview={argsPreview} />
+            </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2 border-t border-(--echo-border)/60 pt-3">
             <Button
