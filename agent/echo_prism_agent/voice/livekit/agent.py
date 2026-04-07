@@ -364,7 +364,7 @@ class LiveKitEchoPrismAgent(Agent):
         context: RunContext,
         integration: str,
         method: str,
-        args: dict[str, Any] | None = None,
+        arguments: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a connected app integration action."""
         await _publish_tool_event("tool_call", name="call_integration")
@@ -375,6 +375,6 @@ class LiveKitEchoPrismAgent(Agent):
             {
                 "integration": integration,
                 "method": method,
-                "args": args or {},
+                "arguments": arguments or {},
             },
         )

@@ -11,6 +11,7 @@ To see [EchoPrism] logs in dev when you call in: scale the deployed LiveKit agen
 (Cloud Run) to 0 so only your local worker is registered; otherwise the call
 goes to the deployed worker and logs appear only in Cloud Run.
 """
+
 import asyncio
 import json
 import logging
@@ -48,7 +49,11 @@ _logger = logging.getLogger("echoprism.livekit")
 _logger.setLevel(_log_level)
 if not _logger.handlers:
     _h = logging.StreamHandler(sys.stderr)
-    _h.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
+    _h.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"
+        )
+    )
     _logger.addHandler(_h)
 
 from livekit import agents, rtc
@@ -72,13 +77,14 @@ try:
         if _is_sip_participant(getattr(params, "participant", None)):
             return noise_cancellation.BVCTelephony()
         return noise_cancellation.BVC()
+
 except ImportError:
     noise_cancellation = None
     _noise_cancellation_for_participant = None
 
 from echo_prism_agent.voice.livekit import phone_lookup
-from echo_prism_agent.voice.livekit.agent import (
-    LiveKitEchoPrismAgent,
+from echo_prism_agent.voice.livekit.agent import LiveKitEchoPrismAgent
+from echo_prism_agent.model_prompts import (
     INTERRUPTION_SYSTEM_PROMPT_PREFIX,
     ECHOPRISM_SYSTEM_PROMPT,
 )
@@ -165,7 +171,9 @@ async def _lookup_user_by_phone(phone: str) -> tuple[dict | None, str]:
             )
             return None, f"http_{resp.status_code}"
     except Exception as e:
-        _logger.info("[EchoPrism] user-by-phone lookup error for phone=%s: %s", phone, e)
+        _logger.info(
+            "[EchoPrism] user-by-phone lookup error for phone=%s: %s", phone, e
+        )
         return None, "error"
 
 
@@ -177,7 +185,11 @@ async def entrypoint(ctx: agents.JobContext):
     # Each new call is fresh: clear any resolved user for this room (in case of reuse or stale state)
     phone_lookup.clear_resolved_user(ctx.room.name)
     # Unconditional stderr print so we always see something in dev when this worker gets a job
-    print("[EchoPrism] Agent dispatch -> entrypoint: job received", flush=True, file=sys.stderr)
+    print(
+        "[EchoPrism] Agent dispatch -> entrypoint: job received",
+        flush=True,
+        file=sys.stderr,
+    )
     _logger.info("[EchoPrism] Agent dispatch -> entrypoint: job received")
 
     # Observability: set log context early (room name; SIP call ID added after connect)
@@ -261,7 +273,11 @@ async def entrypoint(ctx: agents.JobContext):
                 display_name = user.get("displayName") or ""
                 if uid:
                     phone_lookup.set_resolved_user(ctx.room.name, uid, display_name)
-                    _logger.info("[EchoPrism] Resolved caller to user uid=%s displayName=%s", uid, display_name)
+                    _logger.info(
+                        "[EchoPrism] Resolved caller to user uid=%s displayName=%s",
+                        uid,
+                        display_name,
+                    )
             else:
                 _logger.info(
                     "[EchoPrism] Caller not recognized (user-by-phone %s). Ensure Firestore users/{uid}.phone matches sip_phone_number.",
@@ -270,12 +286,21 @@ async def entrypoint(ctx: agents.JobContext):
 
     # DTMF: log keypad input for observability and future IVR
     try:
+
         @ctx.room.on("sip_dtmf_received")
         def _on_dtmf(dtmf):
-            participant_identity = getattr(getattr(dtmf, "participant", None), "identity", "")
+            participant_identity = getattr(
+                getattr(dtmf, "participant", None), "identity", ""
+            )
             code = getattr(dtmf, "code", "")
             digit = getattr(dtmf, "digit", "")
-            _logger.info("[EchoPrism] DTMF from %s: code=%s digit=%s", participant_identity, code, digit)
+            _logger.info(
+                "[EchoPrism] DTMF from %s: code=%s digit=%s",
+                participant_identity,
+                code,
+                digit,
+            )
+
     except Exception as e:
         _logger.debug("[EchoPrism] DTMF handler not registered: %s", e)
 
@@ -306,7 +331,9 @@ async def entrypoint(ctx: agents.JobContext):
     # Server-side barge-in for telephony: when a remote participant (SIP caller) is active speaker, interrupt agent
     # so the caller can talk over the agent without needing a desktop client to send the RPC.
     _barge_in_cooldown_until = [0.0]
-    _greeting_playout_until = [0.0]  # no barge-in before this time (so greeting isn't cut off at the start)
+    _greeting_playout_until = [
+        0.0
+    ]  # no barge-in before this time (so greeting isn't cut off at the start)
 
     def _on_active_speakers_changed(speakers: list) -> None:
         try:
@@ -318,7 +345,9 @@ async def entrypoint(ctx: agents.JobContext):
                 if p in remote:
                     session.interrupt()
                     _barge_in_cooldown_until[0] = now + 1.5
-                    _logger.debug("[EchoPrism] Barge-in: remote participant speaking, interrupted")
+                    _logger.debug(
+                        "[EchoPrism] Barge-in: remote participant speaking, interrupted"
+                    )
                     break
         except Exception as e:
             _logger.debug("[EchoPrism] Barge-in handler error: %s", e)
@@ -332,7 +361,9 @@ async def entrypoint(ctx: agents.JobContext):
         room_name = getattr(ctx.room, "name", None)
         if room_name:
             phone_lookup.clear_resolved_user(room_name)
-            _logger.debug("[EchoPrism] Cleared resolved user for room %s on disconnect", room_name)
+            _logger.debug(
+                "[EchoPrism] Cleared resolved user for room %s on disconnect", room_name
+            )
 
     try:
         ctx.room.on("disconnected", _on_room_disconnected)
@@ -345,7 +376,11 @@ async def entrypoint(ctx: agents.JobContext):
         recent_context = interruption_attrs.get("recent_context", "")
         greeting_instructions = (
             "Greet the user very briefly. Acknowledge that the workflow is paused. "
-            + (f"The most recent activity was: {recent_context}. " if recent_context else "")
+            + (
+                f"The most recent activity was: {recent_context}. "
+                if recent_context
+                else ""
+            )
             + "Ask what guidance they'd like to give or if they just want to resume."
         )
     elif sip_ctx:
@@ -378,7 +413,9 @@ async def entrypoint(ctx: agents.JobContext):
                 "How can I help you with workflows today?"
             )
     else:
-        greeting_instructions = "Greet the user and offer your assistance with workflows and Echo."
+        greeting_instructions = (
+            "Greet the user and offer your assistance with workflows and Echo."
+        )
 
     # Don't barge-in during the first few seconds of greeting so the full sentence plays
     _greeting_playout_until[0] = time.monotonic() + 4.0

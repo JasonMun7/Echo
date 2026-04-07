@@ -429,6 +429,7 @@ export default function IntegrationsPage() {
   }
 
   return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
     <div className="flex flex-1 flex-col gap-6 p-6 pb-24 md:p-10 md:pb-24">
       <div>
         <h1 className="text-2xl font-bold text-[#1A1A2E]">App Integrations</h1>
@@ -686,6 +687,7 @@ export default function IntegrationsPage() {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }
