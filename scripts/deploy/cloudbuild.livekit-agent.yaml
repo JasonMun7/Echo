@@ -7,7 +7,7 @@ steps:
       - "build"
       - "--platform=linux/amd64"
       - "-f"
-      - "EchoPrismAgent/Dockerfile.livekit"
+      - "agent/Dockerfile.livekit"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-prism-livekit-agent:${_IMAGE_TAG}"
       - "."

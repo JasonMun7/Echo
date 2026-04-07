@@ -1,59 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth } from "@/lib/firebase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  IconPlug,
-  IconCheck,
-  IconX,
-  IconExternalLink,
-  IconBrandSlack,
-  IconBrandGithub,
-  IconMail,
-  IconTable,
-  IconCalendar,
-} from "@tabler/icons-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-interface Integration {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  oauth: boolean;
-  connected: boolean;
-  account_name?: string;
-  connected_at?: unknown;
-  note?: string;
-}
-
-const ICON_MAP: Record<string, React.ReactNode> = {
-  IconBrandSlack: <IconBrandSlack className="h-6 w-6" />,
-  IconMail: <IconMail className="h-6 w-6" />,
-  IconTable: <IconTable className="h-6 w-6" />,
-  IconCalendar: <IconCalendar className="h-6 w-6" />,
-  IconBrandGithub: <IconBrandGithub className="h-6 w-6" />,
-};
-
-async function apiFetch(path: string, options?: RequestInit) {
-  const user = auth?.currentUser;
-  const token = user ? await user.getIdToken() : "";
-  return fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers || {}),
-    },
-  });
-}
+import { apiFetch } from "@/lib/api";
+import { PENDING_VAULT_KEY, type Integration } from "./_lib/integration-types";
+import { Auth0StatusBanner } from "./_components/auth0-status-banner";
+import { IntegrationCard } from "./_components/integration-card";
+import { useIntegrationsOAuthParams } from "./_hooks/use-integrations-oauth-params";
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -61,65 +17,81 @@ export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [auth0Linked, setAuth0Linked] = useState(false);
+  const [auth0Sub, setAuth0Sub] = useState<string | null>(null);
+  const [auth0Email, setAuth0Email] = useState<string | null>(null);
+  const pendingVaultHandled = useRef(false);
 
-  useEffect(() => {
-    const unsub = auth?.onAuthStateChanged((u) => {
-      if (!u) router.replace("/signin");
-      else loadIntegrations();
-    });
-    return () => unsub?.();
-  }, [router]);
-
-  useEffect(() => {
-    const connected = searchParams.get("connected");
-    const error = searchParams.get("error");
-    if (connected) {
-      toast.success(`${connected} connected successfully!`);
-      loadIntegrations();
-    }
-    if (error) {
-      toast.error(`OAuth error: ${error}`);
-    }
-  }, [searchParams]);
-
-  async function loadIntegrations() {
+  const loadIntegrations = useCallback(async () => {
     setLoading(true);
     try {
       const resp = await apiFetch("/api/integrations");
       if (resp.ok) {
         const data = await resp.json();
         setIntegrations(data.integrations || []);
+        setAuth0Linked(Boolean(data.auth0_linked));
+        setAuth0Sub(typeof data.auth0_sub === "string" ? data.auth0_sub : null);
+        setAuth0Email(typeof data.auth0_email === "string" ? data.auth0_email : null);
       }
     } catch {
       toast.error("Failed to load integrations");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function connectIntegration(id: string) {
+  useEffect(() => {
+    const unsub = auth?.onAuthStateChanged((u) => {
+      if (!u) router.replace("/signin");
+      else void loadIntegrations();
+    });
+    return () => unsub?.();
+  }, [router, loadIntegrations]);
+
+  const connectVaultIntegration = useCallback(async (id: string) => {
     setConnecting(id);
     try {
-      const resp = await apiFetch(`/api/integrations/${id}/connect`);
+      const resp = await apiFetch(
+        `/api/auth0/vault-url?integration=${encodeURIComponent(id)}`
+      );
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
-      const popup = window.open(data.auth_url, "oauth", "width=600,height=700");
-      if (!popup) {
-        window.location.href = data.auth_url;
-        return;
-      }
-      const check = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(check);
-          loadIntegrations();
-          setConnecting(null);
-        }
-      }, 500);
+      window.location.href = data.auth_url as string;
     } catch (e: unknown) {
-      toast.error(`Connect failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+      toast.error(`Connect failed: ${e instanceof Error ? e.message : "Unknown"}`);
       setConnecting(null);
     }
-  }
+  }, []);
+
+  const startConnectIntegration = useCallback(
+    async (id: string) => {
+      if (auth0Linked) {
+        await connectVaultIntegration(id);
+        return;
+      }
+
+      setConnecting(id);
+      try {
+        const resp = await apiFetch("/api/auth0/link-url");
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = await resp.json();
+        sessionStorage.setItem(PENDING_VAULT_KEY, id);
+        window.location.href = data.auth_url as string;
+      } catch (e: unknown) {
+        toast.error(
+          `Auth0 link failed: ${e instanceof Error ? e.message : "Unknown"}`
+        );
+        setConnecting(null);
+      }
+    },
+    [auth0Linked, connectVaultIntegration]
+  );
+
+  useIntegrationsOAuthParams(searchParams, {
+    loadIntegrations,
+    connectVaultIntegration,
+    pendingVaultHandledRef: pendingVaultHandled,
+  });
 
   async function disconnectIntegration(id: string) {
     const name = integrations.find((i) => i.id === id)?.name;
@@ -133,110 +105,70 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function unlinkAuth0() {
+    if (
+      !window.confirm(
+        "Remove Auth0 link from your Echo account? Integration API access stops until you link again."
+      )
+    ) {
+      return;
+    }
+    try {
+      const resp = await apiFetch("/api/auth0/link", { method: "DELETE" });
+      if (!resp.ok) throw new Error(await resp.text());
+      toast.success("Auth0 unlinked");
+      setAuth0Sub(null);
+      setAuth0Email(null);
+      await loadIntegrations();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Unlink failed");
+    }
+  }
+
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 md:p-10">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[#1A1A2E]">App Integrations</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Connect apps so EchoPrism can use them in workflows — combining UI clicks with API calls.
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
+      <div className="flex flex-1 flex-col gap-6 p-6 pb-24 md:p-10 md:pb-24">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#150A35]">App Integrations</h1>
+          <p className="mt-1 max-w-2xl text-sm text-echo-text-muted">
+            Connect Slack, GitHub, or Google for workflow API calls. Echo login stays on Firebase; the first time
+            you connect an app you link Auth0 (for Token Vault), then use{" "}
+            <span className="font-medium text-[#150A35]">Connect</span> for each provider. If Google is reserved
+            for Token Vault only in Auth0, link with email/password (or another auth connection)—not Google—then
+            Connect Google here. Sign-in opens in this window so you return to Echo with the correct status.
+          </p>
+        </div>
+
+        <Auth0StatusBanner
+          auth0Linked={auth0Linked}
+          auth0Email={auth0Email}
+          auth0Sub={auth0Sub}
+          onUnlink={() => void unlinkAuth0()}
+        />
+
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton
+                key={i}
+                className="h-48 rounded-xl border border-[#A577FF]/20 bg-white/80"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {integrations.map((integration) => (
+              <IntegrationCard
+                key={integration.id}
+                integration={integration}
+                connecting={connecting === integration.id}
+                onConnect={() => void startConnectIntegration(integration.id)}
+                onDisconnect={() => void disconnectIntegration(integration.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Info banner */}
-      <div className="rounded-xl border border-[#A577FF]/20 bg-[#F5F3FF] px-4 py-3 text-sm text-[#5B3FA0]">
-        <div className="flex items-center gap-2">
-          <IconPlug className="h-4 w-4 shrink-0" />
-          <span>
-            Connected integrations become available as <code className="font-mono text-xs bg-[#A577FF]/10 px-1 rounded">api_call</code> steps in your workflows — faster, cheaper, and more reliable than UI clicks for known apps.
-          </span>
-        </div>
-      </div>
-
-      {/* Integration grid */}
-      {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {integrations.map((integration) => (
-            <div
-              key={integration.id}
-              className={cn(
-                "group flex flex-col gap-3 rounded-xl border p-5 transition-all",
-                integration.connected
-                  ? "border-emerald-200 bg-emerald-50/50"
-                  : "border-[#A577FF]/20 bg-white hover:border-[#A577FF]/40 hover:shadow-sm"
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <div
-                  className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-xl",
-                    integration.connected ? "bg-emerald-100 text-emerald-600" : "bg-[#F5F3FF] text-[#A577FF]"
-                  )}
-                >
-                  {ICON_MAP[integration.icon] || <IconPlug className="h-6 w-6" />}
-                </div>
-                {integration.connected ? (
-                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
-                    <IconCheck className="mr-1 h-3 w-3" />
-                    Connected
-                  </Badge>
-                ) : integration.note ? (
-                  <Badge variant="outline" className="border-[#A577FF]/30 text-[#A577FF] text-xs">
-                    Auto
-                  </Badge>
-                ) : null}
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-[#1A1A2E]">{integration.name}</h3>
-                <p className="mt-0.5 text-xs text-gray-500">{integration.description}</p>
-                {integration.account_name && (
-                  <p className="mt-1 text-xs text-emerald-600">Connected as: {integration.account_name}</p>
-                )}
-                {integration.note && (
-                  <p className="mt-1 text-xs text-[#A577FF]">{integration.note}</p>
-                )}
-              </div>
-
-              <div className="mt-auto flex gap-2">
-                {integration.oauth && !integration.note ? (
-                  integration.connected ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => disconnectIntegration(integration.id)}
-                      className="h-7 text-xs border-red-200 text-red-500 hover:bg-red-50"
-                    >
-                      <IconX className="mr-1 h-3 w-3" />
-                      Disconnect
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => connectIntegration(integration.id)}
-                      disabled={connecting === integration.id}
-                      className="echo-btn-cyan-lavender h-7 text-xs"
-                    >
-                      <IconExternalLink className="mr-1 h-3 w-3" />
-                      {connecting === integration.id ? "Connecting..." : "Connect"}
-                    </Button>
-                  )
-                ) : (
-                  <span className="text-xs text-gray-400 italic">
-                    Uses Google sign-in
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -9,7 +9,6 @@
 #   ./scripts/deploy/deploy-frontend.sh --build [PROJECT_ID] [REGION]
 #   ./scripts/deploy/deploy-backend.sh --build [PROJECT_ID] [REGION]
 #   ./scripts/deploy/deploy-echo-prism-agent.sh --build [PROJECT_ID] [REGION]
-#   ./scripts/deploy/deploy-omniparser.sh --build [PROJECT_ID] [REGION]
 # LiveKit voice agent (optional): ./scripts/deploy/deploy-livekit-agent.sh --build [PROJECT_ID] [REGION]
 set -e
 
@@ -28,8 +27,7 @@ section "Configuration"
 echo -e "  ${MUTED}Project:${R}  ${BOLD}$PROJECT_ID${R}"
 echo -e "  ${MUTED}Region:${R}   $REGION"
 echo -e "  ${MUTED}Backend:${R}  $BACKEND_URL"
-echo -e "  ${MUTED}EchoPrism Agent:${R} $ECHO_PRISM_AGENT_URL"
-echo -e "  ${MUTED}OmniParser:${R} $OMNIPARSER_URL"
+echo -e "  ${MUTED}Echo Prism Agent:${R} $ECHO_PRISM_AGENT_URL"
 echo ""
 
 # ------------------------------------------------------------------------------
@@ -43,7 +41,6 @@ echo ""
 "$SCRIPT_DIR/deploy/deploy-frontend.sh" "$PROJECT_ID" "$REGION"
 "$SCRIPT_DIR/deploy/deploy-backend.sh" "$PROJECT_ID" "$REGION"
 "$SCRIPT_DIR/deploy/deploy-echo-prism-agent.sh" "$PROJECT_ID" "$REGION"
-"$SCRIPT_DIR/deploy/deploy-omniparser.sh" "$PROJECT_ID" "$REGION"
 
 # ------------------------------------------------------------------------------
 # Done
@@ -53,9 +50,8 @@ echo -e "  ${SUCCESS}${BOLD}All services deployed successfully!${R}"
 echo ""
 echo -e "  ${LAVENDER}Frontend:${R}  $FRONTEND_URL"
 echo -e "  ${LAVENDER}Backend:${R}   $BACKEND_URL"
-echo -e "  ${LAVENDER}EchoPrism Agent:${R} $ECHO_PRISM_AGENT_URL"
-echo -e "  ${LAVENDER}OmniParser:${R} $OMNIPARSER_URL"
+echo -e "  ${LAVENDER}Echo Prism Agent:${R} $ECHO_PRISM_AGENT_URL"
 echo ""
 echo -e "  ${MUTED}If you see 500 errors: ensure Firebase and GCP use the same project.${R}"
-echo -e "  ${MUTED}For EchoPrism Voice: deploy LiveKit agent separately: pnpm run deploy:livekit-agent${R}"
+echo -e "  ${MUTED}For EchoPrism Voice: deploy LiveKit worker separately: pnpm run deploy:livekit-agent${R}"
 echo ""

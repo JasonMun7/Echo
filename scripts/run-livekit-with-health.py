@@ -29,7 +29,16 @@ def run_health_server():
 def main():
     t = threading.Thread(target=run_health_server, daemon=True)
     t.start()
-    sys.exit(subprocess.run([sys.executable, "-m", "agent.echo_prism.subagents.livekit.main", "start"]).returncode)
+    env = os.environ.copy()
+    agent_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent")
+    _pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = agent_dir if not _pp else f"{agent_dir}{os.pathsep}{_pp}"
+    sys.exit(
+        subprocess.run(
+            [sys.executable, "-m", "echo_prism_agent.voice.livekit.main", "start"],
+            env=env,
+        ).returncode
+    )
 
 
 if __name__ == "__main__":

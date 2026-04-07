@@ -139,36 +139,9 @@ function ParamFields({
             style={{ ...inputStyle, resize: "vertical", wordWrap: "break-word" }}
           />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>X (0–1000)</label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.x as number) ?? ""}
-              onChange={(e) =>
-                update("x", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
-              }
-              placeholder="500"
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Y (0–1000)</label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.y as number) ?? ""}
-              onChange={(e) =>
-                update("y", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
-              }
-              placeholder="500"
-              style={inputStyle}
-            />
-          </div>
-        </div>
+        <p style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0, lineHeight: 1.4 }}>
+          Target position is inferred from the live screen at run time (VLM); coordinates are not required.
+        </p>
         {action === "type_text_at" && (
           <div>
             <label style={labelStyle}>Text</label>
@@ -254,34 +227,6 @@ function ParamFields({
             style={inputStyle}
           />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>X (0–1000)</label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.x as number) ?? ""}
-              onChange={(e) =>
-                update("x", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
-              }
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Y (0–1000)</label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.y as number) ?? ""}
-              onChange={(e) =>
-                update("y", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
-              }
-              style={inputStyle}
-            />
-          </div>
-        </div>
         <div>
           <label style={labelStyle}>Value</label>
           <input
@@ -308,34 +253,6 @@ function ParamFields({
             placeholder="user avatar in the top-right"
             style={inputStyle}
           />
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>X (0–1000)</label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.x as number) ?? ""}
-              onChange={(e) =>
-                update("x", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
-              }
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Y (0–1000)</label>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              value={(params.y as number) ?? ""}
-              onChange={(e) =>
-                update("y", e.target.value === "" ? undefined : Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)))
-              }
-              style={inputStyle}
-            />
-          </div>
         </div>
       </div>
     );
@@ -380,28 +297,13 @@ function ParamFields({
             type="text"
             value={(params.description as string) || ""}
             onChange={(e) => update("description", e.target.value)}
-            placeholder="Drag file to folder"
+            placeholder="Drag the highlighted file onto the 'Projects' folder in the sidebar"
             style={inputStyle}
           />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Start X</label>
-            <input type="number" min={0} max={1000} value={(params.x as number) ?? ""} onChange={(e) => update("x", e.target.value === "" ? undefined : parseInt(e.target.value, 10) || 0)} style={inputStyle} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Start Y</label>
-            <input type="number" min={0} max={1000} value={(params.y as number) ?? ""} onChange={(e) => update("y", e.target.value === "" ? undefined : parseInt(e.target.value, 10) || 0)} style={inputStyle} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>End X</label>
-            <input type="number" min={0} max={1000} value={(params.x2 as number) ?? ""} onChange={(e) => update("x2", e.target.value === "" ? undefined : parseInt(e.target.value, 10) || 0)} style={inputStyle} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>End Y</label>
-            <input type="number" min={0} max={1000} value={(params.y2 as number) ?? ""} onChange={(e) => update("y2", e.target.value === "" ? undefined : parseInt(e.target.value, 10) || 0)} style={inputStyle} />
-          </div>
-        </div>
+        <p style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0, lineHeight: 1.4 }}>
+          Start and end positions are inferred at run time from the live screen.
+        </p>
       </div>
     );
   }
@@ -418,12 +320,8 @@ function ParamFields({
           >
             <option value="">— select integration —</option>
             <option value="slack">Slack</option>
-            <option value="gmail">Gmail</option>
-            <option value="google_sheets">Google Sheets</option>
-            <option value="google_calendar">Google Calendar</option>
-            <option value="notion">Notion</option>
             <option value="github">GitHub</option>
-            <option value="linear">Linear</option>
+            <option value="google">Google</option>
           </select>
         </div>
         <div>
@@ -443,7 +341,7 @@ function ParamFields({
             onChange={(e) => {
               try { update("args", JSON.parse(e.target.value)); } catch { update("args", e.target.value); }
             }}
-            placeholder='{"channel": "general", "text": "Hello!"}'
+            placeholder='Slack: {"channel":"general","text":"Hello!"} — Google: {"to":"name@example.com","subject":"Hi","body":"…"}'
             rows={3}
             style={{ ...inputStyle, fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
           />
