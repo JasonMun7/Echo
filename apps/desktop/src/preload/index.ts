@@ -186,6 +186,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeUpdateDownloadedListener: () => {
     ipcRenderer.removeAllListeners("update-downloaded");
   },
+  onUpdateDownloadProgress: (
+    callback: (arg: {
+      percent: number;
+      bytesPerSecond: number;
+      transferred: number;
+      total: number;
+    }) => void,
+  ) => {
+    ipcRenderer.on("update-download-progress", (_, arg) => callback(arg));
+  },
+  removeUpdateDownloadProgressListener: () => {
+    ipcRenderer.removeAllListeners("update-download-progress");
+  },
+  onUpdateError: (callback: (arg: { message: string }) => void) => {
+    ipcRenderer.on("update-error", (_, arg: { message: string }) => callback(arg));
+  },
+  removeUpdateErrorListener: () => {
+    ipcRenderer.removeAllListeners("update-error");
+  },
   quitAndInstall: () => ipcRenderer.invoke("quit-and-install"),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
 });

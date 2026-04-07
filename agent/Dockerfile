@@ -2,6 +2,10 @@
 # Build context: repo root (.)
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+# Routers import `app.*` from copied backend/app; package root is backend/.
+ENV PYTHONPATH=/app/backend
+
 WORKDIR /app
 
 COPY backend/app /app/backend/app
@@ -16,4 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8080
 ENV PORT=8080
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Cloud Run sets PORT; must bind to that port (default 8080).
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
+import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
 
 interface WorkflowInvite {
   id: string;
@@ -75,47 +76,6 @@ function isLatestOrLastModified(
   const maxCreated = Math.max(...created);
   const maxUpdated = Math.max(...updated);
   return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
-}
-
-function WorkflowThumbnail({ workflowId }: { workflowId: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch(`/api/workflows/${workflowId}/thumbnail`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => {
-        if (!cancelled) setUrl(d.url);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workflowId]);
-
-  if (failed || (!url && failed !== false && url === null)) {
-    return null;
-  }
-
-  if (!url) {
-    return <Skeleton className="h-36 w-full rounded-none" />;
-  }
-
-  return (
-    <div className="relative h-36 w-full overflow-hidden bg-[#F5F7FC]">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="Workflow screenshot"
-        className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]"
-        onError={() => setFailed(true)}
-      />
-      <div className="absolute inset-0 bg-linear-to-t from-white/60 via-transparent to-transparent" />
-    </div>
-  );
 }
 
 export default function WorkflowsPage() {
@@ -525,7 +485,7 @@ export default function WorkflowsPage() {
                 >
                   {/* Thumbnail */}
                   {w.thumbnail_gcs_path ? (
-                    <WorkflowThumbnail workflowId={w.id} />
+                    <WorkflowThumbnail workflowId={w.id} heightClass="h-36" />
                   ) : (
                     <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">

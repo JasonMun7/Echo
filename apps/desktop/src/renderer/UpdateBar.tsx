@@ -1,32 +1,71 @@
 import { useState, useEffect } from "react";
 import { IconRefresh, IconDownload } from "@tabler/icons-react";
 
-type Status = "idle" | "downloading" | "ready";
+type Status = "idle" | "downloading" | "ready" | "failed";
 
 export function UpdateBar() {
   const [status, setStatus] = useState<Status>("idle");
   const [version, setVersion] = useState<string | null>(null);
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     const api = window.electronAPI;
     if (!api?.onUpdateAvailable || !api?.onUpdateDownloaded) return;
 
-    const onAvailable = () => setStatus("downloading");
+    const onAvailable = () => {
+      setDownloadPercent(null);
+      setStatus("downloading");
+    };
     const onDownloaded = (arg: { version: string }) => {
       setVersion(arg.version);
       setStatus("ready");
     };
+    const onProgress = (arg: { percent: number }) => {
+      setDownloadPercent(Math.round(arg.percent));
+    };
+    const onError = () => {
+      setStatus((prev) => (prev === "downloading" ? "failed" : prev));
+    };
 
     api.onUpdateAvailable(onAvailable);
     api.onUpdateDownloaded(onDownloaded);
+    api.onUpdateDownloadProgress?.(onProgress);
+    api.onUpdateError?.(onError);
     return () => {
       api.removeUpdateAvailableListener?.();
       api.removeUpdateDownloadedListener?.();
+      api.removeUpdateDownloadProgressListener?.();
+      api.removeUpdateErrorListener?.();
     };
   }, []);
 
   if (status === "idle" || dismissed) return null;
+
+  if (status === "failed") {
+    return (
+      <div
+        className="echo-card flex flex-wrap items-center justify-between gap-3 border-b border-[var(--echo-border)] px-4 py-2.5"
+        style={{
+          background: "var(--echo-surface)",
+          borderLeft: "none",
+          borderRight: "none",
+          borderTop: "none",
+        }}
+      >
+        <span className="text-sm text-[var(--echo-text)]">
+          Could not download update. Check your connection and try again from the menu.
+        </span>
+        <button
+          type="button"
+          className="echo-btn-secondary rounded-lg px-3 py-1.5 text-sm"
+          onClick={() => setDismissed(true)}
+        >
+          Dismiss
+        </button>
+      </div>
+    );
+  }
 
   if (status === "downloading") {
     return (
@@ -42,6 +81,7 @@ export function UpdateBar() {
         <IconDownload className="size-4 shrink-0 text-[var(--echo-cyan)]" />
         <span className="text-sm text-[var(--echo-text)]">
           Downloading update…
+          {downloadPercent != null ? ` ${downloadPercent}%` : ""}
         </span>
       </div>
     );

@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
-import { apiFetch } from "@/lib/api";
+import { AGENT_URL, MAIN_API_URL, apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import {
   IconArrowLeft,
@@ -29,7 +29,6 @@ import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { toast } from "sonner";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ThoughtEntry {
   thought: string;
@@ -88,7 +87,7 @@ function RunStepScreenshot({
   useEffect(() => {
     if (token && workflowId && runId) {
       setError(false);
-      const url = `${API_URL}/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
+      const url = `${AGENT_URL}/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
       fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         .then((res) => {
           if (!res.ok) throw new Error("Screenshot not found");
@@ -188,7 +187,7 @@ export default function RunDetailPage() {
       if (!user) return;
       const token = await user.getIdToken();
       const es = new EventSource(
-        `${API_URL}/api/run/${workflowId}/${runId}/stream?token=${encodeURIComponent(token)}`
+        `${MAIN_API_URL}/api/run/${workflowId}/${runId}/stream?token=${encodeURIComponent(token)}`
       );
       es.onmessage = (e) => {
         try {

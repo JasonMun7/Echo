@@ -32,6 +32,12 @@ const envDefine = {
   "process.env.NEXT_PUBLIC_FIREBASE_APP_ID": JSON.stringify(
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
   ),
+  "process.env.VITE_GITHUB_UPDATE_OWNER": JSON.stringify(
+    process.env.VITE_GITHUB_UPDATE_OWNER ?? "",
+  ),
+  "process.env.VITE_GITHUB_UPDATE_REPO": JSON.stringify(
+    process.env.VITE_GITHUB_UPDATE_REPO ?? "",
+  ),
 };
 
 export default defineConfig({

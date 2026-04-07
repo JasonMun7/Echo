@@ -364,6 +364,8 @@ pnpm run deploy:livekit-agent
 
 Requires `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`, `ECHOPRISM_AGENT_URL`, and `GEMINI_API_KEY`.
 
+**Forks:** use your GCP project and ensure Doppler **prd** includes `NEXT_PUBLIC_FIREBASE_*` (and optional desktop download URLs) so the full deploy builds a complete web image. See [scripts/deploy/README.md](scripts/deploy/README.md) and [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) (section *Fork / alternate GitHub*).
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 

@@ -81,8 +81,26 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `VITE_APP_URL` | Web app URL (default: http://localhost:3000). **Production:** set to your deployed web app URL (e.g. https://app.echo.ai) so "Sign in" opens the real site. |
 | `VITE_LIVEKIT_SANDBOX_ID` | (Optional) LiveKit Cloud sandbox token server ID; when set, skips backend token fetch for dev |
 | `GH_TOKEN` or `GITHUB_TOKEN` | (Optional) For `pnpm desktop:dist`: when set, electron-builder publishes the build to GitHub Releases so existing users receive the update. |
+| `VITE_GITHUB_UPDATE_OWNER` | Optional. GitHub org or user for `electron-updater` (e.g. your fork). If unset, the app parses `repository.url` in `apps/desktop/package.json`. |
+| `VITE_GITHUB_UPDATE_REPO` | Optional. Repository name for updates (e.g. `Echo`). If unset, derived from `repository.url`. |
+
+**Auto-updates (intentional stack):** Echo uses **`electron-updater`** with **`electron-builder`** publishing to **GitHub Releases** — not `update-electron-app` or **update.electronjs.org**. That matches the builder output, supports custom in-app UI (`UpdateBar`), fork overrides (`VITE_GITHUB_UPDATE_*`), and avoids an extra update service. macOS builds should still be **code-signed** (and notarized for distribution) for a smooth update experience.
 
 LiveKit token is fetched from `VITE_ECHO_AGENT_URL` (Echo Prism agent). Use `VITE_API_URL` = main backend (8000), `VITE_ECHO_AGENT_URL` = agent service (8083) for dual-backend setup.
+
+## Fork / alternate GitHub
+
+Use this checklist when you deploy from a **fork** or a different GitHub org than upstream.
+
+| Concern | What to set |
+|--------|-------------|
+| **GCP** | `ECHO_GCP_PROJECT_ID`, `ECHO_CLOUD_RUN_REGION`; authenticate with `gcloud` to the project you control. |
+| **Full deploy (`pnpm run deploy`)** | Doppler **prd** must include `NEXT_PUBLIC_FIREBASE_*` and optional `NEXT_PUBLIC_DESKTOP_DOWNLOAD_*` — the unified Cloud Build passes them into the web image (see `echo_frontend_cloudbuild_substitutions` in `scripts/deploy/common.sh`). |
+| **Marketing download page** | `NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL` / `NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL` → stable URLs to your installers (GitHub Releases assets, GCS, or static hosting). |
+| **Desktop sign-in** | `VITE_APP_URL` in **prd** → your deployed web app URL (`echo-frontend` on Cloud Run) so “Sign in” opens your site. |
+| **GitHub Releases & auto-update** | Set `repository` in `apps/desktop/package.json` to your fork; use `GH_TOKEN` / `GITHUB_TOKEN` when running `pnpm desktop:dist`. Optionally set `VITE_GITHUB_UPDATE_OWNER` / `VITE_GITHUB_UPDATE_REPO` so updates resolve to your repo even if `package.json` is ambiguous. |
+
+Renaming Cloud Run service names (`echo-frontend`, etc.) for multiple deployments in one project is not covered here; that would require script and URL changes across the repo.
 
 ## Mobile (React Native / Expo)
 

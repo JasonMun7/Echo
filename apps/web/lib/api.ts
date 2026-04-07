@@ -1,7 +1,11 @@
 import { auth } from "./firebase";
 import { useAuthStore } from "@/stores";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/** Main Echo backend (FastAPI :8000 in dev). */
+export const MAIN_API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const API_URL = MAIN_API_URL;
 
 /** Echo Prism agent (chat `/ws/chat`, voice, synthesis). Not the same process as the main API (:8000). */
 function resolveAgentUrl(): string {

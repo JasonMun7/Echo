@@ -7,6 +7,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 import firebase_admin.auth
 import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion, ArrayRemove, FieldFilter
@@ -180,6 +181,42 @@ async def get_thumbnail(
     from app.services.gcs import generate_signed_read_url
     signed_url = generate_signed_read_url(blob_name, expiration_minutes=60)
     return {"url": signed_url}
+
+
+@router.get("/{workflow_id}/thumbnail/image")
+async def get_thumbnail_image(
+    workflow_id: str,
+    uid: str = Depends(get_current_uid),
+):
+    """
+    Return raw thumbnail bytes (same auth as GET /thumbnail JSON).
+
+    Use this from the web app with Bearer auth + blob URLs so thumbnails load in production
+    without relying on browser loads of GCS signed URLs (Referrer/CORP/CORS edge cases).
+    """
+    _, data = _get_workflow(uid, workflow_id, require_owner=False)
+    gcs_path = data.get("thumbnail_gcs_path")
+    if not gcs_path:
+        raise HTTPException(status_code=404, detail="No thumbnail available")
+    match = re.match(r"gs://[^/]+/(.+)", gcs_path)
+    if not match:
+        raise HTTPException(status_code=500, detail="Invalid thumbnail path")
+    blob_name = match.group(1)
+    from app.services.gcs import download_file
+
+    try:
+        body = download_file(blob_name)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Thumbnail blob not found")
+    lower = blob_name.lower()
+    media = "image/jpeg"
+    if lower.endswith(".png"):
+        media = "image/png"
+    elif lower.endswith(".webp"):
+        media = "image/webp"
+    elif lower.endswith(".gif"):
+        media = "image/gif"
+    return Response(content=body, media_type=media)
 
 
 @router.post("/{workflow_id}/share")
