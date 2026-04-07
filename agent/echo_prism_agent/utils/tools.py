@@ -158,13 +158,15 @@ def list_integrations() -> str:
 
 
 @tool
-def call_integration(integration: str, method: str, args: dict[str, Any] | None = None) -> str:
+def call_integration(
+    integration: str, method: str, arguments: dict[str, Any] | None = None
+) -> str:
     """Execute a connected app integration action (Slack, GitHub, etc.).
 
     Args:
         integration: Integration id (e.g. slack).
         method: API method name.
-        args: Optional JSON object of arguments.
+        arguments: Optional JSON object of arguments.
     """
     return ""
 
