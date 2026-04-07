@@ -39,10 +39,10 @@ import {
   IconArrowLeft,
   IconBinaryTree2,
   IconList,
-  IconJumpRope,
   IconX,
 } from "@tabler/icons-react";
 import { WorkflowStepGraph } from "@/components/workflow-step-graph";
+import { WorkflowApiCallFields } from "@/components/workflow-api-call-fields";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -286,53 +286,7 @@ function ParamFields({
   }
   if (action === "api_call") {
     return (
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs text-[#150A35]/70">Integration</label>
-          <select
-            value={(params.integration as string) || ""}
-            onChange={(e) => update("integration", e.target.value)}
-            className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
-          >
-            <option value="">— select integration —</option>
-            <option value="slack">Slack</option>
-            <option value="github">GitHub</option>
-            <option value="google">Google</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-[#150A35]/70">Method</label>
-          <input
-            type="text"
-            value={(params.method as string) || ""}
-            onChange={(e) => update("method", e.target.value)}
-            placeholder="e.g. send_message, list_channels"
-            className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-[#150A35]/70">
-            Args <span className="text-[#150A35]/40">(JSON object)</span>
-          </label>
-          <textarea
-            value={
-              typeof params.args === "object"
-                ? JSON.stringify(params.args, null, 2)
-                : (params.args as string) || ""
-            }
-            onChange={(e) => {
-              try {
-                update("args", JSON.parse(e.target.value));
-              } catch {
-                update("args", e.target.value);
-              }
-            }}
-            placeholder='{"channel": "general", "text": "Hello!"}'
-            rows={3}
-            className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 font-mono text-xs"
-          />
-        </div>
-      </div>
+      <WorkflowApiCallFields params={params} onChange={onChange} />
     );
   }
   return null;
@@ -486,7 +440,6 @@ export default function WorkflowEditPage() {
   const [invalidStepIds, setInvalidStepIds] = useState<Set<string>>(new Set());
   const [dirtyStepIds, setDirtyStepIds] = useState<Set<string>>(new Set());
   const isReorderingRef = useRef(false);
-  const nameSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newStepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track the step count before an add so we can detect the new one from snapshot
   const stepCountBeforeAddRef = useRef<number>(0);
@@ -548,27 +501,9 @@ export default function WorkflowEditPage() {
     return () => {
       unsubWf();
       unsubSteps();
-      if (nameSaveRef.current) clearTimeout(nameSaveRef.current);
       if (newStepTimeoutRef.current) clearTimeout(newStepTimeoutRef.current);
     };
   }, [id, router]);
-
-  const handleNameChange = (name: string) => {
-    setWorkflowName(name);
-    if (nameSaveRef.current) clearTimeout(nameSaveRef.current);
-    nameSaveRef.current = setTimeout(async () => {
-      try {
-        await apiFetch(`/api/workflows/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        });
-      } catch (e) {
-        toast.error("Failed to save workflow name");
-        console.error("Failed to save workflow name:", e);
-      }
-    }, 500);
-  };
 
   const handleStepUpdate = (stepId: string, data: Partial<Step>) => {
     setSteps((prev) =>

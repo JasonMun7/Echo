@@ -5,10 +5,10 @@ from __future__ import annotations
 from echo_prism_agent.integrations import google_scopes
 
 
-def test_all_scopes_are_https_urls() -> None:
+def test_all_scopes_are_valid_oauth_strings() -> None:
     for product, pairs in google_scopes.GOOGLE_OAUTH_MAX_BY_PRODUCT.items():
         for label, url in pairs:
-            assert url.startswith("https://"), f"{product}/{label}: {url!r}"
+            assert url == "openid" or url.startswith("https://"), f"{product}/{label}: {url!r}"
 
 
 def test_all_max_scope_urls_is_unique_subset() -> None:
@@ -19,4 +19,13 @@ def test_all_max_scope_urls_is_unique_subset() -> None:
 
 def test_expected_products_present() -> None:
     keys = set(google_scopes.GOOGLE_OAUTH_MAX_BY_PRODUCT)
-    assert keys >= {"Calendar", "Gmail", "Drive", "Sheets", "Slides", "Contacts", "Tasks"}
+    assert keys >= {
+        "Sign-in / profile",
+        "Calendar",
+        "Gmail",
+        "Drive",
+        "Sheets",
+        "Slides",
+        "Contacts",
+        "Tasks",
+    }

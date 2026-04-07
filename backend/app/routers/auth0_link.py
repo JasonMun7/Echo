@@ -24,9 +24,12 @@ from app.config import (
     AUTH0_CLIENT_ID,
     AUTH0_CLIENT_SECRET,
     AUTH0_DOMAIN,
-    AUTH0_MGMT_CLIENT_ID,
-    AUTH0_MGMT_CLIENT_SECRET,
 )
+
+try:
+    from echo_prism_agent.auth0_token_vault import OAUTH_TOKEN_REQUEST_HEADERS
+except ImportError:
+    OAUTH_TOKEN_REQUEST_HEADERS = {"Accept": "application/json"}
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth0", tags=["auth0"])
@@ -53,70 +56,12 @@ def _vault_authorize_omit_audience() -> bool:
     return v in ("1", "true", "yes")
 
 
-def _vault_authorize_audience_mode() -> str:
-    if _vault_authorize_omit_audience():
-        return "omitted_by_env"
-    if (AUTH0_AUDIENCE or "").strip():
-        return "included"
-    return "none"
-
-
-def _vault_probe_hints(auth0_sub: object, error_message: str) -> dict[str, str]:
-    """Non-secret hints when federated Token Vault probe fails."""
-    hints: dict[str, str] = {}
-    if not isinstance(auth0_sub, str) or not auth0_sub.strip():
-        hints["auth0_sub_note"] = "missing — link Auth0 again"
-        return hints
-    strategy = auth0_sub.split("|", 1)[0]
-    hints["auth0_sub_strategy"] = strategy
-    if "Federated connection Refresh Token not found" not in error_message:
-        return hints
-    if auth0_sub.startswith("google-oauth2|"):
-        hints["likely_fix"] = (
-            "Token Vault needs a stored Google refresh token for connection google-oauth2 (connected account "
-            "separate from logging into Auth0 with Google). Complete Integrations → Connect Google; in Auth0 "
-            "enable Connected Accounts for Token Vault + Offline Access on the Google connection. "
-            "Check Management API GET .../users/{id}/connected-accounts if unsure."
-        )
-    elif auth0_sub.startswith("auth0|"):
-        hints["likely_fix"] = (
-            "auth0_sub is auth0| but Token Vault has no Google refresh token. In Echo: disconnect Google; "
-            "in Google Account → Third-party access revoke the Auth0/Echo app; connect Google again with Offline "
-            "Access enabled on the Auth0 Google connection. If it still fails, your tenant may require Auth0 "
-            "Connected Accounts (My Account API) instead of Echo's /authorize vault URL."
-        )
-    return hints
-
-
-def _vault_troubleshooting_steps(oauth_error: object, auth0_sub: object) -> list[str]:
-    """Actionable steps when federated Token Vault exchange fails (no secrets)."""
-    err = oauth_error if isinstance(oauth_error, str) else ""
-    steps: list[str] = [
-        "Application (Echo Web): Dashboard → Applications → Advanced → Grant Types must include "
-        "Authorization Code, Refresh Token, and Token Vault (federated connection access token exchange).",
-        "Google connection: Authentication → Social → Google — enable Connected Accounts for Token Vault, "
-        "Offline Access, and this application under the connection’s Applications tab.",
-        "In Echo: Integrations → Connect Google after Link Auth0. Universal Login with Google does not by itself "
-        "store the federated provider refresh token Token Vault needs for API calls.",
-    ]
-    if err == "federated_connection_refresh_token_not_found":
-        steps.insert(
-            0,
-            "Auth0 error federated_connection_refresh_token_not_found: vault has no federated refresh token for "
-            "this connection yet (Offline Access alone does not create it until a successful Connect/vault flow).",
-        )
-        if not _vault_authorize_omit_audience() and (AUTH0_AUDIENCE or "").strip():
-            steps.append(
-                "Retry: set backend env AUTH0_VAULT_AUTHORIZE_OMIT_AUDIENCE=1 so the Connect Google authorize URL "
-                "omits `audience` (Link Auth0 can still use audience). Disconnect/revoke Google third-party access if "
-                "needed, then Connect Google again and re-run diagnostics.",
-            )
-    if isinstance(auth0_sub, str) and auth0_sub.startswith("google-oauth2|"):
-        steps.append(
-            "You use Google to sign into Auth0 (google-oauth2|…). Still complete Integrations → Connect Google "
-            "so the vault-specific /authorize with connection=google-oauth2 runs and Auth0 can persist tokens.",
-        )
-    return steps
+def _vault_use_my_account_connect() -> bool:
+    """True unless ``AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT`` is ``0``, ``false``, ``no``, or ``off``."""
+    v = (os.getenv("AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT") or "").strip().lower()
+    if v in ("0", "false", "no", "off"):
+        return False
+    return True
 
 
 def _callback_url(request: Request) -> str:
@@ -158,23 +103,36 @@ def _redirect_uri_for_token_exchange(request: Request, payload: dict) -> str:
     return str(request.url).split("?")[0]
 
 
+def _vault_verify_hint_message(raw: str | None, max_len: int = 320) -> str:
+    """Short, single-line hint for redirect query (no secrets)."""
+    if not raw or not str(raw).strip():
+        return (
+            "Auth0 did not return a federated access token. "
+            "Check Connected Accounts for Token Vault, Offline Access, and Grant Types on your application."
+        )
+    one = " ".join(str(raw).split())
+    return one[:max_len] + ("…" if len(one) > max_len else "")
+
+
 async def _verify_vault_federated_exchange(
     integration_echo_id: str,
     auth0_refresh_token: str,
     *,
     attempts: int = 1,
     delay_sec: float = 0.5,
-) -> bool:
+) -> tuple[bool, str | None]:
     """
-    Run the same federated Token Vault exchange as the agent/diagnostics.
+    Run the same federated Token Vault exchange as the agent.
     Used so we only set vault_connection_* when Auth0 actually returns a provider access token.
 
     The OAuth callback may return before Auth0 has fully committed Connected Account / vault
     state; use attempts>1 with a short delay to reduce false negatives.
+
+    Returns (ok, detail_if_failed) — detail is safe to show in a UI hint (truncated).
     """
     rt = (auth0_refresh_token or "").strip()
     if not rt:
-        return False
+        return False, _vault_verify_hint_message("No Auth0 refresh token available for Token Vault exchange.")
     try:
         from echo_prism_agent.auth0_token_vault import (
             connection_name_for_integration,
@@ -183,12 +141,14 @@ async def _verify_vault_federated_exchange(
         )
     except ImportError:
         logger.warning("echo_prism_agent unavailable; skipping Token Vault verification on callback")
-        return False
+        return False, _vault_verify_hint_message("Server could not load Token Vault integration module.")
     if not token_vault_enabled():
-        return False
+        return False, _vault_verify_hint_message(
+            "Token Vault exchange is disabled (set AUTH0_TOKEN_VAULT=1)."
+        )
     conn = connection_name_for_integration(integration_echo_id)
     if not conn:
-        return False
+        return False, _vault_verify_hint_message(f"Unknown integration: {integration_echo_id!r}")
 
     n = max(1, attempts)
     last_err: str | None = None
@@ -203,7 +163,7 @@ async def _verify_vault_federated_exchange(
                     n,
                     integration_echo_id,
                 )
-            return True
+            return True, None
         err_oauth = data.get("error")
         desc = data.get("error_description")
         if not status:
@@ -229,266 +189,7 @@ async def _verify_vault_federated_exchange(
         integration_echo_id,
         last_err,
     )
-    return False
-
-
-@router.get("/diagnostics")
-async def auth0_diagnostics(
-    integration: str | None = Query(
-        None,
-        description="Optional Echo id (google|slack|github) — runs a Token Vault exchange probe",
-    ),
-    probe: bool = Query(
-        True,
-        description="If false, only return Firestore/env snapshot (no POST to Auth0)",
-    ),
-    uid: str = Depends(get_current_uid),
-):
-    """
-    Troubleshooting snapshot for Auth0 link + Token Vault (no secrets in response).
-    With ?integration=google, runs the same federated exchange as the agent (never returns tokens).
-    """
-    cid = (AUTH0_CLIENT_ID or "").strip()
-    out: dict = {
-        "auth0_configured": _auth0_configured(),
-        "auth0_domain": AUTH0_DOMAIN or None,
-        "client_id_suffix": cid[-8:] if len(cid) >= 8 else None,
-        "audience_set": bool((AUTH0_AUDIENCE or "").strip()),
-        "vault_authorize_audience": _vault_authorize_audience_mode(),
-        "vault_callback_url_configured": bool((os.getenv("AUTH0_VAULT_CALLBACK_URL") or "").strip()),
-        "auth0_link_connection_default": (os.getenv("AUTH0_LINK_CONNECTION") or "").strip() or None,
-        "note": (
-            "The federated Token Vault exchange asks Auth0 for an access token for `connection` (e.g. "
-            "google-oauth2) using your stored Auth0 refresh token. That uses Auth0’s connected-accounts / "
-            "vault state for that connection—not the fact that you may have signed into Auth0 with Google. "
-            "Complete Integrations → Connect Google after linking Auth0; enable Offline Access and "
-            "Connected Accounts for Token Vault on the Google social connection in Auth0."
-        ),
-    }
-    try:
-        from echo_prism_agent.auth0_token_vault import (
-            connection_name_for_integration,
-            federated_token_exchange_response,
-            token_vault_enabled,
-        )
-    except ImportError:
-        out["echo_prism_agent"] = "unavailable"
-        return out
-
-    out["token_vault_env_ok"] = token_vault_enabled()
-
-    app = get_firebase_app()
-    db = firebase_admin.firestore.client(app)
-    doc = db.collection("users").document(uid).get()
-    data = doc.to_dict() or {}
-    rt = (data.get("auth0_refresh_token") or "").strip()
-    vault_flags = {
-        k.replace("vault_connection_", ""): v
-        for k, v in data.items()
-        if isinstance(k, str) and k.startswith("vault_connection_")
-    }
-    sub = data.get("auth0_sub")
-    out["firestore"] = {
-        "auth0_sub": sub,
-        "has_auth0_refresh_token": bool(rt),
-        "auth0_refresh_token_length": len(rt) if rt else 0,
-        "vault_connection_flags": vault_flags,
-    }
-    if isinstance(sub, str) and sub.startswith("google-oauth2|"):
-        out["token_vault_hint"] = (
-            "You signed into Auth0 with Google (auth0_sub is google-oauth2|…). Google API access still "
-            "requires a Token Vault linked Google account: Integrations → Connect Google, with Auth0 Google set to "
-            "Connected Accounts for Token Vault + Offline Access."
-        )
-
-    iid = (integration or "").strip().lower()
-    if not iid:
-        out["vault_probe"] = {"skipped": True, "reason": "pass ?integration=google (etc.) to probe"}
-        return out
-
-    conn = connection_name_for_integration(iid)
-    out["connection_for_integration"] = conn
-    if not conn:
-        out["vault_probe"] = {"skipped": True, "reason": f"unknown integration {integration!r}"}
-        return out
-    if not probe:
-        out["vault_probe"] = {"skipped": True, "reason": "probe=false"}
-        return out
-    if not rt:
-        out["vault_probe"] = {
-            "ok": False,
-            "error": "No auth0_refresh_token on user doc — link Auth0 first (GET /api/auth0/link-url).",
-        }
-        return out
-    if not out["token_vault_env_ok"]:
-        out["vault_probe"] = {
-            "ok": False,
-            "error": "AUTH0_DOMAIN / CLIENT_ID / CLIENT_SECRET not set on this process.",
-        }
-        return out
-
-    try:
-        status, data = await federated_token_exchange_response(rt, conn)
-        # status==0 means config error (e.g. missing AUTH0_DOMAIN), not HTTP success.
-        if status and status < 400:
-            tok = (data.get("access_token") or data.get("token") or "").strip()
-            out["vault_probe"] = {
-                "ok": bool(tok),
-                "auth0_http_status": status,
-                "issued_token_type": data.get("issued_token_type"),
-                "expires_in": data.get("expires_in"),
-                "scope_preview": (data.get("scope") or "")[:120] or None,
-                "error": None if tok else "Exchange returned no access_token",
-            }
-        else:
-            err_msg = str(
-                data.get("error_description") or data.get("error") or "federated exchange failed"
-            )
-            oauth_err = data.get("error")
-            out["vault_probe"] = {
-                "ok": False,
-                "auth0_http_status": status,
-                "oauth_error": oauth_err,
-                "oauth_error_description": data.get("error_description"),
-                "error": err_msg,
-            }
-            out["vault_probe"].update(_vault_probe_hints(sub, err_msg))
-            out["vault_probe"]["troubleshooting"] = _vault_troubleshooting_steps(oauth_err, sub)
-    except Exception as e:
-        err_msg = str(e)
-        out["vault_probe"] = {"ok": False, "error": err_msg}
-        out["vault_probe"].update(_vault_probe_hints(sub, err_msg))
-    return out
-
-
-async def _auth0_management_access_token(domain: str, cid: str, csec: str) -> str:
-    token_url = f"https://{domain}/oauth/token"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        tr = await client.post(
-            token_url,
-            json={
-                "client_id": cid,
-                "client_secret": csec,
-                "audience": f"https://{domain}/api/v2/",
-                "grant_type": "client_credentials",
-            },
-        )
-        tdata = tr.json()
-    if tr.status_code >= 400:
-        err = tdata.get("error_description") or tdata.get("error") or tr.text
-        raise HTTPException(
-            status_code=502,
-            detail=f"Management API token request failed: {err}",
-        )
-    mtoken = (tdata.get("access_token") or "").strip()
-    if not mtoken:
-        raise HTTPException(status_code=502, detail="Management API token response missing access_token.")
-    return mtoken
-
-
-@router.get("/management-connected-accounts")
-async def auth0_management_connected_accounts(uid: str = Depends(get_current_uid)):
-    """
-    Debug: Auth0 Management API — GET connected-accounts AND federated-connections-tokensets.
-
-    These are different resources: My Account "connected accounts" can be empty while Token Vault
-    still holds federated material (or vice versa). Federated exchange uses Token Vault.
-    Uses AUTH0_MGMT_* from server env. M2M needs scopes for both endpoints (e.g. read:users; if 403,
-    add scopes for federated tokensets per Auth0 Management API docs).
-    """
-    if not AUTH0_DOMAIN:
-        raise HTTPException(status_code=503, detail="AUTH0_DOMAIN is not set on the server.")
-    cid = (AUTH0_MGMT_CLIENT_ID or "").strip()
-    csec = (AUTH0_MGMT_CLIENT_SECRET or "").strip()
-    if not cid or not csec:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Set AUTH0_MGMT_CLIENT_ID and AUTH0_MGMT_CLIENT_SECRET on the backend "
-                "(Machine-to-Machine app authorized for Auth0 Management API)."
-            ),
-        )
-
-    app = get_firebase_app()
-    db = firebase_admin.firestore.client(app)
-    doc = db.collection("users").document(uid).get()
-    data = doc.to_dict() or {}
-    sub = (data.get("auth0_sub") or "").strip()
-    if not sub:
-        raise HTTPException(
-            status_code=400,
-            detail="No auth0_sub on your user document — link Auth0 first.",
-        )
-
-    domain = AUTH0_DOMAIN
-    mtoken = await _auth0_management_access_token(domain, cid, csec)
-    user_path = quote(sub, safe="")
-    headers = {"Authorization": f"Bearer {mtoken}"}
-    ca_url = f"https://{domain}/api/v2/users/{user_path}/connected-accounts"
-    fc_url = f"https://{domain}/api/v2/users/{user_path}/federated-connections-tokensets"
-
-    def _parse_mgmt_body(r: httpx.Response) -> dict | list | str:
-        try:
-            return r.json()
-        except Exception:
-            return r.text[:800]
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        ca_r, fc_r = await asyncio.gather(
-            client.get(ca_url, headers=headers),
-            client.get(fc_url, headers=headers),
-        )
-
-    ca_data = _parse_mgmt_body(ca_r)
-    fc_data = _parse_mgmt_body(fc_r)
-
-    fc_deprecation = (
-        isinstance(fc_data, dict)
-        and fc_r.status_code == 403
-        and (
-            "deprecated" in str(fc_data.get("message", "")).lower()
-            or fc_data.get("errorCode") == "feature_not_enabled"
-        )
-    )
-
-    note_parts = [
-        "Two different Management API resources: "
-        "`connected_accounts` = My Account API style list (can stay empty if you only used Universal Login). "
-        "`federated_connections_tokensets` historically listed Token Vault data for federated exchange.",
-        " If `auth0_sub` is `google-oauth2|...` but vault_probe still fails, complete Integrations → Connect Google "
-        "(not only Universal Login) with Social → Google set to Connected Accounts for Token Vault + Offline Access.",
-    ]
-    if fc_deprecation:
-        note_parts.append(
-            " Auth0 may return 403 `deprecated` / `feature_not_enabled` on "
-            "`GET .../federated-connections-tokensets` on your tenant—treat that as unavailable; "
-            "rely on Dashboard → Users → Connected Accounts, `connected_accounts` above, and "
-            "`GET /api/auth0/diagnostics?integration=google` vault_probe instead."
-        )
-    elif fc_r.status_code == 403:
-        note_parts.append(
-            " 403 on federated-connections-tokensets often means missing M2M scopes—see Auth0 Management API docs."
-        )
-
-    out: dict = {
-        "auth0_user_id": sub,
-        "note": "".join(note_parts),
-        "federated_connections_tokensets_deprecated": fc_deprecation,
-        "connected_accounts": {
-            "http_status": ca_r.status_code,
-            "data": ca_data if ca_r.status_code < 400 else None,
-            "error": ca_data if ca_r.status_code >= 400 else None,
-        },
-        "federated_connections_tokensets": {
-            "http_status": fc_r.status_code,
-            "data": fc_data if fc_r.status_code < 400 else None,
-            "error": fc_data if fc_r.status_code >= 400 else None,
-        },
-        # Back-compat for scripts expecting top-level keys:
-        "management_api_http_status": ca_r.status_code,
-        "connected_accounts_legacy_shape": ca_data if ca_r.status_code < 400 else None,
-    }
-    return out
+    return False, _vault_verify_hint_message(last_err)
 
 
 @router.get("/status")
@@ -502,6 +203,7 @@ async def auth0_status(uid: str = Depends(get_current_uid)):
     return {
         "linked": linked,
         "auth0_sub": data.get("auth0_sub"),
+        "auth0_email": data.get("auth0_email"),
         "auth0_configured": _auth0_configured(),
     }
 
@@ -512,8 +214,8 @@ async def auth0_link_url(
     connection: str | None = Query(
         None,
         description=(
-            "Auth0 connection name for Link only (e.g. Username-Password-Authentication). "
-            "Use when Google is Token Vault–only so Universal Login must not use google-oauth2. "
+            "Optional: force Link Auth0 to a specific Auth0 connection name (e.g. google-oauth2). "
+            "If omitted, Universal Login offers every connection enabled for Authentication on this app. "
             "Overrides AUTH0_LINK_CONNECTION env for this request."
         ),
     ),
@@ -521,9 +223,9 @@ async def auth0_link_url(
 ):
     """Start Auth0 Universal Login to obtain a refresh token (link Echo user to Auth0).
 
-    Optional ``connection`` query param or ``AUTH0_LINK_CONNECTION`` env forces that IdP for Link
-    (typical: ``Username-Password-Authentication``) while Google remains available only via
-    ``/vault-url`` (Connected Accounts / Token Vault).
+    Optional ``connection`` query param or ``AUTH0_LINK_CONNECTION`` env forces that IdP for Link.
+    If both are unset, Auth0 shows all connections whose **Purpose** includes Authentication
+    (e.g. Google). Use ``/vault-url`` for the separate Token Vault **Connect** step per provider.
     """
     if not _auth0_configured():
         raise HTTPException(status_code=503, detail="Auth0 is not configured on the server")
@@ -564,20 +266,13 @@ async def auth0_vault_url(
     uid: str = Depends(get_current_uid),
 ):
     """
-    Auth0 "Connect Account" step for Token Vault (separate from Universal Login).
+    Token Vault **Connect** (My Account ``…/connected-accounts/*`` by default).
 
-    Opens /authorize with connection=<provider> so Auth0 can store federated tokens in Token Vault.
+    Set ``AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`` for legacy ``/authorize?connection=`` (connection
+    must allow **Authentication**). Optional ``AUTH0_VAULT_CALLBACK_URL`` for a dedicated connect
+    callback like the auth0-fastapi samples.
 
-    Official FastAPI samples in-repo: (1) ``authenticate-users-langchain-fastapi-py-sample`` uses
-    legacy ``mount_connect_routes`` (split ``.../auth/connect/callback`` vs login) — Echo can mirror
-    via ``AUTH0_VAULT_CALLBACK_URL`` + ``GET /api/auth0/connect/callback``.
-    (2) ``call-others-apis-on-users-behalf-langchain-fastapi-py-sample`` uses **preferred**
-    ``mount_connected_account_routes`` + ``start_connect_account`` (Token Vault quickstart); that path
-    completes connect on the **main** ``/auth/callback`` (``connect_code``), like Echo's default of
-    one callback URL for Link + Connect (Echo uses ``state`` + ``op=vault`` instead of ``connect_code``).
-
-    Pass ?integration=slack|github|google so the backend maps to the Auth0 connection name
-    (e.g. google → google-oauth2) and stores vault_connection_{echo_id} on the user doc.
+    ``?integration=slack|github|google`` maps to Auth0 connection names and ``vault_connection_*`` keys.
     """
     if not _auth0_configured():
         raise HTTPException(status_code=503, detail="Auth0 is not configured on the server")
@@ -588,6 +283,10 @@ async def auth0_vault_url(
         )
     try:
         from echo_prism_agent.auth0_token_vault import connection_name_for_integration
+        from echo_prism_agent.auth0_my_account_connect import (
+            start_connected_account_connect,
+            upstream_scopes_for_integration,
+        )
     except ImportError:
         raise HTTPException(status_code=503, detail="echo_prism_agent is not available")
 
@@ -606,6 +305,55 @@ async def auth0_vault_url(
             raise HTTPException(status_code=400, detail="connection must not be empty")
         auth0_conn = c
         echo_key = _ECHO_ID_FOR_AUTH0_CONNECTION.get(c, c)
+
+    if _vault_use_my_account_connect():
+        app = get_firebase_app()
+        db = firebase_admin.firestore.client(app)
+        snap = db.collection("users").document(uid).get()
+        rt = ((snap.to_dict() or {}).get("auth0_refresh_token") or "").strip()
+        if not rt:
+            raise HTTPException(
+                status_code=400,
+                detail="Link Auth0 first (no Auth0 refresh token on user document).",
+            )
+        redirect_uri = _vault_oauth_redirect_uri(request)
+        upstream = upstream_scopes_for_integration(echo_key)
+        aparam: dict | None = None
+        if echo_key == "google":
+            # `access_type` is not valid in My Account `authorization_params` (schema rejection).
+            aparam = {"prompt": "consent"}
+        started = await start_connected_account_connect(
+            domain=AUTH0_DOMAIN,
+            client_id=AUTH0_CLIENT_ID,
+            client_secret=AUTH0_CLIENT_SECRET,
+            refresh_token=rt,
+            connection=auth0_conn,
+            redirect_uri=redirect_uri,
+            upstream_scopes=upstream,
+            authorization_params=aparam,
+        )
+        if not started:
+            host = (AUTH0_DOMAIN or "").replace("https://", "").rstrip("/")
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "My Account connect failed. Check server logs. "
+                    f"Typical setup: My Account API + MRRT for https://{host}/me/ "
+                    "(README Token Vault / AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT)."
+                ),
+            )
+        browser_url, ma_state, auth_session, code_verifier = started
+        db.collection("auth0_connect_tx").document(ma_state).set(
+            {
+                "uid": uid,
+                "integration": echo_key,
+                "auth_session": auth_session,
+                "code_verifier": code_verifier,
+                "redirect_uri": redirect_uri,
+                "created_at": SERVER_TIMESTAMP,
+            }
+        )
+        return {"auth_url": browser_url}
 
     state = _b64encode_state({"uid": uid, "op": "vault", "integration": echo_key})
     params: dict[str, str] = {
@@ -638,6 +386,7 @@ async def auth0_callback(
     request: Request,
     code: str | None = Query(None),
     state: str | None = Query(None),
+    connect_code: str | None = Query(None),
     error: str | None = Query(None),
     error_description: str | None = Query(None),
 ):
@@ -657,6 +406,81 @@ async def auth0_callback(
         if error_description:
             qs += "&error_description=" + quote(error_description, safe="")
         return RedirectResponse(url=f"{base}/dashboard/integrations?{qs}")
+
+    # My Account API — Connected Accounts (connect_code + state from Auth0; no OAuth authorization code).
+    if connect_code and state:
+        try:
+            from echo_prism_agent.auth0_my_account_connect import (
+                complete_connected_account_connect,
+            )
+        except ImportError:
+            raise HTTPException(status_code=503, detail="echo_prism_agent is not available")
+
+        app = get_firebase_app()
+        db = firebase_admin.firestore.client(app)
+        tx_ref = db.collection("auth0_connect_tx").document(state)
+        tx_snap = tx_ref.get()
+        if not tx_snap.exists:
+            return RedirectResponse(
+                url=f"{base}/dashboard/integrations?error=invalid_request&error_description="
+                + quote("Unknown or expired connect state; start Connect again.", safe="")
+            )
+        tx = tx_snap.to_dict() or {}
+        tx_ref.delete()
+        c_uid = (tx.get("uid") or "").strip()
+        integ = (tx.get("integration") or "").strip()
+        auth_session = (tx.get("auth_session") or "").strip()
+        code_verifier = (tx.get("code_verifier") or "").strip()
+        redirect_uri_tx = (tx.get("redirect_uri") or "").strip()
+        if not c_uid or not integ or not auth_session or not redirect_uri_tx:
+            raise HTTPException(status_code=400, detail="Invalid connect transaction payload")
+
+        user_ref = db.collection("users").document(c_uid)
+        usnap = user_ref.get()
+        rt = ((usnap.to_dict() or {}).get("auth0_refresh_token") or "").strip()
+        if not rt:
+            return RedirectResponse(
+                url=f"{base}/dashboard/integrations?error=token_exchange&error_description="
+                + quote("No Auth0 refresh token; link Auth0 again.", safe="")
+            )
+
+        ok = await complete_connected_account_connect(
+            domain=AUTH0_DOMAIN,
+            client_id=AUTH0_CLIENT_ID,
+            client_secret=AUTH0_CLIENT_SECRET,
+            refresh_token=rt,
+            auth_session=auth_session,
+            connect_code=connect_code,
+            redirect_uri=redirect_uri_tx,
+            code_verifier=code_verifier,
+        )
+        if not ok:
+            return RedirectResponse(
+                url=f"{base}/dashboard/integrations?error=token_exchange&error_description="
+                + quote("My Account connect complete failed.", safe="")
+            )
+
+        try:
+            _n = int((os.getenv("AUTH0_VAULT_VERIFY_ATTEMPTS") or "4").strip() or "4")
+        except ValueError:
+            _n = 4
+        vault_exchange_ok, vault_detail = await _verify_vault_federated_exchange(
+            integ,
+            rt,
+            attempts=max(1, min(_n, 12)),
+            delay_sec=0.5,
+        )
+        patch: dict = {}
+        if vault_exchange_ok:
+            patch[f"vault_connection_{integ}"] = True
+        else:
+            patch[f"vault_connection_{integ}"] = DELETE_FIELD
+        user_ref.set(patch, merge=True)
+        q = f"auth0_linked=1&op=vault&integration={integ}&vault_exchange_ok={'1' if vault_exchange_ok else '0'}"
+        if not vault_exchange_ok and vault_detail:
+            q += "&vault_exchange_detail=" + quote(vault_detail, safe="")
+        return RedirectResponse(url=f"{base}/dashboard/integrations?{q}")
+
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
 
@@ -671,6 +495,7 @@ async def auth0_callback(
 
     redirect_uri = _redirect_uri_for_token_exchange(request, payload)
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
+    # Auth0: POST /oauth/token must use application/x-www-form-urlencoded (not JSON).
     body = {
         "grant_type": "authorization_code",
         "client_id": AUTH0_CLIENT_ID,
@@ -679,7 +504,11 @@ async def auth0_callback(
         "redirect_uri": redirect_uri,
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(token_url, json=body)
+        resp = await client.post(
+            token_url,
+            data=body,
+            headers=OAUTH_TOKEN_REQUEST_HEADERS,
+        )
         tokens = resp.json()
     if resp.status_code >= 400:
         err = tokens.get("error_description") or tokens.get("error") or resp.text
@@ -689,6 +518,7 @@ async def auth0_callback(
     refresh = (tokens.get("refresh_token") or "").strip()
     id_tok = tokens.get("id_token") or ""
     auth0_sub = ""
+    auth0_email: str | None = None
     if id_tok:
         parts = id_tok.split(".")
         if len(parts) == 3:
@@ -698,6 +528,8 @@ async def auth0_callback(
                     base64.urlsafe_b64decode(parts[1] + pad).decode()
                 )
                 auth0_sub = claims.get("sub") or ""
+                em = (claims.get("email") or "").strip()
+                auth0_email = em or None
             except Exception:
                 pass
 
@@ -719,18 +551,21 @@ async def auth0_callback(
         "auth0_sub": auth0_sub or None,
         "auth0_linked_at": SERVER_TIMESTAMP,
     }
+    if auth0_email is not None:
+        patch["auth0_email"] = auth0_email
     if refresh:
         patch["auth0_refresh_token"] = refresh
 
     op = payload.get("op", "link")
     integ = (payload.get("integration") or payload.get("connection") or "").strip()
     vault_exchange_ok: bool | None = None
+    vault_exchange_detail: str | None = None
     if op == "vault" and integ:
         try:
             _n = int((os.getenv("AUTH0_VAULT_VERIFY_ATTEMPTS") or "4").strip() or "4")
         except ValueError:
             _n = 4
-        vault_exchange_ok = await _verify_vault_federated_exchange(
+        vault_exchange_ok, vault_exchange_detail = await _verify_vault_federated_exchange(
             integ,
             rt_for_vault_probe,
             attempts=max(1, min(_n, 12)),
@@ -748,6 +583,8 @@ async def auth0_callback(
         q += f"&integration={integ}"
     if op == "vault" and integ and vault_exchange_ok is not None:
         q += f"&vault_exchange_ok={'1' if vault_exchange_ok else '0'}"
+        if not vault_exchange_ok and vault_exchange_detail:
+            q += "&vault_exchange_detail=" + quote(vault_exchange_detail, safe="")
     return RedirectResponse(url=f"{base}/dashboard/integrations?{q}")
 
 
@@ -759,6 +596,7 @@ async def auth0_unlink(uid: str = Depends(get_current_uid)):
     db.collection("users").document(uid).set(
         {
             "auth0_sub": None,
+            "auth0_email": None,
             "auth0_refresh_token": None,
             "vault_connection_slack": DELETE_FIELD,
             "vault_connection_github": DELETE_FIELD,

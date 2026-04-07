@@ -569,7 +569,7 @@ function StepParams({
           <Text style={styles.label}>Arguments (JSON)</Text>
           <TextInput
             style={[styles.input, { minHeight: 60 }]}
-            placeholder='{"channel": "#general", "text": "Hello"}'
+            placeholder='Slack: {"channel":"#general","text":"Hello"} — Google: {"to":"name@example.com","subject":"Hi","body":"…"}'
             placeholderTextColor={colors.textLight}
             value={typeof p.args === "string" ? p.args : p.args ? JSON.stringify(p.args, null, 2) : ""}
             onChangeText={(t) => set("args", t)}

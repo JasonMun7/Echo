@@ -8,9 +8,16 @@ Maximum scope groups Auth0/Google may offer for this integration: see
 """
 from __future__ import annotations
 
+import base64
+from email.message import EmailMessage
 from typing import Any
 
 import httpx
+
+from echo_prism_agent.integrations.google_rest import execute_rest
+
+_FREEBUSY_URL = "https://www.googleapis.com/calendar/v3/freeBusy"
+_GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
 def _bounded_int(args: dict[str, Any], key: str, default: int, cap: int) -> int:
     try:
@@ -21,11 +28,47 @@ def _bounded_int(args: dict[str, Any], key: str, default: int, cap: int) -> int:
 
 
 METHODS: dict[str, str] = {
+    "rest": (
+        "Generic Google REST to any *.googleapis.com URL — args: { verb|http_method, url, params?, json?, "
+        "headers?, timeout_seconds? }. Covers Calendar, Gmail, Drive, Sheets, Slides, People (Contacts), Tasks "
+        "per OAuth scopes enabled in Auth0 (see google_scopes.py). Alias: google_rest."
+    ),
     "userinfo": "GET oauth2/v3/userinfo — basic profile (openid / profile / email)",
     "calendar_list": "GET calendar/v3/users/me/calendarList — needs calendar or calendar.readonly",
+    "calendar_freebusy": "POST calendar/v3/freeBusy — availability query; needs calendar.freebusy (or broader calendar scope)",
     "gmail_list_labels": "GET gmail/v1/users/me/labels — needs gmail.labels or gmail.readonly",
+    "gmail_send": (
+        "POST gmail/v1/users/me/messages/send — args: { to, subject?, body|text?, cc?, bcc?, html? }; "
+        "needs https://www.googleapis.com/auth/gmail.send"
+    ),
     "drive_list_files": "GET drive/v3/files — needs drive.readonly or drive.metadata.readonly",
 }
+METHODS["google_rest"] = METHODS["rest"]
+
+
+def _gmail_rfc2822_raw_b64(args: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Build Gmail API `raw` field: RFC 2822 message, base64url-encoded without padding."""
+    to = (args.get("to") or args.get("to_email") or "").strip()
+    if not to:
+        return None, "gmail_send requires `to` (recipient email address)"
+    subject = str(args.get("subject") or "").strip() or "(no subject)"
+    plain = str(args.get("body") or args.get("text") or "")
+    html = args.get("html")
+    msg = EmailMessage()
+    msg["To"] = to
+    if args.get("cc"):
+        msg["Cc"] = str(args["cc"]).strip()
+    if args.get("bcc"):
+        msg["Bcc"] = str(args["bcc"]).strip()
+    msg["Subject"] = subject
+    if html is not None and str(html).strip():
+        msg.set_content(plain if plain else " ", subtype="plain")
+        msg.add_alternative(str(html), subtype="html")
+    else:
+        msg.set_content(plain)
+    raw_bytes = msg.as_bytes()
+    raw_b64 = base64.urlsafe_b64encode(raw_bytes).decode("ascii").rstrip("=")
+    return raw_b64, None
 
 
 def _http_result(r: httpx.Response) -> dict[str, Any]:
@@ -45,6 +88,9 @@ async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[
     headers = {"Authorization": f"Bearer {access_token}"}
 
     async with httpx.AsyncClient(timeout=30.0) as client:
+        if method in ("rest", "google_rest"):
+            return await execute_rest(client, args, headers, _http_result)
+
         if method == "userinfo":
             r = await client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -65,10 +111,55 @@ async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[
             )
             return _http_result(r)
 
+        if method == "calendar_freebusy":
+            time_min = (args.get("timeMin") or args.get("time_min") or "").strip()
+            time_max = (args.get("timeMax") or args.get("time_max") or "").strip()
+            if not time_min or not time_max:
+                return {
+                    "ok": False,
+                    "error": "calendar_freebusy requires timeMin and timeMax (RFC3339)",
+                    "result": {},
+                }
+            body: dict[str, Any] = {
+                "timeMin": time_min,
+                "timeMax": time_max,
+            }
+            tz = (args.get("timeZone") or args.get("timezone") or "UTC").strip()
+            if tz:
+                body["timeZone"] = tz
+            items = args.get("items")
+            if items is None:
+                body["items"] = [{"id": "primary"}]
+            elif isinstance(items, list):
+                body["items"] = items
+            else:
+                return {
+                    "ok": False,
+                    "error": "calendar_freebusy items must be a list of {id: calendarId}",
+                    "result": {},
+                }
+            r = await client.post(
+                _FREEBUSY_URL,
+                headers={**headers, "Content-Type": "application/json"},
+                json=body,
+            )
+            return _http_result(r)
+
         if method == "gmail_list_labels":
             r = await client.get(
                 "https://gmail.googleapis.com/gmail/v1/users/me/labels",
                 headers=headers,
+            )
+            return _http_result(r)
+
+        if method == "gmail_send":
+            raw_b64, err = _gmail_rfc2822_raw_b64(args)
+            if err or not raw_b64:
+                return {"ok": False, "error": err or "gmail_send_failed_to_build_message", "result": {}}
+            r = await client.post(
+                _GMAIL_SEND_URL,
+                headers={**headers, "Content-Type": "application/json"},
+                json={"raw": raw_b64},
             )
             return _http_result(r)
 

@@ -341,7 +341,7 @@ function ParamFields({
             onChange={(e) => {
               try { update("args", JSON.parse(e.target.value)); } catch { update("args", e.target.value); }
             }}
-            placeholder='{"channel": "general", "text": "Hello!"}'
+            placeholder='Slack: {"channel":"general","text":"Hello!"} — Google: {"to":"name@example.com","subject":"Hi","body":"…"}'
             rows={3}
             style={{ ...inputStyle, fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
           />

@@ -9,8 +9,15 @@ Canonical scope URLs: https://developers.google.com/identity/protocols/oauth2/sc
 from __future__ import annotations
 
 # (Auth0 / Google Cloud label, OAuth 2 scope URL)
+# Aligns with Auth0 Social → Google: Basic/Extended profile, Calendar, Gmail, Drive, Sheets, Slides, Contacts, Tasks.
 GOOGLE_OAUTH_MAX_BY_PRODUCT: dict[str, list[tuple[str, str]]] = {
+    "Sign-in / profile": [
+        ("openid", "openid"),
+        ("email", "https://www.googleapis.com/auth/userinfo.email"),
+        ("profile", "https://www.googleapis.com/auth/userinfo.profile"),
+    ],
     "Calendar": [
+        ("Calendar.FreeBusy", "https://www.googleapis.com/auth/calendar.freebusy"),
         ("Calendar (full)", "https://www.googleapis.com/auth/calendar"),
         ("Calendar.Read", "https://www.googleapis.com/auth/calendar.readonly"),
         ("Calendar.Events", "https://www.googleapis.com/auth/calendar.events"),

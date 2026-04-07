@@ -26,6 +26,50 @@ def test_google_unknown_method() -> None:
     assert "unknown_method" in (out.get("error") or "")
 
 
+def test_google_rest_requires_url() -> None:
+    out = _run(google.execute("rest", {}, "tok"))
+    assert out["ok"] is False
+    assert "url" in (out.get("error") or "").lower()
+
+
+def test_google_rest_rejects_non_googleapis_host() -> None:
+    out = _run(
+        google.execute(
+            "rest",
+            {"verb": "GET", "url": "https://evil.example.com/"},
+            "tok",
+        )
+    )
+    assert out["ok"] is False
+    assert "googleapis" in (out.get("error") or "").lower()
+
+
+@patch("echo_prism_agent.integrations.google.httpx.AsyncClient")
+def test_google_rest_get(mock_ac: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json = MagicMock(return_value={"items": []})
+    mc = MagicMock()
+    mc.request = AsyncMock(return_value=mock_resp)
+    mock_ac.return_value.__aenter__ = AsyncMock(return_value=mc)
+    mock_ac.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    out = _run(
+        google.execute(
+            "google_rest",
+            {
+                "url": "https://tasks.googleapis.com/tasks/v1/users/@me/lists",
+                "verb": "GET",
+            },
+            "tok",
+        )
+    )
+    assert out["ok"] is True
+    call_kw = mc.request.call_args
+    assert call_kw[1]["method"] == "GET"
+    assert "tasks.googleapis.com" in call_kw[1]["url"]
+
+
 @patch("echo_prism_agent.integrations.google.httpx.AsyncClient")
 def test_google_userinfo_success(mock_ac: MagicMock) -> None:
     mock_resp = MagicMock()
@@ -56,6 +100,49 @@ def test_google_userinfo_http_error(mock_ac: MagicMock) -> None:
     assert "invalid_token" in (out.get("error") or "")
 
 
+def test_google_calendar_freebusy_missing_times() -> None:
+    out = _run(google.execute("calendar_freebusy", {}, "tok"))
+    assert out["ok"] is False
+    assert "timeMin" in (out.get("error") or "")
+
+
+@patch("echo_prism_agent.integrations.google.httpx.AsyncClient")
+def test_google_calendar_freebusy(mock_ac: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json = MagicMock(
+        return_value={
+            "calendars": {
+                "primary": {"busy": []},
+            },
+        }
+    )
+    mc = MagicMock()
+    mc.post = AsyncMock(return_value=mock_resp)
+    mock_ac.return_value.__aenter__ = AsyncMock(return_value=mc)
+    mock_ac.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    out = _run(
+        google.execute(
+            "calendar_freebusy",
+            {
+                "timeMin": "2026-04-06T10:00:00Z",
+                "timeMax": "2026-04-06T11:00:00Z",
+                "timeZone": "UTC",
+            },
+            "tok",
+        )
+    )
+    assert out["ok"] is True
+    assert out["result"]["calendars"]["primary"]["busy"] == []
+    call_kw = mc.post.call_args
+    assert "calendar/v3/freeBusy" in call_kw[0][0]
+    posted = call_kw[1]["json"]
+    assert posted["timeMin"] == "2026-04-06T10:00:00Z"
+    assert posted["timeMax"] == "2026-04-06T11:00:00Z"
+    assert posted["items"] == [{"id": "primary"}]
+
+
 @patch("echo_prism_agent.integrations.google.httpx.AsyncClient")
 def test_google_calendar_list(mock_ac: MagicMock) -> None:
     mock_resp = MagicMock()
@@ -71,6 +158,43 @@ def test_google_calendar_list(mock_ac: MagicMock) -> None:
     assert out["result"]["items"][0]["id"] == "primary"
     call_kw = mc.get.call_args
     assert "calendar/v3/users/me/calendarList" in call_kw[0][0]
+
+
+def test_google_gmail_send_missing_to() -> None:
+    out = _run(google.execute("gmail_send", {"subject": "x", "body": "y"}, "tok"))
+    assert out["ok"] is False
+    assert "to" in (out.get("error") or "").lower()
+
+
+@patch("echo_prism_agent.integrations.google.httpx.AsyncClient")
+def test_google_gmail_send(mock_ac: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json = MagicMock(return_value={"id": "msg123", "threadId": "t1"})
+    mc = MagicMock()
+    mc.post = AsyncMock(return_value=mock_resp)
+    mock_ac.return_value.__aenter__ = AsyncMock(return_value=mc)
+    mock_ac.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    out = _run(
+        google.execute(
+            "gmail_send",
+            {
+                "to": "jason@example.com",
+                "subject": "Hello",
+                "body": "Sent from Echo",
+            },
+            "tok",
+        )
+    )
+    assert out["ok"] is True
+    assert out["result"]["id"] == "msg123"
+    call_kw = mc.post.call_args
+    assert "gmail/v1/users/me/messages/send" in call_kw[0][0]
+    posted = call_kw[1]["json"]
+    assert "raw" in posted
+    assert isinstance(posted["raw"], str)
+    assert len(posted["raw"]) > 10
 
 
 @patch("echo_prism_agent.integrations.google.httpx.AsyncClient")

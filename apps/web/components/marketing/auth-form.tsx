@@ -231,6 +231,18 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         )}
       </Button>
 
+      <p className="rounded-lg border border-[#A577FF]/15 bg-[#F5F3FF]/35 px-3 py-2.5 text-center text-xs leading-relaxed text-gray-600">
+        Slack, GitHub, and Google integrations use{" "}
+        <span className="font-medium text-[#1A1A2E]">Auth0</span> (Token Vault). After you sign in, open{" "}
+        <Link
+          href="/dashboard/integrations"
+          className="font-medium text-[#A577FF] hover:underline"
+        >
+          Integrations
+        </Link>{" "}
+        to link Auth0 and connect providers.
+      </p>
+
       <p className="text-center text-sm text-gray-600">
         {mode === "sign-in" ? (
           <>

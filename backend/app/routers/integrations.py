@@ -1,12 +1,12 @@
 """
-App Integrations: Auth0 Token Vault + execution endpoints.
-GET  /api/integrations                       — list available + connected
-DELETE /api/integrations/{name}              — disconnect (clears Firestore tokens + vault flag)
-POST /api/integrations/{name}/call           — execute a method
-GET  /api/integrations/{name}/methods        — list available methods
+Integrations: list, disconnect, and optional `api_call` execution via Auth0 Token Vault.
 
-Connections use Auth0 Token Vault only (no classic Slack/GitHub OAuth to Echo).
+GET    /api/integrations              — list catalog + connection state
+DELETE /api/integrations/{name}       — disconnect
+POST   /api/integrations/{name}/call  — execute connector method
+GET    /api/integrations/{name}/methods — list methods
 """
+import asyncio
 import importlib
 import logging
 
@@ -23,6 +23,56 @@ try:
     from echo_prism_agent.integrations.resolver import get_integration_access_token
 except ImportError:
     get_integration_access_token = None  # type: ignore[misc, assignment]
+
+
+async def _oauth_token_failure_detail(uid: str, name: str, db: firebase_admin.firestore.Client) -> str:
+    """
+    When /call has no provider access token, explain why and include Auth0 federated exchange error.
+    Common case: Auth0 is linked (refresh token exists) but user never completed Connect for this integration.
+    """
+    try:
+        from echo_prism_agent.auth0_token_vault import (
+            connection_name_for_integration,
+            federated_token_exchange_response,
+            normalize_integration_id,
+        )
+    except ImportError:
+        return (
+            f"Integration '{name}' has no provider token (echo_prism_agent unavailable for diagnostics). "
+            "Link Auth0, then Connect this integration via Token Vault."
+        )
+
+    user_doc = await asyncio.to_thread(lambda: db.collection("users").document(uid).get())
+    udata = user_doc.to_dict() or {}
+    refresh = (udata.get("auth0_refresh_token") or "").strip()
+    if not refresh:
+        return (
+            f"No Auth0 refresh token for this user. Use Universal Login to link Auth0 first, "
+            f"then Connect the '{name}' integration."
+        )
+
+    iid = normalize_integration_id(name)
+    conn = connection_name_for_integration(iid)
+    if not conn:
+        return (
+            f"Auth0 is linked, but this server has no Auth0 connection name for integration '{name}'. "
+            f"Set AUTH0_CONNECTION_{name.upper()} to match Authentication → Social connection name."
+        )
+
+    status, body = await federated_token_exchange_response(refresh, conn)
+    auth0_hint = ""
+    if isinstance(body, dict):
+        auth0_hint = (body.get("error_description") or body.get("error") or "").strip()
+    if not auth0_hint:
+        auth0_hint = f"HTTP {status}" if status else "empty response"
+
+    # Keep detail as one paragraph; clients show full string in debug JSON.
+    return (
+        f"Auth0 is linked, but Token Vault did not return a provider access token for connection "
+        f"'{conn}'. Signing in with Google (or another IdP) only links Echo to Auth0; you still need "
+        f"to click Connect on this integration so Auth0 can store third-party tokens for APIs. "
+        f"Auth0 federated exchange: {auth0_hint}"
+    )
 
 AVAILABLE_INTEGRATIONS = {
     "slack": {
@@ -87,6 +137,7 @@ async def list_integrations(uid: str = Depends(get_current_uid)):
         "integrations": result,
         "auth0_linked": auth0_linked,
         "auth0_sub": udata.get("auth0_sub"),
+        "auth0_email": udata.get("auth0_email"),
     }
 
 
@@ -133,10 +184,8 @@ async def call_integration(
         access_token = token_data.get("access_token", "") or ""
 
     if not access_token and AVAILABLE_INTEGRATIONS.get(name, {}).get("oauth"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Integration '{name}' not connected — link Auth0 and connect via Token Vault.",
-        )
+        detail = await _oauth_token_failure_detail(uid, name, db)
+        raise HTTPException(status_code=400, detail=detail)
 
     try:
         connector = importlib.import_module(f"echo_prism_agent.integrations.{name}")
