@@ -1,6 +1,16 @@
 import { BrowserWindow, screen, type Display } from "electron";
 import { join } from "path";
 
+/**
+ * When `1`, `true`, or `yes`: recording/run HUD windows are included in screen capture
+ * (Electron content protection off). Default: HUDs are excluded so synthesis recording
+ * does not show overlay controls.
+ */
+function hudVisibleInScreenCapture(): boolean {
+  const v = process.env.ECHO_HUD_VISIBLE_IN_SCREEN_CAPTURE?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 const HUD_RECORDING_WIDTH = 375;
 const HUD_RECORDING_HEIGHT = 60;
 const HUD_RUN_WIDTH = 520;
@@ -63,9 +73,11 @@ export function createHudOverlayWindow(
   });
 
   win.setBackgroundColor("#00000000");
-  // Exclude HUD from screen capture so synthesis recording doesn't capture the controls
-  // (macOS: NSWindowSharingNone; Windows 10 2004+: WDA_EXCLUDEFROMCAPTURE)
-  win.setContentProtection(true);
+  if (!hudVisibleInScreenCapture()) {
+    // Exclude HUD from screen capture so synthesis recording doesn't capture the controls
+    // (macOS: NSWindowSharingNone; Windows 10 2004+: WDA_EXCLUDEFROMCAPTURE)
+    win.setContentProtection(true);
+  }
   win.loadURL(getRendererUrl(`windowType=hud&mode=${mode}`));
 
   return win;
