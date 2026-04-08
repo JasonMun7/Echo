@@ -3,7 +3,7 @@ name: Technical Task
 about: Describes task for the developers
 title: "[DEV]"
 labels: enhancement
-assignees: AndrewCheung360, JasonMun7
+assignees: ''
 type: Task
 
 ---
