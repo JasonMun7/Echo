@@ -1,5 +1,5 @@
 ---
-name: Design Implementation
+name: Design Task
 about: Used for design changes
 title: "[DESIGN]"
 labels: documentation
