@@ -3,7 +3,7 @@ name: Bug report
 about: Create a report to help us improve
 title: "[BUG]"
 labels: bug
-assignees: JasonMun7, AndrewCheung360
+assignees: AndrewCheung360, JasonMun7
 type: Bug
 
 ---
