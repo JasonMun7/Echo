@@ -139,12 +139,18 @@ class PlaywrightOperator(BaseOperator):
             elif act == "waitforelement":
                 try:
                     await self._page.wait_for_load_state("domcontentloaded", timeout=10000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Best-effort wait_for_load_state('domcontentloaded') failed; continuing: %s",
+                        exc,
+                    )
                 try:
                     await self._page.wait_for_load_state("networkidle", timeout=5000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Best-effort wait_for_load_state('networkidle') failed; continuing: %s",
+                        exc,
+                    )
                 await asyncio.sleep(0.5)
             elif act == "selectoption":
                 value = action.get("value", "")
@@ -166,8 +172,9 @@ class PlaywrightOperator(BaseOperator):
                                 }}
                             }}"""
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        # Best-effort DOM update: keep action non-fatal if activeElement isn't a writable <select>.
+                        logger.debug("Failed to set select value via activeElement evaluate: %s", exc)
                 else:
                     selector = action.get("selector", "")
                     if selector:
@@ -195,8 +202,11 @@ class PlaywrightOperator(BaseOperator):
             try:
                 await self._page.wait_for_load_state("domcontentloaded", timeout=5000)
                 await asyncio.sleep(0.5)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "PlaywrightOperator: non-fatal post-action load-state wait failed: %s",
+                    exc,
+                )
             return True
         except Exception:
             return False

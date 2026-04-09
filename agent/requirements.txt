@@ -20,5 +20,6 @@ langchain-google-genai>=2.0.0
 langchain-openai>=0.2.0
 requests>=2.31.0
 typing_extensions>=4.12.0
+pytest>=8.0.0
 # muscle-mem-agent: required for Kimi Worker + semantic verification. From agent/: pip install -e ../muscle-mem-agent
 # See agent/echo_prism_agent/muscle/MUSCLE_MIGRATION.md

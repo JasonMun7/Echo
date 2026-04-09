@@ -24,6 +24,7 @@ from echo_prism_agent.integrations.user_text_sanitize import strip_vlm_placehold
 _FREEBUSY_URL = "https://www.googleapis.com/calendar/v3/freeBusy"
 _GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
+
 def _truthy_skip_gmail_data_guard(args: dict[str, Any]) -> bool:
     """Per-send opt-out after human review (workflow ``api_call`` args only)."""
     for key in ("skip_data_guard", "skip_content_guard"):

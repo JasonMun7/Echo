@@ -49,7 +49,7 @@ if _creds:
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _creds
 else:
     os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-# Gemini / Google AI Studio — used by the Echo agent (chat, synthesize) when run with backend on PYTHONPATH.
+# Gemini / google-genai accept either name; Doppler or Google AI Studio often use one or the other.
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 
 # Auth0 (Token Vault + Regular Web app — see README Auth0 section)

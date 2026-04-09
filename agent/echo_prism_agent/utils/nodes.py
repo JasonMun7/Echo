@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import time
 from io import BytesIO
 from typing import Any, Literal
 
@@ -70,8 +69,13 @@ def observe_screen(state: InferenceStepState) -> dict[str, Any]:
         try:
             im = Image.open(BytesIO(raw))
             w, h = im.size
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(
+                "observe_screen: could not read raw screenshot dimensions; using default %sx%s: %s",
+                w,
+                h,
+                e,
+            )
     img_bytes = compress_screenshot(raw)
     vw, vh = vlm_resize_dimensions(w, h)
     # Must match the image actually sent to the VLM. ``compress_screenshot`` and
@@ -119,8 +123,10 @@ def build_history_context(state: InferenceStepState) -> dict[str, Any]:
             screenshots, summary = build_context(history, n_images=MAX_CONTEXT_IMAGES)
             history_text = history_summary_text(summary)
             extra_images = screenshots if screenshots else None
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug(
+                "build_history_context: invalid history context; using empty fallback: %s", e
+            )
     return {
         "history_text": history_text,
         "extra_images": extra_images,

@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from echo_prism_agent.integrations import github, google, slack
 
 
@@ -312,4 +310,9 @@ def test_github_list_repos_http_error(mock_ac: MagicMock) -> None:
 
     out = _run(github.execute("list_repos", {}, "bad"))
     assert out["ok"] is False
+
+
+def test_methods_dicts_nonempty() -> None:
+    for mod in (slack, github, google):
+        assert getattr(mod, "METHODS", {}), f"{mod.__name__} should expose METHODS"
 
