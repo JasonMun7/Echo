@@ -19,7 +19,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const a = auth as { authStateReady?: () => Promise<void> };
     void (async () => {
       if (typeof a.authStateReady === "function") {
-        await a.authStateReady();
+        try {
+          await a.authStateReady();
+        } catch (err) {
+          console.error("authStateReady failed:", err);
+        }
       }
       if (cancelled) return;
       unsubscribe = onAuthStateChanged(auth, async (user) => {

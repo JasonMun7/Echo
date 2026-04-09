@@ -48,7 +48,10 @@ export default function IntegrationsPage() {
       void (async () => {
         try {
           await u.getIdToken();
-        } catch {
+        } catch (e) {
+          console.error("getIdToken failed:", e);
+          toast.error("Could not refresh your session. Try signing in again.");
+          setLoading(false);
           return;
         }
         await loadIntegrations();

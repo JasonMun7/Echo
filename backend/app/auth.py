@@ -1,4 +1,5 @@
 import base64
+import binascii
 import json
 import logging
 import os
@@ -30,7 +31,7 @@ def _id_token_aud_unverified(token: str) -> str | None:
         data = json.loads(raw)
         aud = data.get("aud")
         return aud if isinstance(aud, str) else None
-    except Exception:
+    except (ValueError, TypeError, json.JSONDecodeError, binascii.Error):
         return None
 
 
@@ -70,7 +71,13 @@ async def get_current_user(
         get_firebase_app()
         decoded = firebase_auth.verify_id_token(token)
         return decoded
-    except Exception as e:
+    except (
+        ValueError,
+        firebase_auth.InvalidIdTokenError,
+        firebase_auth.ExpiredIdTokenError,
+        firebase_auth.RevokedIdTokenError,
+        firebase_auth.UserDisabledError,
+    ) as e:
         aud = _id_token_aud_unverified(token)
         logger.warning(
             "verify_id_token failed (ECHO_GCP_PROJECT_ID=%s, token aud=%s): %s",
@@ -82,7 +89,19 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
+    except firebase_auth.CertificateFetchError as e:
+        logger.warning("Firebase certificate fetch failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service temporarily unavailable",
+        ) from e
+    except Exception as e:
+        logger.exception("Unexpected error verifying Firebase ID token")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error",
+        ) from e
 
 
 def get_current_uid(current_user: Annotated[dict, Depends(get_current_user)]) -> str:

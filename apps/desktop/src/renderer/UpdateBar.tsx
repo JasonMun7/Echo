@@ -14,14 +14,17 @@ export function UpdateBar() {
     if (!api?.onUpdateAvailable || !api?.onUpdateDownloaded) return;
 
     const onAvailable = () => {
+      setDismissed(false);
       setDownloadPercent(null);
       setStatus("downloading");
     };
     const onDownloaded = (arg: { version: string }) => {
+      setDismissed(false);
       setVersion(arg.version);
       setStatus("ready");
     };
     const onProgress = (arg: { percent: number }) => {
+      setDismissed(false);
       setDownloadPercent(Math.round(arg.percent));
     };
     const onError = () => {
@@ -30,13 +33,13 @@ export function UpdateBar() {
 
     api.onUpdateAvailable(onAvailable);
     api.onUpdateDownloaded(onDownloaded);
-    api.onUpdateDownloadProgress?.(onProgress);
-    api.onUpdateError?.(onError);
+    const unsubProgress = api.onUpdateDownloadProgress?.(onProgress);
+    const unsubError = api.onUpdateError?.(onError);
     return () => {
       api.removeUpdateAvailableListener?.();
       api.removeUpdateDownloadedListener?.();
-      api.removeUpdateDownloadProgressListener?.();
-      api.removeUpdateErrorListener?.();
+      unsubProgress?.();
+      unsubError?.();
     };
   }, []);
 

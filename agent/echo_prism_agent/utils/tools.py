@@ -413,11 +413,7 @@ def build_gui_run_graph() -> StateGraph:
     g.add_node("prepare", gui_run_prepare)
     g.add_node("infeasible_optional", gui_infeasible_optional)
     g.add_node("inference", inference_compiled)
-    g.add_node(
-        "execute",
-        gui_run_execute,
-        retry_policy=RetryPolicy(max_attempts=3, initial_interval=0.5),
-    )
+    g.add_node("execute", gui_run_execute)
     g.add_node("verify", gui_run_verify)
     g.add_node("route_verify", gui_route_after_verify)
     g.add_node("tag_end_error", gui_tag_end_error)

@@ -27,7 +27,7 @@ fi
 section "Deploy EchoPrism Agent"
 # YAML env file: avoids gcloud --set-env-vars breaking on commas/special chars in secrets.
 DEPLOY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AGENT_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-agent-env.XXXXXX.yaml")"
+AGENT_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-agent-env.yaml.XXXXXX")"
 trap 'rm -f "$AGENT_ENV_FILE"' EXIT
 python3 "$DEPLOY_SCRIPT_DIR/agent_env_to_yaml.py" "$PROJECT_ID" >"$AGENT_ENV_FILE"
 

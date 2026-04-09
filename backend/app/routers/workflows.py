@@ -3,6 +3,7 @@ Workflow and step CRUD: GET/POST /api/workflows, GET/PUT/DELETE /api/workflows/{
 GET/POST /api/workflows/{id}/steps, PUT/DELETE /api/workflows/{id}/steps/{step_id},
 PUT /api/workflows/{id}/steps/reorder
 """
+import logging
 import uuid
 from typing import Any
 
@@ -10,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 import firebase_admin.auth
 import firebase_admin.firestore
+from google.api_core import exceptions as gcp_exceptions
 from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion, ArrayRemove, FieldFilter
 from pydantic import BaseModel
 
@@ -18,6 +20,7 @@ import re
 from app.auth import get_current_uid, get_firebase_app
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+_log = logging.getLogger(__name__)
 
 
 def _get_workflow(uid: str, workflow_id: str, require_owner: bool = True) -> tuple[Any, Any]:
@@ -206,8 +209,15 @@ async def get_thumbnail_image(
 
     try:
         body = download_file(blob_name)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Thumbnail blob not found")
+    except gcp_exceptions.NotFound as e:
+        raise HTTPException(
+            status_code=404, detail="Thumbnail blob not found"
+        ) from e
+    except Exception as e:
+        _log.exception("Thumbnail download failed for workflow %s", workflow_id)
+        raise HTTPException(
+            status_code=500, detail="Could not load thumbnail"
+        ) from e
     lower = blob_name.lower()
     media = "image/jpeg"
     if lower.endswith(".png"):

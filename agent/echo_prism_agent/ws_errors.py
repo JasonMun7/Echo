@@ -29,7 +29,7 @@ def ws_error(message: str, code: str | None = None) -> dict:
 def classify_api_call_error(message: str) -> str:
     """Map connector / execute_api_call strings to ECHO_* codes."""
     m = (message or "").lower()
-    if "gmail_send blocked" in m or "blocked:" in m and "gmail" in m:
+    if "gmail_send blocked" in m or ("blocked:" in m and "gmail" in m):
         return GUARD_BLOCKED
     if "not connected" in m or "missing_access_token" in m:
         return INTEGRATION

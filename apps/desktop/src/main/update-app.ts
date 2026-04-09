@@ -83,12 +83,17 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
     });
   });
 
-  autoUpdater.on("update-downloaded", (_event: unknown, info: UpdateInfo) => {
-    const win = getMainWindow();
-    win?.webContents.send("update-downloaded", {
-      version: info?.version ?? "unknown",
-    });
-  });
+  // Typings use (event, info); runtime may pass only `info` — normalize to a single UpdateInfo.
+  autoUpdater.on(
+    "update-downloaded",
+    ((first: unknown, second?: UpdateInfo) => {
+      const info = second ?? (first as UpdateInfo);
+      const win = getMainWindow();
+      win?.webContents.send("update-downloaded", {
+        version: info?.version ?? "unknown",
+      });
+    }) as (event: unknown, info: UpdateInfo) => void,
+  );
 
   autoUpdater.on("error", (err: Error) => {
     console.error("[updater]", err);

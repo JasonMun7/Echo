@@ -128,9 +128,9 @@ declare global {
           transferred: number;
           total: number;
         }) => void,
-      ) => void;
+      ) => () => void;
       removeUpdateDownloadProgressListener: () => void;
-      onUpdateError: (callback: (arg: { message: string }) => void) => void;
+      onUpdateError: (callback: (arg: { message: string }) => void) => () => void;
       removeUpdateErrorListener: () => void;
       quitAndInstall: () => Promise<void>;
       checkForUpdates: () => Promise<unknown>;

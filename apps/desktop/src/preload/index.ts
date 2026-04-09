@@ -194,16 +194,35 @@ contextBridge.exposeInMainWorld("electronAPI", {
       total: number;
     }) => void,
   ) => {
-    ipcRenderer.on("update-download-progress", (_, arg) => callback(arg));
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      arg: {
+        percent: number;
+        bytesPerSecond: number;
+        transferred: number;
+        total: number;
+      },
+    ) => callback(arg);
+    ipcRenderer.on("update-download-progress", listener);
+    return () => {
+      ipcRenderer.removeListener("update-download-progress", listener);
+    };
   },
   removeUpdateDownloadProgressListener: () => {
-    ipcRenderer.removeAllListeners("update-download-progress");
+    /* Prefer unsubscribe returned from onUpdateDownloadProgress */
   },
   onUpdateError: (callback: (arg: { message: string }) => void) => {
-    ipcRenderer.on("update-error", (_, arg: { message: string }) => callback(arg));
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      arg: { message: string },
+    ) => callback(arg);
+    ipcRenderer.on("update-error", listener);
+    return () => {
+      ipcRenderer.removeListener("update-error", listener);
+    };
   },
   removeUpdateErrorListener: () => {
-    ipcRenderer.removeAllListeners("update-error");
+    /* Prefer unsubscribe returned from onUpdateError */
   },
   quitAndInstall: () => ipcRenderer.invoke("quit-and-install"),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),

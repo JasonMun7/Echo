@@ -27,7 +27,7 @@ fi
 section "Deploy Backend"
 # YAML env file: avoids gcloud --set-env-vars breaking on commas/special chars in Auth0 secrets.
 DEPLOY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-backend-env.XXXXXX.yaml")"
+BACKEND_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-backend-env.yaml.XXXXXX")"
 trap 'rm -f "$BACKEND_ENV_FILE"' EXIT
 python3 "$DEPLOY_SCRIPT_DIR/backend_env_to_yaml.py" "$PROJECT_ID" "$REGION" >"$BACKEND_ENV_FILE"
 

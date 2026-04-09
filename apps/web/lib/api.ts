@@ -54,13 +54,10 @@ async function getToken(forceRefresh = false): Promise<string | null> {
   return useAuthStore.getState().getIdToken();
 }
 
-function withBearer(
-  token: string | null,
-  headers: HeadersInit
-): HeadersInit {
-  const h = { ...headers } as Record<string, string>;
-  if (token) {
-    h.Authorization = `Bearer ${token}`;
+function withBearer(token: string | null, headers: HeadersInit | undefined): Headers {
+  const h = new Headers(headers ?? undefined);
+  if (token && !h.has("Authorization")) {
+    h.set("Authorization", `Bearer ${token}`);
   }
   return h;
 }

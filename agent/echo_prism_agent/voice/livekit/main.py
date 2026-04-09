@@ -13,6 +13,7 @@ goes to the deployed worker and logs appear only in Cloud Run.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -145,6 +146,22 @@ def _get_backend_url() -> str:
     ).rstrip("/")
 
 
+def _phone_log_token(phone: str) -> str:
+    """Avoid raw phone numbers in central logs; keep last digits for support correlation."""
+    p = (phone or "").strip()
+    digits = "".join(c for c in p if c.isdigit())
+    if len(digits) < 4:
+        return "redacted-phone"
+    return f"phone_last4={digits[-4:]}"
+
+
+def _uid_log_token(uid: str) -> str:
+    if not uid:
+        return "(none)"
+    digest = hashlib.sha256(uid.encode("utf-8")).hexdigest()
+    return f"uid_hash={digest[:16]}"
+
+
 async def _lookup_user_by_phone(phone: str) -> tuple[dict | None, str]:
     """Call EchoPrism GET /api/livekit/user-by-phone. Returns (user_dict or None, status_for_logging)."""
     phone = (phone or "").strip()
@@ -165,14 +182,16 @@ async def _lookup_user_by_phone(phone: str) -> tuple[dict | None, str]:
             if resp.status_code == 200:
                 return resp.json(), "ok"
             _logger.info(
-                "[EchoPrism] user-by-phone lookup returned %s for phone=%s (no match in Firestore?)",
+                "[EchoPrism] user-by-phone lookup returned %s for %s (no match in Firestore?)",
                 resp.status_code,
-                phone,
+                _phone_log_token(phone),
             )
             return None, f"http_{resp.status_code}"
     except Exception as e:
         _logger.info(
-            "[EchoPrism] user-by-phone lookup error for phone=%s: %s", phone, e
+            "[EchoPrism] user-by-phone lookup error for %s: %s",
+            _phone_log_token(phone),
+            e,
         )
         return None, "error"
 
@@ -274,9 +293,8 @@ async def entrypoint(ctx: agents.JobContext):
                 if uid:
                     phone_lookup.set_resolved_user(ctx.room.name, uid, display_name)
                     _logger.info(
-                        "[EchoPrism] Resolved caller to user uid=%s displayName=%s",
-                        uid,
-                        display_name,
+                        "[EchoPrism] Resolved caller to user %s",
+                        _uid_log_token(uid),
                     )
             else:
                 _logger.info(

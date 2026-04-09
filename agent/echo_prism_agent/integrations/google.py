@@ -93,7 +93,7 @@ def _gmail_rfc2822_raw_b64(args: dict[str, Any]) -> tuple[str | None, str | None
         msg.set_content(plain if plain else " ", subtype="plain")
         msg.add_alternative(html, subtype="html")
     else:
-        msg.set_content(plain if plain else "(no body)")
+        msg.set_content(plain if plain else "", subtype="plain")
     raw_bytes = msg.as_bytes()
     raw_b64 = base64.urlsafe_b64encode(raw_bytes).decode("ascii").rstrip("=")
     return raw_b64, None

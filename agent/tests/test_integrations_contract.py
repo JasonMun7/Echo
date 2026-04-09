@@ -176,7 +176,7 @@ async def test_execute_api_call_dispatches_to_slack_connector() -> None:
 
 @pytest.mark.asyncio
 async def test_execute_api_call_unknown_integration() -> None:
-    ok, err, meta = await execute_api_call(
+    ok, err, _meta = await execute_api_call(
         {"params": {"integration": "not_real", "method": "x", "args": {}}},
         "u",
         None,

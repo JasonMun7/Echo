@@ -485,7 +485,7 @@ export default function WorkflowsPage() {
                 >
                   {/* Thumbnail */}
                   {w.thumbnail_gcs_path ? (
-                    <WorkflowThumbnail workflowId={w.id} heightClass="h-36" />
+                    <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
                   ) : (
                     <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">

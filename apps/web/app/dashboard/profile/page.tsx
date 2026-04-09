@@ -62,7 +62,12 @@ function parseProfileDate(value: unknown): Date | null {
 
     if (typeof maybeTimestamp.toDate === "function") {
       const parsed = maybeTimestamp.toDate();
-      return Number.isNaN(parsed.getTime()) ? null : parsed;
+      if (
+        parsed instanceof Date &&
+        !Number.isNaN(parsed.getTime())
+      ) {
+        return parsed;
+      }
     }
 
     const seconds = maybeTimestamp._seconds ?? maybeTimestamp.seconds;
@@ -159,7 +164,9 @@ export default function ProfilePage() {
     }
   }
 
-  const createdAtDate = parseProfileDate(profile?.createdAt ?? profile?.created_at);
+  const createdAtDate =
+    parseProfileDate(profile?.createdAt) ??
+    parseProfileDate(profile?.created_at);
   const createdAt = createdAtDate ? createdAtDate.toLocaleDateString() : null;
 
   const initials = (user?.displayName || user?.email || "U")

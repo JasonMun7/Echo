@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
-import { AGENT_URL, MAIN_API_URL, apiFetch } from "@/lib/api";
+import { MAIN_API_URL, agentFetch, apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import {
   IconArrowLeft,
@@ -87,8 +87,8 @@ function RunStepScreenshot({
   useEffect(() => {
     if (token && workflowId && runId) {
       setError(false);
-      const url = `${AGENT_URL}/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
-      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const path = `/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
+      agentFetch(path, { headers: { Authorization: `Bearer ${token}` } })
         .then((res) => {
           if (!res.ok) throw new Error("Screenshot not found");
           return res.blob();

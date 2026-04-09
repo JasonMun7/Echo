@@ -26,10 +26,16 @@ fi
 echo "OK GET /health/echo -> $(cat /tmp/echo_health_echo.json)"
 
 if [[ -n "$AGENT_URL" ]]; then
-  # Normalize wss://host -> https://host for HTTP health
-  http_url="${AGENT_URL#wss://}"
-  http_url="${http_url#ws://}"
-  http_url="https://${http_url}"
+  # Map WebSocket URL to HTTP(S) for /health (TLS agent -> https, non-TLS -> http)
+  if [[ "$AGENT_URL" == wss://* ]]; then
+    http_url="https://${AGENT_URL#wss://}"
+  elif [[ "$AGENT_URL" == ws://* ]]; then
+    http_url="http://${AGENT_URL#ws://}"
+  elif [[ "$AGENT_URL" == https://* ]] || [[ "$AGENT_URL" == http://* ]]; then
+    http_url="$AGENT_URL"
+  else
+    http_url="https://${AGENT_URL}"
+  fi
   code=$(curl -sS -o /tmp/echo_agent_health.json -w "%{http_code}" "${http_url}/health" || true)
   if [[ "$code" != "200" ]]; then
     echo "WARN: GET ${http_url}/health expected 200, got $code (set AGENT_URL if agent not deployed)"

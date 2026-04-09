@@ -445,10 +445,26 @@ def gui_route_after_verify(state: GuiRunState) -> Command:
 
     hint = (state.get("verification_hint") or "").strip() or "Screen state did not change as expected"
     loop_n = int(state.get("loop_count") or 0)
+    hint_lower = hint.lower()
+    no_change_markers = (
+        "no change",
+        "no-change",
+        "nothing changed",
+        "no effect",
+        "did not change",
+        "unchanged",
+        "same state",
+        "ui did not change",
+    )
+    is_no_change_failure = any(m in hint_lower for m in no_change_markers)
+    if is_no_change_failure:
+        recovery = (
+            "Try a clearly different action; do not repeat the same coordinates if the UI did not change."
+        )
+    else:
+        recovery = "Try a different approach or re-verify the target element before acting again."
     extra_ctx = (
-        f"Verification failed: {hint} "
-        f"(verify retry {vf + 1}, GUI loop {loop_n}). "
-        f"Try a clearly different action; do not repeat the same coordinates if the UI did not change."
+        f"Verification failed: {hint} (verify retry {vf + 1}, GUI loop {loop_n}). {recovery}"
     )
 
     return Command(
