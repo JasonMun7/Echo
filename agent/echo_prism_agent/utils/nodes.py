@@ -69,8 +69,13 @@ def observe_screen(state: InferenceStepState) -> dict[str, Any]:
         try:
             im = Image.open(BytesIO(raw))
             w, h = im.size
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(
+                "observe_screen: could not read raw screenshot dimensions; using default %sx%s: %s",
+                w,
+                h,
+                e,
+            )
     img_bytes = compress_screenshot(raw)
     vw, vh = vlm_resize_dimensions(w, h)
     # Must match the image actually sent to the VLM. ``compress_screenshot`` and
