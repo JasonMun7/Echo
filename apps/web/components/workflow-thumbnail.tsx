@@ -5,8 +5,15 @@ import { apiFetch } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Loads workflow cover art via authenticated GET (blob URL). Avoids production issues
- * with embedding GCS signed URLs in `<img src>` (cross-origin / referrer policies).
+ * Fetches a workflow's cover image and renders it as an object URL.
+ *
+ * The component requests the thumbnail blob via an authenticated API call, creates a browser
+ * object URL for rendering, and revokes any previously created object URL to avoid leaks.
+ * If the fetch or image load fails, the component renders nothing.
+ *
+ * @param workflowId - Workflow identifier used to fetch the thumbnail
+ * @param heightClass - Tailwind CSS height class applied to the container (default: `"h-28"`)
+ * @returns A JSX element containing the thumbnail image or a skeleton while loading; `null` if loading or rendering fails
  */
 export function WorkflowThumbnail({
   workflowId,

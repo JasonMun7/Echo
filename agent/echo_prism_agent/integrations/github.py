@@ -15,6 +15,22 @@ METHODS: dict[str, str] = {
 
 
 async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[str, Any]:
+    """
+    Dispatches a GitHub REST API operation (currently `list_repos` or `create_issue`) using the provided Bearer access token.
+    
+    Parameters:
+        method (str): Operation identifier (case- and dash-insensitive). Supported values: `list_repos`, `create_issue`.
+        args (dict[str, Any]): Parameters for the operation.
+            - For `list_repos`: optional key `per_page` (int).
+            - For `create_issue`: required keys `owner` (str), `repo` (str), `title` (str); optional key `body` (str).
+        access_token (str): Bearer token used for Authorization.
+    
+    Returns:
+        dict[str, Any]: Result object with the following keys:
+            - `ok` (bool): `True` on success, `False` on failure.
+            - `error` (str): Error identifier or server response text when `ok` is `False`.
+            - `result` (Any): Parsed JSON response on success or an empty dict on error.
+    """
     if not access_token:
         return {"ok": False, "error": "missing_access_token", "result": {}}
     method = (method or "").strip().lower().replace("-", "_")

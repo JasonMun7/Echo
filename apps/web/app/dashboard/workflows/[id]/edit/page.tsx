@@ -292,6 +292,21 @@ function ParamFields({
   return null;
 }
 
+/**
+ * Renders an editable workflow step row with drag-and-drop support, action selection, context editing, parameter fields, and a delete control.
+ *
+ * @param step - The step data to display and edit.
+ * @param index - Zero-based position of the step used for display (e.g., "Step 1").
+ * @param availableActions - List of allowed action keys shown in the action selector.
+ * @param isNew - Whether the step was just created; used to highlight missing context.
+ * @param isInvalid - Whether the step is currently invalid (e.g., empty context) and should show an error state.
+ * @param isDirty - Whether the step has unsaved local changes shown by a dirty indicator.
+ * @param onUpdate - Called with a partial Step to merge updates (action, context, params, etc.).
+ * @param onDelete - Called when the delete button is pressed.
+ * @param onContextFilled - Called when the context textarea transitions from empty to non-empty.
+ * @param onInvalidCleared - Called when a previously invalid step becomes valid (clears error state).
+ * @returns The rendered JSX element for the step card.
+ */
 function StepCard({
   step,
   index,
@@ -425,6 +440,11 @@ function StepCard({
   );
 }
 
+/**
+ * Page component that provides a full editor for a workflow and its steps, including realtime syncing, step CRUD, reordering, and activation.
+ *
+ * @returns The React element for the workflow editor page.
+ */
 export default function WorkflowEditPage() {
   const params = useParams();
   const router = useRouter();

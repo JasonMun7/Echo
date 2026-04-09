@@ -58,9 +58,15 @@ def _approval_accepted(approval: Any) -> bool:
 
 async def api_call_gate_node(state: ApiCallGateState) -> dict[str, Any]:
     """
-    Ask the user to approve the api_call, then run ``execute_api_call``.
-    If integration OAuth is missing, ``interrupt`` again with integration_auth payload.
-    After each resume, this node runs from the beginning again (LangGraph semantics).
+    Ask the user to approve an API call, execute the call if approved, and trigger an integration-auth interrupt when the execution reports missing OAuth credentials.
+    
+    Parameters:
+        state (ApiCallGateState): Checkpointed node state containing an optional `step` dict with `params` for the API call.
+    
+    Returns:
+        dict[str, Any]: Result object with keys:
+            - `ok` (bool): `True` when the API call succeeded, `False` otherwise.
+            - `error` (str | None): `None` on success; an error message describing the failure on `False`.
     """
     try:
         raw = get_config()
@@ -129,12 +135,12 @@ def build_api_call_gate_graph() -> StateGraph:
 
 def get_api_call_gate_graph() -> Any:
     """
-    Singleton compiled graph with in-memory checkpointer (per process).
-
-    **Persistence note:** ``MemorySaver`` only survives process lifetime. For durable
-    HITL resume across Cloud Run instance restarts, swap in a LangGraph checkpointer
-    backed by Firestore, Redis, or another shared store—same graph definition, different
-    checkpointer. That is a dedicated migration; do not enable lightly.
+    Provide a singleton compiled StateGraph configured with an in-memory checkpointer.
+    
+    Persistence note: The checkpointer is a process-lifetime MemorySaver. For durable human-in-the-loop resume across instance restarts, replace the checkpointer with a LangGraph-backed persistent store (e.g., Firestore or Redis) when compiling the same graph definition.
+    
+    Returns:
+        The compiled StateGraph instance for the API call gate.
     """
     global _checkpointer, _compiled
     if _compiled is None:

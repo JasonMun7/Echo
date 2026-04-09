@@ -82,6 +82,13 @@ function isLatestOrLastModified(
   );
 }
 
+/**
+ * Dashboard page that displays user workflows, recent runs, and activity.
+ *
+ * Subscribes to Firestore to keep workflows and their nested runs in real time, aggregates run counts and the most recent in-progress run, and manages UI state for loading, onboarding banner, and notifications toasts. Renders loading skeletons initially and, when ready, shows header controls, stats cards (workflows, active workflows, runs, awaiting input), an interactive activity chart, a runs data table, and a recent workflows grid with navigation to workflow and run details.
+ *
+ * @returns The React element tree for the dashboard UI.
+ */
 export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -413,6 +420,15 @@ export default function DashboardPage() {
   );
 }
 
+/**
+ * Renders a clickable workflow card showing thumbnail, name, and status, and links to the workflow's edit or detail page.
+ *
+ * When `isLatest` is true, displays a visual "latest" indicator on the card.
+ *
+ * @param workflow - The workflow data to display (id, name, status, thumbnail path, timestamps).
+ * @param isLatest - If true, show the newest/most recently modified indicator on the card.
+ * @returns The rendered JSX element for the workflow card.
+ */
 function WorkflowCard({
   workflow: w,
   isLatest,

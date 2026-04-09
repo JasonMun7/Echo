@@ -19,7 +19,17 @@ security = HTTPBearer(auto_error=False)
 
 
 def _id_token_aud_unverified(token: str) -> str | None:
-    """Decode JWT payload without verification (debug only)."""
+    """
+    Extract the JWT `aud` claim from a JSON Web Token without verifying its signature.
+    
+    Intended for debugging: decodes the token payload and parses the JSON payload but does not validate the token's signature or expiry.
+    
+    Parameters:
+        token (str): JWT in compact serialization (three dot-separated segments).
+    
+    Returns:
+        str | None: The `aud` claim when present and a string, or `None` if the token is malformed, the `aud` claim is missing/not a string, or any parsing error occurs.
+    """
     try:
         parts = token.split(".")
         if len(parts) != 3:
@@ -35,6 +45,18 @@ def _id_token_aud_unverified(token: str) -> str | None:
 
 
 def get_firebase_app():
+    """
+    Ensure a Firebase Admin SDK app is initialized and return the app instance.
+    
+    If no Firebase app is initialized, initializes one using the path from
+    `GOOGLE_APPLICATION_CREDENTIALS` when it points to an existing file; otherwise
+    falls back to Application Default Credentials. If `GOOGLE_APPLICATION_CREDENTIALS`
+    is set but points to a missing file, the environment variable is removed so
+    metadata/Workload Identity or other ADC mechanisms can be used.
+    
+    Returns:
+        firebase_admin.App: The initialized or existing Firebase Admin SDK app.
+    """
     if not firebase_admin._apps:
         cred_path = (GOOGLE_APPLICATION_CREDENTIALS or "").strip()
         if cred_path and not Path(cred_path).is_file():
@@ -59,6 +81,14 @@ def get_firebase_app():
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)]
 ) -> dict:
+    """
+    Validate the request's Bearer ID token and return the decoded Firebase ID token claims.
+    
+    Raises an HTTP 401 when the Authorization header is missing or the token is invalid or expired.
+    
+    Returns:
+    	decoded_claims (dict): The decoded Firebase ID token payload.
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -10,6 +10,13 @@ import { Auth0StatusBanner } from "./_components/auth0-status-banner";
 import { IntegrationCard } from "./_components/integration-card";
 import { useIntegrationsOAuthParams } from "./_hooks/use-integrations-oauth-params";
 
+/**
+ * Renders the App Integrations page and manages integration state, Auth0 linking, and connect/disconnect flows.
+ *
+ * Subscribes to Firebase auth state and loads integrations after a valid ID token is available; exposes controls to start connection flows (linking Auth0 when needed or connecting a vault), disconnect integrations, and unlink Auth0. Displays an Auth0 status banner, loading skeletons while fetching, and an IntegrationCard for each integration.
+ *
+ * @returns The React element for the App Integrations page containing the status banner, integration cards, and related controls.
+ */
 export default function IntegrationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();

@@ -11,7 +11,14 @@ _INTEGRATION_IDS: Final[tuple[str, ...]] = ("slack", "github", "google")
 
 
 def build_api_call_reference_for_llm() -> str:
-    """Human-readable block listing supported api_call integrations and methods."""
+    """
+    Builds a human-readable reference describing the expected `api_call` step shape and listing supported methods for each integration.
+    
+    The returned text includes a template for the `api_call` params, a critical guidance block for messaging methods, and per-integration method names with their descriptions.
+    
+    Returns:
+        reference (str): A multi-line string suitable for showing to an LLM, listing integrations (`slack`, `github`, `google`) and their supported methods.
+    """
     lines: list[str] = [
         "api_call step shape: action \"api_call\", params: {",
         '  "integration": "slack" | "github" | "google",',

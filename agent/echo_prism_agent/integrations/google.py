@@ -26,7 +26,18 @@ _GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
 
 def _truthy_skip_gmail_data_guard(args: dict[str, Any]) -> bool:
-    """Per-send opt-out after human review (workflow ``api_call`` args only)."""
+    """
+    Determine if a request opts out of Gmail data/content guards.
+    
+    Parameters:
+        args: Mapping of API-call arguments; this function checks the keys
+            "skip_data_guard" and "skip_content_guard" for opt-out indicators.
+    
+    Returns:
+        `true` if either "skip_data_guard" or "skip_content_guard" is set to the boolean `True`
+        or to a string (case- and whitespace-tolerant) equal to "1", "true", "yes", or "on",
+        `false` otherwise.
+    """
     for key in ("skip_data_guard", "skip_content_guard"):
         v = args.get(key)
         if v is True:
@@ -37,6 +48,18 @@ def _truthy_skip_gmail_data_guard(args: dict[str, Any]) -> bool:
 
 
 def _bounded_int(args: dict[str, Any], key: str, default: int, cap: int) -> int:
+    """
+    Parse an integer from args[key] and clamp it to the inclusive range 1 through cap.
+    
+    Parameters:
+        args (dict[str, Any]): Mapping to read the value from.
+        key (str): Key to look up in args.
+        default (int): Value to return when the key is missing or cannot be parsed as an integer.
+        cap (int): Maximum allowed value; result will not exceed this.
+    
+    Returns:
+        int: `default` if parsing fails, otherwise the parsed integer clamped to the range 1 through `cap`.
+    """
     try:
         v = int(args.get(key, default))
         return max(1, min(v, cap))
@@ -66,7 +89,23 @@ METHODS["google_rest"] = METHODS["rest"]
 
 
 def _gmail_rfc2822_raw_b64(args: dict[str, Any]) -> tuple[str | None, str | None]:
-    """Build Gmail API `raw` field: RFC 2822 message, base64url-encoded without padding."""
+    """
+    Constructs an RFC 2822 email from the provided argument map and returns its base64url-encoded `raw` string suitable for the Gmail API.
+    
+    The function builds headers (To, optional Cc/Bcc, Subject), uses a multipart/alternative message when HTML is provided, and base64url-encodes the message bytes without padding. Subject, plain body, and HTML are sanitized with `strip_vlm_placeholders` and a content guard is enforced unless explicitly skipped.
+    
+    Parameters:
+        args (dict[str, Any]): Argument map supporting:
+            - "to" or "to_email": recipient email address (required).
+            - "subject": message subject (defaults to "(no subject)").
+            - "body" or "text": plain-text body (empty allowed).
+            - "html": optional HTML body; when present, message is multipart/alternative.
+            - "cc", "bcc": optional comma-separated recipient strings.
+            - "skip_data_guard" / "skip_content_guard": optional truthy flags to bypass the content guard.
+    
+    Returns:
+        tuple[str | None, str | None]: A pair where the first element is the base64url-encoded RFC 2822 message (no padding) on success, or `None` on failure; the second element is an error message when construction fails, or `None` on success. Common failure reasons include a missing recipient or the content guard detecting likely missing requested data.
+    """
     to = (args.get("to") or args.get("to_email") or "").strip()
     if not to:
         return None, "gmail_send requires `to` (recipient email address)"

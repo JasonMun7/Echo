@@ -7,7 +7,14 @@ export const MAIN_API_URL =
 
 const API_URL = MAIN_API_URL;
 
-/** Echo Prism agent (chat `/ws/chat`, voice, synthesis). Not the same process as the main API (:8000). */
+/**
+ * Resolves the base URL for the Echo Prism agent service.
+ *
+ * If `NEXT_PUBLIC_ECHO_AGENT_URL` is set (trimmed non-empty) returns that value; in development, logs a warning if it points to `:8000` or `:8081`.
+ * If not set, returns `http://127.0.0.1:8083` in development, otherwise returns `API_URL`.
+ *
+ * @returns The agent base URL as a string
+ */
 function resolveAgentUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_ECHO_AGENT_URL?.trim();
   if (explicit) {
@@ -32,7 +39,11 @@ function resolveAgentUrl(): string {
 /** Agent service URL for chat, voice, synthesis */
 export const AGENT_URL = resolveAgentUrl();
 
-/** Wait until Firebase has finished restoring session from persistence (avoids empty token on first paint). */
+/**
+ * Waits for Firebase authentication state to be restored from persistence when supported.
+ *
+ * If the imported `auth` exposes an `authStateReady()` method, this function awaits it; otherwise it returns immediately.
+ */
 async function ensureAuthReady(): Promise<void> {
   const a = auth as { authStateReady?: () => Promise<void> } | null;
   if (a && typeof a.authStateReady === "function") {
@@ -40,7 +51,14 @@ async function ensureAuthReady(): Promise<void> {
   }
 }
 
-/** Prefer Firebase `currentUser` so requests work even if Zustand has not synced yet after `onAuthStateChanged`. */
+/**
+ * Retrieves an ID token for the current user, preferring Firebase's `currentUser` and falling back to the stored auth state.
+ *
+ * @param forceRefresh - If `true`, forces a refresh of the ID token instead of using a cached token.
+ * @returns The user's ID token string, or `null` if no token is available.
+ *
+ * If obtaining a token from Firebase's `currentUser` fails or is unavailable, the function returns the token from the auth store.
+ */
 async function getToken(forceRefresh = false): Promise<string | null> {
   await ensureAuthReady();
   try {
@@ -54,6 +72,13 @@ async function getToken(forceRefresh = false): Promise<string | null> {
   return useAuthStore.getState().getIdToken();
 }
 
+/**
+ * Attach a Bearer Authorization header to a headers object when a token is provided.
+ *
+ * @param token - The Bearer token to set; if `null`, no Authorization header is added.
+ * @param headers - The initial headers (will be shallow-copied and returned).
+ * @returns The headers object containing `Authorization: Bearer <token>` when `token` is non-null, otherwise a shallow copy of `headers`.
+ */
 function withBearer(
   token: string | null,
   headers: HeadersInit
@@ -65,6 +90,15 @@ function withBearer(
   return h;
 }
 
+/**
+ * Perform an HTTP request against the application's main API, attaching an auth Bearer token when available.
+ *
+ * Attempts the request to `${API_URL}${path}` with the provided `options` and includes `Authorization: Bearer <token>` if a token is present. If the initial response is `401` and a signed-in Firebase user exists, the function forces an ID token refresh and retries the request once with the refreshed token.
+ *
+ * @param path - The request path appended to the API base URL (`API_URL`), e.g. `"/v1/items"`.
+ * @param options - Fetch options passed through to `fetch` (headers will be augmented with the Bearer token).
+ * @returns The final `Response` object from `fetch` (initial response or retry).
+ */
 export async function apiFetch(
   path: string,
   options: RequestInit = {}
@@ -88,7 +122,16 @@ export async function apiFetch(
   return resp;
 }
 
-/** Fetch from agent service (chat, voice, synthesis). Uses Bearer auth. */
+/**
+ * Send an HTTP request to the Echo Prism agent service and return the response.
+ *
+ * Augments the provided request with a `Authorization: Bearer <token>` header when a token is available.
+ * If the initial response is `401` and a signed-in user exists, retries the request once after refreshing the token.
+ *
+ * @param path - Agent-relative request path (appended to the configured agent base URL)
+ * @param options - Fetch options to use for the request; `headers` may be a HeadersInit value and will be merged with the bearer header
+ * @returns The final Response from the agent, either the initial response or a single retry after token refresh
+ */
 export async function agentFetch(
   path: string,
   options: RequestInit = {}

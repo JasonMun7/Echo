@@ -183,12 +183,22 @@ async def agent_run_ws(
     token: str | None = Query(default=None, description="Firebase ID token"),
 ):
     """
-    EchoPrism agent WebSocket. Clients send step + screenshot; returns action.
-    Auth: Firebase ID token (token query param).
-    Message types:
-      Client -> Server: start, step, verify, resume (after interrupt), cancel_interrupt
-      Server -> Client: thinking_delta, thinking, action, done, error, verify_result
-      action.signal interrupt: LangGraph HITL pause (e.g. integration_auth) — client opens Auth0 then sends resume.
+    Manage a single EchoPrism agent WebSocket session: authenticate the client, accept messages, run deterministic or ambiguous step processing, and send realtime responses (thinking_delta, thinking, action, done, verify_result, errors).
+    
+    This WebSocket handler:
+    - Requires a Firebase ID token (query param `token`) for authentication; closes the connection if verification fails.
+    - Validates run access and optionally writes run logs and screenshots to Firestore.
+    - Requires OPENROUTER_API_KEY to be set for inference and reads GEMINI_API_KEY for model calls.
+    - Accepts client messages of types: `start`, `step`, `verify`, `resume`, and `cancel_interrupt`.
+      - `start`: establishes workflow/run context and returns a `ready` message.
+      - `step`: handles deterministic steps immediately or runs ambiguous step inference when a screenshot is provided; may emit `thinking_delta`/`thinking`, `action` (with signals like `execute`, `interrupt`, `finished`, `calluser`, `step_done`), and `done`.
+      - `verify`: validates a before/after screenshot pair for a given action, updates history and logs on success, and returns `verify_result`.
+      - `resume` / `cancel_interrupt`: manage HITL/API-call interrupt resume or cancellation flows.
+    - Uses structured WebSocket error payloads with standardized error codes for invalid input, configuration, pending interrupts, resume errors, run access, inference failures, and unknown message types.
+    - Ensures the connection is closed cleanly on disconnect or unhandled exceptions.
+    
+    Parameters:
+        token: Firebase ID token supplied as the `token` query parameter for authentication.
     """
     uid = _verify_token(token)
     if not uid:

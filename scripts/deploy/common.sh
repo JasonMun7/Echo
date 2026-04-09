@@ -55,7 +55,11 @@ cd "$ROOT_DIR"
 
 # ------------------------------------------------------------------------------
 # Configuration (call load_config after setting PROJECT_ID/REGION)
-# ------------------------------------------------------------------------------
+# load_config loads deployment configuration from environment, validates PROJECT_ID, and exports derived project and service URL variables.
+# 
+# It sets default values for PROJECT_ID (from ECHO_GCP_PROJECT_ID), REGION (from ECHO_CLOUD_RUN_REGION or us-central1), and IMAGE_TAG (defaults to latest),
+# obtains PROJECT_NUMBER via gcloud, and exports PROJECT_ID, REGION, IMAGE_TAG, PROJECT_NUMBER, BACKEND_URL, FRONTEND_URL, ECHO_PRISM_AGENT_URL, and IMAGE_BASE.
+# The function exits with status 1 if PROJECT_ID is missing or if retrieving PROJECT_NUMBER fails.
 load_config() {
   PROJECT_ID=${PROJECT_ID:-$ECHO_GCP_PROJECT_ID}
   REGION=${REGION:-${ECHO_CLOUD_RUN_REGION:-us-central1}}
@@ -80,12 +84,13 @@ load_config() {
 }
 
 # Comma-separated gcloud --substitutions for Cloud Build frontend images.
-# Call after load_config. Reads NEXT_PUBLIC_* from the environment (e.g. Doppler prd).
+# echo_frontend_cloudbuild_substitutions outputs a comma-separated list of Cloud Build `_SUBSTITUTIONS` key=value pairs for the frontend build.
+# echo_frontend_cloudbuild_substitutions reads NEXT_PUBLIC_* environment variables (defaults to empty when unset) and includes IMAGE_TAG, BACKEND_URL, and ECHO_PRISM_AGENT_URL; call after load_config.
 echo_frontend_cloudbuild_substitutions() {
   echo "_IMAGE_TAG=$IMAGE_TAG,_BACKEND_URL=$BACKEND_URL,_AGENT_URL=$ECHO_PRISM_AGENT_URL,_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY:-},_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-},_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-},_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-},_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-},_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID:-},_DESKTOP_DOWNLOAD_MAC_URL=${NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL:-},_DESKTOP_DOWNLOAD_WIN_URL=${NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL:-}"
 }
 
-# Echo header (always shown when common.sh is sourced)
+# echo_header prints the stylized Echo ASCII art banner to stdout.
 echo_header() {
   echo ""
   echo -e "${CETACEAN}${BOLD}"

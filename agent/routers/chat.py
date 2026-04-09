@@ -236,8 +236,18 @@ def _sanitize(value):
 async def _execute_tool(
     name: str, args: dict, uid: str, db, websocket: Optional[WebSocket] = None
 ) -> dict:
-    """Execute a single named tool and return its result dict.
-    When websocket is None (e.g. /api/agent/tool), side-channel notifications are skipped.
+    """
+    Dispatches and executes a named tool action and returns its result payload.
+    
+    Parameters:
+        name (str): The tool identifier to execute (e.g., "run_workflow", "call_integration").
+        args (dict): Tool-specific arguments.
+        uid (str): The Firebase user UID on whose behalf the tool runs.
+        db: Firestore client used for reads/writes.
+        websocket (Optional[WebSocket]): If provided, the function sends best-effort notifications back to the client; when None, notifications are skipped.
+    
+    Returns:
+        dict: A tool-specific result dictionary. Successful operations typically include `{"ok": True, ...}` with additional identifiers or data; failures typically include `{"ok": False, "error": "<message>"}`. Unknown tools return `{"ok": False, "error": "Unknown tool: <name>"}`.
     """
     if name == "list_workflows":
         docs = (

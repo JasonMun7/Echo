@@ -154,11 +154,19 @@ async def verify_state_transition(
     api_key: str | None = None,
 ) -> tuple[str, bool]:
     """
-    UI-TARS-desktop ``BrowserGUIAgent`` parity: no pixel-delta block (see ``browser-gui-agent.ts``).
-
-    If both captures exist, the step succeeds so history can advance; the next
-    inference call uses the after screenshot regardless of whether pixels changed
-    (static-screen adaptation is prompt-driven, ``prompt_t5.ts``).
+    Determine whether both before and after screenshots are present so the workflow may advance.
+    
+    If both captures are provided, the function records that a post-action screenshot exists and allows progression even if pixels did not change (BrowserGUIAgent parity; see browser-gui-agent.ts). If either capture is missing, the function signals failure.
+    
+    Parameters:
+        before_bytes (bytes): Screenshot bytes captured before the action.
+        after_bytes (bytes): Screenshot bytes captured after the action.
+        action_str (str): Optional action description (ignored).
+        expected_outcome (str): Optional expected outcome description (ignored).
+        api_key (str | None): Optional API key (ignored).
+    
+    Returns:
+        tuple[str, bool]: A message describing the check result and `True` if both screenshots are present, `False` otherwise.
     """
     _ = (action_str, expected_outcome, api_key)
     if not before_bytes or not after_bytes:

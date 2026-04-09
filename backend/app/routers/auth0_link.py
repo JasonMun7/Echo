@@ -63,6 +63,22 @@ def _vault_use_my_account_connect() -> bool:
 
 
 def _callback_url(request: Request) -> str:
+    """
+    Resolve the Auth0 callback URL to use for OAuth redirects.
+    
+    Preference order:
+    1. Use the value of `AUTH0_CALLBACK_URL` (if set), with any trailing `/` removed.
+    2. Else use `BACKEND_URL` (if set) with `/api/auth0/callback` appended.
+    3. Else use `request.base_url` with `/api/auth0/callback` appended.
+    
+    The returned URL will not end with a trailing slash.
+    
+    Parameters:
+        request (Request): Incoming request whose `base_url` is used as a fallback.
+    
+    Returns:
+        str: Resolved callback URL without a trailing slash.
+    """
     explicit = (os.getenv("AUTH0_CALLBACK_URL") or "").strip()
     if explicit:
         return explicit.rstrip("/")
@@ -92,7 +108,22 @@ def _vault_oauth_redirect_uri(request: Request) -> str:
 
 
 def _redirect_uri_for_token_exchange(request: Request, payload: dict) -> str:
-    """Must match the redirect_uri used in /authorize for this authorization code (RFC 6749)."""
+    """
+    Resolve the redirect URI to use when exchanging an authorization code.
+    
+    Resolution order:
+    1. If payload['op'] == 'vault' and the environment variable `AUTH0_VAULT_CALLBACK_URL` is set, return it.
+    2. If `AUTH0_CALLBACK_URL` is set, return it.
+    3. If `BACKEND_URL` is set, return `BACKEND_URL + '/api/auth0/callback'`.
+    4. Otherwise, return the current request URL without its query string.
+    
+    Parameters:
+        request (Request): Incoming request used as a fallback when no environment config is present.
+        payload (dict): Decoded state payload; the value of `payload['op']` (typically 'link' or 'vault') influences selection.
+    
+    Returns:
+        str: The chosen redirect URI with any trailing slash removed.
+    """
     op = payload.get("op", "link")
     if op == "vault":
         v = (os.getenv("AUTH0_VAULT_CALLBACK_URL") or "").strip()

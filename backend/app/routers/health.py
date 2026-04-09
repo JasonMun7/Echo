@@ -7,12 +7,25 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 @router.get("")
 async def health_check():
+    """
+    Report basic service health.
+    
+    Returns:
+        dict: A JSON-serializable object with key `"status"` set to `"ok"`.
+    """
     return {"status": "ok"}
 
 
 @router.get("/echo")
 async def echo_public_config():
-    """Non-secret: Firebase/GCP project id the API uses to verify ID tokens. Compare to NEXT_PUBLIC_FIREBASE_PROJECT_ID in the web build."""
+    """
+    Expose the non-secret Firebase/GCP project ID the API uses for ID token verification for comparison with the web build.
+    
+    Returns:
+        dict: JSON object with:
+            - status (str): "ok"
+            - echo_gcp_project_id (str or None): the public Firebase/GCP project ID used to verify ID tokens, or None if not configured
+    """
     return {
         "status": "ok",
         "echo_gcp_project_id": ECHO_GCP_PROJECT_ID or None,

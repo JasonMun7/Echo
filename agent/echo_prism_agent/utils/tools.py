@@ -161,12 +161,16 @@ def list_integrations() -> str:
 def call_integration(
     integration: str, method: str, arguments: dict[str, Any] | None = None
 ) -> str:
-    """Execute a connected app integration action (Slack, GitHub, etc.).
-
-    Args:
-        integration: Integration id (e.g. slack).
-        method: API method name.
-        arguments: Optional JSON object of arguments.
+    """
+    Invoke a connected integration's API method.
+    
+    Parameters:
+    	integration (str): Integration identifier (for example, "slack" or "github").
+    	method (str): Name of the integration API method to call.
+    	arguments (dict[str, Any] | None): Optional JSON-serializable arguments to pass to the method.
+    
+    Returns:
+    	response (str): Response payload from the integration as a string (empty string if no response).
     """
     return ""
 
@@ -405,8 +409,12 @@ def build_inference_graph() -> StateGraph:
 
 def build_gui_run_graph() -> StateGraph:
     """
-    Multi-step GUI loop: prepare → inference subgraph → execute → verify → route (Command).
-    Nests `build_inference_graph` unchanged. Use `compile(checkpointer=...)` for interrupt/HITL.
+    Builds the GUI run StateGraph coordinating prepare → optional infeasible → inference → execute → verify → routing to terminal tags.
+    
+    The returned graph embeds a compiled inference subgraph under the "inference" node and configures the "execute" node with a retry policy of max_attempts=3 and initial_interval=0.5. Use graph compilation (e.g., compile(checkpointer=...)) when you need interrupt/HITL support.
+    
+    Returns:
+        StateGraph: A StateGraph parameterized by GuiRunState representing the multi-step GUI run workflow.
     """
     inference_compiled = build_inference_graph().compile()
     g = StateGraph(GuiRunState)

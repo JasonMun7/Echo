@@ -366,7 +366,17 @@ class LiveKitEchoPrismAgent(Agent):
         method: str,
         arguments: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Execute a connected app integration action."""
+        """
+        Invoke a connected app integration method through the backend.
+        
+        Parameters:
+        	integration (str): The integration name to call.
+        	method (str): The method or action name to invoke on the integration.
+        	arguments (dict[str, Any] | None): Optional mapping of arguments to pass to the integration; defaults to an empty dict.
+        
+        Returns:
+        	response (dict[str, Any]): The backend response object describing the result of the integration call.
+        """
         await _publish_tool_event("tool_call", name="call_integration")
         uid = _get_participant_uid(context)
         return await _call_tool(

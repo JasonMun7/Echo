@@ -8,6 +8,14 @@ import { apiFetch } from "@/lib/api";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores";
 
+/**
+ * Initializes and synchronizes authentication state, exposes it to the auth store, and renders children wrapped with a TooltipProvider.
+ *
+ * On mount the component: if no `auth` is present it clears the loading state; otherwise it waits for an optional `authStateReady()` hook, registers a Firebase auth state listener that updates the auth store, ensures the user's ID token, calls the backend `/api/users/init`, and synchronizes the user to Firestore. The listener is cleaned up on unmount.
+ *
+ * @param children - The content to render inside the provider
+ * @returns The provided `children` wrapped in a `TooltipProvider`
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!auth) {

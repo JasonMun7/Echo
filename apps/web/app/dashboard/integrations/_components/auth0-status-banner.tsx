@@ -12,6 +12,15 @@ type Auth0StatusBannerProps = {
   onUnlink: () => void;
 };
 
+/**
+ * Render a status banner that displays whether an Auth0 account is linked and provides an unlink action.
+ *
+ * @param auth0Linked - Whether an Auth0 account is linked.
+ * @param auth0Email - The linked Auth0 email, if available.
+ * @param auth0Sub - The linked Auth0 user ID (`sub`), if available; a truncated form may be shown when long.
+ * @param onUnlink - Callback invoked when the "Unlink Auth0" button is clicked.
+ * @returns The component's JSX element representing the Auth0 status banner.
+ */
 export function Auth0StatusBanner({
   auth0Linked,
   auth0Email,

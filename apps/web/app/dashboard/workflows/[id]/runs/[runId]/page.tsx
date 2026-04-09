@@ -61,7 +61,23 @@ function formatTimestamp(ts: unknown): string {
   });
 }
 
-/** Load step screenshot via authenticated API so it works in production (avoids expired signed URLs / CORS). */
+/**
+ * Displays a step screenshot fetched from the authenticated agent API.
+ *
+ * When `token`, `workflowId`, and `runId` are provided the component requests the step screenshot blob
+ * from the agent endpoint and renders it. If the fetch fails or no token/IDs are available, the
+ * optional `fallbackUrl` is used. If neither a fetched image nor a fallback is available, the component
+ * renders `null`.
+ *
+ * @param workflowId - Workflow identifier used to build the API request
+ * @param runId - Run identifier used to build the API request
+ * @param stepIndex - Zero-based step index to request; when `undefined` the component uses `0`
+ * @param token - Authentication token used in the request `Authorization: Bearer <token>`
+ * @param fallbackUrl - Optional image URL to display when the authenticated fetch is not available or fails
+ * @param alt - Alternate text for the rendered `<img>` element
+ * @param className - Optional CSS class name applied to the `<img>` element
+ * @returns An `<img>` element showing the step screenshot, or `null` if no image can be displayed
+ */
 function RunStepScreenshot({
   workflowId,
   runId,
@@ -124,6 +140,13 @@ function RunStepScreenshot({
   );
 }
 
+/**
+ * Render the run detail page showing status, live logs, live thoughts, screenshots, and controls for cancelling, dismissing, sending feedback, and retrying a run.
+ *
+ * The component subscribes to the run document and its logs, auto-scrolls new log entries into view, opens an SSE stream for live thoughts when the run is active, and manages UI state for async actions (cancel, dismiss, send feedback, retry).
+ *
+ * @returns The rendered React element for the run detail view.
+ */
 export default function RunDetailPage() {
   const params = useParams();
   const router = useRouter();

@@ -6,6 +6,14 @@ export const metadata = getSEOTags({
   description: "Echo Terms of Service.",
 });
 
+/**
+ * Render the static Terms of Service page for the marketing site.
+ *
+ * The page displays a centered layout with a "Terms of Service" heading, a placeholder
+ * paragraph advising replacement before production, and a "Back to home" link.
+ *
+ * @returns The React element for the Terms of Service page.
+ */
 export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-8 py-24">

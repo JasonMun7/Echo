@@ -18,6 +18,11 @@ def test_allows_when_digits_present() -> None:
 
 
 def test_allows_non_data_email() -> None:
+    """
+    Verifies that the content guard does not block a casual, non-data email body.
+    
+    Asserts that a short, conversational message ("See you Friday.") is not considered missing requested data for the given context ("Lunch") — the guard should return False.
+    """
     assert gmail_send_body_likely_missing_requested_data("See you Friday.", "Lunch") is False
 
 

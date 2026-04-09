@@ -342,13 +342,16 @@ async def gui_run_execute(state: GuiRunState, config: RunnableConfig | None = No
 
 async def gui_run_verify(state: GuiRunState, _config: RunnableConfig | None = None) -> dict[str, Any]:
     """
-    Matches **UI-TARS-desktop** ``BrowserGUIAgent``: after execute, the tool
-    ``await sleep(500)`` then returns success (``browser-gui-agent.ts``) — there is **no**
-    screenshot hash / pixel-diff gate in that path. **Static UI** handling is prompt-driven
-    (``prompt_t5.ts``: *if the same action yields no change, try an alternative*).
-
-    Echo advances when a post-action screenshot **exists**, even if bytes match the prior frame
-    (same as ``tests/test_langgraph_inference.py`` UI-TARS note).
+    Verify whether the GUI action produced an acceptable post-action state and return verification metadata.
+    
+    If execution was skipped this function marks verification as passed. If no after-action screenshot is present it returns a failing verification. When an after screenshot exists it compares pixel buffers for diagnostics but does not treat identical bytes as a hard failure (matches UI-TARS-desktop BrowserGUIAgent behavior); in all cases with an after screenshot the function reports verification success.
+    
+    Returns:
+        dict: {
+            "verify_delta_ok" (bool): `True` if verification is considered successful, `False` otherwise;
+            "verification_hint" (str): a short human-readable hint or error message (empty string when not applicable);
+            "outcome_met" (bool): `True` when the workflow outcome is considered met, `False` otherwise.
+        }
     """
     if state.get("execute_skipped"):
         return {"verify_delta_ok": True, "verification_hint": "", "outcome_met": True}
@@ -385,8 +388,12 @@ def gui_infeasible_optional(state: GuiRunState) -> dict[str, Any]:
 
 def gui_route_after_verify(state: GuiRunState) -> Command:
     """
-    Route after post-action capture. ``verify_delta_ok`` is normally always True
-    (UI-TARS-desktop parity); the failure branch remains for tests or future hooks.
+    Decide the next GUI workflow step after verification of an executed action.
+    
+    When verification succeeded, advances the GUI loop or ends the run if the max loop count is reached; when verification failed, increments a verification retry counter and either schedules another inference attempt with guidance or terminates with an error after exhausting retries.
+    
+    Returns:
+        Command: A LangGraph Command that updates state fields (loop counters, screenshots, transient inference fields, error/terminal flags, and extra_context) and sets the next route (`goto`) to either "inference" or the end marker.
     """
     loop = int(state.get("loop_count") or 0)
     max_loop = int(state.get("max_loop_count") or DEFAULT_GUI_RUN_MAX_LOOPS)

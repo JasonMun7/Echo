@@ -337,7 +337,19 @@ def _user_override_active(context: str) -> bool:
 
 
 def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
-    """Convert a workflow step to instruction text for the agent."""
+    """
+    Builds a concise, agent-facing instruction string describing a single workflow step.
+    
+    Constructs an instruction that includes optional Context and Expected outcome lines, applies USER OVERRIDE typing rules when present, and emits action-specific guidance (e.g., navigate, click/type, scroll, api_call) according to the step's fields. The returned string is prefixed with WORKFLOW_STEP_SCAFFOLD_PREFIX so it can be injected directly into the agent's prompt.
+    
+    Parameters:
+        step (dict[str, Any]): A workflow step object containing keys like "action", "params", "context", and "expected_outcome".
+        step_index (int): 1-based index of this step within the workflow.
+        total (int): Total number of steps in the workflow.
+    
+    Returns:
+        str: The formatted instruction string (prefixed with WORKFLOW_STEP_SCAFFOLD_PREFIX).
+    """
     action = step.get("action", "wait")
     params = step.get("params", {})
     context = step.get("context", "").strip()

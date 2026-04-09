@@ -168,7 +168,15 @@ async def get_thumbnail(
     workflow_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    """Return a short-lived signed URL for the workflow's thumbnail image."""
+    """
+    Generate a short-lived signed URL for a workflow's thumbnail image.
+    
+    Returns:
+        dict: A mapping with key `"url"` containing the signed read URL for the thumbnail.
+    
+    Raises:
+        HTTPException: 404 if the workflow has no thumbnail path, 500 if the thumbnail GCS path is invalid.
+    """
     _, data = _get_workflow(uid, workflow_id, require_owner=False)
     gcs_path = data.get("thumbnail_gcs_path")
     if not gcs_path:
@@ -189,10 +197,17 @@ async def get_thumbnail_image(
     uid: str = Depends(get_current_uid),
 ):
     """
-    Return raw thumbnail bytes (same auth as GET /thumbnail JSON).
-
-    Use this from the web app with Bearer auth + blob URLs so thumbnails load in production
-    without relying on browser loads of GCS signed URLs (Referrer/CORP/CORS edge cases).
+    Serve the workflow's thumbnail image bytes as an HTTP response.
+    
+    Validates caller access to the workflow, reads the workflow's GCS thumbnail path, downloads the blob, and returns its bytes with an inferred image media type.
+    
+    Returns:
+        fastapi.Response: Response whose body is the thumbnail image bytes and whose media type is set based on the blob's file extension (defaults to "image/jpeg"; supports ".png", ".webp", ".gif").
+    
+    Raises:
+        HTTPException: 404 with detail "No thumbnail available" if the workflow has no thumbnail path.
+        HTTPException: 500 with detail "Invalid thumbnail path" if the stored GCS path is not a valid "gs://<bucket>/<blob>" format.
+        HTTPException: 404 with detail "Thumbnail blob not found" if the blob download fails.
     """
     _, data = _get_workflow(uid, workflow_id, require_owner=False)
     gcs_path = data.get("thumbnail_gcs_path")
@@ -225,7 +240,20 @@ async def share_workflow(
     body: ShareWorkflow,
     uid: str = Depends(get_current_uid),
 ):
-    """Send a workflow invite to another user by email. Owner only."""
+    """
+    Send a workflow invite to another user by email; only the workflow owner may call this.
+    
+    Parameters:
+        workflow_id (str): ID of the workflow to share.
+        body (ShareWorkflow): Invite payload; `email` is the recipient's account email.
+    
+    Returns:
+        dict: {"ok": True, "invite_id": <str>} indicating the created invite document ID.
+    
+    Raises:
+        HTTPException: 404 if no Echo account exists for the provided email or if the target workflow invite already exists when applicable.
+        HTTPException: 400 if attempting to share with yourself or if the user already has access.
+    """
     wf_ref, wf_data = _get_workflow(uid, workflow_id)
     try:
         target_user = firebase_admin.auth.get_user_by_email(body.email)

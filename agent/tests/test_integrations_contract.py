@@ -29,11 +29,26 @@ INTEGRATION_IDS = ("slack", "github", "google")
 
 
 def _run(coro):
+    """
+    Run the given coroutine to completion and return its result.
+    
+    Parameters:
+        coro (Coroutine): The awaitable coroutine to execute.
+    
+    Returns:
+        The value returned by the coroutine.
+    """
     return asyncio.run(coro)
 
 
 @pytest.mark.parametrize("mod", INTEGRATION_MODULES)
 def test_methods_nonempty_descriptions_are_strings(mod) -> None:
+    """
+    Validate that the given integration module exposes a non-empty `METHODS` mapping whose keys are non-empty strings and whose values are non-empty description strings.
+    
+    Parameters:
+        mod: The integration module to inspect (expected to define a `METHODS` dict).
+    """
     methods = getattr(mod, "METHODS", None)
     assert isinstance(methods, dict) and methods, f"{mod.__name__}.METHODS must be non-empty"
     for key, desc in methods.items():
@@ -52,7 +67,9 @@ def test_execute_missing_token_contract(mod) -> None:
 
 
 def test_execute_success_includes_result() -> None:
-    """Happy paths must include ``result`` so ``execute_api_call`` can inspect ``ok``."""
+    """
+    Verifies that a successful GitHub execute call returns a mapping with `ok` True and a `result` key.
+    """
     with patch("echo_prism_agent.integrations.github.httpx.AsyncClient") as mock_ac:
         mock_resp = type("R", (), {})()
         mock_resp.status_code = 200
@@ -143,6 +160,12 @@ def test_sanitize_api_call_args_strips_vlm_from_body() -> None:
 @pytest.mark.asyncio
 async def test_execute_api_call_dispatches_to_slack_connector() -> None:
     async def fake_token(*_a, **_k):
+        """
+        Return a fake Slack bot access token used for testing.
+        
+        Returns:
+            'xoxb-test' (str): A hard-coded fake Slack bot token.
+        """
         return "xoxb-test"
 
     with patch(
@@ -188,6 +211,12 @@ async def test_execute_api_call_unknown_integration() -> None:
 @pytest.mark.asyncio
 async def test_execute_api_call_no_token_returns_hint_metadata() -> None:
     async def no_token(*_a, **_k):
+        """
+        Return an empty token string to indicate no access token is available.
+        
+        @returns
+            An empty string (`""`) used as a sentinel for a missing access token.
+        """
         return ""
 
     with patch(

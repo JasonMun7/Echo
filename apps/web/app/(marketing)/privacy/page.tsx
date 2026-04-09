@@ -6,6 +6,15 @@ export const metadata = getSEOTags({
   description: "Echo Privacy Policy.",
 });
 
+/**
+ * Renders the Privacy Policy page layout.
+ *
+ * The page contains a main container with a "Privacy Policy" heading, a placeholder
+ * paragraph indicating the policy text should be replaced before production, and a
+ * link back to the home route.
+ *
+ * @returns The page's main content: a heading, descriptive placeholder text, and a home link.
+ */
 export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-3xl px-8 py-24">

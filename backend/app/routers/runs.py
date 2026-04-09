@@ -38,7 +38,20 @@ async def patch_run(
     body: PatchRunBody,
     uid: str = Depends(get_current_uid),
 ):
-    """Update run status (used by desktop agent to sync progress)."""
+    """
+    Update a run's status and related completion/error metadata.
+    
+    Updates the run document's `status` and `updatedAt` timestamps, sets `completedAt` when `status` is "completed" or "failed", and writes `callUserReason`, `error`, and `errorCode` when those fields are present in the request body.
+    
+    Parameters:
+        workflow_id (str): ID of the workflow containing the run.
+        run_id (str): ID of the run to update.
+        body (PatchRunBody): Patch payload; provides `status` and optional `callUserReason`, `error`, and `errorCode`.
+        uid (str): Authenticated caller's user id (injected via dependency).
+    
+    Returns:
+        dict: {"ok": True} on success.
+    """
     wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_ref = wf_ref.collection("runs").document(run_id)
     doc = run_ref.get()

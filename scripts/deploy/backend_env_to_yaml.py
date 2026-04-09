@@ -13,10 +13,24 @@ import sys
 
 
 def _emit(k: str, v: str) -> None:
+    """
+    Prints a YAML-safe key/value line to standard output.
+    
+    The output is formatted as `key: <json-encoded value>`; the value is JSON-encoded to ensure proper quoting and escaping for inclusion in YAML files.
+    
+    Parameters:
+        k (str): The environment variable name to emit.
+        v (str): The value to emit; will be JSON-encoded.
+    """
     print(f"{k}: {json.dumps(v)}")
 
 
 def main() -> None:
+    """
+    Emit YAML-safe key/value lines to stdout describing required and optional environment variables for gcloud run deployments.
+    
+    Expects two positional command-line arguments: PROJECT_ID and REGION. If they are missing or empty, prints usage or an error to stderr and exits with status code 1. Always emits `GOOGLE_CLOUD_PROJECT`, `ECHO_GCP_PROJECT_ID`, and `CLOUD_RUN_REGION` derived from the arguments. If `FRONTEND_ORIGIN` is unset, falls back to `FRONTEND_URL`; emits `FRONTEND_ORIGIN` when a non-empty value is found. For a predefined list of optional environment variable names, emits each key when its corresponding environment value (trimmed) is non-empty. Emitted values are JSON-encoded so they are safe/quoted for YAML output.
+    """
     if len(sys.argv) < 3:
         print(
             "usage: backend_env_to_yaml.py PROJECT_ID REGION",

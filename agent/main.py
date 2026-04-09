@@ -74,7 +74,12 @@ app = FastAPI(title="Echo Prism Agent", version="0.2.0")
 
 @app.get("/health")
 async def agent_health():
-    """Liveness for Cloud Run and post-deploy smoke (see scripts/deploy/post-deploy-smoke.sh)."""
+    """
+    Provide a liveness check for the Echo Prism Agent service used by Cloud Run and post-deploy smoke tests.
+    
+    Returns:
+        dict: A mapping containing "status" set to "ok" and "service" set to "echo-prism-agent".
+    """
     return {"status": "ok", "service": "echo-prism-agent"}
 
 

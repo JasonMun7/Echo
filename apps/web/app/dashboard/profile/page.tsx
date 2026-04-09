@@ -29,6 +29,15 @@ function isValidE164(value: string): boolean {
   return digitsOnly.length >= 10 && digitsOnly.length <= 15;
 }
 
+/**
+ * Performs a fetch to the configured API base URL, supplying JSON defaults and attaching an Authorization header when an ID token is available.
+ *
+ * Adds `Content-Type: application/json` to request headers and, if present, `Authorization: Bearer <token>`.
+ *
+ * @param path - Path to append to the API base URL (e.g., `/api/users/me`)
+ * @param options - Additional fetch options; headers provided here override the defaults
+ * @returns The Fetch API Response for the request
+ */
 async function apiFetch(path: string, options?: RequestInit) {
   const token = await useAuthStore.getState().getIdToken();
   return fetch(`${API_URL}${path}`, {
@@ -41,6 +50,15 @@ async function apiFetch(path: string, options?: RequestInit) {
   });
 }
 
+/**
+ * Convert various profile date representations into a JavaScript Date object.
+ *
+ * Accepts a Date instance, an ISO/date string, a numeric timestamp, or Firestore-like objects
+ * (an object with a `toDate()` method or numeric `._seconds`/`.seconds` fields).
+ *
+ * @param value - The value to parse into a Date
+ * @returns A `Date` instance if `value` can be interpreted as a valid date, `null` otherwise.
+ */
 function parseProfileDate(value: unknown): Date | null {
   if (!value) return null;
 
@@ -75,6 +93,18 @@ function parseProfileDate(value: unknown): Date | null {
   return null;
 }
 
+/**
+ * Render the user's profile page with editable display name and phone number.
+ *
+ * Fetches the current user's profile (redirecting to /signin if unauthenticated),
+ * displays identity information (avatar, name, email, member-since date),
+ * and provides UI for editing/saving the display name and an E.164-validated phone number.
+ *
+ * The component handles optimistic UI state for editing and saving, shows success/error toasts,
+ * and normalizes profile creation dates via parseProfileDate.
+ *
+ * @returns The rendered profile management page as a JSX element
+ */
 export default function ProfilePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);

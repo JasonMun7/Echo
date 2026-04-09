@@ -167,7 +167,21 @@ async def call_integration(
     body: IntegrationCallBody,
     uid: str = Depends(get_current_uid),
 ):
-    """Execute an integration method directly."""
+    """
+    Invoke a connector method for the named integration using sanitized arguments and a resolved access token.
+    
+    Parameters:
+        name (str): Integration identifier (e.g., "slack", "github").
+        body (IntegrationCallBody): Contains `method` to call on the connector and `args` which will be sanitized before execution.
+    
+    Returns:
+        dict: A payload with `"ok": True` and `"result"` set to the connector's return value.
+    
+    Raises:
+        HTTPException: 400 if the integration is OAuth-enabled but no provider access token can be obtained (detail contains diagnostic guidance).
+        HTTPException: 501 if the named integration module is not implemented.
+        HTTPException: 500 for other execution errors with the connector (detail contains the error message).
+    """
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
 

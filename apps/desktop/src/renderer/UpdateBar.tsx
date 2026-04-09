@@ -3,6 +3,16 @@ import { IconRefresh, IconDownload } from "@tabler/icons-react";
 
 type Status = "idle" | "downloading" | "ready" | "failed";
 
+/**
+ * Render an update notification bar that reflects Electron update lifecycle events.
+ *
+ * Shows a downloading state (optional rounded progress percent), a ready state with an optional
+ * version and actions to "Later" or "Restart now", and a failed state with a Dismiss action.
+ * Subscribes to listeners on `window.electronAPI` for update availability, download progress,
+ * downloaded completion, and errors, and removes those listeners on unmount.
+ *
+ * @returns The update bar element when an update is active and not dismissed, or `null` otherwise.
+ */
 export function UpdateBar() {
   const [status, setStatus] = useState<Status>("idle");
   const [version, setVersion] = useState<string | null>(null);

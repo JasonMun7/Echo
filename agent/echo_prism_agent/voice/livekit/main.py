@@ -74,6 +74,15 @@ try:
     from livekit.plugins import noise_cancellation
 
     def _noise_cancellation_for_participant(params):
+        """
+        Selects a noise-cancellation processor appropriate for the given participant.
+        
+        Parameters:
+            params: An object that may have a `participant` attribute representing a LiveKit participant; if absent or None, a non-telephony processor is selected.
+        
+        Returns:
+            An instance of the noise-cancellation processor: `BVCTelephony()` when the participant appears to be a SIP/telephony caller, otherwise `BVC()`.
+        """
         if _is_sip_participant(getattr(params, "participant", None)):
             return noise_cancellation.BVCTelephony()
         return noise_cancellation.BVC()
@@ -146,7 +155,19 @@ def _get_backend_url() -> str:
 
 
 async def _lookup_user_by_phone(phone: str) -> tuple[dict | None, str]:
-    """Call EchoPrism GET /api/livekit/user-by-phone. Returns (user_dict or None, status_for_logging)."""
+    """
+    Resolve a phone number to a user record by calling the agent backend endpoint.
+    
+    If the phone is empty or the required agent secret is not configured, the function returns a status indicating the condition instead of performing an HTTP request. On success, the parsed JSON user object from the backend is returned.
+    
+    Returns:
+        tuple[dict | None, str]: A pair where the first element is the resolved user dictionary (or `None` if no user was returned), and the second element is a status string describing the outcome. Possible status values:
+          - "ok": a user object was returned and parsed
+          - "no_phone": the provided phone was empty after normalization
+          - "no_secret": the agent secret environment variable was not set
+          - "http_<status_code>": the backend returned a non-200 HTTP status (e.g., "http_404")
+          - "error": a network or unexpected error occurred while attempting the lookup
+    """
     phone = (phone or "").strip()
     if not phone:
         return None, "no_phone"
@@ -179,6 +200,18 @@ async def _lookup_user_by_phone(phone: str) -> tuple[dict | None, str]:
 
 @server.rtc_session(agent_name="echoprism-agent")
 async def entrypoint(ctx: agents.JobContext):
+    """
+    Initialize and run an EchoPrism LiveKit agent session for the given job context, handling SIP detection, optional phone→user resolution, DTMF logging, interruption/barge-in behavior, and an initial tailored greeting.
+    
+    Parameters:
+        ctx (agents.JobContext): LiveKit job context containing the room, job metadata, and connection utilities.
+    
+    Notes:
+        - Sets and updates ctx.log_context_fields (room_name and, if available, sip_call_id and caller_phone_last4).
+        - May call the backend to resolve a caller phone number to a user and caches the resolved user via phone_lookup.
+        - Registers event handlers on the room for DTMF, active-speaker barge-in, RPC-based interrupts, and disconnect cleanup.
+        - Starts an AgentSession, connects to the room, and plays a short greeting customized for voice-interruption mode, SIP callers, or web/desktop participants.
+    """
     import time
 
     t_entry = time.perf_counter()
@@ -289,6 +322,15 @@ async def entrypoint(ctx: agents.JobContext):
 
         @ctx.room.on("sip_dtmf_received")
         def _on_dtmf(dtmf):
+            """
+            Log a received DTMF event with the originating participant identity, code, and digit.
+            
+            Parameters:
+                dtmf: An object representing a DTMF event. Expected to have optional attributes:
+                    - participant.identity: the originating participant's identity (string)
+                    - code: the DTMF code (string)
+                    - digit: the DTMF digit pressed (string)
+            """
             participant_identity = getattr(
                 getattr(dtmf, "participant", None), "identity", ""
             )
@@ -336,6 +378,14 @@ async def entrypoint(ctx: agents.JobContext):
     ]  # no barge-in before this time (so greeting isn't cut off at the start)
 
     def _on_active_speakers_changed(speakers: list) -> None:
+        """
+        Handle active-speaker changes by interrupting the agent when a remote participant speaks.
+        
+        Checks whether any participant in `speakers` is a remote participant in the current room; if so, triggers a session interrupt, sets a short barge-in cooldown, and logs a debug message. The handler is no-op while a greeting is playing or during the cooldown window. Exceptions are caught and logged at debug level.
+        
+        Parameters:
+            speakers (list): Iterable of participant objects reported as currently active speakers.
+        """
         try:
             now = time.monotonic()
             if now < _greeting_playout_until[0] or now < _barge_in_cooldown_until[0]:
@@ -358,6 +408,11 @@ async def entrypoint(ctx: agents.JobContext):
         _logger.debug("[EchoPrism] active_speakers_changed not registered: %s", e)
 
     def _on_room_disconnected(_reason: str = "") -> None:
+        """
+        Clear any phone-to-user resolution cached for the current room when the room disconnects.
+        
+        If a room name is available from the surrounding context, remove its resolved user from phone_lookup and emit a debug log. The optional `_reason` parameter is ignored.
+        """
         room_name = getattr(ctx.room, "name", None)
         if room_name:
             phone_lookup.clear_resolved_user(room_name)

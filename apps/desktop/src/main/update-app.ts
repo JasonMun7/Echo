@@ -10,6 +10,14 @@ import { join } from "path";
 const isWinPortable =
   process.platform === "win32" && Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
 
+/**
+ * Determines the GitHub owner and repository to use for update feeds.
+ *
+ * Checks the `VITE_GITHUB_UPDATE_OWNER` and `VITE_GITHUB_UPDATE_REPO` environment variables first;
+ * if those are not present, attempts to extract `owner` and `repo` from the app's package.json `repository.url`.
+ *
+ * @returns An object with `owner` and `repo` when resolved, `null` if no target could be determined.
+ */
 function resolveGithubTarget(): { owner: string; repo: string } | null {
   const envOwner = process.env.VITE_GITHUB_UPDATE_OWNER?.trim();
   const envRepo = process.env.VITE_GITHUB_UPDATE_REPO?.trim();
@@ -29,13 +37,26 @@ function resolveGithubTarget(): { owner: string; repo: string } | null {
   }
 }
 
-/** Prefer assets whose names suggest Echo Desktop (avoids wrong product in a busy monorepo). */
+/**
+ * Filters update releases to prefer assets that indicate they belong to Echo Desktop.
+ *
+ * @returns `true` if the release should be considered for Echo Desktop updates, `false` otherwise. If the first file URL is missing or empty, returns `true`.
+ */
 function isEchoDesktopRelease(info: UpdateInfo): boolean {
   const u = info.files?.[0]?.url;
   if (typeof u === "string" && u.length > 0) return /echo/i.test(u);
   return true;
 }
 
+/**
+ * Configure and initialize the electron-updater auto-update lifecycle for the packaged app.
+ *
+ * Sets the GitHub feed when an owner/repo can be resolved (env or package.json), assigns a logger,
+ * disables automatic download, registers event handlers to notify the renderer about update availability,
+ * download progress, download completion (with version), and errors, then triggers an initial update check.
+ *
+ * @param getMainWindow - A function that returns the current main BrowserWindow or `null`; used to send IPC notifications to the renderer process
+ */
 export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
   if (!app.isPackaged || isWinPortable) return;
 
@@ -101,11 +122,21 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
   });
 }
 
+/**
+ * Performs a one-time update check when the application is packaged and not a Windows portable build.
+ *
+ * @returns The update-check result object from the updater, or `null` when updates are not applicable (app not packaged or Windows portable) or the check fails.
+ */
 export function runUpdateCheck(): Promise<unknown> {
   if (!app.isPackaged || isWinPortable) return Promise.resolve(null);
   return autoUpdater.checkForUpdates().catch(() => null);
 }
 
+/**
+ * Quits the running app and installs a downloaded update when the app is packaged.
+ *
+ * If the app is not packaged, this function does nothing.
+ */
 export function quitAndInstallIfReady(): void {
   if (app.isPackaged) {
     autoUpdater.quitAndInstall(false, true);

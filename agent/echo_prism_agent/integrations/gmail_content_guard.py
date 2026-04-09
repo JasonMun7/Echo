@@ -27,15 +27,26 @@ _PROMPTY = re.compile(
 
 
 def _scrub_ranking_phrase_digits(s: str) -> str:
-    """Remove ``top 5`` / ``first 3`` style counts so we don't treat them as 'data present'."""
+    """
+    Remove ranking/count phrases like "top 5", "first 3", or "last 2" from the input string.
+    
+    Parameters:
+        s (str): Text to process.
+    
+    Returns:
+        str: The input text with case-insensitive occurrences of "top|first|last <number>" removed.
+    """
     return re.sub(r"\b(?:top|first|last)\s+\d+\b", "", s, flags=re.IGNORECASE)
 
 
 def gmail_send_body_likely_missing_requested_data(body: str, subject: str) -> bool:
     """
-    Return True if we should block send: intent mentions data, but body has no figures/list structure.
-
-    Conservative: only flags prompt-like short messages without substantive figures (prices, %, tickers).
+    Decides whether an email send should be blocked because the message appears to request data but lacks concrete figures or list structure.
+    
+    Flags short, prompt-like messages that match data-intent keywords (subject or body) but do not contain percentages, decimal numbers, currency amounts, ticker-like uppercase tokens, other digits, or enough list-like lines to indicate substantive data.
+    
+    Returns:
+        True if the message should be blocked because it likely still looks like a prompt requesting data, False otherwise.
     """
     text = f"{subject or ''}\n{body or ''}".strip()
     if not _DATA_INTENT.search(text):
@@ -63,6 +74,14 @@ def gmail_send_body_likely_missing_requested_data(body: str, subject: str) -> bo
 
 
 def gmail_data_guard_error_message() -> str:
+    """
+    Provide the user-facing error message shown when a gmail_send is blocked because the message body appears to be a prompt requesting data without concrete facts.
+    
+    The message explains that the agent does not populate data at send time, suggests gathering and merging concrete data into `params.args.body` (or splitting into multiple runs), and notes that the guard can be bypassed by setting `params.args.skip_data_guard` to true after review.
+    
+    Returns:
+        str: The formatted error message to display to the user.
+    """
     return (
         "gmail_send blocked: the message body still looks like a **prompt** (asking for data) without "
         "**concrete facts** (numbers, tickers, bullet list). `api_call` uses workflow args as-is—the agent "

@@ -17,7 +17,15 @@ _MULTISPACE = re.compile(r"[ \t]+\n")
 
 
 def strip_vlm_placeholders(text: str) -> str:
-    """Remove ``[VLM: ...]`` instruction blocks from free-form text."""
+    """
+    Remove single-line `[VLM: ...]` instruction blocks and normalize surrounding whitespace.
+    
+    Parameters:
+        text (str): Input text to sanitize. If falsy or not a `str`, the original value is returned unchanged.
+    
+    Returns:
+        str: The input text with single-line `[VLM: ...]` blocks removed, runs of spaces/tabs before newlines collapsed, trailing whitespace removed from each line, sequences of three or more consecutive newlines reduced to two, and leading/trailing whitespace stripped.
+    """
     if not text or not isinstance(text, str):
         return text
     cleaned = _VLM_BRACKET.sub("", text)
@@ -45,7 +53,19 @@ _SANITIZE_KEYS = frozenset(
 
 
 def sanitize_api_call_string_args(args: dict[str, Any]) -> dict[str, Any]:
-    """Return a shallow copy of ``args`` with VLM placeholders stripped from string content fields."""
+    """
+    Produce a shallow copy of `args` with VLM `[VLM: ...]` placeholders removed from selected string fields.
+    
+    Parameters:
+        args (dict[str, Any]): Mapping of API call arguments whose string values under user-visible keys
+            (case-insensitive keys in the module's `_SANITIZE_KEYS` set, e.g. "body", "text", "subject")
+            will have VLM placeholders stripped. If `args` is falsy, it is returned unchanged.
+    
+    Returns:
+        dict[str, Any]: A shallow copy of `args` where string values for matching keys have been
+        sanitized via `strip_vlm_placeholders`. Non-string values and keys not listed in `_SANITIZE_KEYS`
+        are preserved as-is.
+    """
     if not args:
         return args
     out: dict[str, Any] = dict(args)

@@ -66,6 +66,16 @@ function getTime(x: unknown): number {
   return typeof sec === "number" ? sec * 1000 : 0;
 }
 
+/**
+ * Determines whether a workflow is the most recently created or most recently updated among a list.
+ *
+ * Compares the workflow's `createdAt` and `updatedAt` (after normalizing via `getTime`) against the
+ * maximum `createdAt` and `updatedAt` values found in `all`.
+ *
+ * @param w - The workflow to test; may include timestamp-like `createdAt` and `updatedAt` fields.
+ * @param all - The list of workflows to compare against.
+ * @returns `true` if `w` has the newest `createdAt` or the newest `updatedAt` in `all`, `false` otherwise.
+ */
 function isLatestOrLastModified(
   w: { id: string; createdAt?: unknown; updatedAt?: unknown },
   all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>,
@@ -78,6 +88,13 @@ function isLatestOrLastModified(
   return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
 }
 
+/**
+ * Render the Workflows page and manage loading, real-time updates, invites, and per-workflow actions.
+ *
+ * Loads workflow lists from the backend and Firestore (merging owned real-time updates with API data), listens for auth and active-run changes, displays loading/empty/invite states, and provides UI and handlers to run, edit/share, delete workflows, and accept/decline invites.
+ *
+ * @returns The React element for the Workflows page.
+ */
 export default function WorkflowsPage() {
   const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);

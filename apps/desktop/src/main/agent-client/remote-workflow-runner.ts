@@ -30,6 +30,13 @@ const MAX_STEP_ATTEMPTS = 30;
 /** Initial WebSocket connect attempts (exponential backoff) — Cloud Run cold start / TLS. */
 const WS_OPEN_ATTEMPTS = 4;
 
+/**
+ * Builds a short log prefix identifying the workflow run and optional step.
+ *
+ * @param opts - Options that may contain `workflowId` and `runId` used for truncation
+ * @param stepNum - Optional step index to include in the prefix
+ * @returns A bracketed context string like `[echo_run wf=<first12> run=<first12> step=<n>]`; missing ids are `-` and the `step=<n>` segment is omitted when `stepNum` is not provided
+ */
 function runCtx(
   opts: RunWorkflowRemoteOptions | undefined,
   stepNum?: number,
@@ -40,7 +47,16 @@ function runCtx(
   return `[echo_run wf=${wf} run=${rn}${s}]`;
 }
 
-/** Maps agent WebSocket ``code`` (ECHO_*) for Firestore; optional fallback from message text. */
+/**
+ * Derives a stable ECHO error code from an agent message or an explicit code.
+ *
+ * If `code` starts with `ECHO_`, it is returned unchanged; otherwise the function
+ * inspects `message` for known patterns and returns a corresponding `ECHO_*` code.
+ *
+ * @param message - Agent-provided error or status message to inspect
+ * @param code - Optional agent-provided code string that may already be an `ECHO_` code
+ * @returns The detected `ECHO_*` code, or `undefined` if none matches
+ */
 function inferErrorCode(message: string, code?: string): string | undefined {
   if (code && String(code).startsWith("ECHO_")) return String(code);
   const m = (message || "").toLowerCase();
@@ -51,6 +67,14 @@ function inferErrorCode(message: string, code?: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Opens a WebSocket to the given URL, retrying with exponential backoff until a connection is established.
+ *
+ * Attempts up to `WS_OPEN_ATTEMPTS` times; each attempt waits up to 20 seconds for the socket to open and, on failure, retries after an exponentially increasing delay. Throws the final connection error if all attempts fail.
+ *
+ * @param wsUrl - The WebSocket URL to connect to (ws:// or wss://).
+ * @returns A connected `WebSocket` instance.
+ */
 async function openWebSocketWithRetry(wsUrl: string): Promise<WebSocket> {
   let last: Error | null = null;
   for (let attempt = 0; attempt < WS_OPEN_ATTEMPTS; attempt++) {
@@ -90,6 +114,12 @@ async function openWebSocketWithRetry(wsUrl: string): Promise<WebSocket> {
   throw last ?? new Error("WebSocket connection failed");
 }
 
+/**
+ * Cancels any currently running agent run by closing the active WebSocket and clearing its reference.
+ *
+ * If there is an open WebSocket (`activeWs` with `readyState === 1`), attempts to close it with code 1000
+ * and message "Run cancelled by user". Any error thrown while closing is ignored and `activeWs` is set to `null`.
+ */
 export function abortActiveRun(): void {
   if (activeWs && activeWs.readyState === 1) {
     try {
@@ -358,6 +388,19 @@ async function waitUntilIntegrationReconnectsAfterDisconnect(
   return false;
 }
 
+/**
+ * Update the remote run record's status on the backend.
+ *
+ * Sends a PATCH to the backend run endpoint with a JSON body containing `status`
+ * merged with `extra`. If `opts.workflowId`, `opts.runId`, or `opts.backendUrl`
+ * are missing, the call is a no-op. When `opts.token` is provided, a Bearer
+ * Authorization header is included. Errors are caught and logged; the function
+ * does not throw.
+ *
+ * @param opts - Run invocation options containing `workflowId`, `runId`, `backendUrl`, and optionally `token`
+ * @param status - New run status to set (e.g., `"completed"`, `"failed"`, `"cancelled"`)
+ * @param extra - Additional fields to include in the PATCH body
+ */
 async function patchRunStatus(
   opts: RunWorkflowRemoteOptions,
   status: string,
@@ -400,6 +443,18 @@ function isApiCallStep(step: Step): boolean {
   return a === "apicall";
 }
 
+/**
+ * Run a sequence of workflow steps through the remote agent service, stream progress to callers,
+ * handle human-in-the-loop interrupts (HITL), perform local action execution and verification,
+ * and update run status to the backend.
+ *
+ * @param steps - Array of workflow steps to execute (will be interpolated with provided variables).
+ * @param options - Run configuration and callbacks, including authentication/routing (backendUrl, token, agentWsUrl),
+ *                  identifiers (workflowId, runId, sourceId), UI hooks (onProgress, onThinkingDelta, onHitl, onHitlClear),
+ *                  execution controls (variableValues, typingOverride, waitIfPaused, isCancelRequested, clearCancel), and
+ *                  integration/HITL helpers used during interrupts.
+ * @returns An object with `success: true` when the run completes, or `success: false` and an `error` message on failure or cancellation.
+ */
 export async function runWorkflowRemote(
   steps: Step[],
   options?: RunWorkflowRemoteOptions,
@@ -970,8 +1025,13 @@ export async function runWorkflowRemote(
 }
 
 /**
- * Goal-only (ad-hoc) run: single goal string, no pre-defined steps.
- * Loops capture → step(goal) → action/finished/calluser until done.
+ * Run an ad-hoc, goal-driven remote agent session that captures the screen and iteratively requests, executes, and verifies actions until the goal is reached or the run is cancelled/failed.
+ *
+ * Starts a WebSocket-backed agent run with no predefined steps and performs a capture → send step loop. Handles agent thinking streams, human-in-the-loop interrupts (API call approvals and integration authentication), local action execution, verification of visual results, polling for backend signals, and run status updates. Ensures cleanup of active WebSocket and HITL state on completion or error.
+ *
+ * @param goal - A human-readable goal string describing the desired outcome the agent should achieve.
+ * @param options - Runtime and connection options (see `RunWorkflowRemoteOptions`) including sourceId for screen capture, backendUrl/token for WebSocket auth, and hooks such as `onProgress`, `onThinkingDelta`, `onHitl`, and `onHitlClear`.
+ * @returns An object with `success: true` when the goal run completes, or `success: false` and an `error` message when the run fails or is cancelled.
  */
 export async function runGoalOnlyRemote(
   goal: string,

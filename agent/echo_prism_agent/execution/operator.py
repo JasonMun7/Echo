@@ -692,6 +692,18 @@ async def execute_api_call(
     workflow_id: str | None = None,
     run_id: str | None = None,
 ) -> tuple[bool, str, dict[str, Any] | None]:
+    """
+    Execute an integration API call described by `step` and return its outcome.
+    
+    This obtains an access token for `integration` from storage, sanitizes `args`, imports the integration connector, and invokes its `execute(method, args, access_token)`. If the integration is unknown or its module cannot be imported, the function returns a failure. If no access token is available it returns a failure plus an auth hint instructing a user sign-in.
+    
+    Parameters:
+        workflow_id (str | None): Optional workflow identifier used only to build a log prefix for contextual logging.
+        run_id (str | None): Optional run identifier used only to build a log prefix for contextual logging.
+    
+    Returns:
+        tuple[bool, str, dict | None]: A tuple (ok, error_message, info). `ok` is `True` when the connector returned `ok` truthy. `error_message` contains a brief failure description when `ok` is `False` (empty string on success). `info` is `None` on success or contains an object with `integration_auth_required: True` and additional hint data when the integration needs user authentication.
+    """
     params = step.get("params", {})
     from echo_prism_agent.auth0_token_vault import (
         connection_name_for_integration,
