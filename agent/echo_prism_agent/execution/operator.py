@@ -195,8 +195,11 @@ class PlaywrightOperator(BaseOperator):
             try:
                 await self._page.wait_for_load_state("domcontentloaded", timeout=5000)
                 await asyncio.sleep(0.5)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "PlaywrightOperator: non-fatal post-action load-state wait failed: %s",
+                    exc,
+                )
             return True
         except Exception:
             return False
