@@ -1,7 +1,5 @@
 """Tests for synthesis pipeline _postprocess_steps."""
 
-import pytest
-
 from echo_prism_agent.synthesis.pipeline import _postprocess_steps
 
 
