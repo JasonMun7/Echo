@@ -1,0 +1,9 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "echo_prism_inference": "./echo_prism_agent/agent.py:inference_graph",
+    "echo_prism_chat_turn": "./echo_prism_agent/agent.py:chat_turn_graph",
+    "echo_prism_synthesis": "./echo_prism_agent/agent.py:synthesis_graph"
+  },
+  "env": "./.env"
+}

@@ -196,10 +196,12 @@ async def share_workflow(
         raise HTTPException(status_code=404, detail="No Echo account found for that email")
     if target_user.uid == uid:
         raise HTTPException(status_code=400, detail="Cannot share with yourself")
+    if target_user.uid in (wf_data.get("shared_with") or []):
+        raise HTTPException(status_code=400, detail="User already has access")
     # Prevent duplicate pending invites
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
-    existing = (
+    existing = list(
         db.collection("workflow_invites")
         .where(filter=FieldFilter("workflow_id", "==", workflow_id))
         .where(filter=FieldFilter("to_uid", "==", target_user.uid))
@@ -207,7 +209,7 @@ async def share_workflow(
         .limit(1)
         .stream()
     )
-    if any(True for _ in existing):
+    if existing:
         raise HTTPException(status_code=400, detail="Invite already sent to this user")
     # Resolve sender display name
     try:
@@ -241,6 +243,11 @@ async def share_workflow(
         "invite_id": invite_ref.id,
         "read": False,
         "createdAt": SERVER_TIMESTAMP,
+    })
+    # Make invitees appear immediately in the owner's "Shared with" list.
+    wf_ref.update({
+        "shared_with": ArrayUnion([target_user.uid]),
+        "updatedAt": SERVER_TIMESTAMP,
     })
     return {"ok": True, "invite_id": invite_ref.id}
 
@@ -308,7 +315,11 @@ async def decline_invite(
     )
     if not invites:
         raise HTTPException(status_code=404, detail="No pending invite found")
-    invites[0].reference.update({"status": "declined"})
+    invite = invites[0]
+    invite.reference.update({"status": "declined"})
+    # If the inviter granted immediate visibility/access, remove it on decline.
+    wf_ref = db.collection("workflows").document(workflow_id)
+    wf_ref.update({"shared_with": ArrayRemove([uid]), "updatedAt": SERVER_TIMESTAMP})
     return {"ok": True}
 
 
@@ -320,7 +331,19 @@ async def unshare_workflow(
 ):
     """Remove a user's access to a shared workflow. Owner only."""
     wf_ref, _ = _get_workflow(uid, workflow_id)
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
     wf_ref.update({"shared_with": ArrayRemove([target_uid]), "updatedAt": SERVER_TIMESTAMP})
+    # Also remove pending invites so the collaborator cannot reappear as "pending".
+    pending_invites = (
+        db.collection("workflow_invites")
+        .where(filter=FieldFilter("workflow_id", "==", workflow_id))
+        .where(filter=FieldFilter("to_uid", "==", target_uid))
+        .where(filter=FieldFilter("status", "==", "pending"))
+        .stream()
+    )
+    for invite_doc in pending_invites:
+        invite_doc.reference.delete()
     return {"ok": True}
 
 
@@ -330,19 +353,44 @@ async def get_collaborators(
     uid: str = Depends(get_current_uid),
 ):
     """Return the list of users the workflow is shared with."""
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
     _, data = _get_workflow(uid, workflow_id, require_owner=False)
+    is_owner = data.get("owner_uid") == uid
     shared_uids: list[str] = data.get("shared_with") or []
+    pending_uids: set[str] = set()
+    if is_owner:
+        pending_invites = (
+            db.collection("workflow_invites")
+            .where(filter=FieldFilter("workflow_id", "==", workflow_id))
+            .where(filter=FieldFilter("status", "==", "pending"))
+            .stream()
+        )
+        for invite in pending_invites:
+            invite_data = invite.to_dict() or {}
+            invite_uid = invite_data.get("to_uid")
+            if isinstance(invite_uid, str) and invite_uid:
+                pending_uids.add(invite_uid)
+
+    all_collaborator_uids = list(dict.fromkeys([*shared_uids, *pending_uids])) if is_owner else shared_uids
     collaborators = []
-    for shared_uid in shared_uids:
+    for shared_uid in all_collaborator_uids:
+        status = "pending" if shared_uid in pending_uids else "accepted"
         try:
             user = firebase_admin.auth.get_user(shared_uid)
             collaborators.append({
                 "uid": shared_uid,
                 "email": user.email or "",
                 "display_name": user.display_name or user.email or shared_uid,
+                "status": status,
             })
         except Exception:
-            collaborators.append({"uid": shared_uid, "email": "", "display_name": shared_uid})
+            collaborators.append({
+                "uid": shared_uid,
+                "email": "",
+                "display_name": shared_uid,
+                "status": status,
+            })
     return {"collaborators": collaborators}
 
 

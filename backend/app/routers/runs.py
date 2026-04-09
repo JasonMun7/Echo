@@ -295,3 +295,30 @@ async def dismiss_calluser(
         "updatedAt": SERVER_TIMESTAMP,
     })
     return {"ok": True}
+
+
+@router.get("/user/pending-runs")
+async def get_pending_runs(uid: str = Depends(get_current_uid)):
+    """Return all pending runs for the authenticated user.
+    Used by desktop app to auto-detect runs triggered from mobile chat/voice.
+    """
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    query = (
+        db.collection_group("runs")
+        .where(filter=FieldFilter("owner_uid", "==", uid))
+        .where(filter=FieldFilter("status", "==", "pending"))
+    )
+    results = []
+    for doc in query.stream():
+        data = doc.to_dict() or {}
+        # Extract workflow_id from the document path: workflows/{wf_id}/runs/{run_id}
+        path_parts = doc.reference.path.split("/")
+        workflow_id = path_parts[1] if len(path_parts) >= 4 else ""
+        results.append({
+            "run_id": doc.id,
+            "workflow_id": workflow_id,
+            "goal": data.get("goal"),
+            "goal_only": data.get("run_mode") == "goal_only",
+        })
+    return {"runs": results}

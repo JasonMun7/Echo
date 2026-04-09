@@ -1,6 +1,7 @@
 import re
 from fastapi import APIRouter, Depends, HTTPException
 import firebase_admin.firestore
+from firebase_admin import auth as firebase_auth
 from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel
 
@@ -110,3 +111,17 @@ async def update_me(body: UserUpdateBody, uid: str = Depends(get_current_uid)):
         updates["phone"] = _normalize_phone_e164(raw) if raw else None
     db.collection("users").document(uid).update(updates)
     return {"ok": True}
+
+
+@router.post("/custom-token")
+async def create_custom_token(uid: str = Depends(get_current_uid)):
+    """Exchange a verified ID token for a Firebase custom token.
+    Used by the desktop app to authenticate with Firestore client SDK
+    for real-time listeners (onSnapshot).
+    """
+    try:
+        get_firebase_app()
+        custom_token = firebase_auth.create_custom_token(uid)
+        return {"custom_token": custom_token.decode() if isinstance(custom_token, bytes) else custom_token}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create custom token: {str(e)}")

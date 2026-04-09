@@ -1,9 +1,9 @@
 "use client";
 
 import {
+  IconAlertTriangle,
   IconCircleCheck,
   IconJumpRope,
-  IconLoader,
   IconPlayerPlay,
 } from "@tabler/icons-react";
 
@@ -19,17 +19,16 @@ export interface SectionCardsProps {
   totalWorkflows?: number;
   activeWorkflows?: number;
   totalRuns?: number;
-  /** Runs that are running, pending, or (legacy) awaiting_user */
-  inProgressCount?: number;
-  onInProgressClick?: () => void;
+  awaitingInput?: number;
+  onAwaitingClick?: () => void;
 }
 
 export function SectionCards({
   totalWorkflows = 0,
   activeWorkflows = 0,
   totalRuns = 0,
-  inProgressCount = 0,
-  onInProgressClick,
+  awaitingInput = 0,
+  onAwaitingClick,
 }: SectionCardsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4 lg:px-6">
@@ -65,9 +64,7 @@ export function SectionCards({
           <CardTitle className="text-2xl font-semibold tabular-nums text-[#150A35] @[250px]/card:text-3xl">
             {activeWorkflows}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">
-            Ready or live
-          </p>
+          <p className="text-xs text-echo-text-muted mt-1">Ready or live</p>
         </CardContent>
       </Card>
 
@@ -84,38 +81,36 @@ export function SectionCards({
           <CardTitle className="text-2xl font-semibold tabular-nums text-[#150A35] @[250px]/card:text-3xl">
             {totalRuns}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">
-            All workflow runs
-          </p>
+          <p className="text-xs text-echo-text-muted mt-1">All workflow runs</p>
         </CardContent>
       </Card>
 
       <Card
         className={`rounded-lg border shadow-sm @container/card ${
-          inProgressCount
-            ? "cursor-pointer border-[#A577FF]/40 bg-[#F5F3FF] hover:bg-[#EDE9FF]"
+          awaitingInput
+            ? "cursor-pointer border-amber-200 bg-amber-50 hover:bg-amber-100/80"
             : "border-[#A577FF]/20 bg-[#F5F7FC]"
         }`}
-        onClick={onInProgressClick}
+        onClick={onAwaitingClick}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardDescription className="text-echo-text-muted">
-            In progress
+            Awaiting Input
           </CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A577FF]/10">
-            <IconLoader className="size-5 text-[#A577FF]" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
+            <IconAlertTriangle className="size-5 text-amber-500" />
           </div>
         </CardHeader>
         <CardContent>
           <CardTitle
             className={`text-2xl font-semibold tabular-nums @[250px]/card:text-3xl ${
-              inProgressCount ? "text-[#150A35]" : "text-[#150A35]"
+              awaitingInput ? "text-amber-600" : "text-[#150A35]"
             }`}
           >
-            {inProgressCount}
+            {awaitingInput}
           </CardTitle>
           <p className="text-xs text-echo-text-muted mt-1">
-            {inProgressCount ? "Click to view" : "No runs in progress"}
+            {awaitingInput ? "Click to view" : "No runs waiting"}
           </p>
         </CardContent>
       </Card>
