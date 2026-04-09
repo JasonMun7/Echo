@@ -234,8 +234,11 @@ def compress_screenshot(
             result = buf.getvalue()
             if len(result) > 0:
                 return result
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(
+                "compress_screenshot: WEBP encoding failed, falling back to JPEG: %s",
+                e,
+            )
 
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=quality)
