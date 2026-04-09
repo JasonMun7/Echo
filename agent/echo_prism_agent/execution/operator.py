@@ -139,12 +139,18 @@ class PlaywrightOperator(BaseOperator):
             elif act == "waitforelement":
                 try:
                     await self._page.wait_for_load_state("domcontentloaded", timeout=10000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Best-effort wait_for_load_state('domcontentloaded') failed; continuing: %s",
+                        exc,
+                    )
                 try:
                     await self._page.wait_for_load_state("networkidle", timeout=5000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Best-effort wait_for_load_state('networkidle') failed; continuing: %s",
+                        exc,
+                    )
                 await asyncio.sleep(0.5)
             elif act == "selectoption":
                 value = action.get("value", "")
