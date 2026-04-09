@@ -172,8 +172,9 @@ class PlaywrightOperator(BaseOperator):
                                 }}
                             }}"""
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        # Best-effort DOM update: keep action non-fatal if activeElement isn't a writable <select>.
+                        logger.debug("Failed to set select value via activeElement evaluate: %s", exc)
                 else:
                     selector = action.get("selector", "")
                     if selector:
