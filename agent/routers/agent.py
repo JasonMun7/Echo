@@ -446,7 +446,12 @@ async def agent_run_ws(
                                 ch,
                             )
                     except (TypeError, ValueError):
-                        pass
+                        logger.debug(
+                            "WS step %d: ignoring invalid capture dimensions capture_width=%r capture_height=%r",
+                            step_index,
+                            capture_w,
+                            capture_h,
+                        )
 
                 async def send_thinking_delta(piece: str) -> None:
                     if piece:
