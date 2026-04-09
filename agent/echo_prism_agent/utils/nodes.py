@@ -336,10 +336,13 @@ async def gui_run_execute(state: GuiRunState, config: RunnableConfig | None = No
 
 async def gui_run_verify(state: GuiRunState, _config: RunnableConfig | None = None) -> dict[str, Any]:
     """
-    UI-TARS-desktop ``GUIAgent.run`` parity: no pixel-delta gate.
+    Matches **UI-TARS-desktop** ``BrowserGUIAgent``: after execute, the tool
+    ``await sleep(500)`` then returns success (``browser-gui-agent.ts``) — there is **no**
+    screenshot hash / pixel-diff gate in that path. **Static UI** handling is prompt-driven
+    (``prompt_t5.ts``: *if the same action yields no change, try an alternative*).
 
-    After ``execute``, we advance when a post-action screenshot exists; the next
-    inference turn sees the new frame (unchanged pixels do not force a retry).
+    Echo advances when a post-action screenshot **exists**, even if bytes match the prior frame
+    (same as ``tests/test_langgraph_inference.py`` UI-TARS note).
     """
     if state.get("execute_skipped"):
         return {"verify_delta_ok": True, "verification_hint": "", "outcome_met": True}
@@ -352,7 +355,7 @@ async def gui_run_verify(state: GuiRunState, _config: RunnableConfig | None = No
     _hint, changed = screenshots_pixels_changed(before, after)
     if not changed:
         logger.debug(
-            "gui_run_verify: before/after buffers identical; still advancing (UI-TARS-desktop behavior)"
+            "gui_run_verify: before/after buffers identical; advancing (UI-TARS-desktop BrowserGUIAgent: no pixel gate)"
         )
 
     return {
@@ -435,7 +438,12 @@ def gui_route_after_verify(state: GuiRunState) -> Command:
         )
 
     hint = (state.get("verification_hint") or "").strip() or "Screen state did not change as expected"
-    extra_ctx = f"Verification failed: {hint}. Try a clearly different action."
+    loop_n = int(state.get("loop_count") or 0)
+    extra_ctx = (
+        f"Verification failed: {hint} "
+        f"(verify retry {vf + 1}, GUI loop {loop_n}). "
+        f"Try a clearly different action; do not repeat the same coordinates if the UI did not change."
+    )
 
     return Command(
         update={

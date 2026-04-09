@@ -416,7 +416,7 @@ def build_gui_run_graph() -> StateGraph:
     g.add_node(
         "execute",
         gui_run_execute,
-        retry_policy=RetryPolicy(max_attempts=2, initial_interval=0.5),
+        retry_policy=RetryPolicy(max_attempts=3, initial_interval=0.5),
     )
     g.add_node("verify", gui_run_verify)
     g.add_node("route_verify", gui_route_after_verify)

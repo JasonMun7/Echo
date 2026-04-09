@@ -14,19 +14,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       useAuthStore.getState().setLoading(false);
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      useAuthStore.getState().setUser(user);
-      useAuthStore.getState().setLoading(false);
-      if (user) {
-        try {
-          await createOrUpdateUser(user);
-          await apiFetch("/api/users/init", { method: "POST" });
-        } catch (err) {
-          console.error("Failed to sync user:", err);
-        }
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    const a = auth as { authStateReady?: () => Promise<void> };
+    void (async () => {
+      if (typeof a.authStateReady === "function") {
+        await a.authStateReady();
       }
-    });
-    return () => unsubscribe();
+      if (cancelled) return;
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        useAuthStore.getState().setUser(user);
+        useAuthStore.getState().setLoading(false);
+        if (user) {
+          try {
+            // Mint ID token before backend calls. Run /api/users/init before Firestore so a
+            // blocked firestore.googleapis.com (ad blockers → ERR_BLOCKED_BY_CLIENT) does not skip init.
+            await user.getIdToken();
+            await apiFetch("/api/users/init", { method: "POST" });
+            await createOrUpdateUser(user);
+          } catch (err) {
+            console.error("Failed to sync user:", err);
+          }
+        }
+      });
+    })();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   return <TooltipProvider>{children}</TooltipProvider>;

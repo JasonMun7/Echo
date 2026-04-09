@@ -41,8 +41,18 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     const unsub = auth?.onAuthStateChanged((u) => {
-      if (!u) router.replace("/signin");
-      else void loadIntegrations();
+      if (!u) {
+        router.replace("/signin");
+        return;
+      }
+      void (async () => {
+        try {
+          await u.getIdToken();
+        } catch {
+          return;
+        }
+        await loadIntegrations();
+      })();
     });
     return () => unsub?.();
   }, [router, loadIntegrations]);

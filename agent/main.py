@@ -71,6 +71,12 @@ from routers import chat, synthesize, agent as agent_router, livekit
 
 app = FastAPI(title="Echo Prism Agent", version="0.2.0")
 
+
+@app.get("/health")
+async def agent_health():
+    """Liveness for Cloud Run and post-deploy smoke (see scripts/deploy/post-deploy-smoke.sh)."""
+    return {"status": "ok", "service": "echo-prism-agent"}
+
 _origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",

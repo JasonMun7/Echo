@@ -154,10 +154,11 @@ async def verify_state_transition(
     api_key: str | None = None,
 ) -> tuple[str, bool]:
     """
-    UI-TARS-desktop ``GUIAgent`` parity: do not block on pixel deltas.
+    UI-TARS-desktop ``BrowserGUIAgent`` parity: no pixel-delta block (see ``browser-gui-agent.ts``).
 
     If both captures exist, the step succeeds so history can advance; the next
-    inference call uses the after screenshot regardless of whether pixels changed.
+    inference call uses the after screenshot regardless of whether pixels changed
+    (static-screen adaptation is prompt-driven, ``prompt_t5.ts``).
     """
     _ = (action_str, expected_outcome, api_key)
     if not before_bytes or not after_bytes:

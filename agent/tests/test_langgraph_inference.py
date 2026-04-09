@@ -125,7 +125,7 @@ def test_verify_state_transition_succeeds_without_pixel_delta():
 
 
 def test_gui_run_verify_passes_when_before_after_identical():
-    """UI-TARS does not retry when pixels are unchanged — next VLM turn decides."""
+    """Matches UI-TARS-desktop BrowserGUIAgent: no pixel-diff gate; next VLM turn decides (prompt_t5 static-screen guidance)."""
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
     state = {
         "execute_skipped": False,

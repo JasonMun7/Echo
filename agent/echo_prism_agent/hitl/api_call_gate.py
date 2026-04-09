@@ -71,6 +71,8 @@ async def api_call_gate_node(state: ApiCallGateState) -> dict[str, Any]:
     uid_raw = cfg.get("uid") or graph_meta.get("uid")
     uid = (uid_raw or "").strip() if isinstance(uid_raw, str) else str(uid_raw or "").strip()
     db = cfg.get("db")
+    wf_id = (cfg.get("workflow_id") or "").strip() if isinstance(cfg.get("workflow_id"), str) else ""
+    rn_id = (cfg.get("run_id") or "").strip() if isinstance(cfg.get("run_id"), str) else ""
     step = state.get("step") or {}
     if not isinstance(uid, str) or not uid.strip():
         return {"ok": False, "error": "missing uid in config.configurable"}
@@ -94,7 +96,13 @@ async def api_call_gate_node(state: ApiCallGateState) -> dict[str, Any]:
     if not _approval_accepted(approval):
         return {"ok": False, "error": "API call rejected by user"}
 
-    ok, err, meta = await execute_api_call(step, uid, db)
+    ok, err, meta = await execute_api_call(
+        step,
+        uid,
+        db,
+        workflow_id=wf_id or None,
+        run_id=rn_id or None,
+    )
     if ok:
         return {"ok": True, "error": None}
 
@@ -120,7 +128,14 @@ def build_api_call_gate_graph() -> StateGraph:
 
 
 def get_api_call_gate_graph() -> Any:
-    """Singleton compiled graph with in-memory checkpointer (per process)."""
+    """
+    Singleton compiled graph with in-memory checkpointer (per process).
+
+    **Persistence note:** ``MemorySaver`` only survives process lifetime. For durable
+    HITL resume across Cloud Run instance restarts, swap in a LangGraph checkpointer
+    backed by Firestore, Redis, or another shared store—same graph definition, different
+    checkpointer. That is a dedicated migration; do not enable lightly.
+    """
     global _checkpointer, _compiled
     if _compiled is None:
         _checkpointer = MemorySaver()

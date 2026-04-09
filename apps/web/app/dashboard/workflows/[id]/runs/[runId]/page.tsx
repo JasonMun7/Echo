@@ -140,7 +140,6 @@ export default function RunDetailPage() {
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const u = auth?.currentUser;
     if (u) u.getIdToken().then((t) => setToken(t)).catch(() => setToken(null));
@@ -269,6 +268,12 @@ export default function RunDetailPage() {
   const status = run?.status as string | undefined;
   const isActive = !status || status === "pending" || status === "running";
   const isAwaitingUser = status === "awaiting_user";
+
+  const runOwner =
+    !!run &&
+    !!auth?.currentUser?.uid &&
+    (run.owner_uid as string | undefined) === auth.currentUser.uid;
+  const isTerminalStatus = !!(status && TERMINAL_STATUSES.has(status));
 
   // ── Active run: show border haze + live thoughts + cancel ─────────────────
   if (isActive) {
@@ -463,9 +468,14 @@ export default function RunDetailPage() {
         {/* Error message + retry if failed */}
         {status === "failed" && (
           <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
-            <p className="text-sm text-echo-error flex-1">
+            <div className="flex-1">
+            <p className="text-sm text-echo-error">
               {run?.error != null ? String(run.error) : "Run failed"}
             </p>
+            {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (
+              <p className="mt-1 text-xs font-mono text-echo-error/80">{run.errorCode}</p>
+            )}
+            </div>
                 <button
                   type="button"
                   onClick={handleRetry}
@@ -558,6 +568,7 @@ export default function RunDetailPage() {
               <div ref={logsEndRef} />
             </div>
         </div>
+
       </div>
     </div>
   );

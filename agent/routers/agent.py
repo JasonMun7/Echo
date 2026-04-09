@@ -24,6 +24,20 @@ from firebase_admin import firestore as fs_module
 
 from app.auth import get_firebase_app
 
+from echo_prism_agent.run_logging import run_log_prefix
+from echo_prism_agent.ws_errors import (
+    CONFIG,
+    INFERENCE,
+    INVALID_INPUT,
+    PENDING_INTERRUPT,
+    RESUME,
+    RUN_ACCESS,
+    VERIFY,
+    UNKNOWN,
+    classify_api_call_error,
+    ws_error,
+)
+
 _security = HTTPBearer(auto_error=False)
 
 logger = logging.getLogger(__name__)
@@ -195,7 +209,10 @@ async def agent_run_ws(
 
     if not (os.environ.get("OPENROUTER_API_KEY") or "").strip():
         await websocket.send_json(
-            {"type": "error", "message": "OPENROUTER_API_KEY is required for inference (Gemini orchestration removed)"}
+            ws_error(
+                "OPENROUTER_API_KEY is required for inference (Gemini orchestration removed)",
+                CONFIG,
+            )
         )
         await websocket.close()
         return
@@ -235,7 +252,7 @@ async def agent_run_ws(
             try:
                 data = json.loads(raw["text"])
             except json.JSONDecodeError:
-                await send({"type": "error", "message": "Invalid JSON"})
+                await send(ws_error("Invalid JSON", INVALID_INPUT))
                 continue
 
             msg_type = data.get("type", "")
@@ -246,18 +263,16 @@ async def agent_run_ws(
                 "verify",
             ):
                 await send(
-                    {
-                        "type": "error",
-                        "message": "Pending interrupt: send resume or cancel_interrupt first",
-                    }
+                    ws_error(
+                        "Pending interrupt: send resume or cancel_interrupt first",
+                        PENDING_INTERRUPT,
+                    )
                 )
                 continue
 
             if msg_type == "resume":
                 if not pending_api_call_resume:
-                    await send(
-                        {"type": "error", "message": "No interrupt to resume"}
-                    )
+                    await send(ws_error("No interrupt to resume", RESUME))
                     continue
                 from echo_prism_agent.hitl.api_call_gate import get_api_call_gate_graph
                 from langgraph.types import Command
@@ -291,12 +306,8 @@ async def agent_run_ws(
                         }
                     )
                 else:
-                    await send(
-                        {
-                            "type": "error",
-                            "message": result.get("error") or "api_call failed",
-                        }
-                    )
+                    err_msg = result.get("error") or "api_call failed"
+                    await send(ws_error(err_msg, classify_api_call_error(err_msg)))
                 continue
 
             if msg_type == "cancel_interrupt":
@@ -304,7 +315,7 @@ async def agent_run_ws(
                     pending_api_call_resume = None
                     await send({"type": "ready", "cancelled_interrupt": True})
                 else:
-                    await send({"type": "error", "message": "No pending interrupt"})
+                    await send(ws_error("No pending interrupt", RESUME))
                 continue
 
             if msg_type == "start":
@@ -317,20 +328,24 @@ async def agent_run_ws(
                 if not goal_only:
                     goal = ""
                 if not workflow_id or not run_id:
-                    await send({"type": "error", "message": "start requires workflow_id and run_id"})
+                    await send(ws_error("start requires workflow_id and run_id", INVALID_INPUT))
                     continue
                 if not goal_only and not steps:
-                    await send({"type": "error", "message": "start requires steps or goal for goal-only run"})
+                    await send(
+                        ws_error(
+                            "start requires steps or goal for goal-only run",
+                            INVALID_INPUT,
+                        )
+                    )
                     continue
                 ok = await _validate_run_access(uid, workflow_id, run_id)
                 if not ok:
-                    await send({"type": "error", "message": "Run not found or access denied"})
+                    await send(ws_error("Run not found or access denied", RUN_ACCESS))
                     continue
                 if goal_only:
                     logger.info(
-                        "agent WS start goal_only: workflow_id=%s run_id=%s goal=%s",
-                        workflow_id,
-                        run_id,
+                        "%s agent WS start goal_only goal=%s",
+                        run_log_prefix(workflow_id, run_id, uid=uid),
                         (goal or "")[:80],
                     )
                 history = []
@@ -356,7 +371,12 @@ async def agent_run_ws(
                 if goal_only and not step and goal:
                     step = {"context": goal, "action": "observe", "params": {}, "expected_outcome": ""}
                 if not step:
-                    await send({"type": "error", "message": "step requires step (or goal for goal-only run)"})
+                    await send(
+                        ws_error(
+                            "step requires step (or goal for goal-only run)",
+                            INVALID_INPUT,
+                        )
+                    )
                     continue
 
                 if not goal_only and is_deterministic(step):
@@ -372,7 +392,15 @@ async def agent_run_ws(
 
                         # Stable thread so HITL resumes match this step; random id caused each retry to restart approval.
                         tid = f"{workflow_id}-{run_id}-s{step_index}"
-                        gate_cfg = {"configurable": {"thread_id": tid, "uid": uid, "db": db}}
+                        gate_cfg = {
+                            "configurable": {
+                                "thread_id": tid,
+                                "uid": uid,
+                                "db": db,
+                                "workflow_id": workflow_id,
+                                "run_id": run_id,
+                            }
+                        }
                         graph = get_api_call_gate_graph()
                         result = await graph.ainvoke({"step": step}, config=gate_cfg)
                         intr = result.get("__interrupt__")
@@ -401,13 +429,8 @@ async def agent_run_ws(
                                 }
                             )
                         else:
-                            await send(
-                                {
-                                    "type": "error",
-                                    "message": result.get("error")
-                                    or "api_call failed",
-                                }
-                            )
+                            err_msg = result.get("error") or "api_call failed"
+                            await send(ws_error(err_msg, classify_api_call_error(err_msg)))
                     else:
                         action_dict = step_to_action(step)
                         logger.info(
@@ -424,13 +447,15 @@ async def agent_run_ws(
                     continue
 
                 if not screenshot_b64:
-                    await send({"type": "error", "message": "Ambiguous step requires screenshot_b64"})
+                    await send(
+                        ws_error("Ambiguous step requires screenshot_b64", INVALID_INPUT)
+                    )
                     continue
 
                 try:
                     screenshot_bytes = base64.b64decode(screenshot_b64)
                 except Exception:
-                    await send({"type": "error", "message": "Invalid screenshot_b64"})
+                    await send(ws_error("Invalid screenshot_b64", INVALID_INPUT))
                     continue
 
                 capture_w = data.get("capture_width")
@@ -515,10 +540,7 @@ async def agent_run_ws(
                         "action_str": action_str,
                     })
                 else:
-                    await send({
-                        "type": "error",
-                        "message": err or "Inference failed",
-                    })
+                    await send(ws_error(err or "Inference failed", INFERENCE))
 
             elif msg_type == "verify":
                 before_b64 = data.get("before_b64")
@@ -527,14 +549,19 @@ async def agent_run_ws(
                 expected_outcome = data.get("expected_outcome", "")
 
                 if not before_b64 or not after_b64:
-                    await send({"type": "error", "message": "verify requires before_b64 and after_b64"})
+                    await send(
+                        ws_error(
+                            "verify requires before_b64 and after_b64",
+                            INVALID_INPUT,
+                        )
+                    )
                     continue
 
                 try:
                     before_bytes = base64.b64decode(before_b64)
                     after_bytes = base64.b64decode(after_b64)
                 except Exception:
-                    await send({"type": "error", "message": "Invalid base64 in verify"})
+                    await send(ws_error("Invalid base64 in verify", INVALID_INPUT))
                     continue
 
                 description, succeeded = await verify_state_transition(
@@ -563,17 +590,24 @@ async def agent_run_ws(
                         ))
                     await send({"type": "verify_result", "succeeded": True, "description": description})
                 else:
-                    await send({"type": "verify_result", "succeeded": False, "description": description})
+                    await send(
+                        {
+                            "type": "verify_result",
+                            "succeeded": False,
+                            "description": description,
+                            "code": VERIFY,
+                        }
+                    )
 
             else:
-                await send({"type": "error", "message": f"Unknown message type: {msg_type}"})
+                await send(ws_error(f"Unknown message type: {msg_type}", UNKNOWN))
 
     except WebSocketDisconnect:
         logger.debug("Agent WebSocket disconnected")
     except Exception as e:
         logger.exception("Agent WebSocket error: %s", e)
         try:
-            await websocket.send_json({"type": "error", "message": str(e)})
+            await websocket.send_json(ws_error(str(e), UNKNOWN))
         except Exception:
             pass
     finally:

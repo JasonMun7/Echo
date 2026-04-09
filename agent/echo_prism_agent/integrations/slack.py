@@ -16,7 +16,7 @@ METHODS: dict[str, str] = {
 
 async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[str, Any]:
     if not access_token:
-        return {"ok": False, "error": "missing_access_token"}
+        return {"ok": False, "error": "missing_access_token", "result": {}}
     method = (method or "").strip().lower().replace("-", "_")
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
@@ -35,7 +35,7 @@ async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[
                 "text": args.get("text", ""),
             }
             if not body["channel"]:
-                return {"ok": False, "error": "channel required"}
+                return {"ok": False, "error": "channel required", "result": {}}
             r = await client.post("https://slack.com/api/chat.postMessage", headers=headers, json=body)
             data = r.json()
             return {"ok": bool(data.get("ok")), "result": data}

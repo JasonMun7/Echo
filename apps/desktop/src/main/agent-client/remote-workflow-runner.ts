@@ -27,6 +27,69 @@ let activeWs: WebSocket | null = null;
 /** Max retries per step: reobserve → think → act → verify. No calluser; agent drives retries. */
 const MAX_STEP_ATTEMPTS = 30;
 
+/** Initial WebSocket connect attempts (exponential backoff) — Cloud Run cold start / TLS. */
+const WS_OPEN_ATTEMPTS = 4;
+
+function runCtx(
+  opts: RunWorkflowRemoteOptions | undefined,
+  stepNum?: number,
+): string {
+  const wf = opts?.workflowId?.slice(0, 12) ?? "-";
+  const rn = opts?.runId?.slice(0, 12) ?? "-";
+  const s = stepNum != null ? ` step=${stepNum}` : "";
+  return `[echo_run wf=${wf} run=${rn}${s}]`;
+}
+
+/** Maps agent WebSocket ``code`` (ECHO_*) for Firestore; optional fallback from message text. */
+function inferErrorCode(message: string, code?: string): string | undefined {
+  if (code && String(code).startsWith("ECHO_")) return String(code);
+  const m = (message || "").toLowerCase();
+  if (m.includes("gmail_send blocked")) return "ECHO_GUARD_BLOCKED";
+  if (m.includes("not connected") || m.includes("missing_access_token"))
+    return "ECHO_INTEGRATION";
+  if (m.includes("verification failed") || m.includes("verify")) return "ECHO_VERIFY";
+  return undefined;
+}
+
+async function openWebSocketWithRetry(wsUrl: string): Promise<WebSocket> {
+  let last: Error | null = null;
+  for (let attempt = 0; attempt < WS_OPEN_ATTEMPTS; attempt++) {
+    const ws = new WebSocket(wsUrl);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const to = setTimeout(() => {
+          reject(new Error("WebSocket open timeout"));
+        }, 20_000);
+        ws.once("open", () => {
+          clearTimeout(to);
+          resolve();
+        });
+        ws.once("error", () => {
+          clearTimeout(to);
+          reject(new Error("WebSocket connection failed"));
+        });
+      });
+      return ws;
+    } catch (e) {
+      last = e instanceof Error ? e : new Error(String(e));
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+      if (attempt < WS_OPEN_ATTEMPTS - 1) {
+        const delay = 400 * 2 ** attempt;
+        console.warn(
+          `${runCtx(undefined)} WebSocket connect retry in ${delay}ms:`,
+          last.message,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  throw last ?? new Error("WebSocket connection failed");
+}
+
 export function abortActiveRun(): void {
   if (activeWs && activeWs.readyState === 1) {
     try {
@@ -314,7 +377,10 @@ async function patchRunStatus(
       },
     );
   } catch (e) {
-    console.warn("[remote-workflow-runner] PATCH run status failed:", e);
+    console.warn(
+      `${runCtx(opts)} [remote-workflow-runner] PATCH run status failed:`,
+      e,
+    );
   }
 }
 
@@ -366,7 +432,7 @@ export async function runWorkflowRemote(
   await operator.closeBrowser();
 
   try {
-    const ws = new WebSocket(wsUrl);
+    const ws = await openWebSocketWithRetry(wsUrl);
     activeWs = ws;
 
     const send = (msg: object) => {
@@ -405,11 +471,6 @@ export async function runWorkflowRemote(
         ws.once("close", onClose);
       });
 
-    await new Promise<void>((resolve, reject) => {
-      ws.on("open", () => resolve());
-      ws.on("error", () => reject(new Error("WebSocket connection failed")));
-    });
-
     send({
       type: "start",
       workflow_id: options.workflowId ?? "",
@@ -421,7 +482,11 @@ export async function runWorkflowRemote(
     let msg = await receive();
     if ((msg as { type?: string }).type === "error") {
       const err = (msg as { message?: string }).message ?? "Agent error";
-      await patchRunStatus(options ?? {}, "failed", { error: err });
+      const code = (msg as { code?: string }).code;
+      await patchRunStatus(options ?? {}, "failed", {
+        error: err,
+        errorCode: inferErrorCode(err, code),
+      });
       return { success: false, error: err };
     }
     if ((msg as { type?: string }).type !== "ready") {
@@ -556,6 +621,14 @@ export async function runWorkflowRemote(
             });
           } catch (e) {
             lastError = `Screenshot capture failed: ${e}`;
+            if (attempt < MAX_STEP_ATTEMPTS - 1) {
+              console.warn(
+                `${runCtx(options, stepNum)} capture retry:`,
+                lastError,
+              );
+              await new Promise((r) => setTimeout(r, 600));
+              continue;
+            }
             break;
           }
         }
@@ -711,7 +784,8 @@ export async function runWorkflowRemote(
         }
 
         if (m.type === "error") {
-          lastError = m.message ?? "Agent error";
+          const em = m as { message?: string; code?: string };
+          lastError = em.message ?? "Agent error";
           // Retrying api_call by re-sending `step` creates a new LangGraph thread and shows approval again.
           if (deterministic && isApiCallStep(step)) {
             break;
@@ -826,15 +900,24 @@ export async function runWorkflowRemote(
             });
 
             msg = await receive();
-            const v = msg as { type?: string; succeeded?: boolean };
+            const v = msg as {
+              type?: string;
+              succeeded?: boolean;
+              description?: string;
+              code?: string;
+            };
             if (v.type === "verify_result" && v.succeeded) {
               stepSucceeded = true;
               break;
             }
             if (v.type === "verify_result" && !v.succeeded) {
-              lastError =
-                (msg as { description?: string }).description ??
-                "Verification failed";
+              lastError = v.description ?? "Verification failed";
+              onProgress(
+                `${runCtx(options, stepNum)} verify failed: ${lastError}`,
+                stepNum,
+                undefined,
+                "verify",
+              );
               if (attempt < MAX_STEP_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, 500));
               continue;
             }
@@ -857,6 +940,8 @@ export async function runWorkflowRemote(
         );
         await patchRunStatus(options ?? {}, "failed", {
           callUserReason: reason,
+          error: reason,
+          errorCode: inferErrorCode(reason),
         });
         return { success: false, error: reason };
       }
@@ -873,6 +958,7 @@ export async function runWorkflowRemote(
       err === "WebSocket closed" || err.includes("Run cancelled");
     await patchRunStatus(options ?? {}, isCancelled ? "cancelled" : "failed", {
       error: isCancelled ? undefined : err,
+      errorCode: isCancelled ? undefined : inferErrorCode(err),
     });
     return { success: false, error: err };
   } finally {
@@ -917,7 +1003,7 @@ export async function runGoalOnlyRemote(
   await operator.closeBrowser();
 
   try {
-    const ws = new WebSocket(wsUrl);
+    const ws = await openWebSocketWithRetry(wsUrl);
     activeWs = ws;
 
     const send = (msg: object) => {
@@ -956,11 +1042,6 @@ export async function runGoalOnlyRemote(
         ws.once("close", onClose);
       });
 
-    await new Promise<void>((resolve, reject) => {
-      ws.on("open", () => resolve());
-      ws.on("error", () => reject(new Error("WebSocket connection failed")));
-    });
-
     send({
       type: "start",
       workflow_id: options.workflowId ?? "",
@@ -974,7 +1055,11 @@ export async function runGoalOnlyRemote(
     let msg = await receive();
     if ((msg as { type?: string }).type === "error") {
       const err = (msg as { message?: string }).message ?? "Agent error";
-      await patchRunStatus(options, "failed", { error: err });
+      const code = (msg as { code?: string }).code;
+      await patchRunStatus(options, "failed", {
+        error: err,
+        errorCode: inferErrorCode(err, code),
+      });
       return { success: false, error: err };
     }
     if ((msg as { type?: string }).type !== "ready") {
@@ -984,6 +1069,7 @@ export async function runGoalOnlyRemote(
       );
       await patchRunStatus(options, "failed", {
         error: "Unexpected agent response",
+        errorCode: inferErrorCode("Unexpected agent response"),
       });
       return { success: false, error: "Unexpected agent response" };
     }
@@ -1026,7 +1112,10 @@ export async function runGoalOnlyRemote(
         captureH = cap.height;
       } catch (e) {
         lastError = `Screenshot capture failed: ${e}`;
-        await patchRunStatus(options, "failed", { error: lastError });
+        await patchRunStatus(options, "failed", {
+          error: lastError,
+          errorCode: inferErrorCode(lastError),
+        });
         return { success: false, error: lastError };
       }
 
@@ -1300,6 +1389,7 @@ export async function runGoalOnlyRemote(
       err === "WebSocket closed" || err.includes("Run cancelled");
     await patchRunStatus(options, isCancelled ? "cancelled" : "failed", {
       error: isCancelled ? undefined : err,
+      errorCode: isCancelled ? undefined : inferErrorCode(err),
     });
     return { success: false, error: err };
   } finally {

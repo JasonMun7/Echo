@@ -46,7 +46,7 @@ steps:
       - "backend/Dockerfile"
       - "-t"
       - "gcr.io/$PROJECT_ID/echo-backend:${_IMAGE_TAG}"
-      - "backend"
+      - "."
 
   # Build echo-prism-agent (Cloud Run — LangGraph + OpenRouter + Gemini)
   - name: "gcr.io/cloud-builders/docker"

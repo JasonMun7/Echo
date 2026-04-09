@@ -37,4 +37,14 @@ if (hasConfig) {
   db = null as unknown as Firestore;
 }
 
+if (
+  typeof window !== "undefined" &&
+  process.env.NODE_ENV === "production" &&
+  !String(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "").trim()
+) {
+  console.error(
+    "[Echo] NEXT_PUBLIC_FIREBASE_PROJECT_ID is empty in this build. Rebuild echo-frontend with Doppler prd so Cloud Build receives Firebase env (see scripts/deploy/README.md).",
+  );
+}
+
 export { app, auth, db };

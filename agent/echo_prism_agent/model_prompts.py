@@ -94,6 +94,11 @@ type(content='exact text') # Use when the text field is already focused. Append 
 ADAPTABILITY_PROMPT = """
 ## Adaptability — Handle These Situations Without Failing
 
+### UI-TARS-desktop alignment (clone at repo root: ``UI-TARS-desktop/``)
+- **Static screen:** If repeating the **same** action leaves the screen **unchanged**, do **not** keep repeating identical coordinates — use a **modified or alternative** action. This mirrors ``multimodal/omni-tars/core/src/environments/prompt_t5.ts`` (game/GUI task text: *static screen → alternative action*).
+- **Timing:** The browser GUI tool waits ``sleep(500)`` after each operator call (``multimodal/agent-tars/core/src/environments/local/browser/browser-gui-agent.ts``). Echo's desktop capture uses its own settle delays; always reason from the **latest** screenshot.
+- **No MD5 pixel gate in upstream:** BrowserGUIAgent does not reject actions when pixels are unchanged; the **next** model turn decides. Echo's LangGraph ``gui_run_verify`` matches that.
+
 ### Overlays and Obstructing UI
 - Modal/popup/dialog: Try Escape, click Close/X/Dismiss/Cancel, or click outside. Resume after clearing.
 - Cookie consent / GDPR banner: Accept/Decline/Close; prefer "Accept All" or "Essential Only".
@@ -136,6 +141,11 @@ ADAPTABILITY_PROMPT = """
 - Infinite scroll: Scroll until target visible.
 - Animated element: Wait for animation to settle before clicking.
 - Onboarding tour: Dismiss (Skip/Next until done or Close).
+
+### API / integrations (`api_call`)
+- **Slack, Gmail, GitHub:** `api_call` uses **fixed** `params.args` from the workflow—the VLM does **not** invent email body text at send time.
+- **Emails that must include facts** (rankings, stock lists, metrics): put **earlier steps** in the workflow to open a source (browser), read the screen, and **merge the real text** into `args.body` / `args.text` (or use UI typing steps). Do **not** rely on a single send step whose body only says “please find the top 5…” with **no numbers or list**.
+- **Sparse user requests:** Infer sensible data-gathering steps before the send; the final `api_call` should contain the **deliverable content**, not the homework assignment.
 
 ### Workflow scaffolding vs what you see
 - Instructions may come from a **user workflow**—treat them as **intent, ordering, and literals**, not a fixed script you must mimic click-for-click.
@@ -458,6 +468,15 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
     elif action == "drag":
         desc = params.get("description", "from source to destination")
         parts.append(f"Drag {desc}.")
+    elif (action or "").lower().replace("_", "") == "apicall":
+        integration = (params.get("integration") or "").strip()
+        method = (params.get("method") or "").strip()
+        parts.append(
+            f"Call integration **{integration}** method **{method}** with the given args. "
+            "For **email or chat** (`gmail_send`, Slack post, etc.), `args.body` / `args.text` must be the "
+            "**actual message** to deliver (figures, tickers, bullet lines)—not a prompt like “please find the top 5…” "
+            "with no data. If facts are not in args yet, **prior steps** must gather them; this step does not fill them in."
+        )
     else:
         parts.append(f"{action}: {params}")
 
@@ -680,7 +699,9 @@ Output ONLY valid JSON:
   ]
 }
 
-Include expected_outcome on steps where checking success matters; omit or keep minimal for trivial steps."""
+Include expected_outcome on steps where checking success matters; omit or keep minimal for trivial steps.
+
+9. **Data before send (api_call / Gmail / Slack):** If a step sends email or chat with *dynamic* content (figures, rankings, extracted text), you MUST place UI or api_call steps **before** that send so the message body contains concrete data (numbers, tickers, pasted text). Never output a `gmail_send` or Slack post whose body is only an instruction to the assistant (e.g. "find the top 5 stocks") — gather data in prior steps first."""
 ) + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + API_CALL_SYNTHESIS_APPENDIX
 
 

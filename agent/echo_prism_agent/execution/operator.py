@@ -675,7 +675,12 @@ async def resolve_coords_for_action(
 
 
 async def execute_api_call(
-    step: dict[str, Any], uid: str, db: Any
+    step: dict[str, Any],
+    uid: str,
+    db: Any,
+    *,
+    workflow_id: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[bool, str, dict[str, Any] | None]:
     params = step.get("params", {})
     from echo_prism_agent.auth0_token_vault import (
@@ -689,6 +694,10 @@ async def execute_api_call(
 
     if not integration or not method:
         return False, "api_call requires integration and method", None
+
+    from echo_prism_agent.run_logging import run_log_prefix
+
+    _prefix = run_log_prefix(workflow_id, run_id, uid=uid)
 
     from echo_prism_agent.integrations.resolver import (
         get_integration_access_token,
@@ -714,6 +723,11 @@ async def execute_api_call(
         )
 
     try:
+        from echo_prism_agent.integrations.user_text_sanitize import (
+            sanitize_api_call_string_args,
+        )
+
+        args = sanitize_api_call_string_args(dict(args) if isinstance(args, dict) else {})
         connector = importlib.import_module(
             f"echo_prism_agent.integrations.{integration}"
         )
@@ -721,10 +735,22 @@ async def execute_api_call(
         ok = result.get("ok", False)
         if not ok:
             err = result.get("error", "Integration returned ok=False")
+            logger.warning(
+                "%s [echo_integration] api_call failed %s.%s err=%s",
+                _prefix,
+                integration,
+                method,
+                err,
+            )
             return False, str(err), None
         return True, "", None
     except Exception as e:
-        logger.exception("api_call failed for %s.%s: %s", integration, method, e)
+        logger.exception(
+            "%s [echo_integration] api_call exception %s.%s",
+            _prefix,
+            integration,
+            method,
+        )
         return False, str(e), None
 
 
