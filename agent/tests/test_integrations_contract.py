@@ -86,11 +86,24 @@ def test_token_vault_connection_mapping(mod_name) -> None:
         (google, "USERINFO", {}),
     ],
 )
-def test_method_string_normalized_before_branch(mod, method, args) -> None:
-    """Method names are case/hyphen tolerant (same normalization as production)."""
-    out = _run(mod.execute(method, args, ""))
-    assert out.get("ok") is False
-    assert out.get("error") == "missing_access_token"
+def test_method_string_normalized_before_http(mod, method, args) -> None:
+    """Non-canonical method strings normalize and hit the intended branch (not unknown_method)."""
+    with patch(f"{mod.__name__}.httpx.AsyncClient") as mock_ac:
+        mock_resp = type("R", (), {})()
+        mock_resp.status_code = 200
+        if mod is github:
+            mock_resp.json = lambda: [{"name": "r"}]
+        elif mod is slack:
+            mock_resp.json = lambda: {"ok": True, "channels": []}
+        else:
+            mock_resp.json = lambda: {"sub": "x"}
+        mc = type("C", (), {})()
+        mc.get = AsyncMock(return_value=mock_resp)
+        mock_ac.return_value.__aenter__ = AsyncMock(return_value=mc)
+        mock_ac.return_value.__aexit__ = AsyncMock(return_value=None)
+        out = _run(mod.execute(method, args, "test-token"))
+    assert out.get("ok") is True
+    assert mc.get.await_count >= 1
 
 
 def test_google_duplicate_method_alias_documented() -> None:

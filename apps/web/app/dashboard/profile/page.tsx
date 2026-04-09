@@ -42,7 +42,7 @@ async function apiFetch(path: string, options?: RequestInit) {
 }
 
 function parseProfileDate(value: unknown): Date | null {
-  if (!value) return null;
+  if (value === null || value === undefined) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;

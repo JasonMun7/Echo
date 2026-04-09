@@ -257,15 +257,16 @@ async def entrypoint(ctx: agents.JobContext):
     sip_ctx = _get_sip_context(ctx.room)
     job_metadata = _parse_job_metadata(getattr(ctx.job, "metadata", "") or "")
     sip_phone = sip_ctx.get("sip_phone_number", "")
-    sip_msg = "[EchoPrism] SIP context: sip_call_id=%s sip_phone_number=%s" % (
+    sip_phone_log = _phone_log_token(sip_phone) if sip_phone else "(empty)"
+    sip_msg = "[EchoPrism] SIP context: sip_call_id=%s caller_phone=%s" % (
         sip_ctx.get("sip_call_id") or "(none)",
-        sip_phone or "(empty)",
+        sip_phone_log,
     )
     print(sip_msg, flush=True, file=sys.stderr)
     _logger.info(
-        "[EchoPrism] SIP context: sip_call_id=%s sip_phone_number=%s (use this to match Firestore 'phone' field)",
+        "[EchoPrism] SIP context: sip_call_id=%s caller_phone=%s (match Firestore users/{uid}.phone to this caller)",
         sip_ctx.get("sip_call_id") or "(none)",
-        sip_phone or "(empty)",
+        sip_phone_log,
     )
     if sip_ctx.get("sip_call_id"):
         ctx.log_context_fields = {
@@ -276,10 +277,11 @@ async def entrypoint(ctx: agents.JobContext):
         phone = sip_ctx.get("sip_phone_number", "")
         if len(phone) >= 4:
             ctx.log_context_fields["caller_phone_last4"] = phone[-4:]
+        trunk_raw = sip_ctx.get("sip_trunk_phone_number", "")
         _logger.info(
-            "[EchoPrism] SIP call sip_call_id=%s trunk=%s",
+            "[EchoPrism] SIP call sip_call_id=%s trunk_phone=%s",
             sip_ctx.get("sip_call_id", ""),
-            sip_ctx.get("sip_trunk_phone_number", ""),
+            _phone_log_token(trunk_raw) if trunk_raw else "(empty)",
         )
         # Phone → user lookup for personalization (greeting + tools use resolved uid)
         if phone:
@@ -298,7 +300,7 @@ async def entrypoint(ctx: agents.JobContext):
                     )
             else:
                 _logger.info(
-                    "[EchoPrism] Caller not recognized (user-by-phone %s). Ensure Firestore users/{uid}.phone matches sip_phone_number.",
+                    "[EchoPrism] Caller not recognized (user-by-phone %s). Ensure Firestore users/{uid}.phone matches the caller number.",
                     status,
                 )
 

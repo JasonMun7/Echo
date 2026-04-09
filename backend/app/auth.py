@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import firebase_admin
 from firebase_admin import auth as firebase_auth
@@ -106,3 +106,23 @@ async def get_current_user(
 
 def get_current_uid(current_user: Annotated[dict, Depends(get_current_user)]) -> str:
     return current_user.get("uid", "")
+
+
+async def get_current_uid_for_stream(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
+) -> str:
+    """SSE: EventSource cannot send Bearer; accept short-lived HttpOnly cookie or optional Bearer."""
+    from app.sse_session import SSE_COOKIE_NAME, verify_sse_cookie_value
+
+    cookie_uid = verify_sse_cookie_value(request.cookies.get(SSE_COOKIE_NAME))
+    if cookie_uid:
+        return cookie_uid
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing SSE session cookie or authorization",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = await get_current_user(credentials)
+    return user.get("uid", "")

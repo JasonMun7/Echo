@@ -1,16 +1,24 @@
 import { LegalPageTemplate } from "@/components/legal-page-template";
 import { getSEOTags } from "@/lib/seo";
 
+const LAST_UPDATED_ISO = "2026-04-09";
+const LAST_UPDATED_DISPLAY = new Date(`${LAST_UPDATED_ISO}T12:00:00Z`).toLocaleDateString(
+  undefined,
+  { year: "numeric", month: "long", day: "numeric" },
+);
+
 export const metadata = getSEOTags({
   title: "Terms of Service | Echo",
   description: "Echo Terms of Service.",
+  canonicalUrlRelative: "/terms",
 });
 
 export default function TermsPage() {
   return (
     <LegalPageTemplate title="Terms of Service">
       <p className="mb-4">
-        <strong>Last updated:</strong> April 9, 2026
+        <strong>Last updated:</strong>{" "}
+        <time dateTime={LAST_UPDATED_ISO}>{LAST_UPDATED_DISPLAY}</time>
       </p>
       <p className="mb-4">
         These Terms of Service (&quot;Terms&quot;) govern your access to and use of Echo

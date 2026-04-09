@@ -85,26 +85,39 @@ function RunStepScreenshot({
   const step = stepIndex ?? 0;
 
   useEffect(() => {
+    let controller: AbortController | null = null;
     if (token && workflowId && runId) {
       setError(false);
+      controller = new AbortController();
+      const { signal } = controller;
       const path = `/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
-      agentFetch(path, { headers: { Authorization: `Bearer ${token}` } })
+      agentFetch(path, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      })
         .then((res) => {
+          if (signal.aborted) return null;
           if (!res.ok) throw new Error("Screenshot not found");
           return res.blob();
         })
         .then((blob) => {
+          if (!blob || signal.aborted) return;
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = URL.createObjectURL(blob);
           setSrc(blobUrlRef.current);
         })
-        .catch(() => setError(true));
+        .catch((err: unknown) => {
+          if (signal.aborted) return;
+          if (err instanceof Error && err.name === "AbortError") return;
+          setError(true);
+        });
     } else if (fallbackUrl) {
       setSrc(fallbackUrl);
     } else {
       setSrc(null);
     }
     return () => {
+      controller?.abort();
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = null;
@@ -175,31 +188,51 @@ export default function RunDetailPage() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // SSE stream for live thoughts during active run
+  // SSE stream for live thoughts during active run (HttpOnly cookie from POST /api/session/sse)
   useEffect(() => {
     const status = run?.status as string | undefined;
     const isRunning = status === "running" || status === "pending";
     if (!isRunning) return;
 
-    const fetchToken = async () => {
-      const user = auth?.currentUser;
-      if (!user) return;
-      const token = await user.getIdToken();
-      const es = new EventSource(
-        `${MAIN_API_URL}/api/run/${workflowId}/${runId}/stream?token=${encodeURIComponent(token)}`
-      );
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          setLiveThoughts((prev) => [...prev, data]);
-        } catch { /* ignore */ }
-      };
-      es.onerror = () => es.close();
-      return () => es.close();
-    };
+    let es: EventSource | null = null;
+    let cancelled = false;
 
-    const cleanup = fetchToken();
-    return () => { cleanup.then((fn) => fn?.()); };
+    void (async () => {
+      try {
+        const resp = await apiFetch("/api/session/sse", {
+          method: "POST",
+          credentials: "include",
+        });
+        if (cancelled || !resp.ok) return;
+        const source = new EventSource(
+          `${MAIN_API_URL}/api/run/${workflowId}/${runId}/stream`,
+          { withCredentials: true },
+        );
+        if (cancelled) {
+          source.close();
+          return;
+        }
+        es = source;
+        source.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            setLiveThoughts((prev) => [...prev, data]);
+          } catch {
+            /* ignore */
+          }
+        };
+        source.onerror = () => {
+          source.close();
+        };
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      es?.close();
+    };
   }, [run?.status, workflowId, runId]);
 
   const handleCancel = async () => {

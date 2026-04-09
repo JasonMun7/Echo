@@ -45,17 +45,7 @@ export default function IntegrationsPage() {
         router.replace("/signin");
         return;
       }
-      void (async () => {
-        try {
-          await u.getIdToken();
-        } catch (e) {
-          console.error("getIdToken failed:", e);
-          toast.error("Could not refresh your session. Try signing in again.");
-          setLoading(false);
-          return;
-        }
-        await loadIntegrations();
-      })();
+      void loadIntegrations();
     });
     return () => unsub?.();
   }, [router, loadIntegrations]);
