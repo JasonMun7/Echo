@@ -33,8 +33,8 @@ export default function SignUpPage() {
               Create an account
             </Heading>
             <SubHeading as="p" className="mt-4 max-w-xl text-left text-gray-600">
-              We empower developers and technical teams to create, simulate, and
-              manage AI-driven workflows visually
+              We empower developers and technical teams to create, simulate, and manage AI-driven
+              workflows visually
             </SubHeading>
             <Suspense fallback={<LoaderFive text="Loading…" />}>
               <AuthForm mode="sign-up" />

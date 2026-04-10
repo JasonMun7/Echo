@@ -25,11 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -91,7 +87,9 @@ export default function McpToolsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTool, setEditingTool] = useState<McpTool | null>(null);
   const [form, setForm] = useState(emptyTool);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; response?: string; error?: string }>>({});
+  const [testResults, setTestResults] = useState<
+    Record<string, { ok: boolean; response?: string; error?: string }>
+  >({});
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
 
@@ -202,96 +200,93 @@ export default function McpToolsPage() {
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button
-                onClick={openCreate}
-                className="echo-btn-cyan-lavender"
-              >
+              <Button onClick={openCreate} className="echo-btn-cyan-lavender">
                 <IconPlus className="mr-2 h-4 w-4" />
                 Add Tool
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{editingTool ? "Edit Tool" : "New MCP Tool"}</DialogTitle>
-              <DialogDescription>
-                Define an HTTP endpoint EchoPrism can call as a tool.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label>Name</Label>
-                <Input
-                  placeholder="send_slack_message"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{editingTool ? "Edit Tool" : "New MCP Tool"}</DialogTitle>
+                <DialogDescription>
+                  Define an HTTP endpoint EchoPrism can call as a tool.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
+                <div className="grid gap-1.5">
+                  <Label>Name</Label>
+                  <Input
+                    placeholder="send_slack_message"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Description</Label>
+                  <Textarea
+                    placeholder="Describe what this tool does..."
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Endpoint URL</Label>
+                  <Input
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={form.url}
+                    onChange={(e) => setForm({ ...form, url: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Method</Label>
+                  <Select
+                    value={form.method}
+                    onValueChange={(v) => setForm({ ...form, method: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="POST">POST</SelectItem>
+                      <SelectItem value="GET">GET</SelectItem>
+                      <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="PATCH">PATCH</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Input Schema (JSON)</Label>
+                  <Textarea
+                    placeholder='{"type": "object", "properties": {"text": {"type": "string"}}}'
+                    value={JSON.stringify(form.input_schema, null, 2)}
+                    onChange={(e) => {
+                      try {
+                        setForm({ ...form, input_schema: JSON.parse(e.target.value) });
+                      } catch {
+                        // ignore invalid JSON while typing
+                      }
+                    }}
+                    rows={4}
+                    className="font-mono text-xs"
+                  />
+                </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label>Description</Label>
-                <Textarea
-                  placeholder="Describe what this tool does..."
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={2}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Endpoint URL</Label>
-                <Input
-                  placeholder="https://hooks.slack.com/services/..."
-                  value={form.url}
-                  onChange={(e) => setForm({ ...form, url: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Method</Label>
-                <Select
-                  value={form.method}
-                  onValueChange={(v) => setForm({ ...form, method: v })}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={saveTool}
+                  disabled={!form.name || !form.url || saving}
+                  className="echo-btn-cyan-lavender"
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POST">POST</SelectItem>
-                    <SelectItem value="GET">GET</SelectItem>
-                    <SelectItem value="PUT">PUT</SelectItem>
-                    <SelectItem value="PATCH">PATCH</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Input Schema (JSON)</Label>
-                <Textarea
-                  placeholder='{"type": "object", "properties": {"text": {"type": "string"}}}'
-                  value={JSON.stringify(form.input_schema, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      setForm({ ...form, input_schema: JSON.parse(e.target.value) });
-                    } catch {
-                      // ignore invalid JSON while typing
-                    }
-                  }}
-                  rows={4}
-                  className="font-mono text-xs"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={saveTool}
-                disabled={!form.name || !form.url || saving}
-                className="echo-btn-cyan-lavender"
-              >
-                {saving ? "Saving..." : "Save Tool"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+                  {saving ? "Saving..." : "Save Tool"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
 
         {/* Info banner — only when we have tools or loading */}
         {!(tools.length === 0 && !loading) && (
@@ -328,7 +323,9 @@ export default function McpToolsPage() {
                 <IconTool className="h-6 w-6 text-[#A577FF]" />
               </div>
               <p className="font-medium text-[#150A35]">No MCP tools yet</p>
-              <p className="text-sm text-[#150A35]/70">Add your first custom tool to get started.</p>
+              <p className="text-sm text-[#150A35]/70">
+                Add your first custom tool to get started.
+              </p>
               <Button
                 onClick={openCreate}
                 className="echo-btn-cyan-lavender inline-flex items-center gap-2"
@@ -339,97 +336,97 @@ export default function McpToolsPage() {
             </div>
           </div>
         ) : (
-        <Table>
-          <TableHeader>
-            <TableRow className="border-[#A577FF]/20">
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Method</TableHead>
-              <TableHead>Last Tested</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tools.map((tool) => {
-              const testResult = testResults[tool.id];
-              return (
-                <TableRow key={tool.id} className="border-[#A577FF]/10 hover:bg-[#F5F3FF]/50">
-                  <TableCell className="font-mono text-sm font-medium text-[#1A1A2E]">
-                    {tool.name}
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-sm text-gray-500">
-                    {tool.description}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className="border-[#A577FF]/30 text-[#A577FF] text-xs"
-                    >
-                      {tool.method}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-gray-400">
-                    {testResult ? (
-                      <span
-                        className={`flex items-center gap-1 ${testResult.ok ? "text-emerald-500" : "text-red-500"}`}
+          <Table>
+            <TableHeader>
+              <TableRow className="border-[#A577FF]/20">
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Last Tested</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tools.map((tool) => {
+                const testResult = testResults[tool.id];
+                return (
+                  <TableRow key={tool.id} className="border-[#A577FF]/10 hover:bg-[#F5F3FF]/50">
+                    <TableCell className="font-mono text-sm font-medium text-[#1A1A2E]">
+                      {tool.name}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-sm text-gray-500">
+                      {tool.description}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="border-[#A577FF]/30 text-[#A577FF] text-xs"
                       >
-                        {testResult.ok ? (
-                          <IconCheck className="h-3.5 w-3.5" />
-                        ) : (
-                          <IconX className="h-3.5 w-3.5" />
-                        )}
-                        {testResult.ok ? "Passed" : "Failed"}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => testTool(tool.id)}
-                        disabled={testing === tool.id}
-                        className="h-8 text-xs text-[#A577FF] hover:bg-[#A577FF]/10"
-                      >
-                        <IconPlayerPlay className="mr-1 h-3 w-3" />
-                        {testing === tool.id ? "Testing..." : "Test"}
-                      </Button>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEdit(tool)}
-                            className="h-8 text-xs text-gray-500 hover:bg-gray-100"
-                          >
-                            <IconPencil className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit tool</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteTool(tool.id)}
-                            className="h-8 text-xs text-red-500 hover:bg-red-50"
-                          >
-                            <IconTrash className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Delete tool</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
+                        {tool.method}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-400">
+                      {testResult ? (
+                        <span
+                          className={`flex items-center gap-1 ${testResult.ok ? "text-emerald-500" : "text-red-500"}`}
+                        >
+                          {testResult.ok ? (
+                            <IconCheck className="h-3.5 w-3.5" />
+                          ) : (
+                            <IconX className="h-3.5 w-3.5" />
+                          )}
+                          {testResult.ok ? "Passed" : "Failed"}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => testTool(tool.id)}
+                          disabled={testing === tool.id}
+                          className="h-8 text-xs text-[#A577FF] hover:bg-[#A577FF]/10"
+                        >
+                          <IconPlayerPlay className="mr-1 h-3 w-3" />
+                          {testing === tool.id ? "Testing..." : "Test"}
+                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEdit(tool)}
+                              className="h-8 text-xs text-gray-500 hover:bg-gray-100"
+                            >
+                              <IconPencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit tool</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteTool(tool.id)}
+                              className="h-8 text-xs text-red-500 hover:bg-red-50"
+                            >
+                              <IconTrash className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete tool</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   );

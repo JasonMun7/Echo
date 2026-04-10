@@ -31,7 +31,7 @@ const DEFAULT_COLORS = [
 
 const parseColorToRgba = (
   color: string,
-  element: HTMLElement
+  element: HTMLElement,
 ): [number, number, number, number] => {
   const computedStyle = getComputedStyle(element);
   let resolvedColor = color;
@@ -40,7 +40,7 @@ const parseColorToRgba = (
     resolvedColor = computedStyle.getPropertyValue(varName).trim();
   }
   const rgbaMatch = resolvedColor.match(
-    /rgba\s*\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*[,/]\s*([\d.]+)\s*\)/
+    /rgba\s*\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*[,/]\s*([\d.]+)\s*\)/,
   );
   if (rgbaMatch) {
     return [
@@ -50,22 +50,13 @@ const parseColorToRgba = (
       parseFloat(rgbaMatch[4]),
     ];
   }
-  const rgbMatch = resolvedColor.match(
-    /rgb\s*\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*\)/
-  );
+  const rgbMatch = resolvedColor.match(/rgb\s*\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*\)/);
   if (rgbMatch) {
     return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3]), 1];
   }
-  const hexMatch = resolvedColor.match(
-    /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i
-  );
+  const hexMatch = resolvedColor.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
   if (hexMatch) {
-    return [
-      parseInt(hexMatch[1], 16),
-      parseInt(hexMatch[2], 16),
-      parseInt(hexMatch[3], 16),
-      1,
-    ];
+    return [parseInt(hexMatch[1], 16), parseInt(hexMatch[2], 16), parseInt(hexMatch[3], 16), 1];
   }
   return [165, 119, 255, 1];
 };
@@ -88,9 +79,7 @@ export const LinesGradientShader: React.FC<LinesGradientShaderProps> = ({
   const lastFrameTimeRef = useRef<number>(0);
   const isVisibleRef = useRef<boolean>(true);
   const prefersReducedMotionRef = useRef<boolean>(false);
-  const [resolvedColors, setResolvedColors] = useState<
-    [number, number, number, number][]
-  >([]);
+  const [resolvedColors, setResolvedColors] = useState<[number, number, number, number][]>([]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -132,7 +121,7 @@ export const LinesGradientShader: React.FC<LinesGradientShaderProps> = ({
       (entries) => {
         isVisibleRef.current = entries[0]?.isIntersecting ?? true;
       },
-      { threshold: 0.01 }
+      { threshold: 0.01 },
     );
     io.observe(container);
     const handleVisibilityChange = () => {
@@ -146,7 +135,7 @@ export const LinesGradientShader: React.FC<LinesGradientShaderProps> = ({
     const interpolateColor = (
       c1: [number, number, number, number],
       c2: [number, number, number, number],
-      t: number
+      t: number,
     ): string => {
       const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
       const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
@@ -251,10 +240,7 @@ export const LinesGradientShader: React.FC<LinesGradientShaderProps> = ({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "pointer-events-none relative overflow-hidden mask-b-from-50%",
-        className
-      )}
+      className={cn("pointer-events-none relative overflow-hidden mask-b-from-50%", className)}
     >
       <canvas
         ref={canvasRef}

@@ -49,12 +49,7 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import AnimatedList from "@/components/AnimatedList";
 import { toast } from "sonner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -81,23 +76,18 @@ function useWindowType(): { windowType: string; mode: string } {
 }
 
 const API_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  "http://localhost:8000";
+  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "http://localhost:8000";
 
 function MainWindowApp() {
   const { theme, toggleTheme } = useTheme();
   const workflowSearchRef = useRef<HTMLDivElement>(null);
 
   const token = useAuthStore((s) => s.token);
-  const screenPermissionRequired = useAuthStore(
-    (s) => s.screenPermissionRequired
-  );
+  const screenPermissionRequired = useAuthStore((s) => s.screenPermissionRequired);
   const loadToken = useAuthStore((s) => s.loadToken);
   const signIn = useAuthStore((s) => s.signIn);
   const signOut = useAuthStore((s) => s.signOut);
-  const setScreenPermissionRequired = useAuthStore(
-    (s) => s.setScreenPermissionRequired
-  );
+  const setScreenPermissionRequired = useAuthStore((s) => s.setScreenPermissionRequired);
 
   const page = useUIStore((s) => s.page);
   const setPage = useUIStore((s) => s.setPage);
@@ -141,13 +131,8 @@ function MainWindowApp() {
   const uploadAndSynthesize = useRecordingStore((s) => s.uploadAndSynthesize);
   const cancelSynthesis = useRecordingStore((s) => s.cancelSynthesis);
 
-  const {
-    startRecording,
-    stopRecording,
-    pauseResumeRecording,
-    discardRecording,
-    redoRecording,
-  } = useRecording();
+  const { startRecording, stopRecording, pauseResumeRecording, discardRecording, redoRecording } =
+    useRecording();
 
   const refreshAuth = useRef<() => void>(() => {});
   refreshAuth.current = async () => {
@@ -192,10 +177,7 @@ function MainWindowApp() {
       if (e.key === "Escape") setWorkflowSearchOpen(false);
     };
     const onClickOutside = (e: MouseEvent) => {
-      if (
-        workflowSearchRef.current &&
-        !workflowSearchRef.current.contains(e.target as Node)
-      ) {
+      if (workflowSearchRef.current && !workflowSearchRef.current.contains(e.target as Node)) {
         setWorkflowSearchOpen(false);
       }
     };
@@ -245,16 +227,13 @@ function MainWindowApp() {
 
   // Sync collapse state from main process
   useEffect(() => {
-    window.electronAPI?.onDesktopStateChanged?.((arg) =>
-      setIsCollapsed(arg.collapsed)
-    );
+    window.electronAPI?.onDesktopStateChanged?.((arg) => setIsCollapsed(arg.collapsed));
     return () => window.electronAPI?.removeDesktopStateChangedListener?.();
   }, [setIsCollapsed]);
 
   // Multi-step loader and toasts (must be before any early return to satisfy Rules of Hooks)
   const isSynthesizing =
-    recordStatus === "Uploading recording…" ||
-    recordStatus === "Synthesizing workflow…";
+    recordStatus === "Uploading recording…" || recordStatus === "Synthesizing workflow…";
   const [loaderStep, setLoaderStep] = useState(0);
   const [showCompletion, setShowCompletion] = useState(false);
   const SYNTHESIZE_LOADER_STEPS = [
@@ -289,13 +268,15 @@ function MainWindowApp() {
     return () => clearInterval(interval);
   }, [isSynthesizing, stepCount]);
   const synthesizeLoaderVisible = isSynthesizing || showCompletion;
-  const synthesizeLoaderValue = showCompletion
-    ? stepCount
-    : Math.min(loaderStep, stepCount - 1);
+  const synthesizeLoaderValue = showCompletion ? stepCount : Math.min(loaderStep, stepCount - 1);
   const prevRecordStatusRef = useRef("");
   const prevRecordErrorRef = useRef("");
   useEffect(() => {
-    if (recordStatus && recordStatus !== "Uploading recording…" && recordStatus !== "Synthesizing workflow…") {
+    if (
+      recordStatus &&
+      recordStatus !== "Uploading recording…" &&
+      recordStatus !== "Synthesizing workflow…"
+    ) {
       if (recordStatus !== prevRecordStatusRef.current) {
         toast.success(recordStatus);
         prevRecordStatusRef.current = recordStatus;
@@ -325,10 +306,7 @@ function MainWindowApp() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleRunFromList = async (w: {
-    id: string;
-    workflow_type?: string;
-  }) => {
+  const handleRunFromList = async (w: { id: string; workflow_type?: string }) => {
     const t = token ?? (await loadToken());
     if (!t) return;
     const result = await window.electronAPI?.fetchWorkflow?.({
@@ -341,8 +319,7 @@ function MainWindowApp() {
     await handleRunWorkflow({
       workflowId: w.id,
       steps: fetchedSteps,
-      workflowType:
-        (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+      workflowType: (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
     });
   };
 
@@ -354,9 +331,7 @@ function MainWindowApp() {
           position: "relative",
           minHeight: "100vh",
           overflow: "hidden",
-          background: isDark
-            ? "linear-gradient(to right, #150a35, #2d1b69)"
-            : "#F5F7FC",
+          background: isDark ? "linear-gradient(to right, #150a35, #2d1b69)" : "#F5F7FC",
         }}
       >
         <button
@@ -389,9 +364,7 @@ function MainWindowApp() {
               width: "100%",
               padding: 24,
               textAlign: "center",
-              background: isDark
-                ? "rgba(255, 255, 255, 0.12)"
-                : "rgba(21, 10, 53, 0.06)",
+              background: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(21, 10, 53, 0.06)",
               backdropFilter: "blur(12px)",
               WebkitBackdropFilter: "blur(12px)",
               border: isDark
@@ -489,9 +462,7 @@ function MainWindowApp() {
         >
           <div
             style={{
-              background: isDark
-                ? "rgba(255, 255, 255, 0.08)"
-                : "rgba(255, 255, 255, 0.9)",
+              background: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.9)",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               border: isDark
@@ -521,22 +492,13 @@ function MainWindowApp() {
                   height={56}
                   style={{ width: 56, height: 56, objectFit: "contain" }}
                 />
-                <GradientText
-                  colors={["#A577FF", "#21C4DD", "#A577FF"]}
-                  animationSpeed={6}
-                >
-                  <h1
-                    style={{ fontSize: "1.75rem", fontWeight: 700, margin: 0 }}
-                  >
-                    Echo Desktop
-                  </h1>
+                <GradientText colors={["#A577FF", "#21C4DD", "#A577FF"]} animationSpeed={6}>
+                  <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: 0 }}>Echo Desktop</h1>
                 </GradientText>
               </div>
               <p
                 style={{
-                  color: isDark
-                    ? "rgba(255, 255, 255, 0.75)"
-                    : "var(--echo-text-secondary)",
+                  color: isDark ? "rgba(255, 255, 255, 0.75)" : "var(--echo-text-secondary)",
                   fontSize: 14,
                   textAlign: "center",
                   margin: 0,
@@ -628,9 +590,7 @@ function MainWindowApp() {
                     cursor: "pointer",
                     border: "none",
                     background:
-                      theme === "dark"
-                        ? "rgba(21, 10, 53, 0.92)"
-                        : "rgba(255, 255, 255, 0.98)",
+                      theme === "dark" ? "rgba(21, 10, 53, 0.92)" : "rgba(255, 255, 255, 0.98)",
                     boxShadow:
                       theme === "dark"
                         ? "0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(165, 119, 255, 0.2)"
@@ -764,13 +724,11 @@ function MainWindowApp() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.transform = "scale(1.08)";
-                          e.currentTarget.style.boxShadow =
-                            "0 4px 16px rgba(165,119,255,0.45)";
+                          e.currentTarget.style.boxShadow = "0 4px 16px rgba(165,119,255,0.45)";
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.transform = "scale(1)";
-                          e.currentTarget.style.boxShadow =
-                            "0 2px 12px rgba(165,119,255,0.35)";
+                          e.currentTarget.style.boxShadow = "0 2px 12px rgba(165,119,255,0.35)";
                         }}
                       >
                         <div style={{ width: "100%", height: "100%" }}>
@@ -779,9 +737,7 @@ function MainWindowApp() {
                             hoverIntensity={0.3}
                             rotateOnHover
                             forceHoverState={false}
-                            backgroundColor={
-                              theme === "dark" ? "#0a0414" : "#f5f0ff"
-                            }
+                            backgroundColor={theme === "dark" ? "#0a0414" : "#f5f0ff"}
                           />
                         </div>
                       </button>
@@ -796,28 +752,18 @@ function MainWindowApp() {
                         onClick={toggleTheme}
                         className="h-8 w-8 rounded-lg"
                       >
-                        {theme === "dark" ? (
-                          <IconSun size={18} />
-                        ) : (
-                          <IconMoon size={18} />
-                        )}
+                        {theme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {theme === "dark"
-                        ? "Switch to light mode"
-                        : "Switch to dark mode"}
+                      {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                     </TooltipContent>
                   </Tooltip>
                   <DropdownMenu>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg"
-                          >
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
                             <IconMenu2 size={18} />
                           </Button>
                         </DropdownMenuTrigger>
@@ -828,9 +774,7 @@ function MainWindowApp() {
                       align="end"
                       className="w-48 bg-[var(--echo-surface-solid)] text-[var(--echo-text)] border border-[var(--echo-border)] shadow-lg"
                     >
-                      <DropdownMenuItem
-                        onClick={() => setEchoPrismModalOpen(true)}
-                      >
+                      <DropdownMenuItem onClick={() => setEchoPrismModalOpen(true)}>
                         <IconSparkles size={16} />
                         EchoPrism
                       </DropdownMenuItem>
@@ -842,15 +786,11 @@ function MainWindowApp() {
                         <IconCalendarClock size={16} />
                         Schedule
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => window.electronAPI?.openWebUI?.()}
-                      >
+                      <DropdownMenuItem onClick={() => window.electronAPI?.openWebUI?.()}>
                         <IconExternalLink size={16} />
                         Open in web
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => window.electronAPI?.checkForUpdates?.()}
-                      >
+                      <DropdownMenuItem onClick={() => window.electronAPI?.checkForUpdates?.()}>
                         <IconRefresh size={16} />
                         Check for updates
                       </DropdownMenuItem>
@@ -858,9 +798,7 @@ function MainWindowApp() {
                         <IconLogout size={16} />
                         Sign out
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => window.electronAPI?.quitApp?.()}
-                      >
+                      <DropdownMenuItem onClick={() => window.electronAPI?.quitApp?.()}>
                         <IconPower size={16} />
                         Quit
                       </DropdownMenuItem>
@@ -942,7 +880,6 @@ function MainWindowApp() {
                         </Tooltip>
                       </div>
                     )}
-
                   </div>
 
                   {/* Workflows list */}
@@ -979,9 +916,7 @@ function MainWindowApp() {
                             <Input
                               placeholder="Search workflows…"
                               value={workflowSearchQuery}
-                              onChange={(e) =>
-                                setWorkflowSearchQuery(e.target.value)
-                              }
+                              onChange={(e) => setWorkflowSearchQuery(e.target.value)}
                               autoFocus
                               className="w-full border-[rgba(165,119,255,0.2)] text-[var(--echo-text)] placeholder:text-[var(--echo-text-secondary)] focus-visible:ring-[#A577FF]/30"
                               style={{
@@ -996,9 +931,7 @@ function MainWindowApp() {
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            onClick={() =>
-                              setWorkflowSearchOpen(!workflowSearchOpen)
-                            }
+                            onClick={() => setWorkflowSearchOpen(!workflowSearchOpen)}
                             style={{
                               background: "none",
                               border: "none",
@@ -1026,9 +959,7 @@ function MainWindowApp() {
                         Loading workflows…
                       </p>
                     ) : workflowsError ? (
-                      <p style={{ color: "#ef4444", fontSize: 14 }}>
-                        {workflowsError}
-                      </p>
+                      <p style={{ color: "#ef4444", fontSize: 14 }}>{workflowsError}</p>
                     ) : workflows.length === 0 ? (
                       <div
                         style={{
@@ -1075,8 +1006,7 @@ function MainWindowApp() {
                         >
                           <div
                             style={{
-                              animation:
-                                "run-logs-placeholder-pulse 3s ease-in-out infinite",
+                              animation: "run-logs-placeholder-pulse 3s ease-in-out infinite",
                             }}
                           >
                             <IconJumpRope
@@ -1107,9 +1037,7 @@ function MainWindowApp() {
                         const filtered = q
                           ? workflows.filter((w) => {
                               const name = (w.name ?? w.id).toLowerCase();
-                              const type = (
-                                w.workflow_type ?? ""
-                              ).toLowerCase();
+                              const type = (w.workflow_type ?? "").toLowerCase();
                               return name.includes(q) || type.includes(q);
                             })
                           : workflows;
@@ -1132,10 +1060,9 @@ function MainWindowApp() {
                         return (
                           <AnimatedList
                             items={filtered}
-                            onItemSelect={(w: {
-                              id: string;
-                              workflow_type?: string;
-                            }) => handleRunFromList(w)}
+                            onItemSelect={(w: { id: string; workflow_type?: string }) =>
+                              handleRunFromList(w)
+                            }
                             renderItem={(w: {
                               id: string;
                               name?: string;
@@ -1145,141 +1072,132 @@ function MainWindowApp() {
                             }) => {
                               const isLatest = isLatestOrLastModified(w, filtered);
                               return (
-                              <div
-                                key={w.id}
-                                className="group/workflow cursor-default relative"
-                                style={{
-                                  padding: "10px 12px",
-                                  borderRadius: 8,
-                                  border: isLatest
-                                    ? "1px solid rgba(165,119,255,0.4)"
-                                    : "1px solid rgba(165,119,255,0.12)",
-                                  background: isLatest
-                                    ? "rgba(165,119,255,0.06)"
-                                    : "var(--echo-surface)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  overflow: "hidden",
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRunFromList(w);
-                                      }}
-                                      className="workflow-play-icon inline-flex shrink-0 items-center justify-center rounded-md p-1.5 pr-2 transition-all hover:bg-accent hover:shadow-[0_0_16px_var(--echo-glow)]"
-                                      style={{
-                                        border: "none",
-                                        cursor: "pointer",
-                                        color: "var(--echo-text-secondary)",
-                                      }}
-                                    >
-                                      <IconPlayerPlayFilled
-                                        size={14}
-                                        color="currentColor"
-                                      />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Run workflow</TooltipContent>
-                                </Tooltip>
-                                <span
+                                <div
+                                  key={w.id}
+                                  className="group/workflow cursor-default relative"
                                   style={{
-                                    flex: 1,
-                                    fontWeight: 500,
-                                    color: "var(--echo-text)",
-                                    fontSize: 13,
+                                    padding: "10px 12px",
+                                    borderRadius: 8,
+                                    border: isLatest
+                                      ? "1px solid rgba(165,119,255,0.4)"
+                                      : "1px solid rgba(165,119,255,0.12)",
+                                    background: isLatest
+                                      ? "rgba(165,119,255,0.06)"
+                                      : "var(--echo-surface)",
+                                    display: "flex",
+                                    alignItems: "center",
                                     overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                    paddingRight: 8,
                                   }}
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  {w.name ?? w.id}
-                                </span>
-                                {w.workflow_type && (
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      padding: "2px 5px",
-                                      borderRadius: 99,
-                                      background:
-                                        w.workflow_type === "desktop"
-                                          ? "rgba(165,119,255,0.15)"
-                                          : "rgba(34,197,94,0.12)",
-                                      color:
-                                        w.workflow_type === "desktop"
-                                          ? "#A577FF"
-                                          : "#16a34a",
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    {w.workflow_type === "desktop"
-                                      ? "Desktop"
-                                      : "Browser"}
-                                  </span>
-                                )}
-                                <DropdownMenu>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 shrink-0 ml-auto rounded-md text-black px-2 transition-shadow hover:shadow-[0_0_16px_var(--echo-glow)]"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <IconDots size={14} />
-                                        </Button>
-                                      </DropdownMenuTrigger>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRunFromList(w);
+                                        }}
+                                        className="workflow-play-icon inline-flex shrink-0 items-center justify-center rounded-md p-1.5 pr-2 transition-all hover:bg-accent hover:shadow-[0_0_16px_var(--echo-glow)]"
+                                        style={{
+                                          border: "none",
+                                          cursor: "pointer",
+                                          color: "var(--echo-text-secondary)",
+                                        }}
+                                      >
+                                        <IconPlayerPlayFilled size={14} color="currentColor" />
+                                      </button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
-                                      Workflow options
-                                    </TooltipContent>
+                                    <TooltipContent>Run workflow</TooltipContent>
                                   </Tooltip>
-                                  <DropdownMenuContent
-                                    align="end"
-                                    className="w-40 bg-[var(--echo-surface-solid)] text-[var(--echo-text)] border border-[var(--echo-border)] shadow-lg"
+                                  <span
+                                    style={{
+                                      flex: 1,
+                                      fontWeight: 500,
+                                      color: "var(--echo-text)",
+                                      fontSize: 13,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      paddingRight: 8,
+                                    }}
                                   >
-                                    <DropdownMenuItem
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        selectWorkflow(w.id);
-                                        handleSelectWorkflow(w.id);
-                                        setPage("detail");
+                                    {w.name ?? w.id}
+                                  </span>
+                                  {w.workflow_type && (
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        padding: "2px 5px",
+                                        borderRadius: 99,
+                                        background:
+                                          w.workflow_type === "desktop"
+                                            ? "rgba(165,119,255,0.15)"
+                                            : "rgba(34,197,94,0.12)",
+                                        color:
+                                          w.workflow_type === "desktop" ? "#A577FF" : "#16a34a",
+                                        flexShrink: 0,
                                       }}
                                     >
-                                      <IconInfoCircle size={14} />
-                                      Summary
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        selectWorkflow(w.id);
-                                        setPage("edit");
-                                      }}
+                                      {w.workflow_type === "desktop" ? "Desktop" : "Browser"}
+                                    </span>
+                                  )}
+                                  <DropdownMenu>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0 ml-auto rounded-md text-black px-2 transition-shadow hover:shadow-[0_0_16px_var(--echo-glow)]"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <IconDots size={14} />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Workflow options</TooltipContent>
+                                    </Tooltip>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      className="w-40 bg-[var(--echo-surface-solid)] text-[var(--echo-text)] border border-[var(--echo-border)] shadow-lg"
                                     >
-                                      <IconPencil size={14} />
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      variant="destructive"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteWithConfirm(w.id);
-                                      }}
-                                    >
-                                      <IconTrash size={14} />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            );
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          selectWorkflow(w.id);
+                                          handleSelectWorkflow(w.id);
+                                          setPage("detail");
+                                        }}
+                                      >
+                                        <IconInfoCircle size={14} />
+                                        Summary
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          selectWorkflow(w.id);
+                                          setPage("edit");
+                                        }}
+                                      >
+                                        <IconPencil size={14} />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteWithConfirm(w.id);
+                                        }}
+                                      >
+                                        <IconTrash size={14} />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              );
                             }}
                             maxHeight="280px"
                             displayScrollbar={true}
@@ -1304,11 +1222,7 @@ function MainWindowApp() {
                       </p>
                     )}
                     {fetchError && (
-                      <p
-                        style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}
-                      >
-                        {fetchError}
-                      </p>
+                      <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}>{fetchError}</p>
                     )}
                   </SpotlightCard>
 
@@ -1317,13 +1231,11 @@ function MainWindowApp() {
                     runResult={runResult}
                     dismissed={runResultDismissed}
                     onDismiss={dismissRunResult}
-                    onOpenWebUI={(path) =>
-                      window.electronAPI?.openWebUI?.(path)
-                    }
+                    onOpenWebUI={(path) => window.electronAPI?.openWebUI?.(path)}
                     workflowName={
                       runResult?.workflowId
-                        ? (workflows.find((w) => w.id === runResult.workflowId)
-                            ?.name ?? runResult.workflowId)
+                        ? (workflows.find((w) => w.id === runResult.workflowId)?.name ??
+                          runResult.workflowId)
                         : undefined
                     }
                   />
@@ -1360,11 +1272,7 @@ function MainWindowApp() {
               )}
 
               {page === "schedule" && (
-                <ScheduleView
-                  token={token}
-                  apiUrl={API_URL}
-                  onBack={() => setPage("home")}
-                />
+                <ScheduleView token={token} apiUrl={API_URL} onBack={() => setPage("home")} />
               )}
             </div>
           )}
@@ -1451,20 +1359,11 @@ function RunHudWrapper() {
   >([]);
 
   useEffect(() => {
-    const handler = (entry: {
-      thought: string;
-      action: string;
-      step: number;
-    }) => {
+    const handler = (entry: { thought: string; action: string; step: number }) => {
       setLiveProgress((prev) => {
         const next = [...prev];
         const last = next[next.length - 1];
-        if (
-          last &&
-          last.step === entry.step &&
-          last.action === "" &&
-          entry.action
-        ) {
+        if (last && last.step === entry.step && last.action === "" && entry.action) {
           next[next.length - 1] = { ...entry };
           return next;
         }
@@ -1494,18 +1393,11 @@ function RunHudWrapper() {
           };
           return next;
         }
-        return [
-          ...next,
-          { thought: payload.delta, action: "", step: payload.step },
-        ];
+        return [...next, { thought: payload.delta, action: "", step: payload.step }];
       });
     };
     window.electronAPI?.onRunThinkingDelta?.(onDelta);
-    const onHitl = (evt: {
-      kind: string;
-      payload: Record<string, unknown>;
-      step: number;
-    }) => {
+    const onHitl = (evt: { kind: string; payload: Record<string, unknown>; step: number }) => {
       setHitl(evt);
     };
     const onHitlClear = () => setHitl(null);

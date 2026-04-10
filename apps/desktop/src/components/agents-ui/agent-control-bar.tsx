@@ -14,11 +14,7 @@ import {
   agentTrackToggleVariants,
 } from "@/components/agents-ui/agent-track-toggle";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Toggle } from "@/components/ui/toggle";
 import {
   useInputControls,
@@ -73,11 +69,7 @@ interface AgentChatInputProps {
   className?: string;
 }
 
-function AgentChatInput({
-  chatOpen,
-  onSend = async () => {},
-  className,
-}: AgentChatInputProps) {
+function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState<string>("");
@@ -118,12 +110,7 @@ function AgentChatInput({
   }, [chatOpen]);
 
   return (
-    <div
-      className={cn(
-        "mb-3 flex grow items-end gap-2 rounded-md pl-1 text-sm",
-        className,
-      )}
-    >
+    <div className={cn("mb-3 flex grow items-end gap-2 rounded-md pl-1 text-sm", className)}>
       <textarea
         autoFocus
         ref={inputRef}
@@ -147,9 +134,7 @@ function AgentChatInput({
             {isSending ? <Loader className="animate-spin" /> : <SendHorizontal />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>
-          {isSending ? "Sending..." : "Send"}
-        </TooltipContent>
+        <TooltipContent>{isSending ? "Sending..." : "Send"}</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -274,8 +259,7 @@ export function AgentControlBar({
 }: AgentControlBarProps & ComponentProps<"div">) {
   const { send } = useChat();
   const publishPermissions = usePublishPermissions();
-  const [isChatOpenUncontrolled, setIsChatOpenUncontrolled] =
-    useState(isChatOpen);
+  const [isChatOpenUncontrolled, setIsChatOpenUncontrolled] = useState(isChatOpen);
   const {
     microphoneTrack,
     cameraToggle,
@@ -302,9 +286,7 @@ export function AgentControlBar({
   const isEmpty = Object.values(visibleControls).every((value) => !value);
 
   if (isEmpty) {
-    console.warn(
-      "AgentControlBar: `visibleControls` contains only false values.",
-    );
+    console.warn("AgentControlBar: `visibleControls` contains only false values.");
     return null;
   }
 
@@ -386,9 +368,7 @@ export function AgentControlBar({
               pressed={screenShareToggle.enabled}
               disabled={screenShareToggle.pending}
               onPressedChange={screenShareToggle.toggle}
-              className={cn(
-                variant === "livekit" && [LK_TOGGLE_VARIANT_2, "rounded-full"],
-              )}
+              className={cn(variant === "livekit" && [LK_TOGGLE_VARIANT_2, "rounded-full"])}
             />
           )}
 
@@ -404,12 +384,7 @@ export function AgentControlBar({
               }}
               className={agentTrackToggleVariants({
                 variant: variant === "outline" ? "outline" : "default",
-                className: cn(
-                  variant === "livekit" && [
-                    LK_TOGGLE_VARIANT_2,
-                    "rounded-full",
-                  ],
-                ),
+                className: cn(variant === "livekit" && [LK_TOGGLE_VARIANT_2, "rounded-full"]),
               })}
             >
               <MessageSquareTextIcon />

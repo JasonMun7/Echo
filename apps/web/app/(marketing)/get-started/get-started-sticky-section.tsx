@@ -73,10 +73,7 @@ const steps: StickyScrollItem[] = [
           </div>
           <p className="text-center text-sm text-gray-600">
             Already have the app?{" "}
-            <Link
-              href="/sign-in"
-              className="font-medium text-[#A577FF] hover:underline"
-            >
+            <Link href="/sign-in" className="font-medium text-[#A577FF] hover:underline">
               Sign in
             </Link>
           </p>
@@ -116,7 +113,10 @@ const steps: StickyScrollItem[] = [
           <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-2 border-[#A577FF]/40 bg-[#A577FF]/10">
             <IconLogin className="h-16 w-16 text-[#A577FF]" />
           </div>
-          <Button asChild className="echo-btn-cyan-lavender h-14 gap-3 px-8 text-base font-semibold">
+          <Button
+            asChild
+            className="echo-btn-cyan-lavender h-14 gap-3 px-8 text-base font-semibold"
+          >
             <Link href="/sign-in">
               <IconLogin className="h-6 w-6" />
               Sign in
@@ -137,9 +137,7 @@ export function GetStartedStickySection() {
       <div className="mx-auto max-w-7xl px-6 text-center">
         <h2 className="flex flex-wrap items-baseline justify-center gap-x-2 text-3xl font-semibold text-[#150A35] md:text-4xl lg:text-5xl">
           <span>Get started with</span>
-          <GradientText className="inline-block align-baseline">
-            Echo Desktop
-          </GradientText>
+          <GradientText className="inline-block align-baseline">Echo Desktop</GradientText>
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600 md:text-xl">
           Download, install, and sign in to start building AI-driven workflows on your machine.
@@ -156,16 +154,24 @@ export function GetStartedStickySection() {
             </GradientText>
           </p>
           <p className="mt-4 text-lg text-gray-600">
-            Record your screen, describe what you want, and Echo turns it into automations that run in the desktop app.
+            Record your screen, describe what you want, and Echo turns it into automations that run
+            in the desktop app.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <Button asChild className="echo-btn-cyan-lavender h-12 gap-2 px-6 text-base font-semibold">
+            <Button
+              asChild
+              className="echo-btn-cyan-lavender h-12 gap-2 px-6 text-base font-semibold"
+            >
               <DesktopCaptureLink>
                 <IconRocket className="h-5 w-5" />
                 Open Echo Desktop to record
               </DesktopCaptureLink>
             </Button>
-            <Button asChild variant="secondary" className="h-12 border-[#A577FF]/40 px-6 text-base font-medium text-[#150A35] hover:bg-[#A577FF]/10">
+            <Button
+              asChild
+              variant="secondary"
+              className="h-12 border-[#A577FF]/40 px-6 text-base font-medium text-[#150A35] hover:bg-[#A577FF]/10"
+            >
               <Link href="/dashboard">Go to dashboard</Link>
             </Button>
           </div>

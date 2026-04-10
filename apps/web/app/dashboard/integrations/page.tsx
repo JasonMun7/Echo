@@ -53,9 +53,7 @@ export default function IntegrationsPage() {
   const connectVaultIntegration = useCallback(async (id: string) => {
     setConnecting(id);
     try {
-      const resp = await apiFetch(
-        `/api/auth0/vault-url?integration=${encodeURIComponent(id)}`
-      );
+      const resp = await apiFetch(`/api/auth0/vault-url?integration=${encodeURIComponent(id)}`);
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
       window.location.href = data.auth_url as string;
@@ -80,13 +78,11 @@ export default function IntegrationsPage() {
         sessionStorage.setItem(PENDING_VAULT_KEY, id);
         window.location.href = data.auth_url as string;
       } catch (e: unknown) {
-        toast.error(
-          `Auth0 link failed: ${e instanceof Error ? e.message : "Unknown"}`
-        );
+        toast.error(`Auth0 link failed: ${e instanceof Error ? e.message : "Unknown"}`);
         setConnecting(null);
       }
     },
-    [auth0Linked, connectVaultIntegration]
+    [auth0Linked, connectVaultIntegration],
   );
 
   useIntegrationsOAuthParams(searchParams, {
@@ -110,7 +106,7 @@ export default function IntegrationsPage() {
   async function unlinkAuth0() {
     if (
       !window.confirm(
-        "Remove Auth0 link from your Echo account? Integration API access stops until you link again."
+        "Remove Auth0 link from your Echo account? Integration API access stops until you link again.",
       )
     ) {
       return;
@@ -133,11 +129,12 @@ export default function IntegrationsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-[#150A35]">App Integrations</h1>
           <p className="mt-1 max-w-2xl text-sm text-echo-text-muted">
-            Connect Slack, GitHub, or Google for workflow API calls. Echo login stays on Firebase; the first time
-            you connect an app you link Auth0 (for Token Vault), then use{" "}
-            <span className="font-medium text-[#150A35]">Connect</span> for each provider. If Google is reserved
-            for Token Vault only in Auth0, link with email/password (or another auth connection)—not Google—then
-            Connect Google here. Sign-in opens in this window so you return to Echo with the correct status.
+            Connect Slack, GitHub, or Google for workflow API calls. Echo login stays on Firebase;
+            the first time you connect an app you link Auth0 (for Token Vault), then use{" "}
+            <span className="font-medium text-[#150A35]">Connect</span> for each provider. If Google
+            is reserved for Token Vault only in Auth0, link with email/password (or another auth
+            connection)—not Google—then Connect Google here. Sign-in opens in this window so you
+            return to Echo with the correct status.
           </p>
         </div>
 

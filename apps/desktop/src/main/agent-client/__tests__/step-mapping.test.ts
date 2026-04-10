@@ -22,7 +22,11 @@ describe("workflow step mapping (all editor actions)", () => {
     params: Record<string, unknown>;
     expectDeterministic: boolean;
   }> = [
-    { action: "api_call", params: { integration: "x", method: "m", args: {} }, expectDeterministic: true },
+    {
+      action: "api_call",
+      params: { integration: "x", method: "m", args: {} },
+      expectDeterministic: true,
+    },
     { action: "navigate", params: { url: "https://example.com" }, expectDeterministic: true },
     { action: "navigate", params: {}, expectDeterministic: false },
     { action: "wait", params: {}, expectDeterministic: true },

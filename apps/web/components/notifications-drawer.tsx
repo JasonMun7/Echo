@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
-import {
-  IconCheck,
-  IconShare3,
-  IconArrowRight,
-  IconNotification,
-} from "@tabler/icons-react";
+import { IconCheck, IconShare3, IconArrowRight, IconNotification } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -43,7 +38,7 @@ function getTime(x: unknown): number {
   }
   if (typeof x === "number") return x > 1e12 ? x : x * 1000;
   if (typeof x === "string") return new Date(x).getTime() || 0;
-  const o = (x as { seconds?: number; _seconds?: number } | null);
+  const o = x as { seconds?: number; _seconds?: number } | null;
   const sec = o?.seconds ?? o?._seconds;
   return typeof sec === "number" ? sec * 1000 : 0;
 }
@@ -101,9 +96,7 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
   const markRead = async (id: string) => {
     const res = await apiFetch(`/api/notifications/${id}`, { method: "PATCH" });
     if (res.ok) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     }
   };
 
@@ -114,9 +107,7 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
         style={{ boxShadow: "var(--echo-card-shadow, -4px 0 24px rgba(21, 10, 53, 0.08))" }}
       >
         <DrawerHeader className="shrink-0 border-b border-[#A577FF]/15 bg-white/80 backdrop-blur-sm">
-          <DrawerTitle className="text-xl font-semibold text-[#150A35]">
-            Notifications
-          </DrawerTitle>
+          <DrawerTitle className="text-xl font-semibold text-[#150A35]">Notifications</DrawerTitle>
           <DrawerDescription className="text-sm text-echo-text-muted">
             Workflow shares and other updates. Click to open or mark as read.
           </DrawerDescription>
@@ -125,18 +116,13 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
           {loading ? (
             <div className="flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
-                <Skeleton
-                  key={i}
-                  className="h-20 w-full rounded-xl border border-[#A577FF]/20"
-                />
+                <Skeleton key={i} className="h-20 w-full rounded-xl border border-[#A577FF]/20" />
               ))}
             </div>
           ) : notifications.length === 0 ? (
             <div className="echo-card flex flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white/80 p-8 text-center">
               <IconNotification className="h-10 w-10 text-[#150A35]/20" />
-              <p className="mt-3 text-sm font-medium text-[#150A35]">
-                No notifications yet
-              </p>
+              <p className="mt-3 text-sm font-medium text-[#150A35]">No notifications yet</p>
               <p className="mt-1 text-xs text-echo-text-muted">
                 When someone shares a workflow with you, it will appear here.
               </p>
@@ -147,9 +133,7 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
                 <li key={n.id}>
                   <div
                     className={`echo-card rounded-xl border bg-white/90 shadow-sm transition-colors ${
-                      n.read
-                        ? "border-[#150A35]/10"
-                        : "border-[#A577FF]/30 bg-[#A577FF]/5"
+                      n.read ? "border-[#150A35]/10" : "border-[#A577FF]/30 bg-[#A577FF]/5"
                     }`}
                   >
                     <div className="flex items-start gap-3 p-3">
@@ -159,9 +143,7 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-sm font-medium text-[#150A35]">
-                              {n.title}
-                            </p>
+                            <p className="text-sm font-medium text-[#150A35]">{n.title}</p>
                             {n.body && (
                               <p className="mt-0.5 text-xs text-echo-text-muted line-clamp-2">
                                 {n.body}
@@ -204,7 +186,10 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
         </div>
         <DrawerFooter className="shrink-0 border-t border-[#A577FF]/15 bg-white/80">
           <DrawerClose asChild>
-            <Button variant="outline" className="border-[#A577FF]/30 text-[#150A35] hover:bg-[#A577FF]/10">
+            <Button
+              variant="outline"
+              className="border-[#A577FF]/30 text-[#150A35] hover:bg-[#A577FF]/10"
+            >
               Close
             </Button>
           </DrawerClose>

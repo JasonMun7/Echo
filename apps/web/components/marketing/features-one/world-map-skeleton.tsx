@@ -39,7 +39,7 @@ function latLngToPosition(
   lat: number,
   lng: number,
   width: number,
-  height: number
+  height: number,
 ): { x: number; y: number } {
   const x = ((lng + 180) / 360) * width;
   const latRad = (lat * Math.PI) / 180;
@@ -95,12 +95,7 @@ export function WorldMapSkeleton({
 
   const pinPositions = useMemo(() => {
     return pins.map((pin) => {
-      const pos = latLngToPosition(
-        pin.location.lat,
-        pin.location.lng,
-        width,
-        height
-      );
+      const pos = latLngToPosition(pin.location.lat, pin.location.lng, width, height);
       return { ...pin, x: pos.x, y: pos.y };
     });
   }, [pins, width, height]);
@@ -109,7 +104,7 @@ export function WorldMapSkeleton({
     <div
       className={cn(
         "relative mx-auto w-full max-w-2xl mask-t-from-90% mask-radial-from-50%",
-        className
+        className,
       )}
     >
       <svg

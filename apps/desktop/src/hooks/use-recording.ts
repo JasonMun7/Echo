@@ -4,9 +4,7 @@ import { useRecordingStore } from "@/stores/recording-store";
 
 export function useRecording() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null
-  );
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingDurationRef = useRef<number>(0);
   const isDiscardingRef = useRef(false);
 
@@ -41,9 +39,9 @@ export function useRecording() {
           isDiscardingRef.current = false;
           return;
         }
-        useRecordingStore.getState().setRecordedBlob(
-          new Blob(localChunks, { type: recorder.mimeType || "video/webm" })
-        );
+        useRecordingStore
+          .getState()
+          .setRecordedBlob(new Blob(localChunks, { type: recorder.mimeType || "video/webm" }));
       };
 
       mediaRecorderRef.current = recorder;
@@ -60,9 +58,9 @@ export function useRecording() {
 
       await window.electronAPI?.enterRecordingMode?.();
     } catch (e) {
-      useRecordingStore.getState().setRecordError(
-        e instanceof Error ? e.message : "Could not start recording"
-      );
+      useRecordingStore
+        .getState()
+        .setRecordError(e instanceof Error ? e.message : "Could not start recording");
     }
   }, []);
 
@@ -74,9 +72,9 @@ export function useRecording() {
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
       rec.stop();
-      useRecordingStore.getState().setRecordedDuration(
-        durationFromHud ?? recordingDurationRef.current
-      );
+      useRecordingStore
+        .getState()
+        .setRecordedDuration(durationFromHud ?? recordingDurationRef.current);
       useRecordingStore.getState().setRecording(false);
       useRecordingStore.getState().setRecordingPaused(false);
     }

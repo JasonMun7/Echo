@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { type AgentState } from '@livekit/components-react';
+import { useEffect, useState } from "react";
+import { type AgentState } from "@livekit/components-react";
 
 export interface Coordinate {
   x: number;
@@ -83,12 +83,12 @@ export function useAgentAudioVisualizerGridAnimator(
       ? Math.min(radius, Math.floor(Math.max(rows, columns) / 2))
       : Math.floor(Math.max(rows, columns) / 2);
 
-    if (state === 'thinking') {
+    if (state === "thinking") {
       setSequence(generateThinkingSequence(rows, columns));
-    } else if (state === 'connecting' || state === 'initializing') {
+    } else if (state === "connecting" || state === "initializing") {
       const sequence = [...generateConnectingSequence(rows, columns, clampedRadius)];
       setSequence(sequence);
-    } else if (state === 'listening') {
+    } else if (state === "listening") {
       setSequence(generateListeningSequence(rows, columns));
     } else {
       setSequence([{ x: Math.floor(columns / 2), y: Math.floor(rows / 2) }]);
@@ -97,7 +97,7 @@ export function useAgentAudioVisualizerGridAnimator(
   }, [state, rows, columns, radius]);
 
   useEffect(() => {
-    if (state === 'speaking') {
+    if (state === "speaking") {
       return;
     }
 

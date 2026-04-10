@@ -42,10 +42,7 @@ export type DesktopStepAction =
 export type StepAction = BrowserStepAction | DesktopStepAction;
 
 /** Execution target: cloud browser, local desktop, or local browser */
-export type ExecutionTarget =
-  | "cloud_browser"
-  | "local_desktop"
-  | "local_browser";
+export type ExecutionTarget = "cloud_browser" | "local_desktop" | "local_browser";
 
 export interface StepParams {
   url?: string;

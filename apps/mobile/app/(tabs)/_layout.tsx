@@ -1,31 +1,20 @@
 import { Tabs, useRouter } from "expo-router";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@echo/design-tokens";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
-const iosVersion =
-  Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
+const iosVersion = Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
 const supportsLiquidGlass = Platform.OS === "ios" && iosVersion >= 26;
 
 // ─── Standard background for the Top Header ───
 function HeaderBackground() {
   if (supportsLiquidGlass) {
-    return (
-      <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" />
-    );
+    return <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" />;
   }
-  return (
-    <BlurView tint="light" intensity={80} style={StyleSheet.absoluteFill} />
-  );
+  return <BlurView tint="light" intensity={80} style={StyleSheet.absoluteFill} />;
 }
 
 // ─── Tab icons per route ───
@@ -48,16 +37,11 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       tabBarButton?: () => null;
       tabBarItemStyle?: { display?: string };
     };
-    return (
-      opts.tabBarButton !== null && opts.tabBarItemStyle?.display !== "none"
-    );
+    return opts.tabBarButton !== null && opts.tabBarItemStyle?.display !== "none";
   });
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.tabBarOuter, { bottom: pillBottom }]}
-    >
+    <View pointerEvents="box-none" style={[styles.tabBarOuter, { bottom: pillBottom }]}>
       <View style={[styles.pill, { width: pillWidth }]}>
         {/* Glass / blur background — sibling, not parent, so no clipping */}
         {supportsLiquidGlass ? (
@@ -66,17 +50,8 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             glassEffectStyle="clear"
           />
         ) : Platform.OS === "ios" ? (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              { borderRadius: 36, overflow: "hidden" },
-            ]}
-          >
-            <BlurView
-              tint="light"
-              intensity={60}
-              style={StyleSheet.absoluteFill}
-            />
+          <View style={[StyleSheet.absoluteFill, { borderRadius: 36, overflow: "hidden" }]}>
+            <BlurView tint="light" intensity={60} style={StyleSheet.absoluteFill} />
           </View>
         ) : (
           <View
@@ -153,8 +128,7 @@ export default function TabLayout() {
         headerStyle: {
           backgroundColor: Platform.OS === "ios" ? "transparent" : colors.ghost,
         },
-        headerBackground:
-          Platform.OS === "ios" ? () => <HeaderBackground /> : undefined,
+        headerBackground: Platform.OS === "ios" ? () => <HeaderBackground /> : undefined,
         headerTintColor: colors.text,
         headerTitleStyle: {
           fontFamily: "Inter-SemiBold",
@@ -171,11 +145,7 @@ export default function TabLayout() {
               onPress={() => router.navigate("/(tabs)/notifications")}
               style={{ marginRight: 16, padding: 4 }}
             >
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color={colors.text}
-              />
+              <Ionicons name="notifications-outline" size={22} color={colors.text} />
             </Pressable>
           ),
         }}

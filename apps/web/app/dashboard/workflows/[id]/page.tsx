@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
@@ -26,11 +21,7 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/data-table";
 
 interface Run {
@@ -73,9 +64,7 @@ export default function WorkflowDetailPage() {
   const [sharing, setSharing] = useState(false);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [forking, setForking] = useState(false);
-  const [authUid, setAuthUid] = useState<string | null>(
-    auth?.currentUser?.uid ?? null,
-  );
+  const [authUid, setAuthUid] = useState<string | null>(auth?.currentUser?.uid ?? null);
   const getCollaboratorStatusLabel = (status?: Collaborator["status"]) =>
     status === "pending" ? "Pending invite" : "Accepted";
 
@@ -108,10 +97,22 @@ export default function WorkflowDetailPage() {
     let cancelled = false;
     setLoading(true);
     apiFetch(`/api/workflows/${id}`)
-      .then((res) => res.ok ? res.json() : Promise.reject(res.status))
-      .then((data) => { if (!cancelled) { setWorkflow(data as WorkflowDetail); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setWorkflow(null); setLoading(false); } });
-    return () => { cancelled = true; };
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data) => {
+        if (!cancelled) {
+          setWorkflow(data as WorkflowDetail);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWorkflow(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id, authUid]);
 
   // Runs: keep real-time Firestore listener for live status updates
@@ -144,7 +145,9 @@ export default function WorkflowDetailPage() {
         }
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [id, workflow]);
 
   const tableRuns = useMemo(
@@ -266,17 +269,17 @@ export default function WorkflowDetailPage() {
 
   const isOwner = workflow.owner_uid === auth?.currentUser?.uid;
   const status = workflow.status ?? "unknown";
-  const statusLabel = (
-    {
-      draft: "Setting Up",
-      processing: "Synthesizing",
-      ready: "Ready",
-      active: "Live",
-      failed: "Failed",
-    } as Record<string, string>
-  )[status] ?? String(status);
-  const failureReason =
-    typeof workflow.error === "string" ? workflow.error.trim() : "";
+  const statusLabel =
+    (
+      {
+        draft: "Setting Up",
+        processing: "Synthesizing",
+        ready: "Ready",
+        active: "Live",
+        failed: "Failed",
+      } as Record<string, string>
+    )[status] ?? String(status);
+  const failureReason = typeof workflow.error === "string" ? workflow.error.trim() : "";
 
   return (
     <>
@@ -311,8 +314,8 @@ export default function WorkflowDetailPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <h1 className="min-w-0 truncate text-2xl font-semibold text-[#150A35]">
-              {String(workflow.name || id)}
-            </h1>
+                    {String(workflow.name || id)}
+                  </h1>
                   {!isOwner && (
                     <p className="mt-1 text-sm text-echo-text-muted">
                       Shared with you by{" "}
@@ -320,8 +323,8 @@ export default function WorkflowDetailPage() {
                         {typeof workflow.owner_name === "string" && workflow.owner_name
                           ? workflow.owner_name
                           : "another user"}
-                      </span>
-                      {" "}· Fork to edit your own copy.
+                      </span>{" "}
+                      · Fork to edit your own copy.
                     </p>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -329,26 +332,25 @@ export default function WorkflowDetailPage() {
                     <span className="rounded-full bg-[#A577FF]/15 px-2.5 py-0.5 font-medium text-[#150A35]">
                       {statusLabel}
                     </span>
-                    {typeof workflow.source_recording_id === "string" && workflow.source_recording_id && (
-                      <span
-                        className="text-echo-text-muted"
-                        title="Recording used to create this workflow"
-                      >
-                        Source:{" "}
-                        <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs text-[#150A35]">
-                          {String(workflow.source_recording_id)}
-                        </code>
-                      </span>
-                    )}
+                    {typeof workflow.source_recording_id === "string" &&
+                      workflow.source_recording_id && (
+                        <span
+                          className="text-echo-text-muted"
+                          title="Recording used to create this workflow"
+                        >
+                          Source:{" "}
+                          <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs text-[#150A35]">
+                            {String(workflow.source_recording_id)}
+                          </code>
+                        </span>
+                      )}
                   </div>
                   {status === "failed" && failureReason && (
                     <div className="mt-3 rounded-lg border border-echo-error/30 bg-echo-error/10 px-3 py-2">
                       <p className="text-sm font-medium text-echo-error">
                         Workflow synthesis failed
                       </p>
-                      <p className="mt-1 text-sm text-echo-error/90">
-                        {failureReason}
-                      </p>
+                      <p className="mt-1 text-sm text-echo-error/90">{failureReason}</p>
                       <p className="mt-1 text-xs text-[#150A35]/70">
                         Retry with a clearer recording or edit steps manually once fixed.
                       </p>
@@ -356,59 +358,61 @@ export default function WorkflowDetailPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting}
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={deleting}
                       className="echo-btn-danger flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
-                >
-                  <IconTrash className="h-4 w-4" />
-                  {deleting ? "Deleting..." : "Delete"}
-                </button>
-              )}
-              {isOwner && (
-                <Link
-                  href={`/dashboard/workflows/${id}/edit`}
+                    >
+                      <IconTrash className="h-4 w-4" />
+                      {deleting ? "Deleting..." : "Delete"}
+                    </button>
+                  )}
+                  {isOwner && (
+                    <Link
+                      href={`/dashboard/workflows/${id}/edit`}
                       className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
-                >
+                    >
                       <IconList className="h-4 w-4 text-echo-cyan" />
-                  Edit
-                </Link>
-              )}
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => { setShareModalOpen(true); loadCollaborators(); }}
+                      Edit
+                    </Link>
+                  )}
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShareModalOpen(true);
+                        loadCollaborators();
+                      }}
                       className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
-                >
+                    >
                       <IconUser className="h-4 w-4 text-echo-cyan" />
-                  Share
-                </button>
-              )}
-              {!isOwner && (
-                <button
-                  type="button"
-                  onClick={handleFork}
-                  disabled={forking}
+                      Share
+                    </button>
+                  )}
+                  {!isOwner && (
+                    <button
+                      type="button"
+                      onClick={handleFork}
+                      disabled={forking}
                       className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
-                >
+                    >
                       <IconBinaryTree2 className="h-4 w-4 text-echo-cyan" />
-                  {forking ? "Forking..." : "Fork"}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleRun}
-                disabled={
-                  running ||
-                  (workflow.status !== "active" && workflow.status !== "ready")
-                }
+                      {forking ? "Forking..." : "Fork"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleRun}
+                    disabled={
+                      running || (workflow.status !== "active" && workflow.status !== "ready")
+                    }
                     className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
-              >
-                <IconPlayerPlay className="h-4 w-4 text-white" />
-                {running ? "Starting..." : "Run"}
-              </button>
+                  >
+                    <IconPlayerPlay className="h-4 w-4 text-white" />
+                    {running ? "Starting..." : "Run"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -417,12 +421,13 @@ export default function WorkflowDetailPage() {
           {isOwner && (
             <section className="flex flex-col gap-4">
               <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-semibold text-[#150A35]">
-                  Shared with
-                </h2>
+                <h2 className="text-2xl font-semibold text-[#150A35]">Shared with</h2>
                 <button
                   type="button"
-                  onClick={() => { setShareModalOpen(true); loadCollaborators(); }}
+                  onClick={() => {
+                    setShareModalOpen(true);
+                    loadCollaborators();
+                  }}
                   className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
                 >
                   <IconShare3 className="h-4 w-4 text-white" />
@@ -430,13 +435,16 @@ export default function WorkflowDetailPage() {
                 </button>
               </div>
               <p className="text-sm text-echo-text-muted">
-                People you share with can view and run this workflow. They can fork it to edit their own copy. Later: share via LiveKit voice or telephony.
+                People you share with can view and run this workflow. They can fork it to edit their
+                own copy. Later: share via LiveKit voice or telephony.
               </p>
               {collaborators.length === 0 ? (
                 <div className="echo-card rounded-xl border border-[#A577FF]/20 bg-white/80 p-6 text-center">
                   <IconUser className="mx-auto h-10 w-10 text-[#150A35]/30" />
                   <p className="mt-2 text-sm font-medium text-[#150A35]">Not shared yet</p>
-                  <p className="mt-1 text-sm text-echo-text-muted">Share with teammates by email to let them run this workflow.</p>
+                  <p className="mt-1 text-sm text-echo-text-muted">
+                    Share with teammates by email to let them run this workflow.
+                  </p>
                   <button
                     type="button"
                     onClick={() => setShareModalOpen(true)}
@@ -445,7 +453,7 @@ export default function WorkflowDetailPage() {
                     <IconShare3 className="h-4 w-4 text-white" />
                     Share workflow
                   </button>
-                      </div>
+                </div>
               ) : (
                 <div className="echo-card rounded-xl border border-[#A577FF]/20 bg-white/80 p-4">
                   <ul className="flex flex-col gap-2">
@@ -455,9 +463,13 @@ export default function WorkflowDetailPage() {
                         className="flex items-center justify-between gap-3 rounded-lg bg-[#150A35]/5 px-3 py-2"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[#150A35]">{c.display_name}</p>
+                          <p className="truncate text-sm font-medium text-[#150A35]">
+                            {c.display_name}
+                          </p>
                           <div className="mt-0.5 flex items-center gap-2">
-                            <p className="truncate text-xs text-echo-text-muted">{c.email || "No email"}</p>
+                            <p className="truncate text-xs text-echo-text-muted">
+                              {c.email || "No email"}
+                            </p>
                             <span
                               className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                                 c.status === "pending"
@@ -468,7 +480,7 @@ export default function WorkflowDetailPage() {
                               {getCollaboratorStatusLabel(c.status)}
                             </span>
                           </div>
-                    </div>
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleUnshare(c.uid)}
@@ -480,17 +492,16 @@ export default function WorkflowDetailPage() {
                       </li>
                     ))}
                   </ul>
-              </div>
-            )}
+                </div>
+              )}
             </section>
           )}
 
           <section className="flex flex-col gap-4">
-            <h2 className="text-2xl font-semibold text-[#150A35]">
-              Runs
-            </h2>
+            <h2 className="text-2xl font-semibold text-[#150A35]">Runs</h2>
             <p className="text-sm text-echo-text-muted">
-              All runs for this workflow. Click Run above to start a new run; EchoPrism will take control and navigate automatically.
+              All runs for this workflow. Click Run above to start a new run; EchoPrism will take
+              control and navigate automatically.
             </p>
             <DataTable
               data={tableRuns}

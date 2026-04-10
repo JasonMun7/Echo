@@ -31,11 +31,7 @@ import {
 } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import {
-  quitAndInstallIfReady,
-  runUpdateCheck,
-  setupAutoUpdater,
-} from "./update-app";
+import { quitAndInstallIfReady, runUpdateCheck, setupAutoUpdater } from "./update-app";
 
 const AUTH_TOKEN_FILE = "echo-auth-token.json";
 const WEB_APP_URL = process.env.VITE_APP_URL || "http://localhost:3000";
@@ -259,8 +255,7 @@ let lastOverlayDisplayId: number | null = null;
 let currentHudMode: "recording" | "run" | null = null;
 
 /** Stored when enter-run-mode is called, used by cancel-run and send-interrupt */
-let runContext: { workflowId: string; runId: string; token: string } | null =
-  null;
+let runContext: { workflowId: string; runId: string; token: string } | null = null;
 
 /** True while destroyOverlaysAndShowMain() is executing — prevents HUD "closed" from treating
  *  an intentional teardown as an unexpected close and cancelling the run a second time. */
@@ -436,10 +431,13 @@ ipcMain.handle(
       if (goalOnly) {
         // Goal-only from voice: show Run HUD for progress/thoughts, but no haze and don't hide main (EchoPrism stays open).
         // HUD disappears when run completes (exitRunMode).
-        console.log("[enter-run-mode] goal-only: runContext + HUD (no haze, main window stays visible)", {
-          workflowId: ctx.workflowId,
-          runId: ctx.runId,
-        });
+        console.log(
+          "[enter-run-mode] goal-only: runContext + HUD (no haze, main window stays visible)",
+          {
+            workflowId: ctx.workflowId,
+            runId: ctx.runId,
+          },
+        );
         if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
           hudOverlayWindow.destroy();
         }
@@ -535,8 +533,7 @@ ipcMain.handle("cancel-run", async () => {
 });
 
 ipcMain.handle("send-interrupt", async (_, text: string) => {
-  if (!runContext || !text?.trim())
-    return { ok: false, error: "No run or text" };
+  if (!runContext || !text?.trim()) return { ok: false, error: "No run or text" };
   const { workflowId, runId, token } = runContext;
   const base = getBackendApiBaseUrl();
   try {
@@ -555,22 +552,18 @@ ipcMain.handle("send-interrupt", async (_, text: string) => {
 });
 
 ipcMain.handle("calluser-feedback", async (_, text: string) => {
-  if (!runContext || !text?.trim())
-    return { ok: false, error: "No run or text" };
+  if (!runContext || !text?.trim()) return { ok: false, error: "No run or text" };
   const { workflowId, runId, token } = runContext;
   const base = getBackendApiBaseUrl();
   try {
-    const res = await fetch(
-      `${base}/api/run/${workflowId}/${runId}/calluser-feedback`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ instruction: text.trim() }),
+    const res = await fetch(`${base}/api/run/${workflowId}/${runId}/calluser-feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
-    );
+      body: JSON.stringify({ instruction: text.trim() }),
+    });
     return { ok: res.ok };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -691,9 +684,7 @@ app.whenReady().then(async () => {
         types: ["window", "screen"],
         thumbnailSize: { width: 150, height: 150 },
       });
-      const cursorDisplay = screen.getDisplayNearestPoint(
-        screen.getCursorScreenPoint(),
-      );
+      const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
       const screenSource = sources.find(
         (s) =>
           s.id.startsWith("screen:") &&
@@ -869,34 +860,29 @@ ipcMain.handle("get-primary-source-id", async (): Promise<string | null> => {
   return sources[0]?.id ?? null;
 });
 
-ipcMain.handle(
-  "create-run",
-  async (_, args: { workflowId: string; token: string }) => {
-    const { workflowId, token } = args;
-    const base = getBackendApiBaseUrl();
-    try {
-      const res = await fetch(`${base}/api/run/${workflowId}?source=desktop`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        return {
-          error:
-            (d as { detail?: string }).detail ??
-            `Create run failed: ${res.status}`,
-        };
-      }
-      const data = (await res.json()) as {
-        run_id: string;
-        workflow_id: string;
+ipcMain.handle("create-run", async (_, args: { workflowId: string; token: string }) => {
+  const { workflowId, token } = args;
+  const base = getBackendApiBaseUrl();
+  try {
+    const res = await fetch(`${base}/api/run/${workflowId}?source=desktop`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return {
+        error: (d as { detail?: string }).detail ?? `Create run failed: ${res.status}`,
       };
-      return { runId: data.run_id, workflowId: data.workflow_id };
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : String(e) };
     }
-  },
-);
+    const data = (await res.json()) as {
+      run_id: string;
+      workflow_id: string;
+    };
+    return { runId: data.run_id, workflowId: data.workflow_id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+});
 
 import {
   requestPause,
@@ -965,14 +951,9 @@ ipcMain.handle(
     const base = getBackendApiBaseUrl();
     const agentUrl = getAgentServiceBaseUrl();
     const progress: string[] = [];
-    const entries: Array<{ thought: string; action: string; step: number }> =
-      [];
+    const entries: Array<{ thought: string; action: string; step: number }> = [];
     const hitlIpc = {
-      onHitl: (evt: {
-        kind: string;
-        payload: Record<string, unknown>;
-        step: number;
-      }) => {
+      onHitl: (evt: { kind: string; payload: Record<string, unknown>; step: number }) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("run-hitl", evt);
         }
@@ -1033,7 +1014,11 @@ ipcMain.handle(
     });
     if (process.env.NODE_ENV === "development") {
       const withThought = entries.filter((e) => (e.thought ?? "").trim().length > 0).length;
-      console.debug("[run-workflow] Completed: %d progress entries (%d with thought)", entries.length, withThought);
+      console.debug(
+        "[run-workflow] Completed: %d progress entries (%d with thought)",
+        entries.length,
+        withThought,
+      );
     }
     return { ...result, progress, entries };
   },
@@ -1075,11 +1060,7 @@ ipcMain.handle(
     const progress: string[] = [];
     const entries: Array<{ thought: string; action: string; step: number }> = [];
     const hitlIpcGoal = {
-      onHitl: (evt: {
-        kind: string;
-        payload: Record<string, unknown>;
-        step: number;
-      }) => {
+      onHitl: (evt: { kind: string; payload: Record<string, unknown>; step: number }) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("run-hitl", evt);
         }
@@ -1114,7 +1095,11 @@ ipcMain.handle(
         };
         entries.push(payload);
         if (entries.length <= 3) {
-          console.log("[run-goal-only] progress", entries.length, { stepNum, thought: (thought || msg).slice(0, 50), action: (action || "").slice(0, 40) });
+          console.log("[run-goal-only] progress", entries.length, {
+            stepNum,
+            thought: (thought || msg).slice(0, 50),
+            action: (action || "").slice(0, 40),
+          });
         }
         recentRunProgress = [...recentRunProgress.slice(-4), payload];
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1150,44 +1135,43 @@ ipcMain.handle(
     }
     if (process.env.NODE_ENV === "development") {
       const withThought = entries.filter((e) => (e.thought ?? "").trim().length > 0).length;
-      console.debug("[run-goal-only] progress entries: %d (%d with thought)", entries.length, withThought);
+      console.debug(
+        "[run-goal-only] progress entries: %d (%d with thought)",
+        entries.length,
+        withThought,
+      );
     }
     return { ...result, progress, entries };
   },
 );
 
-ipcMain.handle(
-  "fetch-workflow",
-  async (_, args: { workflowId: string; token?: string }) => {
-    const { workflowId, token } = args;
-    const base = getBackendApiBaseUrl();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    try {
-      const [wfRes, stepsRes] = await Promise.all([
-        fetch(`${base}/api/workflows/${workflowId}`, { headers }),
-        fetch(`${base}/api/workflows/${workflowId}/steps`, { headers }),
-      ]);
-      if (!wfRes.ok) {
-        return { error: `Workflow: ${wfRes.status} ${wfRes.statusText}` };
-      }
-      if (!stepsRes.ok) {
-        return { error: `Steps: ${stepsRes.status} ${stepsRes.statusText}` };
-      }
-      const workflow = await wfRes.json();
-      const stepsData = await stepsRes.json();
-      const steps = Array.isArray(stepsData)
-        ? stepsData
-        : (stepsData.steps ?? []);
-      return { workflow: { id: workflowId, ...workflow }, steps };
-    } catch (e) {
-      return {
-        error: e instanceof Error ? e.message : String(e),
-      };
+ipcMain.handle("fetch-workflow", async (_, args: { workflowId: string; token?: string }) => {
+  const { workflowId, token } = args;
+  const base = getBackendApiBaseUrl();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  try {
+    const [wfRes, stepsRes] = await Promise.all([
+      fetch(`${base}/api/workflows/${workflowId}`, { headers }),
+      fetch(`${base}/api/workflows/${workflowId}/steps`, { headers }),
+    ]);
+    if (!wfRes.ok) {
+      return { error: `Workflow: ${wfRes.status} ${wfRes.statusText}` };
     }
-  },
-);
+    if (!stepsRes.ok) {
+      return { error: `Steps: ${stepsRes.status} ${stepsRes.statusText}` };
+    }
+    const workflow = await wfRes.json();
+    const stepsData = await stepsRes.json();
+    const steps = Array.isArray(stepsData) ? stepsData : (stepsData.steps ?? []);
+    return { workflow: { id: workflowId, ...workflow }, steps };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+});
 
 // EchoPrismVoice now uses LiveKit + AgentSessionView; legacy IPC removed

@@ -7,13 +7,7 @@ import {
   IconPlayerPlay,
 } from "@tabler/icons-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface SectionCardsProps {
   totalWorkflows?: number;
@@ -34,9 +28,7 @@ export function SectionCards({
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4 lg:px-6">
       <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">
-            Total Workflows
-          </CardDescription>
+          <CardDescription className="text-echo-text-muted">Total Workflows</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A577FF]/10">
             <IconJumpRope className="size-5 text-[#A577FF]" />
           </div>
@@ -45,17 +37,13 @@ export function SectionCards({
           <CardTitle className="text-2xl font-semibold tabular-nums text-[#150A35] @[250px]/card:text-3xl">
             {totalWorkflows}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">
-            Workflows you&apos;ve created
-          </p>
+          <p className="text-xs text-echo-text-muted mt-1">Workflows you&apos;ve created</p>
         </CardContent>
       </Card>
 
       <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">
-            Active Workflows
-          </CardDescription>
+          <CardDescription className="text-echo-text-muted">Active Workflows</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-echo-success/10">
             <IconCircleCheck className="size-5 text-echo-success" />
           </div>
@@ -70,9 +58,7 @@ export function SectionCards({
 
       <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">
-            Total Runs
-          </CardDescription>
+          <CardDescription className="text-echo-text-muted">Total Runs</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A577FF]/10">
             <IconPlayerPlay className="size-5 text-[#A577FF]" />
           </div>
@@ -94,9 +80,7 @@ export function SectionCards({
         onClick={onAwaitingClick}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">
-            Awaiting Input
-          </CardDescription>
+          <CardDescription className="text-echo-text-muted">Awaiting Input</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
             <IconAlertTriangle className="size-5 text-amber-500" />
           </div>

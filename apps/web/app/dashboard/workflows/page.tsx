@@ -22,11 +22,7 @@ import {
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import Threads from "@/components/threads";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,9 +83,7 @@ export default function WorkflowsPage() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [respondingInvite, setRespondingInvite] = useState<string | null>(null);
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
-  const [authUid, setAuthUid] = useState<string | null>(
-    auth?.currentUser?.uid ?? null,
-  );
+  const [authUid, setAuthUid] = useState<string | null>(auth?.currentUser?.uid ?? null);
   const workflowsSourceRef = useRef<{
     apiMap: Map<string, Workflow>;
     ownedMap: Map<string, Workflow>;
@@ -132,7 +126,7 @@ export default function WorkflowsPage() {
       q,
       (snap) => {
         const first = snap.docs[0];
-        setActiveWorkflowId(first ? first.ref.parent.parent?.id ?? null : null);
+        setActiveWorkflowId(first ? (first.ref.parent.parent?.id ?? null) : null);
       },
       () => setActiveWorkflowId(null),
     );
@@ -142,7 +136,9 @@ export default function WorkflowsPage() {
   const handleAcceptInvite = async (invite: WorkflowInvite) => {
     setRespondingInvite(invite.id);
     try {
-      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/accept`, { method: "POST" });
+      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/accept`, {
+        method: "POST",
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "Failed to accept");
       setInvites((prev) => prev.filter((i) => i.id !== invite.id));
@@ -160,7 +156,9 @@ export default function WorkflowsPage() {
   const handleDeclineInvite = async (invite: WorkflowInvite) => {
     setRespondingInvite(invite.id);
     try {
-      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/decline`, { method: "POST" });
+      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/decline`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error("Failed to decline");
       setInvites((prev) => prev.filter((i) => i.id !== invite.id));
       toast.success("Invite declined");
@@ -238,9 +236,7 @@ export default function WorkflowsPage() {
       const combined = new Map([...apiMap, ...ownedMap]);
       const list = Array.from(combined.values())
         .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
-        .sort((a, b) =>
-          getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt),
-        );
+        .sort((a, b) => getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt));
       setWorkflows(list);
       setLoading(false);
     };
@@ -319,9 +315,7 @@ export default function WorkflowsPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
         <div className="flex shrink-0 items-center justify-between">
           <h1 className="text-2xl font-semibold text-[#150A35]">Workflows</h1>
-          <DesktopCaptureLink
-            className="echo-btn-cyan-lavender flex items-center gap-2"
-          >
+          <DesktopCaptureLink className="echo-btn-cyan-lavender flex items-center gap-2">
             <IconPlus className="h-5 w-5" />
             New Workflow
           </DesktopCaptureLink>
@@ -378,9 +372,7 @@ export default function WorkflowsPage() {
                 <IconJumpRope className="h-6 w-6 text-[#A577FF]" />
               </div>
               <p className="text-[#150A35] font-medium">No workflows yet</p>
-              <DesktopCaptureLink
-                className="echo-btn-cyan-lavender inline-flex items-center gap-2"
-              >
+              <DesktopCaptureLink className="echo-btn-cyan-lavender inline-flex items-center gap-2">
                 <IconPlus className="h-5 w-5" />
                 Create your first workflow
               </DesktopCaptureLink>
@@ -392,137 +384,144 @@ export default function WorkflowsPage() {
               const isLatest = isLatestOrLastModified(w, workflows);
               const isRunning = activeWorkflowId === w.id;
               return (
-              <div
-                key={w.id}
-                className={`relative rounded-xl transition-all ${isRunning ? "bg-linear-to-r from-echo-cyan to-[#A577FF] p-[2px] shadow-lg shadow-[#A577FF]/20" : ""}`}
-              >
-              <div
-                className={`group relative echo-card flex h-full flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isRunning ? "border-0" : ""} ${isLatest && !isRunning ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
-              >
-                {isLatest && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className="absolute -right-1 -top-1 z-10 h-4 w-4 animate-echo-indicator-flash cursor-default rounded-full bg-[#A577FF] ring-2 ring-white shadow-sm"
-                        onClick={(e) => e.preventDefault()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="border-[#A577FF]/20 bg-[#150A35] text-[#F5F7FC]"
-                    >
-                      Newest or most recently modified workflow
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {/* Three-dots menu — top-right, shown on hover */}
                 <div
-                  className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
-                  onClick={(e) => e.preventDefault()}
-                  onMouseDown={(e) => e.stopPropagation()}
+                  key={w.id}
+                  className={`relative rounded-xl transition-all ${isRunning ? "bg-linear-to-r from-echo-cyan to-[#A577FF] p-[2px] shadow-lg shadow-[#A577FF]/20" : ""}`}
                 >
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-[#150A35] shadow-sm backdrop-blur-sm hover:bg-[#A577FF]/10 hover:text-[#A577FF]"
-                        aria-label="Workflow actions"
-                      >
-                        <IconDots className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-40">
-                      <DropdownMenuItem
-                        onClick={(e) => handleRun(e, w.id)}
-                        disabled={
-                          runningId === w.id ||
-                          (w.status !== "ready" && w.status !== "active")
-                        }
-                      >
-                        <IconPlayerPlay className="h-4 w-4" />
-                        {runningId === w.id ? "Starting…" : "Run"}
-                      </DropdownMenuItem>
-                      {w.owner_uid === auth?.currentUser?.uid && (
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/workflows/${w.id}/edit`}>
-                            <IconPencil className="h-4 w-4" />
-                            Edit
-                          </Link>
-                        </DropdownMenuItem>
-                      )}
-                      {w.owner_uid === auth?.currentUser?.uid && (
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/workflows/${w.id}`}>
-                            <IconShare3 className="h-4 w-4" />
-                            Share
-                          </Link>
-                        </DropdownMenuItem>
-                      )}
-                      {w.owner_uid === auth?.currentUser?.uid && (
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(e) => handleDelete(e, w.id)}
-                          disabled={deletingId === w.id}
+                  <div
+                    className={`group relative echo-card flex h-full flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isRunning ? "border-0" : ""} ${isLatest && !isRunning ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
+                  >
+                    {isLatest && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className="absolute -right-1 -top-1 z-10 h-4 w-4 animate-echo-indicator-flash cursor-default rounded-full bg-[#A577FF] ring-2 ring-white shadow-sm"
+                            onClick={(e) => e.preventDefault()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="bottom"
+                          className="border-[#A577FF]/20 bg-[#150A35] text-[#F5F7FC]"
                         >
-                          <IconTrash className="h-4 w-4" />
-                          {deletingId === w.id ? "Deleting…" : "Delete"}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                          Newest or most recently modified workflow
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    {/* Three-dots menu — top-right, shown on hover */}
+                    <div
+                      className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
+                      onClick={(e) => e.preventDefault()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-[#150A35] shadow-sm backdrop-blur-sm hover:bg-[#A577FF]/10 hover:text-[#A577FF]"
+                            aria-label="Workflow actions"
+                          >
+                            <IconDots className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-40">
+                          <DropdownMenuItem
+                            onClick={(e) => handleRun(e, w.id)}
+                            disabled={
+                              runningId === w.id || (w.status !== "ready" && w.status !== "active")
+                            }
+                          >
+                            <IconPlayerPlay className="h-4 w-4" />
+                            {runningId === w.id ? "Starting…" : "Run"}
+                          </DropdownMenuItem>
+                          {w.owner_uid === auth?.currentUser?.uid && (
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/workflows/${w.id}/edit`}>
+                                <IconPencil className="h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          {w.owner_uid === auth?.currentUser?.uid && (
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/workflows/${w.id}`}>
+                                <IconShare3 className="h-4 w-4" />
+                                Share
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          {w.owner_uid === auth?.currentUser?.uid && (
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={(e) => handleDelete(e, w.id)}
+                              disabled={deletingId === w.id}
+                            >
+                              <IconTrash className="h-4 w-4" />
+                              {deletingId === w.id ? "Deleting…" : "Delete"}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
 
-                {/* Entire card is a link */}
-                <Link
-                  href={
-                    w.status === "draft" || w.status === "processing"
-                      ? `/dashboard/workflows/${w.id}/edit`
-                      : `/dashboard/workflows/${w.id}`
-                  }
-                  className="flex flex-1 cursor-pointer flex-col"
-                >
-                  {/* Thumbnail */}
-                  {w.thumbnail_gcs_path ? (
-                    <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
-                  ) : (
-                    <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">
-                        <IconJumpRope className="h-6 w-6 text-[#A577FF]" />
+                    {/* Entire card is a link */}
+                    <Link
+                      href={
+                        w.status === "draft" || w.status === "processing"
+                          ? `/dashboard/workflows/${w.id}/edit`
+                          : `/dashboard/workflows/${w.id}`
+                      }
+                      className="flex flex-1 cursor-pointer flex-col"
+                    >
+                      {/* Thumbnail */}
+                      {w.thumbnail_gcs_path ? (
+                        <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
+                      ) : (
+                        <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A577FF]/10">
+                            <IconJumpRope className="h-6 w-6 text-[#A577FF]" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Card body */}
+                      <div className="flex flex-1 flex-col gap-2 p-4">
+                        <span className="min-w-0 flex-1 font-medium leading-snug text-[#150A35] transition-colors group-hover:text-[#A577FF]">
+                          {w.name ?? "Untitled workflow"}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              w.status === "ready" || w.status === "active"
+                                ? "bg-echo-success/15 text-echo-success"
+                                : w.status === "processing"
+                                  ? "bg-[#A577FF]/20 text-[#A577FF]"
+                                  : w.status === "failed"
+                                    ? "bg-echo-error/15 text-echo-error"
+                                    : "bg-[#150A35]/10 text-[#150A35]/70"
+                            }`}
+                          >
+                            {(
+                              {
+                                draft: "Setting Up",
+                                processing: "Synthesizing",
+                                ready: "Ready",
+                                active: "Live",
+                                failed: "Failed",
+                              } as Record<string, string>
+                            )[w.status] ?? w.status}
+                          </span>
+                        </div>
                       </div>
+                    </Link>
+                  </div>
+                  {isRunning && (
+                    <div className="absolute -right-1 -top-1 z-10 flex items-center gap-1 rounded-full bg-linear-to-r from-echo-cyan to-[#A577FF] px-2 py-0.5 text-[10px] font-medium text-white shadow-sm ring-2 ring-white">
+                      Running
                     </div>
                   )}
-
-                  {/* Card body */}
-                  <div className="flex flex-1 flex-col gap-2 p-4">
-                    <span className="min-w-0 flex-1 font-medium leading-snug text-[#150A35] transition-colors group-hover:text-[#A577FF]">
-                      {w.name ?? "Untitled workflow"}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          w.status === "ready" || w.status === "active"
-                            ? "bg-echo-success/15 text-echo-success"
-                            : w.status === "processing"
-                              ? "bg-[#A577FF]/20 text-[#A577FF]"
-                              : w.status === "failed"
-                                ? "bg-echo-error/15 text-echo-error"
-                                : "bg-[#150A35]/10 text-[#150A35]/70"
-                        }`}
-                      >
-                        {({ draft: "Setting Up", processing: "Synthesizing", ready: "Ready", active: "Live", failed: "Failed" } as Record<string, string>)[w.status] ?? w.status}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-              {isRunning && (
-                <div className="absolute -right-1 -top-1 z-10 flex items-center gap-1 rounded-full bg-linear-to-r from-echo-cyan to-[#A577FF] px-2 py-0.5 text-[10px] font-medium text-white shadow-sm ring-2 ring-white">
-                  Running
                 </div>
-              )}
-              </div>
-            );
+              );
             })}
           </div>
         )}

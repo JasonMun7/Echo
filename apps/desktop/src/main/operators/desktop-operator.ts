@@ -6,17 +6,16 @@
  * operates in logical space) and physical pixels for screenshot capture.
  * Adapted from UI-TARS NutJSElectronOperator coordinate pipeline.
  */
-import { BrowserWindow, clipboard, desktopCapturer, screen as electronScreen, shell } from "electron";
+import {
+  BrowserWindow,
+  clipboard,
+  desktopCapturer,
+  screen as electronScreen,
+  shell,
+} from "electron";
 import { execFile, exec } from "child_process";
 import { promisify } from "util";
-import {
-  mouse,
-  keyboard,
-  sleep,
-  Point,
-  Button,
-  Key,
-} from "@nut-tree-fork/nut-js";
+import { mouse, keyboard, sleep, Point, Button, Key } from "@nut-tree-fork/nut-js";
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -60,7 +59,7 @@ function getScreenInfo(): ScreenInfo {
     // On macOS, nut-js operates in screen points (logical pixels) and
     // Electron's NativeImage.toPNG() already returns the physical backing store.
     // Using scaleFactor=1 on macOS matches UI-TARS's proven coordinate pipeline.
-    const scaleFactor = process.platform === "darwin" ? 1 : (primary.scaleFactor || 1);
+    const scaleFactor = process.platform === "darwin" ? 1 : primary.scaleFactor || 1;
     _screenInfo = {
       logicalWidth: primary.size.width,
       logicalHeight: primary.size.height,
@@ -70,8 +69,8 @@ function getScreenInfo(): ScreenInfo {
     };
     console.log(
       `[desktop-operator] Screen: ${_screenInfo.logicalWidth}x${_screenInfo.logicalHeight} logical, ` +
-      `${_screenInfo.physicalWidth}x${_screenInfo.physicalHeight} physical, ` +
-      `scaleFactor=${scaleFactor} (platform=${process.platform}, raw=${primary.scaleFactor})`
+        `${_screenInfo.physicalWidth}x${_screenInfo.physicalHeight} physical, ` +
+        `scaleFactor=${scaleFactor} (platform=${process.platform}, raw=${primary.scaleFactor})`,
     );
   }
   return _screenInfo;
@@ -96,7 +95,7 @@ function scaleCoords(x: number, y: number): { x: number; y: number } {
   if (process.env.ECHO_DEBUG_COORDS) {
     console.log(
       `[desktop-operator] scaleCoords: (${x}, ${y}) / 1000 → (${wx}, ${wy}) px ` +
-      `(capture ${w}x${h})`
+        `(capture ${w}x${h})`,
     );
   }
   return { x: wx, y: wy };
@@ -119,7 +118,10 @@ export interface CaptureScreenResult {
  * Retries up to 3 times with increasing delays.
  * Refreshes primary display metrics each call; records dimensions for coordinate scaling.
  */
-export async function captureScreen(sourceId: string, options?: CaptureScreenOptions): Promise<CaptureScreenResult> {
+export async function captureScreen(
+  sourceId: string,
+  options?: CaptureScreenOptions,
+): Promise<CaptureScreenResult> {
   _screenInfo = null;
   const { logicalWidth, logicalHeight } = getScreenInfo();
 
@@ -140,7 +142,10 @@ export async function captureScreen(sourceId: string, options?: CaptureScreenOpt
 
     // Resize to logical pixels — NativeImage may be 2× on Retina
     let resized = src.thumbnail.resize({ width: logicalWidth, height: logicalHeight });
-    if (options?.maxDimension && (logicalWidth > options.maxDimension || logicalHeight > options.maxDimension)) {
+    if (
+      options?.maxDimension &&
+      (logicalWidth > options.maxDimension || logicalHeight > options.maxDimension)
+    ) {
       const scale = options.maxDimension / Math.max(logicalWidth, logicalHeight);
       resized = resized.resize({
         width: Math.round(logicalWidth * scale),
@@ -165,14 +170,14 @@ export async function captureScreen(sourceId: string, options?: CaptureScreenOpt
   if (!shot) {
     throw new Error(
       "Screenshot capture failed: blank or missing thumbnail. " +
-      "On macOS, grant Screen Recording permission to this app in System Settings → Privacy & Security → Screen Recording, then restart."
+        "On macOS, grant Screen Recording permission to this app in System Settings → Privacy & Security → Screen Recording, then restart.",
     );
   }
   _lastCaptureSize = { width: shot.width, height: shot.height };
   if (process.env.ECHO_DEBUG_COORDS) {
     console.log(
       `[desktop-operator] captureScreen: source=${sourceId}, jpeg=${shot.buffer.length} bytes, ` +
-      `dims=${shot.width}x${shot.height}`
+        `dims=${shot.width}x${shot.height}`,
     );
   }
 
@@ -353,17 +358,17 @@ export async function scroll(
   x: number,
   y: number,
   direction: string,
-  distance: number = 800
+  distance: number = 800,
 ): Promise<void> {
   const { x: wx, y: wy } = scaleCoords(x, y);
   await mouse.setPosition(new Point(wx, wy));
-  
+
   // NutJS scroll steps often map to very small units (like lines or single scroll clicks).
-  // 1 OS scroll step on macOS inside an app like Steam is tiny. 
+  // 1 OS scroll step on macOS inside an app like Steam is tiny.
   // We use a much smaller divisor (e.g., 2) so that 800 "distance" translates to 400 "steps".
   const steps = Math.max(1, Math.round(distance / 2));
   const dir = direction.toLowerCase();
-  
+
   // Perform scroll in smaller chunks with a tiny delay to make it smooth and recognizable by the OS/app.
   // We'll keep chunks small so it streams the scroll smoothly.
   const chunks = Math.max(1, Math.ceil(steps / 20));
@@ -421,9 +426,12 @@ export async function openApp(appName: string): Promise<void> {
     try {
       const { stdout } = await execFileAsync("find", [
         "/Applications",
-        "-maxdepth", "2",
-        "-name", `*${appName}*.app`,
-        "-type", "d",
+        "-maxdepth",
+        "2",
+        "-name",
+        `*${appName}*.app`,
+        "-type",
+        "d",
       ]);
       const matches = stdout.trim().split("\n").filter(Boolean);
       if (matches.length > 0) {
@@ -431,7 +439,9 @@ export async function openApp(appName: string): Promise<void> {
         await execFileAsync("open", [matches[0]]);
         return;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     // Last resort: try with "IntelliJ IDEA CE" / "IntelliJ IDEA Ultimate" variants
     const lower = appName.toLowerCase();
     if (lower.includes("intellij")) {
@@ -440,7 +450,9 @@ export async function openApp(appName: string): Promise<void> {
           await execFileAsync("open", ["-a", variant]);
           console.log(`[desktop-operator] Opened IntelliJ variant: ${variant}`);
           return;
-        } catch { /* try next */ }
+        } catch {
+          /* try next */
+        }
       }
     }
     // If all else fails, try AppleScript activate
@@ -467,7 +479,10 @@ export async function focusApp(appName: string): Promise<void> {
       const script = `tell application "${appName}" to activate`;
       await execFileAsync("osascript", ["-e", script]);
     } catch (e) {
-      console.warn(`[desktop-operator] focusApp AppleScript failed for "${appName}", trying open -a:`, e);
+      console.warn(
+        `[desktop-operator] focusApp AppleScript failed for "${appName}", trying open -a:`,
+        e,
+      );
       await openApp(appName);
     }
   }
@@ -565,7 +580,12 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
       await pressKey(String(action.key ?? "enter"));
     } else if (act === "scroll") {
       const distance = Number((action as Record<string, unknown>).distance ?? action.amount ?? 800);
-      await scroll(Number(action.x ?? 500), Number(action.y ?? 500), String(action.direction ?? "down"), distance);
+      await scroll(
+        Number(action.x ?? 500),
+        Number(action.y ?? 500),
+        String(action.direction ?? "down"),
+        distance,
+      );
     } else if (act === "navigate") {
       await shell.openExternal(String(action.url ?? "https://www.google.com"));
     } else if (act === "openapp") {
@@ -588,7 +608,7 @@ export async function execute(action: OperatorAction): Promise<OperatorResult> {
       if (process.platform === "win32") {
         const script = String(action.script ?? action.content ?? "");
         console.log(`[desktop-operator] Executing PowerShell:`, script);
-        await execAsync(`powershell -Command "${script.replace(/"/g, "\\\"")}"`);
+        await execAsync(`powershell -Command "${script.replace(/"/g, '\\"')}"`);
       } else {
         console.warn("[desktop-operator] PowerShell is only supported on Windows");
       }

@@ -8,10 +8,7 @@ async function getToken(): Promise<string | null> {
   return auth?.currentUser ? await auth.currentUser.getIdToken() : null;
 }
 
-export async function apiFetch(
-  path: string,
-  options: RequestInit = {},
-): Promise<Response> {
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -22,10 +19,7 @@ export async function apiFetch(
   return fetch(`${API_URL}${path}`, { ...options, headers });
 }
 
-export async function agentFetch(
-  path: string,
-  options: RequestInit = {},
-): Promise<Response> {
+export async function agentFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),

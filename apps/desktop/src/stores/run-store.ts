@@ -24,8 +24,7 @@ export interface RunResult {
 }
 
 const API_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  "http://localhost:8000";
+  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "http://localhost:8000";
 
 interface RunState {
   running: boolean;
@@ -74,12 +73,7 @@ export const useRunStore = create<RunState>((set, get) => ({
     set((s) => {
       const next = [...s.liveProgress];
       const last = next[next.length - 1];
-      if (
-        last &&
-        last.step === entry.step &&
-        last.action === "" &&
-        entry.action
-      ) {
+      if (last && last.step === entry.step && last.action === "" && entry.action) {
         next[next.length - 1] = { ...entry };
         return { liveProgress: next };
       }
@@ -307,7 +301,8 @@ export const useRunStore = create<RunState>((set, get) => ({
     const sourceId = await window.electronAPI?.getPrimarySourceId?.();
     if (!sourceId) return;
 
-    const goalOnly = arg.goalOnly === true && typeof arg.goal === "string" && arg.goal.trim().length > 0;
+    const goalOnly =
+      arg.goalOnly === true && typeof arg.goal === "string" && arg.goal.trim().length > 0;
 
     if (goalOnly) {
       const goal = arg.goal!.trim();
@@ -333,14 +328,19 @@ export const useRunStore = create<RunState>((set, get) => ({
       });
 
       try {
-        console.log("[run-store] goal-only: calling enterRunMode (HUD for progress, EchoPrism stays open)");
+        console.log(
+          "[run-store] goal-only: calling enterRunMode (HUD for progress, EchoPrism stays open)",
+        );
         await window.electronAPI?.enterRunMode?.({
           workflowId: arg.workflowId,
           runId: arg.runId,
           token,
           goalOnly: true,
         });
-        console.log("[run-store] goal-only: calling runGoalOnlyLocal", { goal: goal.slice(0, 60), sourceId });
+        console.log("[run-store] goal-only: calling runGoalOnlyLocal", {
+          goal: goal.slice(0, 60),
+          sourceId,
+        });
         const runResult = await window.electronAPI?.runGoalOnlyLocal?.({
           goal,
           sourceId,
@@ -421,8 +421,7 @@ export const useRunStore = create<RunState>((set, get) => ({
       const runResult = await window.electronAPI?.runWorkflowLocal?.({
         steps,
         sourceId,
-        workflowType:
-          (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+        workflowType: (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
         workflowId: arg.workflowId,
         runId: arg.runId,
         token,
@@ -474,17 +473,14 @@ export const useRunStore = create<RunState>((set, get) => ({
     set({ sendingInterrupt: true });
     try {
       const base = API_URL.replace(/\/$/, "");
-      const res = await fetch(
-        `${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ instruction: interruptText.trim() }),
-        }
-      );
+      const res = await fetch(`${base}/api/run/${selectedWorkflowId}/${currentRunId}/redirect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ instruction: interruptText.trim() }),
+      });
       if (res.ok) set({ interruptText: "" });
     } finally {
       set({ sendingInterrupt: false });

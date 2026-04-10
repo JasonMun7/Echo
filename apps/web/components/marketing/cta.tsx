@@ -44,13 +44,10 @@ export function CTA() {
     target,
     offset: ["start start", "end end"],
   });
-  const translateY = useSpring(
-    useTransform(scrollYProgress, [0, 1], [0, 100]),
-    SPRING_CONFIG
-  );
+  const translateY = useSpring(useTransform(scrollYProgress, [0, 1], [0, 100]), SPRING_CONFIG);
   const translateYNegative = useSpring(
     useTransform(scrollYProgress, [0, 1], [0, -100]),
-    SPRING_CONFIG
+    SPRING_CONFIG,
   );
 
   return (
@@ -65,12 +62,9 @@ export function CTA() {
         >
           Start building autonomous workflows today.
         </Heading>
-        <SubHeading
-          as="p"
-          className="mt-6 max-w-lg text-base text-gray-600 md:text-base"
-        >
-          Build, deploy, and orchestrate intelligent AI agents that automate
-          complex workflows, make decisions, and execute tasks autonomously.
+        <SubHeading as="p" className="mt-6 max-w-lg text-base text-gray-600 md:text-base">
+          Build, deploy, and orchestrate intelligent AI agents that automate complex workflows, make
+          decisions, and execute tasks autonomously.
         </SubHeading>
         <HoverBorderGradient
           as="div"
@@ -102,10 +96,7 @@ export function CTA() {
               </div>
             ))}
           </motion.div>
-          <motion.div
-            className="mt-10 flex flex-col gap-3"
-            style={{ y: translateYNegative }}
-          >
+          <motion.div className="mt-10 flex flex-col gap-3" style={{ y: translateYNegative }}>
             {images.slice(3).map((img) => (
               <div
                 key={img.src}

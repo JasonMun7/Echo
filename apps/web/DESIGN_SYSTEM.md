@@ -32,18 +32,18 @@ A clean, modern design system using Cetacean Blue, Lavender, Ghost White, and Cy
 
 ### Secondary Colors
 
-| Token        | Name           | Hex       | RGB            | Usage                                          |
-| ------------ | -------------- | --------- | -------------- | ---------------------------------------------- |
-| Cyan         | Secondary      | `#21C4DD` | 33, 196, 221   | Secondary buttons, links, badges, accents       |
+| Token | Name      | Hex       | RGB          | Usage                                     |
+| ----- | --------- | --------- | ------------ | ----------------------------------------- |
+| Cyan  | Secondary | `#21C4DD` | 33, 196, 221 | Secondary buttons, links, badges, accents |
 
 ### Cyan Shades (opacity / tints)
 
-| Token     | Usage                                                             |
-| --------- | ----------------------------------------------------------------- |
-| Cyan 80%  | `rgba(33, 196, 221, 0.8)` — Hover states, slightly muted          |
-| Cyan 60%  | `rgba(33, 196, 221, 0.6)` — Borders, subtle accents               |
-| Cyan 40%  | `rgba(33, 196, 221, 0.4)` — Backgrounds, dividers                 |
-| Cyan 20%  | `rgba(33, 196, 221, 0.2)` — Very light accents                    |
+| Token    | Usage                                                    |
+| -------- | -------------------------------------------------------- |
+| Cyan 80% | `rgba(33, 196, 221, 0.8)` — Hover states, slightly muted |
+| Cyan 60% | `rgba(33, 196, 221, 0.6)` — Borders, subtle accents      |
+| Cyan 40% | `rgba(33, 196, 221, 0.4)` — Backgrounds, dividers        |
+| Cyan 20% | `rgba(33, 196, 221, 0.2)` — Very light accents           |
 
 ### Semantic Colors
 
@@ -147,22 +147,22 @@ Tailwind: `bg-[#150A35]/8 backdrop-blur-md border border-[#A577FF]/15`
 
 ### Glass Surface Variants
 
-| Variant  | Background          | Border                 | Usage                    |
-| -------- | ------------------- | ---------------------- | ------------------------ |
-| Light    | `bg-white/12`       | `border-white/20`      | Dark backgrounds         |
-| Light+   | `bg-white/20`       | `border-white/25`      | Emphasized on dark       |
-| Dark     | `bg-[#150A35]/8`    | `border-[#A577FF]/15`  | Light backgrounds        |
-| Dark+    | `bg-[#150A35]/12`   | `border-[#A577FF]/25`  | Emphasized on light      |
+| Variant | Background        | Border                | Usage               |
+| ------- | ----------------- | --------------------- | ------------------- |
+| Light   | `bg-white/12`     | `border-white/20`     | Dark backgrounds    |
+| Light+  | `bg-white/20`     | `border-white/25`     | Emphasized on dark  |
+| Dark    | `bg-[#150A35]/8`  | `border-[#A577FF]/15` | Light backgrounds   |
+| Dark+   | `bg-[#150A35]/12` | `border-[#A577FF]/25` | Emphasized on light |
 
 ### Blur Levels
 
-| Class           | blur value | Usage                        |
-| --------------- | ---------- | ---------------------------- |
-| `backdrop-blur-sm`  | 4px    | Subtle panels                |
-| `backdrop-blur`     | 8px    | Default glass                |
-| `backdrop-blur-md`  | 12px   | Cards, modals                |
-| `backdrop-blur-lg`  | 16px   | Hero overlays                |
-| `backdrop-blur-xl`  | 24px   | Full-screen modals           |
+| Class              | blur value | Usage              |
+| ------------------ | ---------- | ------------------ |
+| `backdrop-blur-sm` | 4px        | Subtle panels      |
+| `backdrop-blur`    | 8px        | Default glass      |
+| `backdrop-blur-md` | 12px       | Cards, modals      |
+| `backdrop-blur-lg` | 16px       | Hero overlays      |
+| `backdrop-blur-xl` | 24px       | Full-screen modals |
 
 ### Utility Classes
 
@@ -174,15 +174,15 @@ Tailwind: `bg-[#150A35]/8 backdrop-blur-md border border-[#A577FF]/15`
 
 ## Typography
 
-| Element       | Classes                                 | Usage                |
-| ------------- | --------------------------------------- | -------------------- |
-| Page title    | `text-3xl font-bold text-[#150A35]`     | Hero headings        |
-| Section title | `text-2xl font-semibold text-[#150A35]` | Section headers      |
-| Body          | `text-base text-gray-600`               | Default body text    |
-| Muted         | `text-sm text-gray-600`                 | Descriptions, labels |
-| Small         | `text-sm text-gray-500`                 | Secondary info       |
-| Accent text   | `text-[#A577FF]`                        | Links, highlights    |
-| Secondary accent | `text-[#21C4DD]`                    | Secondary links, badges |
+| Element          | Classes                                 | Usage                   |
+| ---------------- | --------------------------------------- | ----------------------- |
+| Page title       | `text-3xl font-bold text-[#150A35]`     | Hero headings           |
+| Section title    | `text-2xl font-semibold text-[#150A35]` | Section headers         |
+| Body             | `text-base text-gray-600`               | Default body text       |
+| Muted            | `text-sm text-gray-600`                 | Descriptions, labels    |
+| Small            | `text-sm text-gray-500`                 | Secondary info          |
+| Accent text      | `text-[#A577FF]`                        | Links, highlights       |
+| Secondary accent | `text-[#21C4DD]`                        | Secondary links, badges |
 
 ---
 
@@ -252,7 +252,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
     </TooltipTrigger>
     <TooltipContent>Settings</TooltipContent>
   </Tooltip>
-</TooltipProvider>
+</TooltipProvider>;
 ```
 
 Ensure `TooltipProvider` wraps the page or app so tooltips work correctly.
@@ -351,18 +351,18 @@ Design tokens are defined in `@theme inline`:
 
 ## Utility Classes
 
-| Class                       | Description                                |
-| --------------------------- | ------------------------------------------ |
-| `.echo-card`                | Solid card with border, radius, shadow     |
-| `.echo-glass-card`          | Glassmorphism card                         |
-| `.echo-glass-light`         | Light glass on dark backgrounds            |
-| `.echo-glass-dark`          | Dark glass on light backgrounds            |
-| `.echo-btn-primary`         | Primary Lavender gradient button           |
-| `.echo-btn-secondary`       | Secondary outline (Lavender) button        |
-| `.echo-btn-secondary-accent`| Secondary accent (Cyan) outline button     |
-| `.echo-btn-gradient`        | Gradient button (Lavender → Cetacean Blue) |
-| `.echo-btn-cyan-lavender`   | Dual-accent gradient (Cyan → Lavender)     |
-| `.echo-gradient-dark`       | Dark gradient background                   |
-| `.echo-gradient-dramatic`   | Dramatic gradient background               |
-| `.echo-gradient-secondary`  | Secondary gradient (Cetacean Blue → Cyan)  |
-| `.echo-gradient-cyan-lavender` | Dual-accent gradient (Cyan → Lavender) |
+| Class                          | Description                                |
+| ------------------------------ | ------------------------------------------ |
+| `.echo-card`                   | Solid card with border, radius, shadow     |
+| `.echo-glass-card`             | Glassmorphism card                         |
+| `.echo-glass-light`            | Light glass on dark backgrounds            |
+| `.echo-glass-dark`             | Dark glass on light backgrounds            |
+| `.echo-btn-primary`            | Primary Lavender gradient button           |
+| `.echo-btn-secondary`          | Secondary outline (Lavender) button        |
+| `.echo-btn-secondary-accent`   | Secondary accent (Cyan) outline button     |
+| `.echo-btn-gradient`           | Gradient button (Lavender → Cetacean Blue) |
+| `.echo-btn-cyan-lavender`      | Dual-accent gradient (Cyan → Lavender)     |
+| `.echo-gradient-dark`          | Dark gradient background                   |
+| `.echo-gradient-dramatic`      | Dramatic gradient background               |
+| `.echo-gradient-secondary`     | Secondary gradient (Cetacean Blue → Cyan)  |
+| `.echo-gradient-cyan-lavender` | Dual-accent gradient (Cyan → Lavender)     |

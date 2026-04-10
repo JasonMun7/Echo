@@ -8,12 +8,7 @@ export interface ScalesProps {
   color?: string;
 }
 
-export const Scales = ({
-  orientation = "diagonal",
-  size = 10,
-  className,
-  color,
-}: ScalesProps) => {
+export const Scales = ({ orientation = "diagonal", size = 10, className, color }: ScalesProps) => {
   const getGradientAngle = () => {
     switch (orientation) {
       case "horizontal":
@@ -66,12 +61,7 @@ export const ScalesContainer = ({
 }: ScalesContainerProps) => {
   return (
     <div className={cn("relative", containerClassName)}>
-      <Scales
-        orientation={orientation}
-        size={size}
-        className={className}
-        color={color}
-      />
+      <Scales orientation={orientation} size={size} className={className} color={color} />
       <div className="relative z-10">{children}</div>
     </div>
   );

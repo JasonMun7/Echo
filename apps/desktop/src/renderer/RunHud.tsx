@@ -13,12 +13,7 @@ import {
   IconCircleCheck,
   IconMicrophone,
 } from "@tabler/icons-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { dedupeHudActions, formatHudAction } from "./run-hud-action-display";
 
@@ -176,9 +171,7 @@ function RunHitlCard({
   if (hitl.kind === "api_call_approval") {
     const integration = String(hitl.payload.integration ?? "");
     const method = String(hitl.payload.method ?? "");
-    const message = String(
-      hitl.payload.message ?? `Approve API call: ${integration}.${method}`,
-    );
+    const message = String(hitl.payload.message ?? `Approve API call: ${integration}.${method}`);
     const argsPreview = String(hitl.payload.args_preview ?? "{}");
     return (
       <div className={`${shellClass} border-(--echo-cyan)/35`}>
@@ -199,9 +192,7 @@ function RunHitlCard({
                 <p className="mt-1 text-xs leading-relaxed text-(--echo-text-secondary)">
                   {message}
                 </p>
-                <p className="mt-2 text-[10px] text-(--echo-text-secondary)/80">
-                  Step {hitl.step}
-                </p>
+                <p className="mt-2 text-[10px] text-(--echo-text-secondary)/80">Step {hitl.step}</p>
               </div>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
@@ -238,8 +229,7 @@ function RunHitlCard({
 
   if (hitl.kind === "integration_auth") {
     const message = String(
-      hitl.payload.message ??
-        "Finish signing in in your browser, then tap Continue in EchoPrism.",
+      hitl.payload.message ?? "Finish signing in in your browser, then tap Continue in EchoPrism.",
     );
     const integration = String(hitl.payload.integration ?? "integration");
     return (
@@ -254,15 +244,9 @@ function RunHitlCard({
               <IconBrandGoogle size={24} stroke={1.5} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-(--echo-text)">
-                Sign in to {integration}
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-(--echo-text-secondary)">
-                {message}
-              </p>
-              <p className="mt-3 text-[10px] text-(--echo-text-secondary)/80">
-                Step {hitl.step}
-              </p>
+              <p className="text-sm font-semibold text-(--echo-text)">Sign in to {integration}</p>
+              <p className="mt-2 text-sm leading-relaxed text-(--echo-text-secondary)">{message}</p>
+              <p className="mt-3 text-[10px] text-(--echo-text-secondary)/80">Step {hitl.step}</p>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2 border-t border-(--echo-border)/60 pt-4">
@@ -300,9 +284,7 @@ function RunHitlCard({
         style={dragStyle}
       >
         <div>
-          <p className="text-sm font-medium text-(--echo-text)">
-            {hitl.kind.replace(/_/g, " ")}
-          </p>
+          <p className="text-sm font-medium text-(--echo-text)">{hitl.kind.replace(/_/g, " ")}</p>
           <p className="mt-2 text-sm text-(--echo-text-secondary)">
             Step {hitl.step} — continue when ready.
           </p>
@@ -347,10 +329,7 @@ function SingleStepPanel({
             <div className="space-y-2">
               {thoughts.map((thought, i) => (
                 <div key={i} className="flex gap-2">
-                  <IconBrain
-                    size={16}
-                    className="mt-0.5 shrink-0 text-(--echo-lavender)"
-                  />
+                  <IconBrain size={16} className="mt-0.5 shrink-0 text-(--echo-lavender)" />
                   <p
                     className="min-w-0 flex-1 text-sm leading-relaxed text-(--echo-text)"
                     style={{
@@ -402,12 +381,7 @@ function SingleStepPanel({
   );
 }
 
-export default function RunHud({
-  runPaused,
-  setRunPaused,
-  liveProgress,
-  hitl,
-}: RunHudProps) {
+export default function RunHud({ runPaused, setRunPaused, liveProgress, hitl }: RunHudProps) {
   const [reopenBusy, setReopenBusy] = useState(false);
 
   const handlePauseResume = () => {
@@ -476,9 +450,7 @@ export default function RunHud({
             >
               <IconGripVertical size={16} />
             </div>
-            <span className="text-sm font-semibold text-(--echo-text)">
-              EchoPrism
-            </span>
+            <span className="text-sm font-semibold text-(--echo-text)">EchoPrism</span>
           </div>
         ) : null}
 
@@ -522,9 +494,7 @@ export default function RunHud({
               </TooltipTrigger>
               <TooltipContent>
                 Voice interruption
-                <span className="ml-1.5 text-[10px] opacity-70">
-                  Ctrl+Shift+V
-                </span>
+                <span className="ml-1.5 text-[10px] opacity-70">Ctrl+Shift+V</span>
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -536,11 +506,7 @@ export default function RunHud({
                 className="echo-run-hud-btn-gradient flex h-9 w-9 shrink-0 items-center justify-center p-0"
                 aria-label={runPaused ? "Resume" : "Pause"}
               >
-                {runPaused ? (
-                  <IconPlayerPlay size={16} />
-                ) : (
-                  <IconPlayerPause size={16} />
-                )}
+                {runPaused ? <IconPlayerPlay size={16} /> : <IconPlayerPause size={16} />}
               </button>
             </TooltipTrigger>
             <TooltipContent>{runPaused ? "Resume" : "Pause"}</TooltipContent>

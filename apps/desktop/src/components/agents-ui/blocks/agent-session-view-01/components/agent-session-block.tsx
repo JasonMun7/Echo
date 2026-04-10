@@ -2,11 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, type MotionProps, motion } from "motion/react";
-import {
-  useAgent,
-  useSessionContext,
-  useSessionMessages,
-} from "@livekit/components-react";
+import { useAgent, useSessionContext, useSessionMessages } from "@livekit/components-react";
 import { AgentChatTranscript } from "@/components/agents-ui/agent-chat-transcript";
 import {
   AgentControlBar,
@@ -214,10 +210,7 @@ export function AgentSessionView_01({
   return (
     <section
       ref={ref}
-      className={cn(
-        "bg-background relative z-10 h-full w-full overflow-hidden",
-        className,
-      )}
+      className={cn("bg-background relative z-10 h-full w-full overflow-hidden", className)}
       {...props}
     >
       <Fade top className="absolute inset-x-4 top-0 z-10 h-40" />
@@ -274,10 +267,7 @@ export function AgentSessionView_01({
           </AnimatePresence>
         )}
         <div className="bg-background relative mx-auto max-w-2xl pb-3 md:pb-12">
-          <Fade
-            bottom
-            className="absolute inset-x-0 top-0 h-4 -translate-y-full"
-          />
+          <Fade bottom className="absolute inset-x-0 top-0 h-4 -translate-y-full" />
           <AgentControlBar
             variant="livekit"
             controls={controls}

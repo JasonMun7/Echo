@@ -88,9 +88,7 @@ export function getArticleSEOTags({
       publishedTime,
       authors,
       tags,
-      images: image
-        ? [{ url: image }]
-        : [{ url: config.websiteUrl + "/echo_logo.png" }],
+      images: image ? [{ url: image }] : [{ url: config.websiteUrl + "/echo_logo.png" }],
     },
   };
 }

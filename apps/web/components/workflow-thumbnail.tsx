@@ -54,9 +54,7 @@ export function WorkflowThumbnail({
   }
 
   return (
-    <div
-      className={`relative ${heightClass} w-full overflow-hidden bg-[#F5F7FC]`}
-    >
+    <div className={`relative ${heightClass} w-full overflow-hidden bg-[#F5F7FC]`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}

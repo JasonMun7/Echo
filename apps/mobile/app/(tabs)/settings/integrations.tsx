@@ -110,9 +110,7 @@ export default function IntegrationsScreen() {
   async function handleConnect(integration: Integration) {
     setConnecting(integration.name);
     try {
-      const res = await apiFetch(
-        `/api/integrations/${integration.name}/connect`,
-      );
+      const res = await apiFetch(`/api/integrations/${integration.name}/connect`);
       if (!res.ok) {
         Alert.alert("Error", "Failed to initiate connection.");
         return;
@@ -164,15 +162,11 @@ export default function IntegrationsScreen() {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <View
-            style={[styles.iconContainer, { backgroundColor: meta.bgColor }]}
-          >
+          <View style={[styles.iconContainer, { backgroundColor: meta.bgColor }]}>
             <Ionicons name={meta.icon} size={22} color={meta.iconColor} />
           </View>
           <View style={styles.cardInfo}>
-            <Text style={styles.cardName}>
-              {item.display_name || item.name}
-            </Text>
+            <Text style={styles.cardName}>{item.display_name || item.name}</Text>
             <Text style={styles.cardDescription} numberOfLines={2}>
               {item.description || meta.description}
             </Text>
@@ -185,17 +179,13 @@ export default function IntegrationsScreen() {
               <View
                 style={[
                   styles.statusBadge,
-                  item.auto_connected
-                    ? styles.statusAuto
-                    : styles.statusConnected,
+                  item.auto_connected ? styles.statusAuto : styles.statusConnected,
                 ]}
               >
                 <Text
                   style={[
                     styles.statusText,
-                    item.auto_connected
-                      ? styles.statusAutoText
-                      : styles.statusConnectedText,
+                    item.auto_connected ? styles.statusAutoText : styles.statusConnectedText,
                   ]}
                 >
                   {item.auto_connected ? "Auto" : "Connected"}
@@ -203,9 +193,7 @@ export default function IntegrationsScreen() {
               </View>
             ) : (
               <View style={[styles.statusBadge, styles.statusDisconnected]}>
-                <Text
-                  style={[styles.statusText, styles.statusDisconnectedText]}
-                >
+                <Text style={[styles.statusText, styles.statusDisconnectedText]}>
                   Not connected
                 </Text>
               </View>
@@ -219,23 +207,15 @@ export default function IntegrationsScreen() {
 
           {item.connected ? (
             item.auto_connected ? (
-              <Text style={styles.autoNote}>
-                {item.note || "Via Google sign-in"}
-              </Text>
+              <Text style={styles.autoNote}>{item.note || "Via Google sign-in"}</Text>
             ) : (
-              <Pressable
-                style={styles.disconnectBtn}
-                onPress={() => handleDisconnect(item)}
-              >
+              <Pressable style={styles.disconnectBtn} onPress={() => handleDisconnect(item)}>
                 <Text style={styles.disconnectText}>Disconnect</Text>
               </Pressable>
             )
           ) : (
             <Pressable
-              style={[
-                styles.connectBtn,
-                isConnecting && styles.connectBtnDisabled,
-              ]}
+              style={[styles.connectBtn, isConnecting && styles.connectBtnDisabled]}
               onPress={() => handleConnect(item)}
               disabled={isConnecting}
             >
@@ -258,20 +238,14 @@ export default function IntegrationsScreen() {
       {/* Info banner */}
       <View style={styles.banner}>
         <Text style={styles.bannerText}>
-          Connect integrations to use them in workflow api_call steps and via
-          voice/chat commands.
+          Connect integrations to use them in workflow api_call steps and via voice/chat commands.
         </Text>
       </View>
       <FlatList
         data={integrations}
         keyExtractor={(item) => item.name}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: insets.bottom + 64 },
-        ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 64 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={renderItem}
         ListEmptyComponent={
           <View style={styles.empty}>

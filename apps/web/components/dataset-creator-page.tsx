@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useRef,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-} from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import {
   IconDownload,
   IconPlus,
@@ -37,11 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
   DropdownMenu,
@@ -49,11 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ACTION_TYPES = [
   "click",
@@ -158,9 +143,10 @@ function clampCoord(v: number, min: number, max: number): number {
 function clampAnnotation(
   ann: { bbox?: number[]; keypoints?: number[] },
   width: number,
-  height: number
+  height: number,
 ): { bbox?: [number, number, number, number]; keypoints?: [number, number, number] } {
-  const result: { bbox?: [number, number, number, number]; keypoints?: [number, number, number] } = {};
+  const result: { bbox?: [number, number, number, number]; keypoints?: [number, number, number] } =
+    {};
   if (ann.keypoints && ann.keypoints.length >= 2) {
     result.keypoints = [
       clampCoord(ann.keypoints[0], 0, width),
@@ -218,7 +204,11 @@ function AutocompleteTextarea({
           />
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <ScrollArea className="max-h-48">
           {filtered.map((s) => (
             <button
@@ -244,7 +234,12 @@ export default function DatasetCreatorPage() {
   const [currentFrame, setCurrentFrame] = useState<Frame | null>(null);
   const [mode, setMode] = useState<"idle" | "streaming" | "annotating" | "drawing">("idle");
   const [drawing, setDrawing] = useState<"bbox" | "point" | null>(null);
-  const [previewBbox, setPreviewBbox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [previewBbox, setPreviewBbox] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
   const [nextFrameId, setNextFrameId] = useState(1);
@@ -252,7 +247,9 @@ export default function DatasetCreatorPage() {
   const nextFrameIdRef = useRef(1);
   const nextAnnotationIdRef = useRef(1);
   const [status, setStatus] = useState("Ready");
-  const [fileStatus, setFileStatus] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [fileStatus, setFileStatus] = useState<{ msg: string; type: "success" | "error" } | null>(
+    null,
+  );
 
   const [appMode, setAppMode] = useState<"capture" | "review">("capture");
   const [currentSampleIndex, setCurrentSampleIndex] = useState(-1);
@@ -266,11 +263,22 @@ export default function DatasetCreatorPage() {
     frames: number[];
     tempId?: boolean;
   } | null>(null);
-  const [sequenceHistory, setSequenceHistory] = useState<{ action: string; timestamp: string }[]>([]);
+  const [sequenceHistory, setSequenceHistory] = useState<{ action: string; timestamp: string }[]>(
+    [],
+  );
 
   const [dataset, setDataset] = useState<{
     images: DatasetImage[];
-    annotations: { id: number; image_id: number; bbox?: number[]; keypoints?: number[]; category_id: number; area?: number; iscrowd: number; attributes: AnnotationAttrs }[];
+    annotations: {
+      id: number;
+      image_id: number;
+      bbox?: number[];
+      keypoints?: number[];
+      category_id: number;
+      area?: number;
+      iscrowd: number;
+      attributes: AnnotationAttrs;
+    }[];
   }>({
     images: [],
     annotations: [],
@@ -329,7 +337,7 @@ export default function DatasetCreatorPage() {
         y: clampCoord(y, 0, img.height),
       };
     },
-    [currentFrame]
+    [currentFrame],
   );
 
   const stopStream = useCallback(() => {
@@ -357,7 +365,8 @@ export default function DatasetCreatorPage() {
   }, [stopStream]);
 
   const discardAll = useCallback(() => {
-    if (!confirm("Discard all images and annotations and start over? This cannot be undone.")) return;
+    if (!confirm("Discard all images and annotations and start over? This cannot be undone."))
+      return;
     stream?.getTracks().forEach((t) => t.stop());
     setStream(null);
     setMode("idle");
@@ -413,10 +422,13 @@ export default function DatasetCreatorPage() {
     let prevAnn: Annotation | undefined;
     if (sequenceHistory.length > 0) {
       const lastFrameAnns = dataset.annotations.filter((a) => {
-        const img = dataset.images.find((i) => i.id === currentSequence?.frames[currentSequence.frames.length - 1]);
+        const img = dataset.images.find(
+          (i) => i.id === currentSequence?.frames[currentSequence.frames.length - 1],
+        );
         return img && a.image_id === img.id;
       });
-      if (lastFrameAnns.length > 0) prevAnn = lastFrameAnns[lastFrameAnns.length - 1] as unknown as Annotation;
+      if (lastFrameAnns.length > 0)
+        prevAnn = lastFrameAnns[lastFrameAnns.length - 1] as unknown as Annotation;
     }
 
     const frameId = nextFrameIdRef.current++;
@@ -501,7 +513,7 @@ export default function DatasetCreatorPage() {
       setDrawing(null);
       setMode("annotating");
     },
-    [currentFrame, getCoords]
+    [currentFrame, getCoords],
   );
 
   const attachBboxListeners = useCallback(() => {
@@ -556,24 +568,26 @@ export default function DatasetCreatorPage() {
     setStatus(`Annotation ${updated.id} saved`);
   };
 
-  const deleteAnnotation = useCallback((ann: Annotation) => {
-    if (!currentFrame) return;
-    if (!confirm(`Delete annotation ${ann.id}?`)) return;
-    const remaining = currentFrame.annotations.filter((a) => a.id !== ann.id);
-    setCurrentFrame({
-      ...currentFrame,
-      annotations: remaining,
-    });
-    if (selectedAnnotation?.id === ann.id) setSelectedAnnotation(null);
-    if (remaining.length === 0) {
-      const anns = datasetRef.current.annotations;
-      const maxId =
-        anns.length === 0 ? 0 : Math.max(...anns.map((a) => a.id));
-      const next = Math.max(maxId + 1, nextAnnotationIdRef.current);
-      nextAnnotationIdRef.current = next;
-      setNextAnnotationId(next);
-    }
-  }, [currentFrame, selectedAnnotation]);
+  const deleteAnnotation = useCallback(
+    (ann: Annotation) => {
+      if (!currentFrame) return;
+      if (!confirm(`Delete annotation ${ann.id}?`)) return;
+      const remaining = currentFrame.annotations.filter((a) => a.id !== ann.id);
+      setCurrentFrame({
+        ...currentFrame,
+        annotations: remaining,
+      });
+      if (selectedAnnotation?.id === ann.id) setSelectedAnnotation(null);
+      if (remaining.length === 0) {
+        const anns = datasetRef.current.annotations;
+        const maxId = anns.length === 0 ? 0 : Math.max(...anns.map((a) => a.id));
+        const next = Math.max(maxId + 1, nextAnnotationIdRef.current);
+        nextAnnotationIdRef.current = next;
+        setNextAnnotationId(next);
+      }
+    },
+    [currentFrame, selectedAnnotation],
+  );
 
   const startSequence = useCallback(async () => {
     const task = prompt("Enter the overall description for this sequence:");
@@ -601,14 +615,20 @@ export default function DatasetCreatorPage() {
 
   const saveCurrentFrame = async () => {
     if (!currentFrame) return;
-    const ts = new Date(currentFrame.timestamp).toISOString().replace(/:/g, "-").replace(/\..+Z$/, "").replace("T", "_");
+    const ts = new Date(currentFrame.timestamp)
+      .toISOString()
+      .replace(/:/g, "-")
+      .replace(/\..+Z$/, "")
+      .replace("T", "_");
     const imageFilename = `${ts}.png`;
     const folder = "data";
 
     let seqId = currentFrame.sequenceId;
     if (currentSequence?.tempId && currentSequence.frames.length === 0) {
       seqId = imageFilename.replace(".png", "");
-      setCurrentSequence((s) => (s ? { ...s, id: seqId!, tempId: false, frames: [...s.frames, currentFrame.id] } : null));
+      setCurrentSequence((s) =>
+        s ? { ...s, id: seqId!, tempId: false, frames: [...s.frames, currentFrame.id] } : null,
+      );
     } else if (currentSequence) {
       setCurrentSequence((s) => (s ? { ...s, frames: [...s.frames, currentFrame.id] } : null));
     }
@@ -639,7 +659,7 @@ export default function DatasetCreatorPage() {
       };
 
       const clamped = currentFrame.annotations.map((ann) =>
-        clampAnnotation(ann, currentFrame.width, currentFrame.height)
+        clampAnnotation(ann, currentFrame.width, currentFrame.height),
       );
       const cocoAnns = currentFrame.annotations.map((ann, i) => {
         const c = clamped[i];
@@ -672,7 +692,12 @@ export default function DatasetCreatorPage() {
 
       const jsonFilename = "annotations_coco.json";
       const coco = {
-        info: { description: "GUI Dataset", version: "1.0", year: new Date().getFullYear(), date_created: new Date().toISOString() },
+        info: {
+          description: "GUI Dataset",
+          version: "1.0",
+          year: new Date().getFullYear(),
+          date_created: new Date().toISOString(),
+        },
         categories: DEFAULT_CATEGORIES,
         images: [...dataset.images, imageEntry],
         annotations: [...dataset.annotations, ...cocoAnns],
@@ -706,9 +731,10 @@ export default function DatasetCreatorPage() {
   };
 
   const getEffectiveDataset = useCallback(() => {
-    if (appMode !== "review" || !currentFrame) return { images: dataset.images, annotations: dataset.annotations };
+    if (appMode !== "review" || !currentFrame)
+      return { images: dataset.images, annotations: dataset.annotations };
     const clamped = currentFrame.annotations.map((ann) =>
-      clampAnnotation(ann, currentFrame.width, currentFrame.height)
+      clampAnnotation(ann, currentFrame.width, currentFrame.height),
     );
     const cocoAnns = currentFrame.annotations.map((ann, i) => {
       const c = clamped[i];
@@ -719,7 +745,11 @@ export default function DatasetCreatorPage() {
         category_id: CATEGORY_MAP[ann.action_type] ?? 1,
         bbox: c.bbox ?? ann.bbox,
         keypoints: c.keypoints ?? ann.keypoints,
-        area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? (ann.bbox[2] ?? 0) * (ann.bbox[3] ?? 0) : 0,
+        area: c.bbox
+          ? c.bbox[2] * c.bbox[3]
+          : ann.bbox
+            ? (ann.bbox[2] ?? 0) * (ann.bbox[3] ?? 0)
+            : 0,
         iscrowd: 0,
         attributes: {
           task_description: ann.task_description,
@@ -731,19 +761,23 @@ export default function DatasetCreatorPage() {
     });
     const mergedAnnotations = [
       ...dataset.annotations.filter((a) => a.image_id !== currentFrame.id),
-      ...cocoAnns.map(({ id, image_id, category_id, bbox, keypoints, area, iscrowd, attributes }) => ({
-        id,
-        image_id,
-        category_id,
-        bbox,
-        keypoints,
-        area,
-        iscrowd,
-        attributes,
-      })),
+      ...cocoAnns.map(
+        ({ id, image_id, category_id, bbox, keypoints, area, iscrowd, attributes }) => ({
+          id,
+          image_id,
+          category_id,
+          bbox,
+          keypoints,
+          area,
+          iscrowd,
+          attributes,
+        }),
+      ),
     ];
     const mergedImages = dataset.images.map((im) =>
-      im.id === currentFrame.id ? { ...im, application: application || im.application, platform: platform || im.platform } : im
+      im.id === currentFrame.id
+        ? { ...im, application: application || im.application, platform: platform || im.platform }
+        : im,
     );
     return { images: mergedImages, annotations: mergedAnnotations };
   }, [appMode, currentFrame, dataset, application, platform]);
@@ -757,20 +791,27 @@ export default function DatasetCreatorPage() {
     try {
       const loadRes = await apiFetch(
         `/api/datasets/load?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(filename)}&t=${Date.now()}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       if (loadRes.ok) {
         const existing = (await loadRes.json()) as {
           images?: DatasetImage[];
-          annotations?: { id: number; image_id: number; bbox?: number[]; keypoints?: number[]; category_id: number; area?: number; iscrowd: number; attributes: AnnotationAttrs }[];
+          annotations?: {
+            id: number;
+            image_id: number;
+            bbox?: number[];
+            keypoints?: number[];
+            category_id: number;
+            area?: number;
+            iscrowd: number;
+            attributes: AnnotationAttrs;
+          }[];
         };
         const rawImages = existing.images || [];
         const rawAnnotations = existing.annotations || [];
-        const dedupedImages = Array.from(
-          new Map(rawImages.map((img) => [img.id, img])).values()
-        );
+        const dedupedImages = Array.from(new Map(rawImages.map((img) => [img.id, img])).values());
         const dedupedAnnotations = Array.from(
-          new Map(rawAnnotations.map((ann) => [ann.id, ann])).values()
+          new Map(rawAnnotations.map((ann) => [ann.id, ann])).values(),
         );
         const currentIds = new Set(effectiveImages.map((i) => i.id));
         const mergedImages = [
@@ -816,9 +857,15 @@ export default function DatasetCreatorPage() {
   const loadDataset = async () => {
     try {
       if ("showDirectoryPicker" in window) {
-        const dir = await (window as unknown as { showDirectoryPicker: (opts?: { mode?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker({ mode: "read" });
+        const dir = await (
+          window as unknown as {
+            showDirectoryPicker: (opts?: { mode?: string }) => Promise<FileSystemDirectoryHandle>;
+          }
+        ).showDirectoryPicker({ mode: "read" });
         const jsonFiles: { name: string; file: File }[] = [];
-        type DirWithEntries = FileSystemDirectoryHandle & { entries(): AsyncIterableIterator<[string, FileSystemHandle]> };
+        type DirWithEntries = FileSystemDirectoryHandle & {
+          entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
+        };
         for await (const [name, handle] of (dir as DirWithEntries).entries()) {
           if (handle.kind === "file" && name.endsWith(".json")) {
             const f = await (handle as FileSystemFileHandle).getFile();
@@ -834,14 +881,18 @@ export default function DatasetCreatorPage() {
         const data = JSON.parse(text);
         setDataset({ images: data.images || [], annotations: data.annotations || [] });
         (data.annotations || []).forEach((a: { attributes?: { task_description?: string } }) => {
-          if (a.attributes?.task_description) setTaskDescriptions((s) => new Set(s).add(a.attributes!.task_description!));
+          if (a.attributes?.task_description)
+            setTaskDescriptions((s) => new Set(s).add(a.attributes!.task_description!));
         });
-        (data.images || []).forEach((img: { sequence_description?: string; sequence_task?: string }) => {
-          const desc = img.sequence_description || img.sequence_task;
-          if (desc) setSequenceTasks((s) => new Set(s).add(desc));
-        });
+        (data.images || []).forEach(
+          (img: { sequence_description?: string; sequence_task?: string }) => {
+            const desc = img.sequence_description || img.sequence_task;
+            if (desc) setSequenceTasks((s) => new Set(s).add(desc));
+          },
+        );
         const nextImgId = Math.max(1, ...(data.images || []).map((i: { id: number }) => i.id)) + 1;
-        const nextAnnId = Math.max(1, ...(data.annotations || []).map((a: { id: number }) => a.id)) + 1;
+        const nextAnnId =
+          Math.max(1, ...(data.annotations || []).map((a: { id: number }) => a.id)) + 1;
         nextFrameIdRef.current = nextImgId;
         nextAnnotationIdRef.current = nextAnnId;
         setNextFrameId(nextImgId);
@@ -868,7 +919,8 @@ export default function DatasetCreatorPage() {
         input.click();
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") showFileStatus(`Load error: ${(e as Error).message}`, "error");
+      if ((e as Error).name !== "AbortError")
+        showFileStatus(`Load error: ${(e as Error).message}`, "error");
     }
   };
 
@@ -876,7 +928,7 @@ export default function DatasetCreatorPage() {
     setAppMode("review");
     const images = imagesOverride ?? dataset.images;
     const sorted = [...images].sort(
-      (a, b) => new Date(a.date_captured || 0).getTime() - new Date(b.date_captured || 0).getTime()
+      (a, b) => new Date(a.date_captured || 0).getTime() - new Date(b.date_captured || 0).getTime(),
     );
     setFilteredSamples(sorted);
     if (sorted.length > 0) setCurrentSampleIndex(sorted.length - 1);
@@ -891,46 +943,53 @@ export default function DatasetCreatorPage() {
     setCurrentSampleIndex(-1);
   };
 
-  const persistFrameToDataset = useCallback((frame: Frame | null) => {
-    if (!frame) return;
-    const d = datasetRef.current;
-    const img = d.images.find((i) => i.id === frame.id);
-    if (!img) return;
-    const clamped = frame.annotations.map((ann) =>
-      clampAnnotation(ann, frame.width, frame.height)
-    );
-    const cocoAnns = frame.annotations.map((ann, i) => {
-      const c = clamped[i];
-      return {
-        id: ann.id,
-        image_id: frame.id,
-        category_id: CATEGORY_MAP[ann.action_type] ?? 1,
-        bbox: c.bbox ?? ann.bbox,
-        keypoints: c.keypoints ?? ann.keypoints,
-        area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
-        iscrowd: 0,
-        attributes: {
-          task_description: ann.task_description,
-          action_type: ann.action_type,
-          element_info: ann.element_info,
-          custom_metadata: ann.custom_metadata || {},
-        },
-      };
-    });
-    const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
-    const computedNext = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
-    setDataset((prev) => ({
-      ...prev,
-      images: prev.images.map((im) =>
-        im.id === frame.id
-          ? { ...im, application: application || im.application, platform: platform || im.platform }
-          : im
-      ),
-      annotations: [...prev.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
-    }));
-    nextAnnotationIdRef.current = computedNext;
-    setNextAnnotationId(computedNext);
-  }, [application, platform]);
+  const persistFrameToDataset = useCallback(
+    (frame: Frame | null) => {
+      if (!frame) return;
+      const d = datasetRef.current;
+      const img = d.images.find((i) => i.id === frame.id);
+      if (!img) return;
+      const clamped = frame.annotations.map((ann) =>
+        clampAnnotation(ann, frame.width, frame.height),
+      );
+      const cocoAnns = frame.annotations.map((ann, i) => {
+        const c = clamped[i];
+        return {
+          id: ann.id,
+          image_id: frame.id,
+          category_id: CATEGORY_MAP[ann.action_type] ?? 1,
+          bbox: c.bbox ?? ann.bbox,
+          keypoints: c.keypoints ?? ann.keypoints,
+          area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
+          iscrowd: 0,
+          attributes: {
+            task_description: ann.task_description,
+            action_type: ann.action_type,
+            element_info: ann.element_info,
+            custom_metadata: ann.custom_metadata || {},
+          },
+        };
+      });
+      const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
+      const computedNext = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
+      setDataset((prev) => ({
+        ...prev,
+        images: prev.images.map((im) =>
+          im.id === frame.id
+            ? {
+                ...im,
+                application: application || im.application,
+                platform: platform || im.platform,
+              }
+            : im,
+        ),
+        annotations: [...prev.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
+      }));
+      nextAnnotationIdRef.current = computedNext;
+      setNextAnnotationId(computedNext);
+    },
+    [application, platform],
+  );
 
   const loadSample = useCallback(
     async (index: number) => {
@@ -946,7 +1005,9 @@ export default function DatasetCreatorPage() {
       let dataUrl = loadedSampleCache.current.get(sample.id);
       if (!dataUrl) {
         try {
-          const res = await apiFetch(`/api/datasets/image?folder=data&file=${encodeURIComponent(sample.file_name)}`);
+          const res = await apiFetch(
+            `/api/datasets/image?folder=data&file=${encodeURIComponent(sample.file_name)}`,
+          );
           if (requestId !== loadSampleRequestIdRef.current) return;
           const data = await res.json();
           if (requestId !== loadSampleRequestIdRef.current) return;
@@ -993,7 +1054,7 @@ export default function DatasetCreatorPage() {
       setMode("annotating");
       setStatus(`Sample ${index + 1} of ${filteredSamples.length}`);
     },
-    [filteredSamples, persistFrameToDataset]
+    [filteredSamples, persistFrameToDataset],
   );
 
   useEffect(() => {
@@ -1032,12 +1093,16 @@ export default function DatasetCreatorPage() {
     refreshStream,
   ]);
 
-  const scaleX = currentFrame && containerRef.current
-    ? (containerRef.current.querySelector("img")?.getBoundingClientRect().width ?? 1) / currentFrame.width
-    : 1;
-  const scaleY = currentFrame && containerRef.current
-    ? (containerRef.current.querySelector("img")?.getBoundingClientRect().height ?? 1) / currentFrame.height
-    : 1;
+  const scaleX =
+    currentFrame && containerRef.current
+      ? (containerRef.current.querySelector("img")?.getBoundingClientRect().width ?? 1) /
+        currentFrame.width
+      : 1;
+  const scaleY =
+    currentFrame && containerRef.current
+      ? (containerRef.current.querySelector("img")?.getBoundingClientRect().height ?? 1) /
+        currentFrame.height
+      : 1;
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -1051,9 +1116,13 @@ export default function DatasetCreatorPage() {
               className={!stream ? "echo-btn-cyan-lavender" : undefined}
             >
               {stream ? (
-                <><IconSquare className="h-4 w-4 mr-1.5" /> Stop Live Capture</>
+                <>
+                  <IconSquare className="h-4 w-4 mr-1.5" /> Stop Live Capture
+                </>
               ) : (
-                <><IconVideo className="h-4 w-4 mr-1.5" /> Start Live Capture</>
+                <>
+                  <IconVideo className="h-4 w-4 mr-1.5" /> Start Live Capture
+                </>
               )}
             </Button>
             <Button
@@ -1063,9 +1132,13 @@ export default function DatasetCreatorPage() {
               className={!currentSequence ? "echo-btn-secondary" : undefined}
             >
               {currentSequence ? (
-                <><IconPlayerStop className="h-4 w-4 mr-1.5" /> End Sequence</>
+                <>
+                  <IconPlayerStop className="h-4 w-4 mr-1.5" /> End Sequence
+                </>
               ) : (
-                <><IconPlayerPlay className="h-4 w-4 mr-1.5" /> Start Sequence</>
+                <>
+                  <IconPlayerPlay className="h-4 w-4 mr-1.5" /> Start Sequence
+                </>
               )}
             </Button>
             {currentSequence && (
@@ -1075,7 +1148,13 @@ export default function DatasetCreatorPage() {
             )}
           </ButtonGroup>
           <ButtonGroup aria-label="Capture frame">
-            <Button size="sm" variant="outline" onClick={captureFrame} disabled={!stream} className="echo-btn-secondary">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={captureFrame}
+              disabled={!stream}
+              className="echo-btn-secondary"
+            >
               <IconPhoto className="h-4 w-4 mr-1.5" /> Capture Frame
             </Button>
           </ButtonGroup>
@@ -1085,7 +1164,11 @@ export default function DatasetCreatorPage() {
               variant="outline"
               onClick={() => setDrawing(drawing === "bbox" ? null : "bbox")}
               disabled={!currentFrame}
-              className={drawing === "bbox" ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]" : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"}
+              className={
+                drawing === "bbox"
+                  ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]"
+                  : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"
+              }
             >
               <IconPlus className="h-4 w-4 mr-1.5" /> Draw Bbox
             </Button>
@@ -1094,14 +1177,23 @@ export default function DatasetCreatorPage() {
               variant="outline"
               onClick={() => setDrawing(drawing === "point" ? null : "point")}
               disabled={!currentFrame}
-              className={drawing === "point" ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]" : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"}
+              className={
+                drawing === "point"
+                  ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]"
+                  : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"
+              }
             >
               <IconPlus className="h-4 w-4 mr-1.5" /> Add Point
             </Button>
           </ButtonGroup>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="echo-btn-secondary" aria-label="More actions">
+              <Button
+                size="sm"
+                variant="outline"
+                className="echo-btn-secondary"
+                aria-label="More actions"
+              >
                 <IconDotsVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1119,7 +1211,10 @@ export default function DatasetCreatorPage() {
           </DropdownMenu>
         </div>
 
-        <div ref={containerRef} className="flex-1 flex items-center justify-center bg-[#150A35]/5 overflow-auto p-4">
+        <div
+          ref={containerRef}
+          className="flex-1 flex items-center justify-center bg-[#150A35]/5 overflow-auto p-4"
+        >
           {stream && (
             <video
               ref={videoRef}
@@ -1130,9 +1225,19 @@ export default function DatasetCreatorPage() {
             />
           )}
           {currentFrame && (
-            <div className="relative inline-block" onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}>
+            <div
+              className="relative inline-block"
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseMove={handleMouseMove}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element -- canvas data URL preview */}
-              <img src={currentFrame.dataUrl} alt="frame" className="max-w-full h-auto block" style={{ cursor: drawing ? "crosshair" : "default" }} />
+              <img
+                src={currentFrame.dataUrl}
+                alt="frame"
+                className="max-w-full h-auto block"
+                style={{ cursor: drawing ? "crosshair" : "default" }}
+              />
               {previewBbox && (
                 <div
                   style={{
@@ -1233,8 +1338,16 @@ export default function DatasetCreatorPage() {
 
         <div className="px-4 py-2 bg-[#F5F7FC] border-t border-[#A577FF]/20 flex justify-between items-center text-sm text-echo-text-muted">
           <span>{status}</span>
-          <span className={`rounded px-2 py-0.5 text-xs font-medium ${mode === "streaming" ? "bg-echo-success text-white" : mode === "drawing" ? "bg-amber-400 text-black" : "bg-gray-200"}`}>
-            {mode === "idle" ? "Idle" : mode === "streaming" ? "Streaming" : mode === "drawing" ? "Drawing" : "Annotating"}
+          <span
+            className={`rounded px-2 py-0.5 text-xs font-medium ${mode === "streaming" ? "bg-echo-success text-white" : mode === "drawing" ? "bg-amber-400 text-black" : "bg-gray-200"}`}
+          >
+            {mode === "idle"
+              ? "Idle"
+              : mode === "streaming"
+                ? "Streaming"
+                : mode === "drawing"
+                  ? "Drawing"
+                  : "Annotating"}
           </span>
         </div>
       </div>
@@ -1245,7 +1358,12 @@ export default function DatasetCreatorPage() {
             {appMode === "capture" ? "Live Capture" : "Review/Edit"}
           </h2>
           {appMode === "review" && (
-            <Button size="sm" variant="ghost" className="text-sm text-[#A577FF] hover:bg-[#A577FF]/10 -mr-2" onClick={switchToCapture}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-sm text-[#A577FF] hover:bg-[#A577FF]/10 -mr-2"
+              onClick={switchToCapture}
+            >
               ← Back to Capture
             </Button>
           )}
@@ -1267,12 +1385,30 @@ export default function DatasetCreatorPage() {
             <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
               <h3 className="text-sm font-semibold text-[#150A35] mb-3">Sample Navigation</h3>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-echo-text-muted">{currentSampleIndex >= 0 ? `${currentSampleIndex + 1} of ${filteredSamples.length}` : "-"}</span>
+                <span className="text-xs text-echo-text-muted">
+                  {currentSampleIndex >= 0
+                    ? `${currentSampleIndex + 1} of ${filteredSamples.length}`
+                    : "-"}
+                </span>
                 <div className="flex gap-1">
-                  <Button size="sm" variant="outline" disabled={currentSampleIndex <= 0} onClick={() => setCurrentSampleIndex((i) => Math.max(0, i - 1))} className="echo-btn-secondary">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={currentSampleIndex <= 0}
+                    onClick={() => setCurrentSampleIndex((i) => Math.max(0, i - 1))}
+                    className="echo-btn-secondary"
+                  >
                     <IconChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" disabled={currentSampleIndex >= filteredSamples.length - 1} onClick={() => setCurrentSampleIndex((i) => Math.min(filteredSamples.length - 1, i + 1))} className="echo-btn-secondary">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={currentSampleIndex >= filteredSamples.length - 1}
+                    onClick={() =>
+                      setCurrentSampleIndex((i) => Math.min(filteredSamples.length - 1, i + 1))
+                    }
+                    className="echo-btn-secondary"
+                  >
                     <IconChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1285,12 +1421,19 @@ export default function DatasetCreatorPage() {
             <div className="space-y-3">
               <div>
                 <Label className="text-echo-text-muted">Application</Label>
-                <Input value={application} onChange={(e) => setApplication(e.target.value)} placeholder="e.g., Chrome, VSCode" className="mt-1" />
+                <Input
+                  value={application}
+                  onChange={(e) => setApplication(e.target.value)}
+                  placeholder="e.g., Chrome, VSCode"
+                  className="mt-1"
+                />
               </div>
               <div>
                 <Label className="text-echo-text-muted">Platform</Label>
                 <Select value={platform} onValueChange={setPlatform}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select platform" /></SelectTrigger>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select platform" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Windows">Windows</SelectItem>
                     <SelectItem value="macOS">macOS</SelectItem>
@@ -1303,176 +1446,268 @@ export default function DatasetCreatorPage() {
             </div>
           </div>
 
-        {currentSequence && (
+          {currentSequence && (
+            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
+              <h3 className="text-sm font-semibold text-[#150A35] mb-2">Sequence</h3>
+              <p className="text-xs text-echo-text-muted mb-1">ID: {currentSequence.id}</p>
+              <p className="text-xs text-echo-text-muted mb-3">
+                Frames: {currentSequence.frames.length}
+              </p>
+              <Label className="text-echo-text-muted">Sequence Description</Label>
+              <AutocompleteTextarea
+                value={currentSequence.task}
+                onChange={(v) => setCurrentSequence((s) => (s ? { ...s, task: v } : null))}
+                suggestions={sequenceTasks}
+                placeholder="Overall sequence description..."
+                rows={2}
+              />
+              <ScrollArea className="h-32 mt-2 border border-[#A577FF]/20 rounded-lg p-3 bg-white">
+                {sequenceHistory.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-echo-text-muted">
+                    {currentSequence.frames.length === 0
+                      ? "No saved annotations yet"
+                      : "No annotations yet"}
+                  </div>
+                ) : (
+                  sequenceHistory.map((h, i) => (
+                    <div key={i} className="text-xs py-1 flex gap-2">
+                      <span className="rounded-full bg-[#A577FF] text-white w-5 h-5 flex items-center justify-center shrink-0">
+                        {i + 1}
+                      </span>
+                      <span>{h.action}</span>
+                    </div>
+                  ))
+                )}
+              </ScrollArea>
+            </div>
+          )}
+
           <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
-            <h3 className="text-sm font-semibold text-[#150A35] mb-2">Sequence</h3>
-            <p className="text-xs text-echo-text-muted mb-1">ID: {currentSequence.id}</p>
-            <p className="text-xs text-echo-text-muted mb-3">Frames: {currentSequence.frames.length}</p>
-            <Label className="text-echo-text-muted">Sequence Description</Label>
-            <AutocompleteTextarea
-              value={currentSequence.task}
-              onChange={(v) => setCurrentSequence((s) => (s ? { ...s, task: v } : null))}
-              suggestions={sequenceTasks}
-              placeholder="Overall sequence description..."
-              rows={2}
-            />
-            <ScrollArea className="h-32 mt-2 border border-[#A577FF]/20 rounded-lg p-3 bg-white">
-              {sequenceHistory.length === 0 ? (
-                <div className="p-4 text-center text-sm text-echo-text-muted">
-                  {currentSequence.frames.length === 0 ? "No saved annotations yet" : "No annotations yet"}
-                </div>
-              ) : (
-                sequenceHistory.map((h, i) => (
-                  <div key={i} className="text-xs py-1 flex gap-2">
-                    <span className="rounded-full bg-[#A577FF] text-white w-5 h-5 flex items-center justify-center shrink-0">{i + 1}</span>
-                    <span>{h.action}</span>
+            <h3 className="text-sm font-semibold text-[#150A35] mb-3">Annotations</h3>
+            <ScrollArea className="h-40 border border-[#A577FF]/20 rounded-lg bg-white">
+              {currentFrame?.annotations.length ? (
+                currentFrame.annotations.map((a, idx) => (
+                  <div
+                    key={`list-${currentFrame?.id}-${a.id}-${idx}`}
+                    onClick={() => selectAnnotation(a)}
+                    className={`p-2 border-b cursor-pointer flex items-center justify-between gap-2 ${selectedAnnotation?.id === a.id ? "bg-[#A577FF]/10 border-[#A577FF]" : "border-gray-200"}`}
+                  >
+                    <span className="text-sm flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${a.bbox ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
+                      >
+                        {a.bbox ? "Box" : "Point"}
+                      </span>
+                      <span>
+                        <strong>#{a.id}</strong> {a.action_type} -{" "}
+                        {(a.task_description || "").slice(0, 25)}
+                        {(a.task_description?.length ?? 0) > 25 ? "..." : ""}
+                      </span>
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAnnotation(a);
+                          }}
+                        >
+                          <IconTrash className="h-3 w-3 text-echo-error" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete annotation</TooltipContent>
+                    </Tooltip>
                   </div>
                 ))
+              ) : (
+                <div className="p-4 text-center text-sm text-echo-text-muted">
+                  No annotations yet
+                </div>
               )}
             </ScrollArea>
           </div>
-        )}
 
-        <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
-          <h3 className="text-sm font-semibold text-[#150A35] mb-3">Annotations</h3>
-          <ScrollArea className="h-40 border border-[#A577FF]/20 rounded-lg bg-white">
-            {currentFrame?.annotations.length ? (
-              currentFrame.annotations.map((a, idx) => (
-                <div
-                  key={`list-${currentFrame?.id}-${a.id}-${idx}`}
-                  onClick={() => selectAnnotation(a)}
-                  className={`p-2 border-b cursor-pointer flex items-center justify-between gap-2 ${selectedAnnotation?.id === a.id ? "bg-[#A577FF]/10 border-[#A577FF]" : "border-gray-200"}`}
+          {selectedAnnotation && (
+            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-[#150A35]">
+                Edit Annotation #{selectedAnnotation.id}
+              </h3>
+              <div>
+                <Label>Task Description</Label>
+                <AutocompleteTextarea
+                  value={selectedAnnotation.task_description}
+                  onChange={(v) =>
+                    setSelectedAnnotation((a) => (a ? { ...a, task_description: v } : null))
+                  }
+                  suggestions={taskDescriptions}
+                  placeholder="Describe what this annotation represents..."
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label>Action Type</Label>
+                <Select
+                  value={selectedAnnotation.action_type}
+                  onValueChange={(v) =>
+                    setSelectedAnnotation((a) => (a ? { ...a, action_type: v } : null))
+                  }
                 >
-                  <span className="text-sm flex items-center gap-2 flex-wrap">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${a.bbox ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
-                      {a.bbox ? "Box" : "Point"}
-                    </span>
-                    <span><strong>#{a.id}</strong> {a.action_type} - {(a.task_description || "").slice(0, 25)}{(a.task_description?.length ?? 0) > 25 ? "..." : ""}</span>
-                  </span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteAnnotation(a); }}>
-                        <IconTrash className="h-3 w-3 text-echo-error" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Delete annotation</TooltipContent>
-                  </Tooltip>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-sm text-echo-text-muted">No annotations yet</div>
-            )}
-          </ScrollArea>
-        </div>
-
-        {selectedAnnotation && (
-          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-4">
-            <h3 className="text-sm font-semibold text-[#150A35]">Edit Annotation #{selectedAnnotation.id}</h3>
-            <div>
-              <Label>Task Description</Label>
-              <AutocompleteTextarea
-                value={selectedAnnotation.task_description}
-                onChange={(v) => setSelectedAnnotation((a) => (a ? { ...a, task_description: v } : null))}
-                suggestions={taskDescriptions}
-                placeholder="Describe what this annotation represents..."
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label>Action Type</Label>
-              <Select value={selectedAnnotation.action_type} onValueChange={(v) => setSelectedAnnotation((a) => (a ? { ...a, action_type: v } : null))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ACTION_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Element Type</Label>
-              <Select value={selectedAnnotation.element_info} onValueChange={(v) => setSelectedAnnotation((a) => (a ? { ...a, element_info: v } : null))}>
-                <SelectTrigger><SelectValue placeholder="Select element type" /></SelectTrigger>
-                <SelectContent>
-                  {ELEMENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Custom Metadata</Label>
-              <div className="border rounded-md p-2 space-y-2">
-                {Object.entries(selectedAnnotation.custom_metadata || {}).map(([k, v], idx) => (
-                  <div key={k || `meta-${idx}`} className="flex gap-1 items-center">
-                    <Input
-                      className="text-sm"
-                      value={k}
-                      onChange={(e) => {
-                        const next = { ...selectedAnnotation.custom_metadata };
-                        delete next[k];
-                        next[e.target.value] = v;
-                        setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: next } : null));
-                      }}
-                      placeholder="Field name"
-                    />
-                    <Input
-                      className="text-sm"
-                      value={v}
-                      onChange={(e) => setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: { ...a.custom_metadata, [k]: e.target.value } } : null))}
-                      placeholder="Value"
-                    />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => {
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTION_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Element Type</Label>
+                <Select
+                  value={selectedAnnotation.element_info}
+                  onValueChange={(v) =>
+                    setSelectedAnnotation((a) => (a ? { ...a, element_info: v } : null))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select element type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ELEMENT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Custom Metadata</Label>
+                <div className="border rounded-md p-2 space-y-2">
+                  {Object.entries(selectedAnnotation.custom_metadata || {}).map(([k, v], idx) => (
+                    <div key={k || `meta-${idx}`} className="flex gap-1 items-center">
+                      <Input
+                        className="text-sm"
+                        value={k}
+                        onChange={(e) => {
                           const next = { ...selectedAnnotation.custom_metadata };
                           delete next[k];
-                          setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: next } : null));
-                        }}>
-                          <IconX className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Remove field</TooltipContent>
-                    </Tooltip>
-                  </div>
-                ))}
+                          next[e.target.value] = v;
+                          setSelectedAnnotation((a) =>
+                            a ? { ...a, custom_metadata: next } : null,
+                          );
+                        }}
+                        placeholder="Field name"
+                      />
+                      <Input
+                        className="text-sm"
+                        value={v}
+                        onChange={(e) =>
+                          setSelectedAnnotation((a) =>
+                            a
+                              ? {
+                                  ...a,
+                                  custom_metadata: { ...a.custom_metadata, [k]: e.target.value },
+                                }
+                              : null,
+                          )
+                        }
+                        placeholder="Value"
+                      />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => {
+                              const next = { ...selectedAnnotation.custom_metadata };
+                              delete next[k];
+                              setSelectedAnnotation((a) =>
+                                a ? { ...a, custom_metadata: next } : null,
+                              );
+                            }}
+                          >
+                            <IconX className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove field</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full border-dashed"
+                    onClick={() =>
+                      setSelectedAnnotation((a) =>
+                        a
+                          ? {
+                              ...a,
+                              custom_metadata: {
+                                ...a.custom_metadata,
+                                [`field_${Date.now()}`]: "",
+                              },
+                            }
+                          : null,
+                      )
+                    }
+                  >
+                    <IconPlus className="h-4 w-4 mr-1" /> Add Custom Field
+                  </Button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveAnnotation}>
+                  Save
+                </Button>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="w-full border-dashed"
-                  onClick={() => setSelectedAnnotation((a) => (a ? { ...a, custom_metadata: { ...a.custom_metadata, [`field_${Date.now()}`]: "" } } : null))}
+                  variant="destructive"
+                  onClick={() => deleteAnnotation(selectedAnnotation)}
                 >
-                  <IconPlus className="h-4 w-4 mr-1" /> Add Custom Field
+                  <IconTrash className="h-4 w-4 mr-1" /> Delete
                 </Button>
               </div>
+              <p className="text-xs text-echo-text-muted italic">
+                Tip: Press Delete key to remove selected annotation
+              </p>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={saveAnnotation}>Save</Button>
-              <Button size="sm" variant="destructive" onClick={() => deleteAnnotation(selectedAnnotation)}>
-                <IconTrash className="h-4 w-4 mr-1" /> Delete
-              </Button>
-            </div>
-            <p className="text-xs text-echo-text-muted italic">Tip: Press Delete key to remove selected annotation</p>
-          </div>
-        )}
+          )}
 
-        <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
-          {appMode === "capture" && (
-            <Button className="echo-btn-cyan-lavender w-full" onClick={saveCurrentFrame} disabled={!currentFrame}>
-              Save Current Frame
-            </Button>
-          )}
-          {appMode === "review" && (
-            <Button className="echo-btn-secondary w-full" variant="outline" onClick={exportDataset}>
-              <IconDownload className="h-4 w-4 mr-1.5" /> Export Full Dataset
-            </Button>
-          )}
-          {fileStatus && (
-            <div className={`rounded-lg p-3 text-sm ${fileStatus.type === "error" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
-              {fileStatus.msg}
-            </div>
-          )}
-        </div>
+          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
+            {appMode === "capture" && (
+              <Button
+                className="echo-btn-cyan-lavender w-full"
+                onClick={saveCurrentFrame}
+                disabled={!currentFrame}
+              >
+                Save Current Frame
+              </Button>
+            )}
+            {appMode === "review" && (
+              <Button
+                className="echo-btn-secondary w-full"
+                variant="outline"
+                onClick={exportDataset}
+              >
+                <IconDownload className="h-4 w-4 mr-1.5" /> Export Full Dataset
+              </Button>
+            )}
+            {fileStatus && (
+              <div
+                className={`rounded-lg p-3 text-sm ${fileStatus.type === "error" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}
+              >
+                {fileStatus.msg}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

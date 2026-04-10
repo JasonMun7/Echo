@@ -1,10 +1,4 @@
-import {
-  Pressable,
-  Text,
-  ActivityIndicator,
-  StyleSheet,
-  type ViewStyle,
-} from "react-native";
+import { Pressable, Text, ActivityIndicator, StyleSheet, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { gradients, borderRadius } from "@echo/design-tokens";
 
@@ -33,18 +27,9 @@ export function GradientButton({
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
-        styles.wrapper,
-        { opacity: pressed || disabled ? 0.85 : 1 },
-        style,
-      ]}
+      style={({ pressed }) => [styles.wrapper, { opacity: pressed || disabled ? 0.85 : 1 }, style]}
     >
-      <LinearGradient
-        colors={[...g.colors]}
-        start={g.start}
-        end={g.end}
-        style={styles.gradient}
-      >
+      <LinearGradient colors={[...g.colors]} start={g.start} end={g.end} style={styles.gradient}>
         {loading ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (

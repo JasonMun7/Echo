@@ -1,12 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-} from "react-native";
+import { View, Text, FlatList, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "@/lib/api";
 import { colors } from "@echo/design-tokens";
@@ -54,9 +47,7 @@ export default function NotificationsScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ read: true }),
       });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-      );
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
       if (workflowId) {
         router.push(`/(tabs)/workflows/${workflowId}`);
       }
@@ -75,9 +66,7 @@ export default function NotificationsScreen() {
           styles.list,
           { paddingTop: insets.top, paddingBottom: insets.bottom + 100 },
         ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No notifications</Text>

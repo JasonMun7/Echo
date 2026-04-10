@@ -3,13 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
@@ -143,8 +137,7 @@ function ParamFields({
         <label className="block text-xs text-[#150A35]/70">
           Description
           <span className="ml-1 text-[#150A35]/40">
-            (e.g. blue &apos;Submit&apos; button in the bottom-center of the
-            form)
+            (e.g. blue &apos;Submit&apos; button in the bottom-center of the form)
           </span>
         </label>
         <textarea
@@ -174,9 +167,7 @@ function ParamFields({
       <div className="space-y-2">
         <label className="block text-xs text-[#150A35]/70">
           Element Description
-          <span className="ml-1 text-[#150A35]/40">
-            (describe what to wait for visually)
-          </span>
+          <span className="ml-1 text-[#150A35]/40">(describe what to wait for visually)</span>
         </label>
         <textarea
           value={(params.description as string) || ""}
@@ -207,9 +198,7 @@ function ParamFields({
           <input
             type="number"
             value={(params.amount as number) ?? 500}
-            onChange={(e) =>
-              update("amount", parseInt(e.target.value, 10) || 0)
-            }
+            onChange={(e) => update("amount", parseInt(e.target.value, 10) || 0)}
             className="w-24 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
           />
         </div>
@@ -285,9 +274,7 @@ function ParamFields({
     );
   }
   if (action === "api_call") {
-    return (
-      <WorkflowApiCallFields params={params} onChange={onChange} />
-    );
+    return <WorkflowApiCallFields params={params} onChange={onChange} />;
   }
   return null;
 }
@@ -315,14 +302,9 @@ function StepCard({
   onContextFilled: () => void;
   onInvalidCleared: () => void;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: step.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: step.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -361,9 +343,7 @@ function StepCard({
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-[#A577FF]/70">Step {index + 1}</span>
           {isInvalid && (
-            <p className="text-xs font-medium text-echo-error">
-              Context is required before saving
-            </p>
+            <p className="text-xs font-medium text-echo-error">Context is required before saving</p>
           )}
           {!isInvalid && isDirty && (
             <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
@@ -475,22 +455,15 @@ export default function WorkflowEditPage() {
 
       // If we just added a step, pick out the new one by it being the last
       setSteps((prev) => {
-        if (
-          list.length > stepCountBeforeAddRef.current &&
-          stepCountBeforeAddRef.current > 0
-        ) {
+        if (list.length > stepCountBeforeAddRef.current && stepCountBeforeAddRef.current > 0) {
           // Find the step that didn't exist before
           const prevIds = new Set(prev.map((s) => s.id));
           const newStep = list.find((s) => !prevIds.has(s.id));
           if (newStep) {
             setNewStepId(newStep.id);
             // Auto-clear highlight after 10s
-            if (newStepTimeoutRef.current)
-              clearTimeout(newStepTimeoutRef.current);
-            newStepTimeoutRef.current = setTimeout(
-              () => setNewStepId(null),
-              10_000,
-            );
+            if (newStepTimeoutRef.current) clearTimeout(newStepTimeoutRef.current);
+            newStepTimeoutRef.current = setTimeout(() => setNewStepId(null), 10_000);
           }
           stepCountBeforeAddRef.current = 0;
         }
@@ -506,9 +479,7 @@ export default function WorkflowEditPage() {
   }, [id, router]);
 
   const handleStepUpdate = (stepId: string, data: Partial<Step>) => {
-    setSteps((prev) =>
-      prev.map((s) => (s.id === stepId ? { ...s, ...data } : s)),
-    );
+    setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, ...data } : s)));
     setDirtyStepIds((prev) => {
       const next = new Set(prev);
       next.add(stepId);
@@ -575,9 +546,7 @@ export default function WorkflowEditPage() {
   };
 
   const handleSave = async () => {
-    const emptyContextIds = new Set(
-      steps.filter((s) => !s.context?.trim()).map((s) => s.id),
-    );
+    const emptyContextIds = new Set(steps.filter((s) => !s.context?.trim()).map((s) => s.id));
     if (emptyContextIds.size > 0) {
       setInvalidStepIds(emptyContextIds);
       return;
@@ -682,7 +651,10 @@ export default function WorkflowEditPage() {
             className="text-sm text-[#150A35]/60"
             title="Recording used to create this workflow — correlate with logs"
           >
-            Source: <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs">{workflow.source_recording_id}</code>
+            Source:{" "}
+            <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs">
+              {workflow.source_recording_id}
+            </code>
           </p>
         )}
 
@@ -695,11 +667,12 @@ export default function WorkflowEditPage() {
               <div className="flex rounded-lg border border-[#A577FF]/40 p-0.5">
                 <button
                   type="button"
-                  onClick={() => { setViewMode("list"); setSelectedStepId(null); }}
+                  onClick={() => {
+                    setViewMode("list");
+                    setSelectedStepId(null);
+                  }}
                   className={`rounded px-2 py-1 text-sm ${
-                    viewMode === "list"
-                      ? "bg-[#A577FF]/20 text-[#A577FF]"
-                      : "text-[#150A35]/70"
+                    viewMode === "list" ? "bg-[#A577FF]/20 text-[#A577FF]" : "text-[#150A35]/70"
                   }`}
                 >
                   <IconList className="inline h-4 w-4" /> List
@@ -708,9 +681,7 @@ export default function WorkflowEditPage() {
                   type="button"
                   onClick={() => setViewMode("graph")}
                   className={`rounded px-2 py-1 text-sm ${
-                    viewMode === "graph"
-                      ? "bg-[#A577FF]/20 text-[#A577FF]"
-                      : "text-[#150A35]/70"
+                    viewMode === "graph" ? "bg-[#A577FF]/20 text-[#A577FF]" : "text-[#150A35]/70"
                   }`}
                 >
                   <IconBinaryTree2 className="inline h-4 w-4" /> Graph
@@ -728,17 +699,16 @@ export default function WorkflowEditPage() {
                     Add Step
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="max-h-72 overflow-y-auto"
-                >
+                <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
                   {availableActions.map((a) => (
                     <DropdownMenuItem
                       key={a}
                       onSelect={() => handleAddStep(a)}
                       className="echo-dropdown-item cursor-pointer text-sm"
                     >
-                      {a === "api_call" ? `⚡ ${formatAction(a)} (App Integration)` : formatAction(a)}
+                      {a === "api_call"
+                        ? `⚡ ${formatAction(a)} (App Integration)`
+                        : formatAction(a)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -750,67 +720,68 @@ export default function WorkflowEditPage() {
           {viewMode === "graph" && (
             <div className="flex flex-1 flex-col gap-4">
               <WorkflowStepGraph steps={steps} onNodeSelect={setSelectedStepId} />
-              {selectedStepId && (() => {
-                const step = steps.find((s) => s.id === selectedStepId);
-                if (!step) return null;
-                const stepIndex = steps.findIndex((s) => s.id === selectedStepId);
-                return (
-                  <div className="rounded-xl border border-[#A577FF]/40 bg-white p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-[#150A35]">
-                        Step {stepIndex + 1} — Edit
-                      </h3>
+              {selectedStepId &&
+                (() => {
+                  const step = steps.find((s) => s.id === selectedStepId);
+                  if (!step) return null;
+                  const stepIndex = steps.findIndex((s) => s.id === selectedStepId);
+                  return (
+                    <div className="rounded-xl border border-[#A577FF]/40 bg-white p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-[#150A35]">
+                          Step {stepIndex + 1} — Edit
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStepId(null)}
+                          className="rounded p-1 text-[#150A35]/40 hover:text-[#150A35]"
+                        >
+                          <IconX className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {dirtyStepIds.has(step.id) && (
+                        <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
+                      )}
+                      <div>
+                        <label className="block text-xs text-[#150A35]/70">Action</label>
+                        <select
+                          value={step.action}
+                          onChange={(e) => handleStepUpdate(step.id, { action: e.target.value })}
+                          className="mt-1 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
+                        >
+                          {availableActions.map((a) => (
+                            <option key={a} value={a}>
+                              {formatAction(a)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[#150A35]/70">Context</label>
+                        <textarea
+                          value={step.context}
+                          onChange={(e) => handleStepUpdate(step.id, { context: e.target.value })}
+                          placeholder="Description of this step"
+                          rows={2}
+                          className="mt-1 w-full resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+                        />
+                      </div>
+                      <ParamFields
+                        action={step.action}
+                        params={step.params}
+                        onChange={(p) => handleStepUpdate(step.id, { params: p })}
+                      />
                       <button
                         type="button"
-                        onClick={() => setSelectedStepId(null)}
-                        className="rounded p-1 text-[#150A35]/40 hover:text-[#150A35]"
+                        onClick={() => handleDeleteStep(step.id)}
+                        className="flex items-center gap-1.5 text-xs text-echo-text-muted hover:text-echo-error"
                       >
-                        <IconX className="h-4 w-4" />
+                        <IconTrash className="h-3.5 w-3.5" />
+                        Delete step
                       </button>
                     </div>
-                    {dirtyStepIds.has(step.id) && (
-                      <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
-                    )}
-                    <div>
-                      <label className="block text-xs text-[#150A35]/70">Action</label>
-                      <select
-                        value={step.action}
-                        onChange={(e) => handleStepUpdate(step.id, { action: e.target.value })}
-                        className="mt-1 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
-                      >
-                        {availableActions.map((a) => (
-                          <option key={a} value={a}>
-                            {formatAction(a)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[#150A35]/70">Context</label>
-                      <textarea
-                        value={step.context}
-                        onChange={(e) => handleStepUpdate(step.id, { context: e.target.value })}
-                        placeholder="Description of this step"
-                        rows={2}
-                        className="mt-1 w-full resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
-                      />
-                    </div>
-                    <ParamFields
-                      action={step.action}
-                      params={step.params}
-                      onChange={(p) => handleStepUpdate(step.id, { params: p })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteStep(step.id)}
-                      className="flex items-center gap-1.5 text-xs text-echo-text-muted hover:text-echo-error"
-                    >
-                      <IconTrash className="h-3.5 w-3.5" />
-                      Delete step
-                    </button>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
             </div>
           )}
 
@@ -856,8 +827,7 @@ export default function WorkflowEditPage() {
 
           {steps.length === 0 && (
             <div className="rounded-lg border border-dashed border-[#A577FF]/40 p-8 text-center text-[#150A35]/60">
-              No steps yet. Click{" "}
-              <span className="font-medium text-[#A577FF]">Add Step</span> to
+              No steps yet. Click <span className="font-medium text-[#A577FF]">Add Step</span> to
               create one.
             </div>
           )}

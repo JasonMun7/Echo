@@ -1,12 +1,12 @@
-import { useCallback } from 'react';
-import { Track } from 'livekit-client';
+import { useCallback } from "react";
+import { Track } from "livekit-client";
 import {
   type TrackReference,
   useTrackToggle,
   usePersistentUserChoices,
   useLocalParticipantPermissions,
   useSessionContext,
-} from '@livekit/components-react';
+} from "@livekit/components-react";
 
 const trackSourceToProtocol = (source: Track.Source) => {
   // NOTE: this mapping avoids importing the protocol package as that leads to a significant bundle size increase
@@ -97,14 +97,14 @@ export function useInputControls({
 
   const handleAudioDeviceChange = useCallback(
     (deviceId: string) => {
-      saveAudioInputDeviceId(deviceId ?? 'default');
+      saveAudioInputDeviceId(deviceId ?? "default");
     },
     [saveAudioInputDeviceId],
   );
 
   const handleVideoDeviceChange = useCallback(
     (deviceId: string) => {
-      saveVideoInputDeviceId(deviceId ?? 'default');
+      saveVideoInputDeviceId(deviceId ?? "default");
     },
     [saveVideoInputDeviceId],
   );

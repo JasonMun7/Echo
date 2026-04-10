@@ -74,11 +74,7 @@ function IPhoneDynamicIsland({ ref }: { ref: React.Ref<DynamicIslandHandle> }) {
 
   const reset = () => {
     hasAnimatedRef.current = false;
-    animate(
-      scope.current,
-      { width: 28, height: 10, borderRadius: 5 },
-      SPRING_OPTIONS,
-    );
+    animate(scope.current, { width: 28, height: 10, borderRadius: 5 }, SPRING_OPTIONS);
     animate("#iphone-idle", { opacity: 1 }, { duration: 0.15 });
     animate("#iphone-loading", { opacity: 0 }, { duration: 0.1 });
     animate("#iphone-done", { opacity: 0 }, { duration: 0.1 });
@@ -89,24 +85,12 @@ function IPhoneDynamicIsland({ ref }: { ref: React.Ref<DynamicIslandHandle> }) {
     hasAnimatedRef.current = true;
 
     await animate("#iphone-idle", { opacity: 0 }, { duration: 0.1 });
-    animate(
-      scope.current,
-      { width: 16, height: 10, borderRadius: 5 },
-      SPRING_OPTIONS,
-    );
+    animate(scope.current, { width: 16, height: 10, borderRadius: 5 }, SPRING_OPTIONS);
     await animate("#iphone-loading", { opacity: 1 }, { duration: 0.15 });
     await new Promise((r) => setTimeout(r, 1000));
     await animate("#iphone-loading", { opacity: 0 }, { duration: 0.1 });
-    animate(
-      scope.current,
-      { width: 40, height: 10, borderRadius: 5 },
-      SPRING_OPTIONS,
-    );
-    await animate(
-      "#iphone-done",
-      { opacity: 1 },
-      { duration: 0.15, delay: 0.1 },
-    );
+    animate(scope.current, { width: 40, height: 10, borderRadius: 5 }, SPRING_OPTIONS);
+    await animate("#iphone-done", { opacity: 1 }, { duration: 0.15, delay: 0.1 });
   };
 
   useImperativeHandle(ref, () => ({ start, reset }));
@@ -140,9 +124,7 @@ function IPhoneDynamicIsland({ ref }: { ref: React.Ref<DynamicIslandHandle> }) {
           className="absolute inset-0 flex items-center justify-center"
           style={{ opacity: 0 }}
         >
-          <span className="text-[3px] leading-none font-medium text-white">
-            Connected
-          </span>
+          <span className="text-[3px] leading-none font-medium text-white">Connected</span>
         </div>
       </div>
     </div>

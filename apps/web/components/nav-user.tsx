@@ -12,11 +12,7 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,11 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { NotificationsDrawer } from "@/components/notifications-drawer";
 import { useAuthStore } from "@/stores";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -80,9 +72,7 @@ export function NavUser({
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium text-white">{user.name}</span>
-                <span className="truncate text-xs text-white/70">
-                  {user.email}
-                </span>
+                <span className="truncate text-xs text-white/70">{user.email}</span>
               </div>
               <IconDotsVertical className="ml-auto size-4 text-white/80" />
             </SidebarMenuButton>
@@ -103,9 +93,7 @@ export function NavUser({
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium text-[#150A35]">{user.name}</span>
-                  <span className="truncate text-xs text-echo-text-muted">
-                    {user.email}
-                  </span>
+                  <span className="truncate text-xs text-echo-text-muted">{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -130,7 +118,10 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator className="bg-[#A577FF]/20" />
-            <DropdownMenuItem asChild className="text-[#150A35] focus:bg-[#A577FF]/10 focus:text-[#150A35]">
+            <DropdownMenuItem
+              asChild
+              className="text-[#150A35] focus:bg-[#A577FF]/10 focus:text-[#150A35]"
+            >
               <Link href="/" className="flex items-center gap-2">
                 <IconHome className="size-4" />
                 Back to landing page
@@ -146,10 +137,7 @@ export function NavUser({
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
-      <NotificationsDrawer
-        open={notificationsOpen}
-        onOpenChange={setNotificationsOpen}
-      />
+      <NotificationsDrawer open={notificationsOpen} onOpenChange={setNotificationsOpen} />
     </SidebarMenu>
   );
 }

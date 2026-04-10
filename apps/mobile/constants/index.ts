@@ -8,8 +8,7 @@ const extra = Constants.expoConfig?.extra ?? {};
  * devices can reach the local backend/agent without hardcoded IPs.
  */
 function getDevHost(): string | null {
-  const debuggerHost =
-    Constants.debuggerHost ?? Constants.expoGoConfig?.debuggerHost;
+  const debuggerHost = Constants.debuggerHost ?? Constants.expoGoConfig?.debuggerHost;
   if (!debuggerHost) return null;
   // debuggerHost is "ip:port" — strip the port
   return debuggerHost.split(":")[0];
@@ -32,7 +31,4 @@ function resolveUrl(configUrl: string, fallback: string): string {
 export const API_URL: string = resolveUrl(extra.apiUrl, "http://localhost:8000");
 
 /** EchoPrism Agent URL — reads from Doppler via app.config.ts */
-export const AGENT_URL: string = resolveUrl(
-  extra.agentUrl,
-  "http://localhost:8083",
-);
+export const AGENT_URL: string = resolveUrl(extra.agentUrl, "http://localhost:8083");

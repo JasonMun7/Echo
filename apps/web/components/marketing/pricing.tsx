@@ -15,13 +15,9 @@ export function Pricing() {
         >
           Early Access
         </Heading>
-        <SubHeading
-          as="p"
-          className="mx-auto mt-4 max-w-md text-center text-base text-gray-600"
-        >
-          Echo is currently in private beta. We&apos;re onboarding teams and
-          individuals who want to automate their most time-consuming workflows
-          — including accessibility-focused use cases.
+        <SubHeading as="p" className="mx-auto mt-4 max-w-md text-center text-base text-gray-600">
+          Echo is currently in private beta. We&apos;re onboarding teams and individuals who want to
+          automate their most time-consuming workflows — including accessibility-focused use cases.
         </SubHeading>
 
         <div className="mt-10 w-full max-w-md rounded-xl border border-[#A577FF]/20 bg-white p-8 shadow-sm">
@@ -29,12 +25,10 @@ export function Pricing() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
               <span className="text-2xl">⚡</span>
             </div>
-            <h3 className="text-lg font-semibold text-[#150A35]">
-              Request early access
-            </h3>
+            <h3 className="text-lg font-semibold text-[#150A35]">Request early access</h3>
             <p className="text-sm text-gray-500 text-center">
-              Get access to the Echo desktop app, voice agent, and workflow
-              builder. No credit card required.
+              Get access to the Echo desktop app, voice agent, and workflow builder. No credit card
+              required.
             </p>
             <HoverBorderGradient
               as="div"

@@ -61,9 +61,8 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
   const findAgentParticipant = useCallback((): RemoteParticipant | undefined => {
     if (!room) return undefined;
     return (
-      Array.from(room.remoteParticipants.values()).find(
-        (p) => p.identity?.includes("agent"),
-      ) ?? Array.from(room.remoteParticipants.values())[0]
+      Array.from(room.remoteParticipants.values()).find((p) => p.identity?.includes("agent")) ??
+      Array.from(room.remoteParticipants.values())[0]
     );
   }, [room]);
 
@@ -82,20 +81,17 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
     const roomName = `echoprism-${Date.now()}`;
 
     try {
-      const res = await fetch(
-        `${AGENT_URL.replace(/\/$/, "")}/api/livekit/token`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            room_name: roomName,
-            room_config: { agents: [{ agent_name: AGENT_NAME }] },
-          }),
+      const res = await fetch(`${AGENT_URL.replace(/\/$/, "")}/api/livekit/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          room_name: roomName,
+          room_config: { agents: [{ agent_name: AGENT_NAME }] },
+        }),
+      });
       if (!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
 
       const data = (await res.json()) as {
@@ -148,12 +144,9 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
           }
         };
 
-        room.on(
-          RoomEvent.ParticipantConnected,
-          (participant: RemoteParticipant) => {
-            participant.on(ParticipantEvent.IsSpeakingChanged, onAgentSpeaking);
-          },
-        );
+        room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+          participant.on(ParticipantEvent.IsSpeakingChanged, onAgentSpeaking);
+        });
 
         // Also attach to participants already in the room
         room.on(RoomEvent.TrackSubscribed, () => {
@@ -166,37 +159,34 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
 
         // --- Barge-in: interrupt agent when user speaks ---
 
-        room.localParticipant.on(
-          ParticipantEvent.IsSpeakingChanged,
-          (speaking: boolean) => {
-            if (!speaking) {
-              if (bargeDebounceRef.current) {
-                clearTimeout(bargeDebounceRef.current);
-                bargeDebounceRef.current = null;
-              }
-              return;
-            }
-            if (!agentSpeakingRef.current) return;
-            if (Date.now() < bargeCooldownUntilRef.current) return;
-
-            bargeDebounceRef.current = setTimeout(() => {
+        room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+          if (!speaking) {
+            if (bargeDebounceRef.current) {
+              clearTimeout(bargeDebounceRef.current);
               bargeDebounceRef.current = null;
-              if (Date.now() < bargeCooldownUntilRef.current) return;
-              bargeCooldownUntilRef.current = Date.now() + BARGE_IN_COOLDOWN_MS;
+            }
+            return;
+          }
+          if (!agentSpeakingRef.current) return;
+          if (Date.now() < bargeCooldownUntilRef.current) return;
 
-              const agent = findAgentParticipant();
-              if (!agent) return;
-              room.localParticipant
-                .performRpc({
-                  destinationIdentity: agent.identity,
-                  method: "interrupt",
-                  payload: "",
-                  responseTimeout: 5000,
-                })
-                .catch(() => {});
-            }, BARGE_IN_DEBOUNCE_MS);
-          },
-        );
+          bargeDebounceRef.current = setTimeout(() => {
+            bargeDebounceRef.current = null;
+            if (Date.now() < bargeCooldownUntilRef.current) return;
+            bargeCooldownUntilRef.current = Date.now() + BARGE_IN_COOLDOWN_MS;
+
+            const agent = findAgentParticipant();
+            if (!agent) return;
+            room.localParticipant
+              .performRpc({
+                destinationIdentity: agent.identity,
+                method: "interrupt",
+                payload: "",
+                responseTimeout: 5000,
+              })
+              .catch(() => {});
+          }, BARGE_IN_DEBOUNCE_MS);
+        });
 
         // --- Data packets (run_started, tool_call, synthesis_complete, etc.) ---
 
@@ -216,9 +206,7 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
               switch (msg.type) {
                 case "tool_call":
                   setState("thinking");
-                  callbacksRef.current.onToolCall?.(
-                    (msg.name as string) ?? "tool",
-                  );
+                  callbacksRef.current.onToolCall?.((msg.name as string) ?? "tool");
                   break;
                 case "synthesis_complete":
                   callbacksRef.current.onSynthesisComplete?.(
@@ -253,8 +241,7 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
           ) => {
             for (const seg of segments) {
               if (!seg.final) continue;
-              const role =
-                participant instanceof RemoteParticipant ? "agent" : "user";
+              const role = participant instanceof RemoteParticipant ? "agent" : "user";
               callbacksRef.current.onTranscript?.(seg.text, role);
             }
           },

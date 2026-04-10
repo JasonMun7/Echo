@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
-import { motion, useMotionValue, useAnimationFrame, useTransform } from 'motion/react';
-import './ShinyText.css';
+import { useState, useCallback, useRef } from "react";
+import { motion, useMotionValue, useAnimationFrame, useTransform } from "motion/react";
+import "./ShinyText.css";
 
 interface ShinyTextProps {
   text: string;
@@ -12,7 +12,7 @@ interface ShinyTextProps {
   spread?: number;
   yoyo?: boolean;
   pauseOnHover?: boolean;
-  direction?: 'left' | 'right';
+  direction?: "left" | "right";
   delay?: number;
 }
 
@@ -20,20 +20,20 @@ const ShinyText = ({
   text,
   disabled = false,
   speed = 2,
-  className = '',
-  color = '#8b8b9e',
-  shineColor = '#A577FF',
+  className = "",
+  color = "#8b8b9e",
+  shineColor = "#A577FF",
   spread = 120,
   yoyo = false,
   pauseOnHover = false,
-  direction = 'left',
+  direction = "left",
   delay = 0,
 }: ShinyTextProps) => {
   const [isPaused, setIsPaused] = useState(false);
   const progress = useMotionValue(0);
   const elapsedRef = useRef(0);
   const lastTimeRef = useRef<number | null>(null);
-  const directionRef = useRef(direction === 'left' ? 1 : -1);
+  const directionRef = useRef(direction === "left" ? 1 : -1);
 
   const animationDuration = speed * 1000;
   const delayDuration = delay * 1000;
@@ -91,10 +91,10 @@ const ShinyText = ({
 
   const gradientStyle = {
     backgroundImage: `linear-gradient(${spread}deg, ${color} 0%, ${color} 35%, ${shineColor} 50%, ${color} 65%, ${color} 100%)`,
-    backgroundSize: '200% auto',
-    WebkitBackgroundClip: 'text' as const,
-    backgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
+    backgroundSize: "200% auto",
+    WebkitBackgroundClip: "text" as const,
+    backgroundClip: "text",
+    WebkitTextFillColor: "transparent",
   };
 
   return (

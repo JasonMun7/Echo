@@ -19,15 +19,12 @@ import {
 import { auth } from "@/lib/firebase";
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  "auth/email-already-in-use":
-    "An account with this email already exists. Try signing in instead.",
-  "auth/wrong-password":
-    "Incorrect password. Check your password or reset it below.",
+  "auth/email-already-in-use": "An account with this email already exists. Try signing in instead.",
+  "auth/wrong-password": "Incorrect password. Check your password or reset it below.",
   "auth/user-not-found": "No account found with this email. Sign up to get started.",
   "auth/invalid-email": "Please enter a valid email address.",
   "auth/weak-password": "Password must be at least 6 characters.",
-  "auth/too-many-requests":
-    "Too many failed attempts. Please wait a moment and try again.",
+  "auth/too-many-requests": "Too many failed attempts. Please wait a moment and try again.",
   "auth/network-request-failed": "Network error. Check your connection and try again.",
   "auth/popup-closed-by-user": "Sign-in was cancelled. Please try again.",
   "auth/invalid-credential": "Incorrect email or password.",
@@ -74,9 +71,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       }
     } catch (err) {
       const authError = err as AuthError;
-      setError(
-        AUTH_ERROR_MESSAGES[authError.code] || authError.message || "Failed to sign in"
-      );
+      setError(AUTH_ERROR_MESSAGES[authError.code] || authError.message || "Failed to sign in");
     } finally {
       setIsLoading(false);
     }
@@ -95,9 +90,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     } catch (err) {
       const authError = err as AuthError;
       setError(
-        AUTH_ERROR_MESSAGES[authError.code] ||
-          authError.message ||
-          "Failed to send reset email"
+        AUTH_ERROR_MESSAGES[authError.code] || authError.message || "Failed to send reset email",
       );
     } finally {
       setResetLoading(false);
@@ -116,9 +109,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     } catch (err) {
       const authError = err as AuthError;
       setError(
-        AUTH_ERROR_MESSAGES[authError.code] ||
-          authError.message ||
-          "Failed to sign in with Google"
+        AUTH_ERROR_MESSAGES[authError.code] || authError.message || "Failed to sign in with Google",
       );
     } finally {
       setIsGoogleLoading(false);
@@ -177,19 +168,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         </p>
       )}
 
-      <Button
-        type="submit"
-        disabled={isLoading}
-        className="echo-btn-primary h-10 w-full"
-      >
+      <Button type="submit" disabled={isLoading} className="echo-btn-primary h-10 w-full">
         {isLoading ? (
-          <LoaderFive
-            text={
-              mode === "sign-up"
-                ? "Creating account..."
-                : "Signing in..."
-            }
-          />
+          <LoaderFive text={mode === "sign-up" ? "Creating account..." : "Signing in..."} />
         ) : mode === "sign-up" ? (
           "Sign up"
         ) : (
@@ -224,20 +205,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         className="echo-btn-secondary flex h-10 w-full justify-center gap-2"
       >
         <IconBrandGoogle className="size-5 text-[#150A35]" />
-        {isGoogleLoading ? (
-          <LoaderFive text="Signing in..." />
-        ) : (
-          "Continue with Google"
-        )}
+        {isGoogleLoading ? <LoaderFive text="Signing in..." /> : "Continue with Google"}
       </Button>
 
       <p className="rounded-lg border border-[#A577FF]/15 bg-[#F5F3FF]/35 px-3 py-2.5 text-center text-xs leading-relaxed text-gray-600">
         Slack, GitHub, and Google integrations use{" "}
-        <span className="font-medium text-[#1A1A2E]">Auth0</span> (Token Vault). After you sign in, open{" "}
-        <Link
-          href="/dashboard/integrations"
-          className="font-medium text-[#A577FF] hover:underline"
-        >
+        <span className="font-medium text-[#1A1A2E]">Auth0</span> (Token Vault). After you sign in,
+        open{" "}
+        <Link href="/dashboard/integrations" className="font-medium text-[#A577FF] hover:underline">
           Integrations
         </Link>{" "}
         to link Auth0 and connect providers.

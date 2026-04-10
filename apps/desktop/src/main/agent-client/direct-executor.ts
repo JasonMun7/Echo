@@ -25,7 +25,8 @@ export function isDeterministic(step: Step): boolean {
   if (action === "scroll" && params.direction) return true;
   if (action === "openapp" && params.appName) return true;
   if (action === "focusapp" && params.appName) return true;
-  if (action === "selectoption" && params.selector && params.value != null && params.value !== "") return true;
+  if (action === "selectoption" && params.selector && params.value != null && params.value !== "")
+    return true;
   if (action === "waitforelement" && params.selector) return true;
   if (action === "typetextat") {
     const text = String(params.text ?? params.content ?? "").trim();
@@ -85,17 +86,20 @@ export function stepToOperatorAction(step: Step): OperatorAction {
   if ("y1" in params && params.y1 != null) base.y1 = Number(params.y1);
   if ("x2" in params && params.x2 != null) base.x2 = Number(params.x2);
   if ("y2" in params && params.y2 != null) base.y2 = Number(params.y2);
-  if ("content" in params || "text" in params) base.content = String(params.text ?? params.content ?? "");
+  if ("content" in params || "text" in params)
+    base.content = String(params.text ?? params.content ?? "");
   if ("keys" in params) base.keys = params.keys;
   if ("key" in params) base.key = params.key;
   if ("seconds" in params) base.seconds = Number(params.seconds);
   if ("direction" in params) base.direction = params.direction;
-  if ("distance" in params || "amount" in params) base.distance = Number(params.distance ?? params.amount ?? 300);
+  if ("distance" in params || "amount" in params)
+    base.distance = Number(params.distance ?? params.amount ?? 300);
   if ("url" in params) base.url = params.url;
   if ("appName" in params) base.appName = params.appName;
   if ("value" in params) base.value = params.value;
   if ("selector" in params && params.selector != null) base.selector = String(params.selector);
-  if ("integration" in params && params.integration != null) base.integration = String(params.integration);
+  if ("integration" in params && params.integration != null)
+    base.integration = String(params.integration);
   if ("method" in params && params.method != null) base.method = String(params.method);
   if ("args" in params && params.args != null) base.args = params.args as Record<string, unknown>;
   return base as OperatorAction;
@@ -115,10 +119,7 @@ export function mergeTypeTextAtWorkflowLiteral(
   if (sa !== "typetextat") return action;
   const params = step.params || {};
   if (params.x != null && params.y != null) return action;
-  const wf = (
-    typingOverride?.trim() ||
-    String(params.text ?? params.content ?? "").trim()
-  );
+  const wf = typingOverride?.trim() || String(params.text ?? params.content ?? "").trim();
   if (!wf) return action;
 
   const act = (action.action || "").toLowerCase().replace(/_/g, "");

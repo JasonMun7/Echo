@@ -1,10 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { colors } from "@echo/design-tokens";
 
-const statusConfig: Record<
-  string,
-  { bg: string; text: string; label?: string }
-> = {
+const statusConfig: Record<string, { bg: string; text: string; label?: string }> = {
   draft: { bg: colors.lavender20, text: colors.lavender },
   processing: { bg: "rgba(245, 158, 11, 0.15)", text: colors.warning },
   ready: { bg: "rgba(34, 197, 94, 0.15)", text: colors.success },

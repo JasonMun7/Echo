@@ -3,11 +3,9 @@ import { useAuthStore } from "./auth-store";
 import { useWorkflowsStore } from "./workflows-store";
 
 const API_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  "http://localhost:8000";
+  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "http://localhost:8000";
 const AGENT_URL =
-  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
-    ?.VITE_ECHO_AGENT_URL ?? API_URL;
+  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env?.VITE_ECHO_AGENT_URL ?? API_URL;
 
 let currentAbortController: AbortController | null = null;
 
@@ -96,9 +94,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
           throw new Error("Session expired. Please sign in again.");
         }
         const d = await uploadRes.json().catch(() => ({}));
-        throw new Error(
-          (d as { detail?: string }).detail || "Failed to upload recording"
-        );
+        throw new Error((d as { detail?: string }).detail || "Failed to upload recording");
       }
       const { gcs_path } = (await uploadRes.json()) as { gcs_path: string };
       set({ recordStatus: "Synthesizing workflow…" });
@@ -113,9 +109,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       });
       if (!synthRes.ok) {
         const d = await synthRes.json().catch(() => ({}));
-        throw new Error(
-          (d as { detail?: string }).detail || "Synthesis failed"
-        );
+        throw new Error((d as { detail?: string }).detail || "Synthesis failed");
       }
       const _ = (await synthRes.json()) as { workflow_id: string };
       set({ recordStatus: "Workflow created", recordedBlob: null });
@@ -126,8 +120,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
         return;
       }
       set({
-        recordError:
-          e instanceof Error ? e.message : "Upload/synthesis failed",
+        recordError: e instanceof Error ? e.message : "Upload/synthesis failed",
       });
     } finally {
       currentAbortController = null;

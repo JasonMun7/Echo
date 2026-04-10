@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, useInView } from 'motion/react';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useInView } from "motion/react";
 
-const AnimatedItem = ({ children, delay = 0, index, onMouseEnter, onClick, interactive = true }) => {
+const AnimatedItem = ({
+  children,
+  delay = 0,
+  index,
+  onMouseEnter,
+  onClick,
+  interactive = true,
+}) => {
   const ref = useRef(null);
   const inView = useInView(ref, { amount: 0.5, triggerOnce: false });
   return (
@@ -13,7 +20,7 @@ const AnimatedItem = ({ children, delay = 0, index, onMouseEnter, onClick, inter
       initial={{ scale: 0.7, opacity: 0 }}
       animate={inView ? { scale: 1, opacity: 1 } : { scale: 0.7, opacity: 0 }}
       transition={{ duration: 0.2, delay }}
-      className={`mb-4 ${interactive ? 'cursor-pointer' : ''}`}
+      className={`mb-4 ${interactive ? "cursor-pointer" : ""}`}
     >
       {children}
     </motion.div>
@@ -25,13 +32,13 @@ const AnimatedList = ({
   onItemSelect,
   showGradients = true,
   enableArrowNavigation = true,
-  className = '',
-  scrollContainerClassName = '',
-  itemClassName = '',
+  className = "",
+  scrollContainerClassName = "",
+  itemClassName = "",
   displayScrollbar = true,
   initialSelectedIndex = -1,
   renderItem,
-  maxHeight = '400px',
+  maxHeight = "400px",
   fillHeight = false,
   interactive = true,
   keyExtractor,
@@ -42,7 +49,7 @@ const AnimatedList = ({
   const [topGradientOpacity, setTopGradientOpacity] = useState(0);
   const [bottomGradientOpacity, setBottomGradientOpacity] = useState(1);
 
-  const handleItemMouseEnter = useCallback(index => {
+  const handleItemMouseEnter = useCallback((index) => {
     setSelectedIndex(index);
   }, []);
 
@@ -53,10 +60,10 @@ const AnimatedList = ({
         onItemSelect(item, index);
       }
     },
-    [onItemSelect]
+    [onItemSelect],
   );
 
-  const handleScroll = useCallback(e => {
+  const handleScroll = useCallback((e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     setTopGradientOpacity(Math.min(scrollTop / 50, 1));
     const bottomDistance = scrollHeight - (scrollTop + clientHeight);
@@ -65,16 +72,16 @@ const AnimatedList = ({
 
   useEffect(() => {
     if (!enableArrowNavigation) return;
-    const handleKeyDown = e => {
-      if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) {
         e.preventDefault();
         setKeyboardNav(true);
-        setSelectedIndex(prev => Math.min(prev + 1, items.length - 1));
-      } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+        setSelectedIndex((prev) => Math.min(prev + 1, items.length - 1));
+      } else if (e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey)) {
         e.preventDefault();
         setKeyboardNav(true);
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter') {
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === "Enter") {
         if (selectedIndex >= 0 && selectedIndex < items.length) {
           e.preventDefault();
           if (onItemSelect) {
@@ -84,8 +91,8 @@ const AnimatedList = ({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [items, selectedIndex, onItemSelect, enableArrowNavigation]);
 
   useEffect(() => {
@@ -99,11 +106,11 @@ const AnimatedList = ({
       const itemTop = selectedItem.offsetTop;
       const itemBottom = itemTop + selectedItem.offsetHeight;
       if (itemTop < containerScrollTop + extraMargin) {
-        container.scrollTo({ top: itemTop - extraMargin, behavior: 'smooth' });
+        container.scrollTo({ top: itemTop - extraMargin, behavior: "smooth" });
       } else if (itemBottom > containerScrollTop + containerHeight - extraMargin) {
         container.scrollTo({
           top: itemBottom - containerHeight + extraMargin,
-          behavior: 'smooth'
+          behavior: "smooth",
         });
       }
     }
@@ -111,17 +118,23 @@ const AnimatedList = ({
   }, [selectedIndex, keyboardNav]);
 
   const scrollStyle = {
-    scrollbarWidth: displayScrollbar ? 'thin' : 'none',
-    scrollbarColor: 'var(--echo-border-hover, #333) var(--echo-surface-solid, #0d0520)',
-    ...(fillHeight ? { flex: 1, minHeight: 0 } : { maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight })
+    scrollbarWidth: displayScrollbar ? "thin" : "none",
+    scrollbarColor: "var(--echo-border-hover, #333) var(--echo-surface-solid, #0d0520)",
+    ...(fillHeight
+      ? { flex: 1, minHeight: 0 }
+      : { maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight }),
   };
 
   return (
-    <div className={`relative w-full ${fillHeight ? 'flex flex-col min-h-0 flex-1' : ''} ${className}`}>
+    <div
+      className={`relative w-full ${fillHeight ? "flex flex-col min-h-0 flex-1" : ""} ${className}`}
+    >
       <div
         ref={listRef}
-        className={`overflow-y-auto p-4 ${scrollContainerClassName} ${fillHeight ? 'flex-1 min-h-0' : ''} ${
-          displayScrollbar ? '[&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-thumb]:rounded-[4px]' : 'scrollbar-hide'
+        className={`overflow-y-auto p-4 ${scrollContainerClassName} ${fillHeight ? "flex-1 min-h-0" : ""} ${
+          displayScrollbar
+            ? "[&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-thumb]:rounded-[4px]"
+            : "scrollbar-hide"
         }`}
         style={scrollStyle}
         onScroll={handleScroll}
@@ -135,16 +148,22 @@ const AnimatedList = ({
             onMouseEnter={() => handleItemMouseEnter(index)}
             onClick={() => handleItemClick(item, index)}
           >
-            {renderItem
-              ? renderItem(item, index, interactive && selectedIndex === index)
-              : (
-                <div className={`p-4 rounded-lg ${itemClassName}`} style={{
-                  background: selectedIndex === index ? 'var(--echo-surface-hover, #222)' : 'var(--echo-surface, #111)',
-                  color: 'var(--echo-text, #fff)'
-                }}>
-                  <p className="m-0">{typeof item === 'string' ? item : JSON.stringify(item)}</p>
-                </div>
-              )}
+            {renderItem ? (
+              renderItem(item, index, interactive && selectedIndex === index)
+            ) : (
+              <div
+                className={`p-4 rounded-lg ${itemClassName}`}
+                style={{
+                  background:
+                    selectedIndex === index
+                      ? "var(--echo-surface-hover, #222)"
+                      : "var(--echo-surface, #111)",
+                  color: "var(--echo-text, #fff)",
+                }}
+              >
+                <p className="m-0">{typeof item === "string" ? item : JSON.stringify(item)}</p>
+              </div>
+            )}
           </AnimatedItem>
         ))}
       </div>
@@ -154,14 +173,14 @@ const AnimatedList = ({
             className="absolute top-0 left-0 right-0 h-[50px] pointer-events-none transition-opacity duration-300 ease"
             style={{
               opacity: topGradientOpacity,
-              background: `linear-gradient(to bottom, var(--echo-bg) 0%, transparent 100%)`
+              background: `linear-gradient(to bottom, var(--echo-bg) 0%, transparent 100%)`,
             }}
           />
           <div
             className="absolute bottom-0 left-0 right-0 h-[100px] pointer-events-none transition-opacity duration-300 ease"
             style={{
               opacity: bottomGradientOpacity,
-              background: `linear-gradient(to top, var(--echo-bg) 0%, transparent 100%)`
+              background: `linear-gradient(to top, var(--echo-bg) 0%, transparent 100%)`,
             }}
           />
         </>

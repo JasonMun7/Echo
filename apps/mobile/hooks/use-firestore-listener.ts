@@ -35,9 +35,7 @@ export function useFirestoreQuery<T = DocumentData>(
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const items = snap.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as T,
-        );
+        const items = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as T);
         setData(items);
         setLoading(false);
         setError(null);
@@ -61,13 +59,7 @@ export function useFirestoreQuery<T = DocumentData>(
  */
 export function useOwnedWorkflows(uid: string | null) {
   return useFirestoreQuery(
-    uid
-      ? () =>
-          query(
-            collection(db, "workflows"),
-            where("owner_uid", "==", uid),
-          )
-      : null,
+    uid ? () => query(collection(db, "workflows"), where("owner_uid", "==", uid)) : null,
     [uid],
   );
 }
@@ -196,11 +188,7 @@ export function useAllWorkflowRuns(workflowIds: string[], maxPerWorkflow = 30) {
 export function useWorkflowSteps(workflowId: string | null) {
   return useFirestoreQuery(
     workflowId
-      ? () =>
-          query(
-            collection(db, "workflows", workflowId, "steps"),
-            orderBy("order", "asc"),
-          )
+      ? () => query(collection(db, "workflows", workflowId, "steps"), orderBy("order", "asc"))
       : null,
     [workflowId],
   );

@@ -3,10 +3,7 @@
  * Used by unified-operator and unit-tested in isolation (no Playwright/NutJS).
  */
 
-export const DESKTOP_ONLY_ACTIONS = new Set([
-  "openapp",
-  "focusapp",
-]);
+export const DESKTOP_ONLY_ACTIONS = new Set(["openapp", "focusapp"]);
 
 export const BROWSER_ONLY_ACTIONS = new Set([
   "navigate",
@@ -35,10 +32,7 @@ export function resolveExecuteRoute(
 }
 
 /** Stable reason token for debug logs (hypothesis H1). */
-export function explainExecuteRoute(
-  actionRaw: string,
-  hasBrowserContext: boolean,
-): string {
+export function explainExecuteRoute(actionRaw: string, hasBrowserContext: boolean): string {
   const act = normalizeOperatorAction(actionRaw);
   if (DESKTOP_ONLY_ACTIONS.has(act)) return "desktop_only";
   if (BROWSER_ONLY_ACTIONS.has(act)) return "browser_only";

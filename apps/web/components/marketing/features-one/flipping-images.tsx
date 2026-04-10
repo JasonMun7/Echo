@@ -48,9 +48,7 @@ export function FlippingImagesWithBar() {
   ];
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [phase, setPhase] = useState<"appear" | "scanning" | "flipping">(
-    "appear",
-  );
+  const [phase, setPhase] = useState<"appear" | "scanning" | "flipping">("appear");
   const [barProgress, setBarProgress] = useState(0);
   const [sparkles, setSparkles] = useState<Sparkle[]>(() => generateSparkles());
   const sparklesRef = useRef<Sparkle[]>(sparkles);
@@ -210,8 +208,7 @@ export function FlippingImagesWithBar() {
                         top: `${20 + i * 15}%`,
                         width: 2,
                         height: 2,
-                        backgroundColor:
-                          SPARKLE_COLORS[i % SPARKLE_COLORS.length],
+                        backgroundColor: SPARKLE_COLORS[i % SPARKLE_COLORS.length],
                       }}
                       animate={{
                         opacity: [0.8, 0],

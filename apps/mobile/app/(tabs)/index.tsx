@@ -1,11 +1,4 @@
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-} from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback, useMemo } from "react";
 import { LinearGradient } from "expo-linear-gradient";
@@ -18,10 +11,7 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { useAuthStore } from "@/stores/auth-store";
-import {
-  useOwnedWorkflows,
-  useAllWorkflowRuns,
-} from "@/hooks/use-firestore-listener";
+import { useOwnedWorkflows, useAllWorkflowRuns } from "@/hooks/use-firestore-listener";
 import { GradientButton } from "@/components/ui/GradientButton";
 import { StatusBadge } from "@/components/echo/StatusBadge";
 import { colors, gradients } from "@echo/design-tokens";
@@ -92,10 +82,7 @@ function useRunActivity(allRuns: Run[], period: Period) {
 }
 
 /** Build a smooth SVG area path using cubic bezier control points (Catmull-Rom style). */
-function smoothArea(
-  values: number[],
-  max: number,
-): { linePath: string; areaPath: string } {
+function smoothArea(values: number[], max: number): { linePath: string; areaPath: string } {
   const n = values.length;
   if (n === 0) return { linePath: "", areaPath: "" };
 
@@ -144,11 +131,7 @@ const PERIOD_LABELS: Record<Period, string> = {
   "90d": "3 months",
 };
 
-function LineChart({
-  activity,
-}: {
-  activity: ReturnType<typeof useRunActivity>;
-}) {
+function LineChart({ activity }: { activity: ReturnType<typeof useRunActivity> }) {
   const total = smoothArea(activity.buckets, activity.max);
   const completed = smoothArea(activity.completedBuckets, activity.max);
   const xLabels = getXLabels(activity.days);
@@ -156,12 +139,7 @@ function LineChart({
   return (
     <View>
       {/* SVG chart */}
-      <Svg
-        width="100%"
-        height={140}
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        preserveAspectRatio="none"
-      >
+      <Svg width="100%" height={140} viewBox={`0 0 ${VB_W} ${VB_H}`} preserveAspectRatio="none">
         <Defs>
           <SvgLinearGradient id="totalFill" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0%" stopColor="#A577FF" stopOpacity="0.28" />
@@ -177,39 +155,20 @@ function LineChart({
         {Array.from({ length: GRID_LINES }).map((_, i) => {
           const y = (VB_H / GRID_LINES) * (i + 1);
           return (
-            <Path
-              key={i}
-              d={`M 0 ${y} L ${VB_W} ${y}`}
-              stroke="rgba(0,0,0,0.06)"
-              strokeWidth="1"
-            />
+            <Path key={i} d={`M 0 ${y} L ${VB_W} ${y}`} stroke="rgba(0,0,0,0.06)" strokeWidth="1" />
           );
         })}
 
         {/* Baseline */}
-        <Path
-          d={`M 0 ${VB_H} L ${VB_W} ${VB_H}`}
-          stroke="rgba(165,119,255,0.3)"
-          strokeWidth="1"
-        />
+        <Path d={`M 0 ${VB_H} L ${VB_W} ${VB_H}`} stroke="rgba(165,119,255,0.3)" strokeWidth="1" />
 
         {/* Total runs area (back) */}
         <Path d={total.areaPath} fill="url(#totalFill)" />
-        <Path
-          d={total.linePath}
-          fill="none"
-          stroke="#A577FF"
-          strokeWidth="1.5"
-        />
+        <Path d={total.linePath} fill="none" stroke="#A577FF" strokeWidth="1.5" />
 
         {/* Completed runs area (front) */}
         <Path d={completed.areaPath} fill="url(#completedFill)" />
-        <Path
-          d={completed.linePath}
-          fill="none"
-          stroke="#21c4dd"
-          strokeWidth="1.5"
-        />
+        <Path d={completed.linePath} fill="none" stroke="#21c4dd" strokeWidth="1.5" />
       </Svg>
 
       {/* X-axis labels — evenly spaced across the full width */}
@@ -249,15 +208,9 @@ function StatCard({ icon, value, label, alert }: StatCardProps) {
   return (
     <View style={[styles.statCard, alert && styles.statCardAlert]}>
       <View style={[styles.statIconWrap, alert && styles.statIconWrapAlert]}>
-        <Ionicons
-          name={icon}
-          size={18}
-          color={alert ? "#d97706" : colors.lavender}
-        />
+        <Ionicons name={icon} size={18} color={alert ? "#d97706" : colors.lavender} />
       </View>
-      <Text style={[styles.statNumber, alert && styles.statNumberAlert]}>
-        {value}
-      </Text>
+      <Text style={[styles.statNumber, alert && styles.statNumberAlert]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -285,36 +238,23 @@ export default function HomeScreen() {
 
   // Collect workflow IDs so the batch runs hook can subscribe to each subcollection
   // directly — this avoids collectionGroup index/permission requirements
-  const workflowIds = useMemo(
-    () => allWorkflows.map((w) => w.id),
-    [allWorkflows],
-  );
+  const workflowIds = useMemo(() => allWorkflows.map((w) => w.id), [allWorkflows]);
   const { data: allRunsRaw } = useAllWorkflowRuns(workflowIds, 30);
 
   // Sort runs client-side by createdAt
   const allRuns = useMemo(
-    () =>
-      [...(allRunsRaw as Run[])].sort(
-        (a, b) => getTime(b.createdAt) - getTime(a.createdAt),
-      ),
+    () => [...(allRunsRaw as Run[])].sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt)),
     [allRunsRaw],
   );
 
   // Derive active runs from the already-loaded runs data (avoids a second collectionGroup query)
   const activeRuns = useMemo(
-    () =>
-      allRuns.filter((r) =>
-        ["running", "pending", "awaiting_user"].includes(r.status),
-      ),
+    () => allRuns.filter((r) => ["running", "pending", "awaiting_user"].includes(r.status)),
     [allRuns],
   );
 
   const recentWorkflows = [...allWorkflows]
-    .sort(
-      (a, b) =>
-        getTime(b.createdAt ?? b.updatedAt) -
-        getTime(a.createdAt ?? a.updatedAt),
-    )
+    .sort((a, b) => getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt))
     .slice(0, 5);
 
   const activity = useRunActivity(allRuns, period);
@@ -324,12 +264,9 @@ export default function HomeScreen() {
     (w) => w.status === "active" || w.status === "ready",
   ).length;
   const totalRuns = allRuns.length;
-  const awaitingInput = activeRuns.filter(
-    (r) => r.status === "awaiting_user",
-  ).length;
+  const awaitingInput = activeRuns.filter((r) => r.status === "awaiting_user").length;
 
-  const displayName =
-    user?.displayName || user?.email?.split("@")[0] || "there";
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "there";
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -349,9 +286,7 @@ export default function HomeScreen() {
           paddingBottom: insets.bottom + 112,
         },
       ]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Hero */}
       <LinearGradient colors={["#EEF0FF", "#F8F9FE"]} style={styles.hero}>
@@ -362,23 +297,11 @@ export default function HomeScreen() {
       {/* Stats 2×2 grid */}
       <View style={styles.statsGrid}>
         <View style={styles.statsRow}>
-          <StatCard
-            icon="layers-outline"
-            value={totalWorkflows}
-            label="Workflows"
-          />
-          <StatCard
-            icon="pulse-outline"
-            value={activeWorkflows}
-            label="Active"
-          />
+          <StatCard icon="layers-outline" value={totalWorkflows} label="Workflows" />
+          <StatCard icon="pulse-outline" value={activeWorkflows} label="Active" />
         </View>
         <View style={styles.statsRow}>
-          <StatCard
-            icon="play-circle-outline"
-            value={totalRuns}
-            label="Total Runs"
-          />
+          <StatCard icon="play-circle-outline" value={totalRuns} label="Total Runs" />
           <StatCard
             icon="time-outline"
             value={awaitingInput}
@@ -401,18 +324,10 @@ export default function HomeScreen() {
             {(["90d", "30d", "7d"] as Period[]).map((p) => (
               <Pressable
                 key={p}
-                style={[
-                  styles.periodBtn,
-                  period === p && styles.periodBtnActive,
-                ]}
+                style={[styles.periodBtn, period === p && styles.periodBtnActive]}
                 onPress={() => setPeriod(p)}
               >
-                <Text
-                  style={[
-                    styles.periodText,
-                    period === p && styles.periodTextActive,
-                  ]}
-                >
+                <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
                   {PERIOD_LABELS[p]}
                 </Text>
               </Pressable>
@@ -422,11 +337,7 @@ export default function HomeScreen() {
         <View style={styles.chartCard}>
           {activity.buckets.every((b) => b === 0) ? (
             <View style={styles.chartEmpty}>
-              <Ionicons
-                name="bar-chart-outline"
-                size={28}
-                color={colors.textLight}
-              />
+              <Ionicons name="bar-chart-outline" size={28} color={colors.textLight} />
               <Text style={styles.chartEmptyText}>No runs in this period</Text>
             </View>
           ) : chartMode === "line" ? (
@@ -435,8 +346,7 @@ export default function HomeScreen() {
             <View style={styles.chart}>
               {activity.buckets.map((count, i) => {
                 const height = (count / activity.max) * 72;
-                const completedH =
-                  (activity.completedBuckets[i] / activity.max) * 72;
+                const completedH = (activity.completedBuckets[i] / activity.max) * 72;
                 return (
                   <View key={i} style={[styles.barWrapper, { flex: 1 }]}>
                     <View style={styles.barColumn}>
@@ -453,10 +363,7 @@ export default function HomeScreen() {
                         style={[
                           styles.barOverlay,
                           {
-                            height: Math.max(
-                              completedH,
-                              activity.completedBuckets[i] > 0 ? 3 : 0,
-                            ),
+                            height: Math.max(completedH, activity.completedBuckets[i] > 0 ? 3 : 0),
                             backgroundColor: colors.lavender,
                           },
                         ]}
@@ -478,11 +385,7 @@ export default function HomeScreen() {
             <Pressable
               key={run.id}
               style={styles.activeRunItem}
-              onPress={() =>
-                router.push(
-                  `/(tabs)/workflows/${run.workflow_id}/runs/${run.id}`,
-                )
-              }
+              onPress={() => router.push(`/(tabs)/workflows/${run.workflow_id}/runs/${run.id}`)}
             >
               <View style={styles.activeRunIconWrap}>
                 <Ionicons name="play-outline" size={14} color="#21c4dd" />
@@ -491,15 +394,9 @@ export default function HomeScreen() {
                 <Text style={styles.activeRunText} numberOfLines={1}>
                   {run.id.slice(0, 10)}...
                 </Text>
-                <Text style={styles.activeRunTime}>
-                  {formatRelative(getTime(run.createdAt))}
-                </Text>
+                <Text style={styles.activeRunTime}>{formatRelative(getTime(run.createdAt))}</Text>
               </View>
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={colors.textLight}
-              />
+              <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
             </Pressable>
           ))}
         </View>
@@ -512,11 +409,7 @@ export default function HomeScreen() {
         </View>
         {allRuns.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons
-              name="play-circle-outline"
-              size={32}
-              color={colors.textLight}
-            />
+            <Ionicons name="play-circle-outline" size={32} color={colors.textLight} />
             <Text style={styles.emptyText}>No runs yet.</Text>
           </View>
         ) : (
@@ -528,11 +421,7 @@ export default function HomeScreen() {
               <Pressable
                 key={run.id}
                 style={styles.recentRunItem}
-                onPress={() =>
-                  router.push(
-                    `/(tabs)/workflows/${run.workflow_id}/runs/${run.id}`,
-                  )
-                }
+                onPress={() => router.push(`/(tabs)/workflows/${run.workflow_id}/runs/${run.id}`)}
               >
                 <StatusBadge status={run.status} />
                 <View style={{ flex: 1 }}>
@@ -544,11 +433,7 @@ export default function HomeScreen() {
                     {duration ? ` · ${duration}` : ""}
                   </Text>
                 </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={colors.textLight}
-                />
+                <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
               </Pressable>
             );
           })
@@ -565,9 +450,7 @@ export default function HomeScreen() {
         </View>
         {recentWorkflows.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
-              No workflows yet. Create your first one!
-            </Text>
+            <Text style={styles.emptyText}>No workflows yet. Create your first one!</Text>
           </View>
         ) : (
           recentWorkflows.map((wf) => (

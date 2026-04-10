@@ -7,8 +7,7 @@ import { autoUpdater, type UpdateInfo } from "electron-updater";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-const isWinPortable =
-  process.platform === "win32" && Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
+const isWinPortable = process.platform === "win32" && Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
 
 function resolveGithubTarget(): { owner: string; repo: string } | null {
   const envOwner = process.env.VITE_GITHUB_UPDATE_OWNER?.trim();

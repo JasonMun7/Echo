@@ -54,22 +54,12 @@ export function useConversations(uid: string | null) {
 /**
  * Live listener for messages in a specific conversation.
  */
-export function useConversationMessages(
-  uid: string | null,
-  conversationId: string | null,
-) {
+export function useConversationMessages(uid: string | null, conversationId: string | null) {
   return useFirestoreQuery<PersistedMessage>(
     uid && conversationId && db
       ? () =>
           query(
-            collection(
-              db,
-              "users",
-              uid,
-              "conversations",
-              conversationId,
-              "messages",
-            ),
+            collection(db, "users", uid, "conversations", conversationId, "messages"),
             orderBy("timestamp", "asc"),
           )
       : null,
@@ -80,10 +70,7 @@ export function useConversationMessages(
 /**
  * Create a new conversation and return its ID.
  */
-export async function createConversation(
-  uid: string,
-  title = "New Chat",
-): Promise<string> {
+export async function createConversation(uid: string, title = "New Chat"): Promise<string> {
   if (!db) throw new Error("Firestore not initialized");
   const ref = await addDoc(collection(db, "users", uid, "conversations"), {
     title,
@@ -103,15 +90,7 @@ export async function addMessageToFirestore(
   message: PersistedMessage,
 ): Promise<void> {
   if (!db) throw new Error("Firestore not initialized");
-  const msgRef = doc(
-    db,
-    "users",
-    uid,
-    "conversations",
-    conversationId,
-    "messages",
-    message.id,
-  );
+  const msgRef = doc(db, "users", uid, "conversations", conversationId, "messages", message.id);
   await setDoc(msgRef, {
     role: message.role,
     type: message.type,
@@ -152,10 +131,7 @@ export async function updateConversationMeta(
  * Note: Firestore doesn't recursively delete subcollections client-side,
  * but we delete the parent doc. Messages become orphaned but won't appear in queries.
  */
-export async function deleteConversation(
-  uid: string,
-  conversationId: string,
-): Promise<void> {
+export async function deleteConversation(uid: string, conversationId: string): Promise<void> {
   if (!db) return;
   await deleteDoc(doc(db, "users", uid, "conversations", conversationId));
 }
@@ -163,10 +139,7 @@ export async function deleteConversation(
 /**
  * Hook providing memoized persistence helpers bound to a specific user + conversation.
  */
-export function useChatPersistence(
-  uid: string | null,
-  conversationId: string | null,
-) {
+export function useChatPersistence(uid: string | null, conversationId: string | null) {
   const persistMessage = useCallback(
     async (message: PersistedMessage) => {
       if (!uid || !conversationId) return;

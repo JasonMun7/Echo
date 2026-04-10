@@ -16,14 +16,11 @@ import { useAgent } from "@livekit/components-react";
 const AGENT_NAME = "echoprism-agent";
 
 const API_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  "http://localhost:8000";
+  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "http://localhost:8000";
 const ECHO_AGENT_URL =
-  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
-    ?.VITE_ECHO_AGENT_URL ?? API_URL;
-const SANDBOX_ID = (
-  import.meta as { env?: { VITE_LIVEKIT_SANDBOX_ID?: string } }
-).env?.VITE_LIVEKIT_SANDBOX_ID;
+  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env?.VITE_ECHO_AGENT_URL ?? API_URL;
+const SANDBOX_ID = (import.meta as { env?: { VITE_LIVEKIT_SANDBOX_ID?: string } }).env
+  ?.VITE_LIVEKIT_SANDBOX_ID;
 
 interface EchoPrismLiveKitSessionProps {
   onClose: () => void;
@@ -42,11 +39,7 @@ const BARGE_IN_COOLDOWN_MS = 1500;
 /** Barge-in: when user speaks while agent is speaking, call interrupt RPC.
  * Debounce + cooldown to avoid spurious/interrupted interrupts that can leave
  * the agent stuck (voice not resuming after interrupt). */
-function BargeInEffect({
-  session,
-}: {
-  session: ReturnType<typeof useSession>;
-}) {
+function BargeInEffect({ session }: { session: ReturnType<typeof useSession> }) {
   const agent = useAgent();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cooldownUntilRef = useRef<number>(0);
@@ -73,9 +66,7 @@ function BargeInEffect({
 
         const agentParticipant =
           Array.from(room.remoteParticipants.values()).find(
-            (p) =>
-              (p as { isAgent?: boolean }).isAgent ??
-              p.identity?.includes("agent"),
+            (p) => (p as { isAgent?: boolean }).isAgent ?? p.identity?.includes("agent"),
           ) ?? Array.from(room.remoteParticipants.values())[0];
         if (!agentParticipant) return;
         void room.localParticipant
@@ -115,24 +106,21 @@ export function EchoPrismLiveKitSession({
     return TokenSource.custom(async (options) => {
       const t = await getToken();
       // Token is issued by EchoPrism Agent (Cloud Run): POST /api/livekit/token with Bearer Firebase ID token
-      const res = await fetch(
-        `${ECHO_AGENT_URL.replace(/\/$/, "")}/api/livekit/token`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(t ? { Authorization: `Bearer ${t}` } : {}),
-          },
-          body: JSON.stringify({
-            room_name: options.roomName,
-            participant_identity: options.participantIdentity,
-            participant_name: options.participantName,
-            room_config: options.agentName
-              ? { agents: [{ agent_name: options.agentName }] }
-              : undefined,
-          }),
+      const res = await fetch(`${ECHO_AGENT_URL.replace(/\/$/, "")}/api/livekit/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(t ? { Authorization: `Bearer ${t}` } : {}),
         },
-      );
+        body: JSON.stringify({
+          room_name: options.roomName,
+          participant_identity: options.participantIdentity,
+          participant_name: options.participantName,
+          room_config: options.agentName
+            ? { agents: [{ agent_name: options.agentName }] }
+            : undefined,
+        }),
+      });
       if (!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
       const data = (await res.json()) as {
         server_url: string;
@@ -153,12 +141,10 @@ export function EchoPrismLiveKitSession({
 
   // Start session on mount; end on unmount
   useEffect(() => {
-    void session
-      .start()
-      .catch((err) => {
-        console.error("[EchoPrism] Failed to start session:", err);
-        onCloseRef.current();
-      });
+    void session.start().catch((err) => {
+      console.error("[EchoPrism] Failed to start session:", err);
+      onCloseRef.current();
+    });
     return () => void session.end();
   }, []);
 
@@ -176,12 +162,7 @@ export function EchoPrismLiveKitSession({
     if (!onRunStarted) return;
     const room = session.room;
     if (!room) return;
-    const handler = (
-      payload: Uint8Array,
-      _p: unknown,
-      _k: unknown,
-      topic?: string,
-    ) => {
+    const handler = (payload: Uint8Array, _p: unknown, _k: unknown, topic?: string) => {
       if (topic !== "echoprism") return;
       try {
         const str = new TextDecoder().decode(payload);

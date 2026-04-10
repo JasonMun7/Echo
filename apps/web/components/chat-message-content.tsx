@@ -31,11 +31,7 @@ const components = {
       {children}
     </strong>
   ),
-  code: ({
-    className,
-    children,
-    ...props
-  }: React.ComponentProps<"code">) => {
+  code: ({ className, children, ...props }: React.ComponentProps<"code">) => {
     const isBlock = className?.includes("language-");
     if (isBlock) {
       return (
