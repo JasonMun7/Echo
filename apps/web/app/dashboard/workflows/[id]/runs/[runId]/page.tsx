@@ -87,7 +87,9 @@ function RunStepScreenshot({
   useEffect(() => {
     let controller: AbortController | null = null;
     if (token && workflowId && runId) {
-      setError(false);
+      queueMicrotask(() => {
+        setError(false);
+      });
       controller = new AbortController();
       const { signal } = controller;
       const path = `/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
@@ -112,9 +114,13 @@ function RunStepScreenshot({
           setError(true);
         });
     } else if (fallbackUrl) {
-      setSrc(fallbackUrl);
+      queueMicrotask(() => {
+        setSrc(fallbackUrl);
+      });
     } else {
-      setSrc(null);
+      queueMicrotask(() => {
+        setSrc(null);
+      });
     }
     return () => {
       controller?.abort();
@@ -129,6 +135,8 @@ function RunStepScreenshot({
   const imgSrc = src || (error ? fallbackUrl : null);
   if (!imgSrc) return null;
   return (
+    // Blob URLs / arbitrary screenshot URLs: next/image needs known hosts; keep native img.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={imgSrc}
       alt={alt}
@@ -301,12 +309,6 @@ export default function RunDetailPage() {
   const status = run?.status as string | undefined;
   const isActive = !status || status === "pending" || status === "running";
   const isAwaitingUser = status === "awaiting_user";
-
-  const runOwner =
-    !!run &&
-    !!auth?.currentUser?.uid &&
-    (run.owner_uid as string | undefined) === auth.currentUser.uid;
-  const isTerminalStatus = !!(status && TERMINAL_STATUSES.has(status));
 
   // ── Active run: show border haze + live thoughts + cancel ─────────────────
   if (isActive) {

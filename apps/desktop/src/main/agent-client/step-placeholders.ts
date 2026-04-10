@@ -32,7 +32,7 @@ export function interpolateStep(
     }
   }
   o.params = p;
-  return o as Step;
+  return o as unknown as Step;
 }
 
 export function interpolateSteps(

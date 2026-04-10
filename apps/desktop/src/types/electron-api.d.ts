@@ -60,6 +60,14 @@ declare global {
       cancelRun: () => Promise<void>;
       sendInterrupt: (text: string) => Promise<void>;
       openVoiceInterruption: () => Promise<{ ok: boolean; error?: string }>;
+      closeVoiceInterruption: () => Promise<unknown>;
+      resumeRunFromVoice: () => Promise<unknown>;
+      onVoiceInterruptionContext: (callback: (ctx: {
+        workflowId: string;
+        runId: string;
+        recentThoughts: Array<{ thought: string; action: string; step: number }>;
+      }) => void) => void;
+      removeVoiceInterruptionContextListener: () => void;
       onRunProgress: (
         cb: (entry: { thought: string; action: string; step: number }) => void,
       ) => void;

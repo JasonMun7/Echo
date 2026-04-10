@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/unsupported-syntax -- WebGL Material/Program classes close over gl inside the effect */
 import { useEffect, useRef } from 'react';
 
 /** @param palette Optional array of [r,g,b] in 0-255; splat colors will use these (primary/secondary) instead of random HSV */

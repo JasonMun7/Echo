@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { motion, useInView } from "motion/react";
 import { cn } from "@/lib/utils";
 
@@ -104,9 +105,11 @@ export function FolderWithFiles({ className }: { className?: string }) {
                     }}
                     style={{ zIndex: 10 + index }}
                   >
-                    <img
+                    <Image
                       src={image}
                       alt={`File ${index + 1}`}
+                      width={56}
+                      height={40}
                       className="h-full w-full object-cover"
                     />
                   </motion.div>

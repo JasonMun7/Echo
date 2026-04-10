@@ -75,14 +75,20 @@ export const StatefulButton = ({
   };
 
   const {
-    onClick,
-    onDrag,
-    onDragStart,
-    onDragEnd,
-    onAnimationStart,
-    onAnimationEnd,
+    onClick: _stripOnClick,
+    onDrag: _stripOnDrag,
+    onDragStart: _stripOnDragStart,
+    onDragEnd: _stripOnDragEnd,
+    onAnimationStart: _stripAnimStart,
+    onAnimationEnd: _stripAnimEnd,
     ...buttonProps
   } = props;
+  void _stripOnClick;
+  void _stripOnDrag;
+  void _stripOnDragStart;
+  void _stripOnDragEnd;
+  void _stripAnimStart;
+  void _stripAnimEnd;
 
   return (
     <motion.button

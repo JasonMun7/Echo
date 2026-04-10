@@ -8,7 +8,6 @@ import {
   useMemo,
 } from "react";
 import {
-  IconUpload,
   IconDownload,
   IconPlus,
   IconVideo,
@@ -149,10 +148,6 @@ interface DatasetImage {
   sequence_description?: string;
 }
 
-function round3(v: number) {
-  return Math.round(v * 1000) / 1000;
-}
-
 /** Clamp value to [min, max] for coordinate rigidity. */
 function clampCoord(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -248,7 +243,6 @@ export default function DatasetCreatorPage() {
   const [currentFrame, setCurrentFrame] = useState<Frame | null>(null);
   const [mode, setMode] = useState<"idle" | "streaming" | "annotating" | "drawing">("idle");
   const [drawing, setDrawing] = useState<"bbox" | "point" | null>(null);
-  const [start, setStart] = useState<{ x: number; y: number } | null>(null);
   const [previewBbox, setPreviewBbox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
@@ -299,7 +293,6 @@ export default function DatasetCreatorPage() {
   useEffect(() => {
     nextAnnotationIdRef.current = nextAnnotationId;
   }, [nextAnnotationId]);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const showFileStatus = (msg: string, type: "success" | "error") => {
@@ -327,6 +320,15 @@ export default function DatasetCreatorPage() {
     [currentFrame]
   );
 
+  const stopStream = useCallback(() => {
+    stream?.getTracks().forEach((t) => t.stop());
+    setStream(null);
+    setMode("idle");
+    setCurrentFrame(null);
+    setSelectedAnnotation(null);
+    setStatus("Stream stopped");
+  }, [stream]);
+
   const startStream = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getDisplayMedia({
@@ -340,16 +342,7 @@ export default function DatasetCreatorPage() {
     } catch (e) {
       setStatus(`Error: ${(e as Error).message}`);
     }
-  }, []);
-
-  const stopStream = useCallback(() => {
-    stream?.getTracks().forEach((t) => t.stop());
-    setStream(null);
-    setMode("idle");
-    setCurrentFrame(null);
-    setSelectedAnnotation(null);
-    setStatus("Stream stopped");
-  }, [stream]);
+  }, [stopStream]);
 
   const discardAll = useCallback(() => {
     if (!confirm("Discard all images and annotations and start over? This cannot be undone.")) return;
@@ -407,7 +400,6 @@ export default function DatasetCreatorPage() {
 
     let prevAnn: Annotation | undefined;
     if (sequenceHistory.length > 0) {
-      const last = sequenceHistory[sequenceHistory.length - 1];
       const lastFrameAnns = dataset.annotations.filter((a) => {
         const img = dataset.images.find((i) => i.id === currentSequence?.frames[currentSequence.frames.length - 1]);
         return img && a.image_id === img.id;
@@ -438,7 +430,6 @@ export default function DatasetCreatorPage() {
     if (!coords || !currentFrame) return;
     if (drawing === "bbox") {
       e.preventDefault();
-      setStart(coords);
       startRef.current = coords;
       setPreviewBbox(null);
       attachBboxListeners();
@@ -467,7 +458,6 @@ export default function DatasetCreatorPage() {
       if (!st || !currentFrame) return;
       const coords = getCoords(clientX, clientY);
       if (!coords) {
-        setStart(null);
         setPreviewBbox(null);
         return;
       }
@@ -495,7 +485,6 @@ export default function DatasetCreatorPage() {
         return { ...f, annotations: [...f.annotations, ann] };
       });
       setSelectedAnnotation(ann);
-      setStart(null);
       setPreviewBbox({ x: x1, y: y1, w, h });
       setDrawing(null);
       setMode("annotating");
@@ -981,7 +970,7 @@ export default function DatasetCreatorPage() {
     if (appMode === "review" && filteredSamples.length > 0 && currentSampleIndex >= 0) {
       loadSample(currentSampleIndex);
     }
-  }, [appMode, currentSampleIndex, filteredSamples.length]);
+  }, [appMode, currentSampleIndex, filteredSamples.length, loadSample]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1003,6 +992,8 @@ export default function DatasetCreatorPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+    // deleteAnnotation / refreshStream omitted: plain handlers would re-bind listeners every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAnnotation, stream, currentFrame, appMode, filteredSamples.length]);
 
   const scaleX = currentFrame && containerRef.current
@@ -1104,6 +1095,7 @@ export default function DatasetCreatorPage() {
           )}
           {currentFrame && (
             <div className="relative inline-block" onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- canvas data URL preview */}
               <img src={currentFrame.dataUrl} alt="frame" className="max-w-full h-auto block" style={{ cursor: drawing ? "crosshair" : "default" }} />
               {previewBbox && (
                 <div
@@ -1127,7 +1119,10 @@ export default function DatasetCreatorPage() {
                   return (
                     <div
                       key={annKey}
-                      onClick={(e) => { e.stopPropagation(); (drawing ? null : selectAnnotation(ann)); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!drawing) selectAnnotation(ann);
+                      }}
                       style={{
                         position: "absolute",
                         left: ann.keypoints[0] * scaleX - 12,
@@ -1154,7 +1149,10 @@ export default function DatasetCreatorPage() {
                   return (
                     <div
                       key={annKey}
-                      onClick={(e) => { e.stopPropagation(); (drawing ? null : selectAnnotation(ann)); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!drawing) selectAnnotation(ann);
+                      }}
                       style={{
                         position: "absolute",
                         left: ann.bbox[0] * scaleX,

@@ -75,12 +75,13 @@ export const SidebarWithProvider = ({
 export const Sidebar = ({
   children,
   className,
-  collapsible: _collapsible,
+  collapsible,
   ...props
 }: Omit<React.ComponentProps<typeof motion.div>, "children"> & {
   children?: React.ReactNode;
   collapsible?: "offcanvas" | "icon" | "none";
 }) => {
+  void collapsible;
   return (
     <>
       <DesktopSidebar className={className}>
@@ -184,9 +185,23 @@ export const SidebarMenuButton = ({
     </button>
   );
 };
-export const SidebarMenuAction = ({ className, showOnHover, ...props }: React.ComponentProps<"button"> & { showOnHover?: boolean }) => (
-  <button type="button" className={cn("flex size-7 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors", className)} {...props} />
-);
+export const SidebarMenuAction = ({
+  className,
+  showOnHover,
+  ...props
+}: React.ComponentProps<"button"> & { showOnHover?: boolean }) => {
+  void showOnHover;
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex size-7 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors",
+        className,
+      )}
+      {...props}
+    />
+  );
+};
 
 const SIDEBAR_WIDTH = 300;
 

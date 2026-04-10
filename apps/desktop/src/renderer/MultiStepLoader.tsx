@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { IconTrash } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "motion/react";
 import echoLogo from "./assets/echo_logo.png";
@@ -6,7 +6,13 @@ import GradientText from "./reactbits/GradientText";
 
 export type LoadingState = { text: string };
 
-const CheckIcon = ({ className }: { className?: string }) => (
+const CheckIcon = ({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
@@ -14,19 +20,25 @@ const CheckIcon = ({ className }: { className?: string }) => (
     strokeWidth={1.5}
     stroke="currentColor"
     className={className}
-    style={{ width: 24, height: 24 }}
+    style={{ width: 24, height: 24, ...style }}
   >
     <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
   </svg>
 );
 
-const CheckFilled = ({ className }: { className?: string }) => (
+const CheckFilled = ({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="currentColor"
     className={className}
-    style={{ width: 24, height: 24 }}
+    style={{ width: 24, height: 24, ...style }}
   >
     <path
       fillRule="evenodd"

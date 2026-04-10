@@ -18,7 +18,12 @@ async def test_api_call_gate_approval_then_oauth_then_succeeds(
     calls: list[int] = []
 
     async def execute_twice(
-        step: dict[str, Any], uid: str, db: Any
+        step: dict[str, Any],
+        uid: str,
+        db: Any,
+        *,
+        workflow_id: str | None = None,
+        run_id: str | None = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         calls.append(1)
         if len(calls) == 1:
@@ -67,7 +72,12 @@ async def test_api_call_gate_rejects_on_approval_false(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def never_called(
-        step: dict[str, Any], uid: str, db: Any
+        step: dict[str, Any],
+        uid: str,
+        db: Any,
+        *,
+        workflow_id: str | None = None,
+        run_id: str | None = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         raise AssertionError("execute_api_call should not run after reject")
 

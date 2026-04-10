@@ -77,7 +77,9 @@ export function NotificationsDrawer({ open, onOpenChange }: NotificationsDrawerP
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setLoading(true);
+    queueMicrotask(() => {
+      if (!cancelled) setLoading(true);
+    });
     apiFetch("/api/notifications")
       .then((res) => (res.ok ? res.json() : { notifications: [] }))
       .then((data) => {
