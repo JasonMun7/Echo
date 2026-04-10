@@ -85,9 +85,13 @@ function RunStepScreenshot({
   const step = stepIndex ?? 0;
 
   useEffect(() => {
+    let cancelled = false;
     let controller: AbortController | null = null;
     if (token && workflowId && runId) {
-      setError(false);
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setError(false);
+      });
       controller = new AbortController();
       const { signal } = controller;
       const path = `/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
@@ -96,27 +100,34 @@ function RunStepScreenshot({
         signal,
       })
         .then((res) => {
-          if (signal.aborted) return null;
+          if (cancelled || signal.aborted) return null;
           if (!res.ok) throw new Error("Screenshot not found");
           return res.blob();
         })
         .then((blob) => {
-          if (!blob || signal.aborted) return;
+          if (cancelled || !blob || signal.aborted) return;
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = URL.createObjectURL(blob);
           setSrc(blobUrlRef.current);
         })
         .catch((err: unknown) => {
-          if (signal.aborted) return;
+          if (cancelled || signal.aborted) return;
           if (err instanceof Error && err.name === "AbortError") return;
           setError(true);
         });
     } else if (fallbackUrl) {
-      setSrc(fallbackUrl);
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setSrc(fallbackUrl);
+      });
     } else {
-      setSrc(null);
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setSrc(null);
+      });
     }
     return () => {
+      cancelled = true;
       controller?.abort();
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
@@ -129,6 +140,8 @@ function RunStepScreenshot({
   const imgSrc = src || (error ? fallbackUrl : null);
   if (!imgSrc) return null;
   return (
+    // Blob URLs / arbitrary screenshot URLs: next/image needs known hosts; keep native img.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={imgSrc}
       alt={alt}
@@ -301,12 +314,6 @@ export default function RunDetailPage() {
   const status = run?.status as string | undefined;
   const isActive = !status || status === "pending" || status === "running";
   const isAwaitingUser = status === "awaiting_user";
-
-  const runOwner =
-    !!run &&
-    !!auth?.currentUser?.uid &&
-    (run.owner_uid as string | undefined) === auth.currentUser.uid;
-  const isTerminalStatus = !!(status && TERMINAL_STATUSES.has(status));
 
   // ── Active run: show border haze + live thoughts + cancel ─────────────────
   if (isActive) {

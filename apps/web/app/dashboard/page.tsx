@@ -8,7 +8,6 @@ import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  IconCircleCheck,
   IconJumpRope,
   IconPlus,
   IconArrowRight,
@@ -124,7 +123,7 @@ export default function DashboardPage() {
         }
       })
       .catch(() => {});
-  }, [user?.uid]);
+  }, [user]);
 
   useEffect(() => {
     if (!db || !user) {

@@ -1,5 +1,6 @@
 "use client";
 import React, { memo, useRef } from "react";
+import Image from "next/image";
 import { motion, useScroll, useTransform } from "motion/react";
 import { IconRocket } from "@tabler/icons-react";
 
@@ -11,11 +12,11 @@ const features = [
       "With our state of the art AI, you can generate ultra realistic images in no time at all.",
     content: (
       <div>
-        <img
+        <Image
           src="https://assets.aceternity.com/pro/car-1.jpg"
           alt="car"
-          height="500"
-          width="500"
+          height={500}
+          width={500}
           className="rounded-lg"
         />
       </div>
@@ -27,11 +28,11 @@ const features = [
     description:
       "Generate the painting of renowned artists, like Van Gogh or Monet or Majnu bhai.",
     content: (
-      <img
+      <Image
         src="https://assets.aceternity.com/pro/art.jpeg"
         alt="car"
-        height="500"
-        width="500"
+        height={500}
+        width={500}
         className="rounded-lg"
       />
     ),
@@ -44,20 +45,20 @@ const features = [
     content: (
       <div className="relative">
         <div className="-rotate-[10deg]">
-          <img
+          <Image
             src="https://assets.aceternity.com/pro/car-1.jpg"
             alt="car"
-            height="500"
-            width="500"
+            height={500}
+            width={500}
             className="rounded-lg"
           />
         </div>
         <div className="absolute inset-0 rotate-[10deg] transform">
-          <img
+          <Image
             src="https://assets.aceternity.com/pro/car-2.jpg"
             alt="car"
-            height="500"
-            width="500"
+            height={500}
+            width={500}
             className="rounded-lg"
           />
         </div>

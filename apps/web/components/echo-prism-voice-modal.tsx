@@ -550,11 +550,29 @@ export function EchoPrismVoiceModal({
           </button>
           {showHelp && (
             <ul className="mt-3 space-y-1.5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
-              <li>"Run my <span className="text-white/70 italic">[workflow name]</span>"</li>
-              <li>"Create a workflow for <span className="text-white/70 italic">[description]</span>"</li>
-              <li>"Cancel the current run"</li>
-              <li>"Redirect: <span className="text-white/70 italic">[new instruction]</span>"</li>
-              <li>"What workflows do I have?"</li>
+              <li>
+                <span className="text-white/40">&ldquo;</span>Run my{" "}
+                <span className="text-white/70 italic">[workflow name]</span>
+                <span className="text-white/40">&rdquo;</span>
+              </li>
+              <li>
+                <span className="text-white/40">&ldquo;</span>Create a workflow for{" "}
+                <span className="text-white/70 italic">[description]</span>
+                <span className="text-white/40">&rdquo;</span>
+              </li>
+              <li>
+                <span className="text-white/40">&ldquo;</span>Cancel the current run
+                <span className="text-white/40">&rdquo;</span>
+              </li>
+              <li>
+                <span className="text-white/40">&ldquo;</span>Redirect:{" "}
+                <span className="text-white/70 italic">[new instruction]</span>
+                <span className="text-white/40">&rdquo;</span>
+              </li>
+              <li>
+                <span className="text-white/40">&ldquo;</span>What workflows do I have?
+                <span className="text-white/40">&rdquo;</span>
+              </li>
             </ul>
           )}
         </div>

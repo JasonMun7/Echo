@@ -22,19 +22,22 @@ export function WorkflowThumbnail({
 
   useEffect(() => {
     let cancelled = false;
-    setFailed(false);
-    setSrc(null);
-    apiFetch(`/api/workflows/${workflowId}/thumbnail/image`)
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("thumbnail"))))
-      .then((blob) => {
-        if (cancelled) return;
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = URL.createObjectURL(blob);
-        setSrc(blobUrlRef.current);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setFailed(false);
+      setSrc(null);
+      apiFetch(`/api/workflows/${workflowId}/thumbnail/image`)
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("thumbnail"))))
+        .then((blob) => {
+          if (cancelled) return;
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = URL.createObjectURL(blob);
+          setSrc(blobUrlRef.current);
+        })
+        .catch(() => {
+          if (!cancelled) setFailed(true);
+        });
+    });
     return () => {
       cancelled = true;
       if (blobUrlRef.current) {

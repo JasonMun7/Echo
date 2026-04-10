@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { GridLineHorizontal, GridLineVertical } from "@/components/marketing/grid-lines";
 
@@ -167,9 +168,11 @@ function TestimonialCard() {
         had.&rdquo;
       </p>
       <div className="mt-3 flex items-center gap-2">
-        <img
+        <Image
           src="https://assets.aceternity.com/avatars/1.webp"
           alt="Sarah Chen"
+          width={20}
+          height={20}
           className="size-5 rounded-full object-cover"
         />
         <div className="flex flex-col">
@@ -189,7 +192,7 @@ function LoginLogo() {
   return (
     <a href="#" className="flex items-center gap-1.5">
       <div className="relative flex size-5 items-center justify-center rounded-md">
-        <img
+        <Image
           src="https://assets.aceternity.com/logo.png"
           height={20}
           width={20}

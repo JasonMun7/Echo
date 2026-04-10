@@ -30,7 +30,6 @@ import { apiFetch, agentFetch, AGENT_URL } from "@/lib/api";
 import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { ChatMessageContent } from "@/components/chat-message-content";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WS_URL = AGENT_URL.replace(/^http/, "ws");
 
 interface Message {
@@ -198,6 +197,7 @@ export default function ChatPage() {
   );
 
   const startScreenRecording = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- same arity as connectWebSocket(token); recording uses agentFetch + existing session
     async (t: string) => {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({

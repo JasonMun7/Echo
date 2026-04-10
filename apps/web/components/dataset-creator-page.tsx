@@ -5,10 +5,10 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
 } from "react";
 import {
-  IconUpload,
   IconDownload,
   IconPlus,
   IconVideo,
@@ -149,10 +149,6 @@ interface DatasetImage {
   sequence_description?: string;
 }
 
-function round3(v: number) {
-  return Math.round(v * 1000) / 1000;
-}
-
 /** Clamp value to [min, max] for coordinate rigidity. */
 function clampCoord(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -248,7 +244,6 @@ export default function DatasetCreatorPage() {
   const [currentFrame, setCurrentFrame] = useState<Frame | null>(null);
   const [mode, setMode] = useState<"idle" | "streaming" | "annotating" | "drawing">("idle");
   const [drawing, setDrawing] = useState<"bbox" | "point" | null>(null);
-  const [start, setStart] = useState<{ x: number; y: number } | null>(null);
   const [previewBbox, setPreviewBbox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
@@ -263,6 +258,7 @@ export default function DatasetCreatorPage() {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(-1);
   const [filteredSamples, setFilteredSamples] = useState<DatasetImage[]>([]);
   const loadedSampleCache = useRef<Map<number, string>>(new Map());
+  const loadSampleRequestIdRef = useRef(0);
 
   const [currentSequence, setCurrentSequence] = useState<{
     id: string;
@@ -279,6 +275,8 @@ export default function DatasetCreatorPage() {
     images: [],
     annotations: [],
   });
+  const datasetRef = useRef(dataset);
+  const currentFrameRef = useRef<Frame | null>(null);
   const [taskDescriptions, setTaskDescriptions] = useState<Set<string>>(new Set());
   const [sequenceTasks, setSequenceTasks] = useState<Set<string>>(new Set());
 
@@ -299,7 +297,14 @@ export default function DatasetCreatorPage() {
   useEffect(() => {
     nextAnnotationIdRef.current = nextAnnotationId;
   }, [nextAnnotationId]);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useLayoutEffect(() => {
+    datasetRef.current = dataset;
+  }, [dataset]);
+  useLayoutEffect(() => {
+    currentFrameRef.current = currentFrame;
+  }, [currentFrame]);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const showFileStatus = (msg: string, type: "success" | "error") => {
@@ -327,6 +332,15 @@ export default function DatasetCreatorPage() {
     [currentFrame]
   );
 
+  const stopStream = useCallback(() => {
+    stream?.getTracks().forEach((t) => t.stop());
+    setStream(null);
+    setMode("idle");
+    setCurrentFrame(null);
+    setSelectedAnnotation(null);
+    setStatus("Stream stopped");
+  }, [stream]);
+
   const startStream = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getDisplayMedia({
@@ -340,16 +354,7 @@ export default function DatasetCreatorPage() {
     } catch (e) {
       setStatus(`Error: ${(e as Error).message}`);
     }
-  }, []);
-
-  const stopStream = useCallback(() => {
-    stream?.getTracks().forEach((t) => t.stop());
-    setStream(null);
-    setMode("idle");
-    setCurrentFrame(null);
-    setSelectedAnnotation(null);
-    setStatus("Stream stopped");
-  }, [stream]);
+  }, [stopStream]);
 
   const discardAll = useCallback(() => {
     if (!confirm("Discard all images and annotations and start over? This cannot be undone.")) return;
@@ -407,7 +412,6 @@ export default function DatasetCreatorPage() {
 
     let prevAnn: Annotation | undefined;
     if (sequenceHistory.length > 0) {
-      const last = sequenceHistory[sequenceHistory.length - 1];
       const lastFrameAnns = dataset.annotations.filter((a) => {
         const img = dataset.images.find((i) => i.id === currentSequence?.frames[currentSequence.frames.length - 1]);
         return img && a.image_id === img.id;
@@ -438,7 +442,6 @@ export default function DatasetCreatorPage() {
     if (!coords || !currentFrame) return;
     if (drawing === "bbox") {
       e.preventDefault();
-      setStart(coords);
       startRef.current = coords;
       setPreviewBbox(null);
       attachBboxListeners();
@@ -467,7 +470,6 @@ export default function DatasetCreatorPage() {
       if (!st || !currentFrame) return;
       const coords = getCoords(clientX, clientY);
       if (!coords) {
-        setStart(null);
         setPreviewBbox(null);
         return;
       }
@@ -495,7 +497,6 @@ export default function DatasetCreatorPage() {
         return { ...f, annotations: [...f.annotations, ann] };
       });
       setSelectedAnnotation(ann);
-      setStart(null);
       setPreviewBbox({ x: x1, y: y1, w, h });
       setDrawing(null);
       setMode("annotating");
@@ -555,7 +556,7 @@ export default function DatasetCreatorPage() {
     setStatus(`Annotation ${updated.id} saved`);
   };
 
-  const deleteAnnotation = (ann: Annotation) => {
+  const deleteAnnotation = useCallback((ann: Annotation) => {
     if (!currentFrame) return;
     if (!confirm(`Delete annotation ${ann.id}?`)) return;
     const remaining = currentFrame.annotations.filter((a) => a.id !== ann.id);
@@ -565,10 +566,14 @@ export default function DatasetCreatorPage() {
     });
     if (selectedAnnotation?.id === ann.id) setSelectedAnnotation(null);
     if (remaining.length === 0) {
-      nextAnnotationIdRef.current = 1;
-      setNextAnnotationId(1);
+      const anns = datasetRef.current.annotations;
+      const maxId =
+        anns.length === 0 ? 0 : Math.max(...anns.map((a) => a.id));
+      const next = Math.max(maxId + 1, nextAnnotationIdRef.current);
+      nextAnnotationIdRef.current = next;
+      setNextAnnotationId(next);
     }
-  };
+  }, [currentFrame, selectedAnnotation]);
 
   const startSequence = useCallback(async () => {
     const task = prompt("Enter the overall description for this sequence:");
@@ -880,24 +885,25 @@ export default function DatasetCreatorPage() {
 
   const switchToCapture = () => {
     if (appMode === "review" && currentFrame) {
-      persistCurrentSampleToDataset();
+      persistFrameToDataset(currentFrame);
     }
     setAppMode("capture");
     setCurrentSampleIndex(-1);
   };
 
-  const persistCurrentSampleToDataset = useCallback(() => {
-    if (!currentFrame) return;
-    const img = dataset.images.find((i) => i.id === currentFrame.id);
+  const persistFrameToDataset = useCallback((frame: Frame | null) => {
+    if (!frame) return;
+    const d = datasetRef.current;
+    const img = d.images.find((i) => i.id === frame.id);
     if (!img) return;
-    const clamped = currentFrame.annotations.map((ann) =>
-      clampAnnotation(ann, currentFrame.width, currentFrame.height)
+    const clamped = frame.annotations.map((ann) =>
+      clampAnnotation(ann, frame.width, frame.height)
     );
-    const cocoAnns = currentFrame.annotations.map((ann, i) => {
+    const cocoAnns = frame.annotations.map((ann, i) => {
       const c = clamped[i];
       return {
         id: ann.id,
-        image_id: currentFrame.id,
+        image_id: frame.id,
         category_id: CATEGORY_MAP[ann.action_type] ?? 1,
         bbox: c.bbox ?? ann.bbox,
         keypoints: c.keypoints ?? ann.keypoints,
@@ -911,47 +917,59 @@ export default function DatasetCreatorPage() {
         },
       };
     });
-    const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...dataset.annotations.map((a) => a.id));
-    nextAnnotationIdRef.current = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
-    setNextAnnotationId(nextAnnotationIdRef.current);
-    setDataset((d) => ({
-      ...d,
-      images: d.images.map((im) =>
-        im.id === currentFrame.id
+    const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
+    const computedNext = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
+    setDataset((prev) => ({
+      ...prev,
+      images: prev.images.map((im) =>
+        im.id === frame.id
           ? { ...im, application: application || im.application, platform: platform || im.platform }
           : im
       ),
-      annotations: [...d.annotations.filter((a) => a.image_id !== currentFrame.id), ...cocoAnns],
+      annotations: [...prev.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
     }));
-  }, [currentFrame, dataset, application, platform]);
+    nextAnnotationIdRef.current = computedNext;
+    setNextAnnotationId(computedNext);
+  }, [application, platform]);
 
   const loadSample = useCallback(
     async (index: number) => {
       if (index < 0 || index >= filteredSamples.length) return;
+      const requestId = ++loadSampleRequestIdRef.current;
       const sample = filteredSamples[index];
-      if (currentFrame && currentFrame.id !== sample.id) {
-        persistCurrentSampleToDataset();
+      const prevFrame = currentFrameRef.current;
+      if (prevFrame && prevFrame.id !== sample.id) {
+        persistFrameToDataset(prevFrame);
       }
+      if (requestId !== loadSampleRequestIdRef.current) return;
       setCurrentSampleIndex(index);
       let dataUrl = loadedSampleCache.current.get(sample.id);
       if (!dataUrl) {
         try {
           const res = await apiFetch(`/api/datasets/image?folder=data&file=${encodeURIComponent(sample.file_name)}`);
+          if (requestId !== loadSampleRequestIdRef.current) return;
           const data = await res.json();
+          if (requestId !== loadSampleRequestIdRef.current) return;
           const imgRes = await fetch(data.url);
+          if (requestId !== loadSampleRequestIdRef.current) return;
           const blob = await imgRes.blob();
+          if (requestId !== loadSampleRequestIdRef.current) return;
           dataUrl = await new Promise<string>((resolve) => {
             const r = new FileReader();
             r.onload = () => resolve(r.result as string);
             r.readAsDataURL(blob);
           });
           loadedSampleCache.current.set(sample.id, dataUrl);
+          if (requestId !== loadSampleRequestIdRef.current) return;
         } catch {
+          if (requestId !== loadSampleRequestIdRef.current) return;
           setStatus("Failed to load image");
           return;
         }
       }
-      const frameAnns = dataset.annotations.filter((a) => a.image_id === sample.id);
+      if (requestId !== loadSampleRequestIdRef.current) return;
+      const d = datasetRef.current;
+      const frameAnns = d.annotations.filter((a) => a.image_id === sample.id);
       const frame: Frame = {
         id: sample.id,
         dataUrl,
@@ -968,20 +986,21 @@ export default function DatasetCreatorPage() {
           custom_metadata: a.attributes.custom_metadata || {},
         })),
       };
+      if (requestId !== loadSampleRequestIdRef.current) return;
       setCurrentFrame(frame);
       setApplication(sample.application || "");
       setPlatform(sample.platform || "");
       setMode("annotating");
       setStatus(`Sample ${index + 1} of ${filteredSamples.length}`);
     },
-    [filteredSamples, dataset, currentFrame, persistCurrentSampleToDataset]
+    [filteredSamples, persistFrameToDataset]
   );
 
   useEffect(() => {
     if (appMode === "review" && filteredSamples.length > 0 && currentSampleIndex >= 0) {
       loadSample(currentSampleIndex);
     }
-  }, [appMode, currentSampleIndex, filteredSamples.length]);
+  }, [appMode, currentSampleIndex, filteredSamples.length, loadSample]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1003,7 +1022,15 @@ export default function DatasetCreatorPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedAnnotation, stream, currentFrame, appMode, filteredSamples.length]);
+  }, [
+    selectedAnnotation,
+    stream,
+    currentFrame,
+    appMode,
+    filteredSamples.length,
+    deleteAnnotation,
+    refreshStream,
+  ]);
 
   const scaleX = currentFrame && containerRef.current
     ? (containerRef.current.querySelector("img")?.getBoundingClientRect().width ?? 1) / currentFrame.width
@@ -1104,6 +1131,7 @@ export default function DatasetCreatorPage() {
           )}
           {currentFrame && (
             <div className="relative inline-block" onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- canvas data URL preview */}
               <img src={currentFrame.dataUrl} alt="frame" className="max-w-full h-auto block" style={{ cursor: drawing ? "crosshair" : "default" }} />
               {previewBbox && (
                 <div
@@ -1127,7 +1155,10 @@ export default function DatasetCreatorPage() {
                   return (
                     <div
                       key={annKey}
-                      onClick={(e) => { e.stopPropagation(); (drawing ? null : selectAnnotation(ann)); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!drawing) selectAnnotation(ann);
+                      }}
                       style={{
                         position: "absolute",
                         left: ann.keypoints[0] * scaleX - 12,
@@ -1154,7 +1185,10 @@ export default function DatasetCreatorPage() {
                   return (
                     <div
                       key={annKey}
-                      onClick={(e) => { e.stopPropagation(); (drawing ? null : selectAnnotation(ann)); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!drawing) selectAnnotation(ann);
+                      }}
                       style={{
                         position: "absolute",
                         left: ann.bbox[0] * scaleX,

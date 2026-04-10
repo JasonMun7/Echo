@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { IconUnlink } from "@tabler/icons-react";
+import { Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Auth0StatusBannerProps = {
@@ -66,7 +66,7 @@ export function Auth0StatusBanner({
         className="h-8 shrink-0 border-emerald-300/80 text-emerald-900"
         onClick={onUnlink}
       >
-        <IconUnlink className="mr-1 h-3.5 w-3.5" />
+        <Unlink className="mr-1 h-3.5 w-3.5" />
         Unlink Auth0
       </Button>
     </div>

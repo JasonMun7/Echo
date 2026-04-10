@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { collection, collectionGroup, query, where, onSnapshot } from "firebase/firestore";
@@ -104,7 +104,7 @@ export default function WorkflowsPage() {
     return unsub;
   }, []);
 
-  const loadInvites = async () => {
+  const loadInvites = useCallback(async () => {
     try {
       const res = await apiFetch("/api/workflows/invites");
       if (res.ok) {
@@ -114,13 +114,12 @@ export default function WorkflowsPage() {
     } catch {
       // ignore
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!authUid) return;
     loadInvites();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUid]);
+  }, [authUid, loadInvites]);
 
   useEffect(() => {
     if (!db || !authUid) return;
