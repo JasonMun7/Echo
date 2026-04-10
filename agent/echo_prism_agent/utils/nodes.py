@@ -304,12 +304,12 @@ def gui_run_prepare(state: GuiRunState) -> dict[str, Any]:
     }
 
 
-async def gui_run_execute(state: GuiRunState, config: RunnableConfig | None = None) -> dict[str, Any]:
+async def gui_run_execute(state: GuiRunState, config: RunnableConfig) -> dict[str, Any]:
     """
     Apply parsed action via optional `gui_execute_fn` in config.configurable.
     Transient failures: covered by RetryPolicy on this node in the graph builder.
     """
-    cfg = (config or {}).get("configurable") or {}
+    cfg = config.get("configurable") or {}
     execute_fn = cfg.get("gui_execute_fn")
     parsed = state.get("parsed") or {}
     action = (parsed.get("action") or "").lower()

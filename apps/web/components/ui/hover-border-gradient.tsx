@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -26,14 +26,17 @@ export function HoverBorderGradient({
   const [hovered, setHovered] = useState<boolean>(false);
   const [direction, setDirection] = useState<Direction>("TOP");
 
-  const rotateDirection = (currentDirection: Direction): Direction => {
-    const directions: Direction[] = ["TOP", "LEFT", "BOTTOM", "RIGHT"];
-    const currentIndex = directions.indexOf(currentDirection);
-    const nextIndex = clockwise
-      ? (currentIndex - 1 + directions.length) % directions.length
-      : (currentIndex + 1) % directions.length;
-    return directions[nextIndex];
-  };
+  const rotateDirection = useCallback(
+    (currentDirection: Direction): Direction => {
+      const directions: Direction[] = ["TOP", "LEFT", "BOTTOM", "RIGHT"];
+      const currentIndex = directions.indexOf(currentDirection);
+      const nextIndex = clockwise
+        ? (currentIndex - 1 + directions.length) % directions.length
+        : (currentIndex + 1) % directions.length;
+      return directions[nextIndex];
+    },
+    [clockwise],
+  );
 
   /* Echo design: Cyan (#21C4DD) and Lavender (#A577FF) gradients */
   const movingMap: Record<Direction, string> = {
@@ -51,15 +54,17 @@ export function HoverBorderGradient({
 
   useEffect(() => {
     if (!hovered) {
+      const ms = duration * 1000;
+      if (!(ms > 0) || !Number.isFinite(ms)) return;
       const interval = setInterval(() => {
         setDirection((prevState) => rotateDirection(prevState));
-      }, duration * 1000);
+      }, ms);
       return () => clearInterval(interval);
     }
-  }, [hovered]);
+  }, [hovered, duration, rotateDirection]);
   return (
     <Tag
-      onMouseEnter={(event: React.MouseEvent<HTMLDivElement>) => {
+      onMouseEnter={() => {
         setHovered(true);
       }}
       onMouseLeave={() => setHovered(false)}

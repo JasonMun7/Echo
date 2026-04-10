@@ -23,20 +23,21 @@ const Toaster = ({
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       position="bottom-right"
-      icons={{
-        success: <IconCircleCheck size={18} style={{ color: "var(--echo-success)" }} />,
-        error: <IconAlertCircle size={18} style={{ color: "var(--echo-error)" }} />,
-        warning: <IconAlertTriangle size={18} style={{ color: "#f59e0b" }} />,
-        info: <IconInfoCircle size={18} style={{ color: "var(--echo-cyan)" }} />,
-        loading: (
-          <IconRefresh
-            size={18}
-            className="animate-spin"
-            style={{ color: "var(--echo-lavender)" }}
-          />
-        ),
-        default: <IconInfoCircle size={18} style={{ color: "var(--echo-cyan)" }} />,
-      }}
+      icons={
+        {
+          success: <IconCircleCheck size={18} style={{ color: "var(--echo-success)" }} />,
+          error: <IconAlertCircle size={18} style={{ color: "var(--echo-error)" }} />,
+          warning: <IconAlertTriangle size={18} style={{ color: "#f59e0b" }} />,
+          info: <IconInfoCircle size={18} style={{ color: "var(--echo-cyan)" }} />,
+          loading: (
+            <IconRefresh
+              size={18}
+              className="animate-spin"
+              style={{ color: "var(--echo-lavender)" }}
+            />
+          ),
+        } satisfies ToasterProps["icons"]
+      }
       toastOptions={{
         style: {
           border: "1px solid var(--echo-border)",

@@ -166,7 +166,6 @@ export const LinesGradientShader: React.FC<LinesGradientShaderProps> = ({
     };
     const steps = 40;
     const halfBandCount = bandCount / 2;
-    const widthPlusMargin = 1000;
 
     const draw = (timestamp: number) => {
       if (stopped) return;

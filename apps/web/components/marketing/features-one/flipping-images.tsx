@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { cn } from "@/lib/utils";
 import { GridLineHorizontal, GridLineVertical } from "@/components/marketing/grid-lines";
 import Image from "next/image";
 

@@ -19,7 +19,7 @@ const complianceLogos = [
 export const Compliance = () => {
   return (
     <div className="flex items-center justify-center">
-      {complianceLogos.map((logo, index) => (
+      {complianceLogos.map((logo) => (
         <div
           key={logo.name}
           className="relative flex size-20 items-center justify-center overflow-hidden"

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatefulButton } from "@/components/ui/stateful-button";
 
 export function ContactFormGridWithDetails() {
-  const handleSubmit = async (_e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = async () => {
     // Placeholder: wire up to your backend
     await new Promise((r) => setTimeout(r, 800));
   };

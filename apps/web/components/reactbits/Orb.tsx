@@ -277,6 +277,8 @@ export default function Orb({
       if (container.contains(gl.canvas)) container.removeChild(gl.canvas);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
+    // vert/frag are static GLSL; effect teardown/recreate is driven by these props only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- vert/frag intentionally omitted (stable strings)
   }, [hue, hoverIntensity, rotateOnHover, forceHoverState, backgroundColor]);
 
   return <div ref={ctnDom} className={`orb-container ${className ?? ""}`} />;

@@ -61,7 +61,6 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     apiFetch("/api/notifications")
       .then((res) => (res.ok ? res.json() : { notifications: [] }))
       .then((data) => {

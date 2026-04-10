@@ -6,7 +6,6 @@ import { Heading } from "@/components/marketing/heading";
 import { SubHeading } from "@/components/marketing/subheading";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
