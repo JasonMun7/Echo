@@ -376,7 +376,12 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to send run_started websocket message (run_adhoc workflow_id=%s run_id=%s)",
+                    workflow_id,
+                    run_id,
+                    exc_info=True,
+                )
         logger.info(
             "run_adhoc created goal-only run: workflow_id=%s run_id=%s goal=%s",
             workflow_id,
@@ -418,7 +423,11 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to send synthesis_complete websocket message (workflow_id=%s)",
+                    wf_id,
+                    exc_info=True,
+                )
         return {"ok": True, "workflow_id": wf_id, "workflow_name": workflow_name}
 
     elif name == "redirect_run":
@@ -466,6 +475,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
 
     elif name == "call_integration":
         from echo_prism_agent.auth0_token_vault import normalize_integration_id
+        from echo_prism_agent.integrations.api_call_catalog import _INTEGRATION_IDS
 
         integration_raw = args.get("integration")
         if integration_raw is None:
@@ -475,6 +485,12 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         if not integration_raw.strip():
             return {"ok": False, "error": "integration is required."}
         integration = normalize_integration_id(integration_raw)
+
+        if integration not in _INTEGRATION_IDS:
+            return {
+                "ok": False,
+                "error": (f"Unsupported integration '{integration}'. Supported: {', '.join(_INTEGRATION_IDS)}."),
+            }
 
         method = args.get("method", "")
         raw_args = args.get("arguments")
