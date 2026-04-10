@@ -467,7 +467,15 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
     elif name == "call_integration":
         from echo_prism_agent.auth0_token_vault import normalize_integration_id
 
-        integration = normalize_integration_id(str(args.get("integration", "")))
+        integration_raw = args.get("integration")
+        if integration_raw is None:
+            return {"ok": False, "error": "integration is required."}
+        if not isinstance(integration_raw, str):
+            integration_raw = str(integration_raw)
+        if not integration_raw.strip():
+            return {"ok": False, "error": "integration is required."}
+        integration = normalize_integration_id(integration_raw)
+
         method = args.get("method", "")
         raw_args = args.get("arguments")
         if raw_args is None:
