@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Omit `version` so the action uses `packageManager` from package.json (avoids mismatch with pnpm@9.0.0).
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prettier
+        run: pnpm run format:check
+
+      - name: ESLint (web)
+        run: pnpm run lint
+
+      - name: Knip
+        run: pnpm run knip
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install Ruff
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff format
+        run: ruff format --check agent backend
+
+      - name: Ruff lint
+        run: ruff check agent backend
