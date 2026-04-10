@@ -7,7 +7,6 @@
  * Adapted from UI-TARS NutJSElectronOperator coordinate pipeline.
  */
 import {
-  BrowserWindow,
   clipboard,
   desktopCapturer,
   screen as electronScreen,
