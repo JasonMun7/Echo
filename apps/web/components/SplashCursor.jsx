@@ -1042,7 +1042,7 @@ function SplashCursor({
         updatePointerMoveData(pointer, posX, posY, pointer.color);
       }
     }
-    window.addEventListener('touchmove', onSplashTouchMove, false);
+    window.addEventListener('touchmove', onSplashTouchMove);
 
     function onSplashTouchEnd(e) {
       const touches = e.changedTouches;

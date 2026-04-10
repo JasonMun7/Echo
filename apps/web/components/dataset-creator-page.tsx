@@ -888,6 +888,8 @@ export default function DatasetCreatorPage() {
 
   const persistFrameToDataset = useCallback((frame: Frame | null) => {
     if (!frame) return;
+    const prevNextAnnotationId = nextAnnotationIdRef.current;
+    let computedNext = prevNextAnnotationId;
     setDataset((d) => {
       const img = d.images.find((i) => i.id === frame.id);
       if (!img) return d;
@@ -913,7 +915,7 @@ export default function DatasetCreatorPage() {
         };
       });
       const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
-      nextAnnotationIdRef.current = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
+      computedNext = Math.max(prevNextAnnotationId, maxAnnId + 1);
       return {
         ...d,
         images: d.images.map((im) =>
@@ -924,7 +926,8 @@ export default function DatasetCreatorPage() {
         annotations: [...d.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
       };
     });
-    setNextAnnotationId(nextAnnotationIdRef.current);
+    nextAnnotationIdRef.current = computedNext;
+    setNextAnnotationId(computedNext);
   }, [application, platform]);
 
   const loadSample = useCallback(
