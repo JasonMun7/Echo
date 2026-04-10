@@ -6,6 +6,7 @@ Returns actions for clients to execute locally (NutJS/Playwright).
 
 Auth: Firebase ID token (token query param).
 """
+
 import asyncio
 import base64
 import json
@@ -16,14 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import firebase_admin
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from firebase_admin import auth as firebase_auth
-from firebase_admin import firestore as fs_module
-
 from app.auth import get_firebase_app
-
 from echo_prism_agent.run_logging import run_log_prefix
 from echo_prism_agent.ws_errors import (
     CONFIG,
@@ -32,11 +26,16 @@ from echo_prism_agent.ws_errors import (
     PENDING_INTERRUPT,
     RESUME,
     RUN_ACCESS,
-    VERIFY,
     UNKNOWN,
+    VERIFY,
     classify_api_call_error,
     ws_error,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from firebase_admin import auth as firebase_auth
+from firebase_admin import firestore as fs_module
 
 _security = HTTPBearer(auto_error=False)
 
@@ -86,39 +85,39 @@ async def _validate_run_access(uid: str, workflow_id: str, run_id: str) -> bool:
         return False
 
 
-def _write_run_log(db, workflow_id: str, run_id: str, thought: str, action: str, step_index: int, level: str = "info") -> None:
+def _write_run_log(
+    db,
+    workflow_id: str,
+    run_id: str,
+    thought: str,
+    action: str,
+    step_index: int,
+    level: str = "info",
+) -> None:
     """Write a thought+action log entry to Firestore (called in a thread)."""
     try:
         logs_col = (
-            db.collection("workflows")
-            .document(workflow_id)
-            .collection("runs")
-            .document(run_id)
-            .collection("logs")
+            db.collection("workflows").document(workflow_id).collection("runs").document(run_id).collection("logs")
         )
-        logs_col.add({
-            "thought": thought,
-            "action": action,
-            "step_index": step_index,
-            "message": f"Step {step_index + 1}: {action}" if action else thought,
-            "level": level,
-            "timestamp": fs_module.SERVER_TIMESTAMP,
-        })
+        logs_col.add(
+            {
+                "thought": thought,
+                "action": action,
+                "step_index": step_index,
+                "message": f"Step {step_index + 1}: {action}" if action else thought,
+                "level": level,
+                "timestamp": fs_module.SERVER_TIMESTAMP,
+            }
+        )
     except Exception as e:
         logger.warning("Failed to write run log: %s", e)
 
 
-def _update_log_screenshot(
-    db, workflow_id: str, run_id: str, step_index: int, screenshot_url: str
-) -> None:
+def _update_log_screenshot(db, workflow_id: str, run_id: str, step_index: int, screenshot_url: str) -> None:
     """Update the most recent log entry for this step_index with screenshot_url (called in a thread)."""
     try:
         logs_ref = (
-            db.collection("workflows")
-            .document(workflow_id)
-            .collection("runs")
-            .document(run_id)
-            .collection("logs")
+            db.collection("workflows").document(workflow_id).collection("runs").document(run_id).collection("logs")
         )
         # Get recent logs and find the one matching step_index (avoids composite index)
         docs = list(logs_ref.order_by("timestamp", direction="DESCENDING").limit(100).stream())
@@ -130,12 +129,11 @@ def _update_log_screenshot(
         logger.warning("Failed to update log screenshot: %s", e)
 
 
-def _upload_and_update_log_screenshot(
-    db, workflow_id: str, run_id: str, step_index: int, after_bytes: bytes
-) -> None:
+def _upload_and_update_log_screenshot(db, workflow_id: str, run_id: str, step_index: int, after_bytes: bytes) -> None:
     """Upload step screenshot to GCS and set screenshot_url on the matching log entry (called in a thread)."""
     try:
         from echo_prism_agent.execution.operator import upload_step_screenshot
+
         url = upload_step_screenshot(workflow_id, run_id, step_index, after_bytes)
         if url:
             _update_log_screenshot(db, workflow_id, run_id, step_index, url)
@@ -198,13 +196,13 @@ async def agent_run_ws(
     await websocket.accept()
 
     _ensure_agent_path()
-    from echo_prism_agent.execution.operator import (
-        is_deterministic,
-        step_to_action,
-    )
     from echo_prism_agent.agent import (
         run_ambiguous_step_inference,
         verify_state_transition,
+    )
+    from echo_prism_agent.execution.operator import (
+        is_deterministic,
+        step_to_action,
     )
 
     if not (os.environ.get("OPENROUTER_API_KEY") or "").strip():
@@ -231,7 +229,6 @@ async def agent_run_ws(
     history: list[dict] = []
     cached_prompt: str | None = None
     pending_thought: str = ""
-    pending_action_str: str = ""
     pending_step_index: int = -1
     pending_api_call_resume: dict[str, Any] | None = None
 
@@ -240,6 +237,13 @@ async def agent_run_ws(
             await websocket.send_json(msg)
         except Exception as e:
             logger.warning("agent WS send failed: %s", e)
+
+    background_tasks: set[asyncio.Task[Any]] = set()
+
+    def _schedule_to_thread(func, *args) -> None:
+        task = asyncio.create_task(asyncio.to_thread(func, *args))
+        background_tasks.add(task)
+        task.add_done_callback(lambda t: background_tasks.discard(t))
 
     try:
         while True:
@@ -356,7 +360,6 @@ async def agent_run_ws(
                 step_index = data.get("step_index", 0)
                 step = data.get("step") or {}
                 screenshot_b64 = data.get("screenshot_b64")
-                history_summary = data.get("history_summary", "")
                 last_error = data.get("last_error", "")
                 typing_override = (data.get("typing_override") or "").strip()
 
@@ -369,7 +372,12 @@ async def agent_run_ws(
                     )
 
                 if goal_only and not step and goal:
-                    step = {"context": goal, "action": "observe", "params": {}, "expected_outcome": ""}
+                    step = {
+                        "context": goal,
+                        "action": "observe",
+                        "params": {},
+                        "expected_outcome": "",
+                    }
                 if not step:
                     await send(
                         ws_error(
@@ -438,18 +446,18 @@ async def agent_run_ws(
                             step_index,
                             action_dict,
                         )
-                        await send({
-                            "type": "action",
-                            "action": action_dict,
-                            "thought": "",
-                            "signal": "execute",
-                        })
+                        await send(
+                            {
+                                "type": "action",
+                                "action": action_dict,
+                                "thought": "",
+                                "signal": "execute",
+                            }
+                        )
                     continue
 
                 if not screenshot_b64:
-                    await send(
-                        ws_error("Ambiguous step requires screenshot_b64", INVALID_INPUT)
-                    )
+                    await send(ws_error("Ambiguous step requires screenshot_b64", INVALID_INPUT))
                     continue
 
                 try:
@@ -483,7 +491,13 @@ async def agent_run_ws(
                         await send({"type": "thinking_delta", "delta": piece})
 
                 total = 1 if goal_only else (len(steps) if steps else 1)
-                result, thought, action_str, parsed_action, err = await run_ambiguous_step_inference(
+                (
+                    result,
+                    thought,
+                    action_str,
+                    parsed_action,
+                    err,
+                ) = await run_ambiguous_step_inference(
                     screenshot_bytes=screenshot_bytes,
                     step_data=step,
                     step_index=step_index + 1,
@@ -505,9 +519,15 @@ async def agent_run_ws(
 
                 if result == "finished":
                     if workflow_id and run_id and thought:
-                        asyncio.create_task(asyncio.to_thread(
-                            _write_run_log, db, workflow_id, run_id, thought, "Finished", step_index
-                        ))
+                        _schedule_to_thread(
+                            _write_run_log,
+                            db,
+                            workflow_id,
+                            run_id,
+                            thought,
+                            "Finished",
+                            step_index,
+                        )
                     await send({"type": "action", "thought": thought, "signal": "finished"})
                     await send({"type": "done", "success": True})
                     continue
@@ -515,35 +535,51 @@ async def agent_run_ws(
                 if result == "calluser":
                     if workflow_id and run_id:
                         reason = err or "Agent needs user intervention"
-                        asyncio.create_task(asyncio.to_thread(
-                            _write_run_log, db, workflow_id, run_id, thought, f"CallUser: {reason}", step_index, "warn"
-                        ))
-                    await send({
-                        "type": "action",
-                        "thought": thought,
-                        "signal": "calluser",
-                        "reason": err or "Agent needs user intervention",
-                    })
+                        _schedule_to_thread(
+                            _write_run_log,
+                            db,
+                            workflow_id,
+                            run_id,
+                            thought,
+                            f"CallUser: {reason}",
+                            step_index,
+                            "warn",
+                        )
+                    await send(
+                        {
+                            "type": "action",
+                            "thought": thought,
+                            "signal": "calluser",
+                            "reason": err or "Agent needs user intervention",
+                        }
+                    )
                     continue
 
                 if result is True and parsed_action:
                     pending_thought = thought
-                    pending_action_str = action_str
                     pending_step_index = step_index
                     if workflow_id and run_id:
-                        asyncio.create_task(asyncio.to_thread(
-                            _write_run_log, db, workflow_id, run_id, thought, action_str, step_index
-                        ))
+                        _schedule_to_thread(
+                            _write_run_log,
+                            db,
+                            workflow_id,
+                            run_id,
+                            thought,
+                            action_str,
+                            step_index,
+                        )
                     # Send thinking first so desktop Run HUD and other clients can show the full thought
                     if thought:
                         await send({"type": "thinking", "thought": thought})
-                    await send({
-                        "type": "action",
-                        "action": parsed_action,
-                        "thought": thought,
-                        "signal": "execute",
-                        "action_str": action_str,
-                    })
+                    await send(
+                        {
+                            "type": "action",
+                            "action": parsed_action,
+                            "thought": thought,
+                            "signal": "execute",
+                            "action_str": action_str,
+                        }
+                    )
                 else:
                     await send(ws_error(err or "Inference failed", INFERENCE))
 
@@ -579,20 +615,26 @@ async def agent_run_ws(
 
                 if succeeded:
                     from echo_prism_agent.ui_tars.screenshot_pipeline import compress_screenshot
+
                     step_index_for_screenshot = pending_step_index
-                    history.append({
-                        "thought": pending_thought,
-                        "action": action_str,
-                        "screenshot": compress_screenshot(after_bytes),
-                    })
+                    history.append(
+                        {
+                            "thought": pending_thought,
+                            "action": action_str,
+                            "screenshot": compress_screenshot(after_bytes),
+                        }
+                    )
                     pending_thought = ""
-                    pending_action_str = ""
                     pending_step_index = -1
                     if workflow_id and run_id and step_index_for_screenshot >= 0:
-                        asyncio.create_task(asyncio.to_thread(
+                        _schedule_to_thread(
                             _upload_and_update_log_screenshot,
-                            db, workflow_id, run_id, step_index_for_screenshot, after_bytes,
-                        ))
+                            db,
+                            workflow_id,
+                            run_id,
+                            step_index_for_screenshot,
+                            after_bytes,
+                        )
                     await send({"type": "verify_result", "succeeded": True, "description": description})
                 else:
                     await send(
@@ -616,6 +658,8 @@ async def agent_run_ws(
         except Exception:
             pass
     finally:
+        if background_tasks:
+            await asyncio.gather(*background_tasks, return_exceptions=True)
         try:
             await websocket.close()
         except Exception:

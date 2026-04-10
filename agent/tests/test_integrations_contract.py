@@ -11,18 +11,17 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from echo_prism_agent.auth0_token_vault import (
     connection_name_for_integration,
     normalize_integration_id,
 )
 from echo_prism_agent.execution.operator import execute_api_call
 from echo_prism_agent.integrations import github, google, slack
-from echo_prism_agent.integrations.google import _gmail_rfc2822_raw_b64
 from echo_prism_agent.integrations.gmail_content_guard import (
     gmail_data_guard_error_message,
     gmail_send_body_likely_missing_requested_data,
 )
+from echo_prism_agent.integrations.google import _gmail_rfc2822_raw_b64
 from echo_prism_agent.integrations.user_text_sanitize import sanitize_api_call_string_args
 
 INTEGRATION_MODULES = (slack, github, google)
@@ -120,9 +119,7 @@ def test_method_string_normalized_before_http(mod, method, args) -> None:
 
 def test_google_duplicate_method_alias_documented() -> None:
     """``google_rest`` mirrors ``rest`` for synthesis / UX."""
-    assert google.METHODS.get("rest") and google.METHODS.get("rest") == google.METHODS.get(
-        "google_rest"
-    )
+    assert google.METHODS.get("rest") and google.METHODS.get("rest") == google.METHODS.get("google_rest")
 
 
 def test_gmail_guard_blocks_prompt_only_data_request() -> None:
@@ -133,9 +130,7 @@ def test_gmail_guard_blocks_prompt_only_data_request() -> None:
 
 
 def test_gmail_skip_data_guard_bypasses_heuristic() -> None:
-    blocked_body = (
-        "Please find the top 5 stocks based on the latest market data. List them here."
-    )
+    blocked_body = "Please find the top 5 stocks based on the latest market data. List them here."
     raw, err = _gmail_rfc2822_raw_b64(
         {
             "to": "user@example.com",

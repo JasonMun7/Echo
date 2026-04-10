@@ -2,11 +2,11 @@
 Notifications: GET /api/notifications, PATCH /api/notifications/{id}
 Notifications are created when e.g. a workflow is shared with the user.
 """
+
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
-
 import firebase_admin.firestore
+from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import SERVER_TIMESTAMP
 
 from app.auth import get_current_uid, get_firebase_app

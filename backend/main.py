@@ -1,6 +1,3 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
 from app.config import CORS_ORIGINS
 from app.routers import (
     auth0_link,
@@ -17,6 +14,8 @@ from app.routers import (
     users,
     workflows,
 )
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Echo API", version="0.1.0")
 

@@ -6,9 +6,7 @@ from echo_prism_agent.integrations.gmail_content_guard import (
 
 
 def test_blocks_prompt_only_stock_email() -> None:
-    body = (
-        "Please find the top 5 performing stocks today based on the latest market data:\n\n"
-    )
+    body = "Please find the top 5 performing stocks today based on the latest market data:\n\n"
     assert gmail_send_body_likely_missing_requested_data(body, "Stocks") is True
 
 

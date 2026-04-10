@@ -14,9 +14,12 @@ import os
 from typing import Any
 
 import httpx
+from echo_prism_agent.constants import (
+    DEFAULT_AGENT_BACKEND_URL,
+    LIVEKIT_DATA_TOPIC,
+    LIVEKIT_TOOL_HTTP_TIMEOUT_S,
+)
 from livekit.agents import Agent, RunContext, function_tool, get_job_context
-
-from echo_prism_agent.constants import DEFAULT_AGENT_BACKEND_URL, LIVEKIT_DATA_TOPIC, LIVEKIT_TOOL_HTTP_TIMEOUT_S
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +43,7 @@ from echo_prism_agent.model_prompts import ECHOPRISM_SYSTEM_PROMPT
 
 def _get_backend_url() -> str:
     return (
-        os.environ.get("VITE_ECHO_AGENT_URL")
-        or os.environ.get("ECHOPRISM_AGENT_URL")
-        or DEFAULT_AGENT_BACKEND_URL
+        os.environ.get("VITE_ECHO_AGENT_URL") or os.environ.get("ECHOPRISM_AGENT_URL") or DEFAULT_AGENT_BACKEND_URL
     ).rstrip("/")
 
 
@@ -124,9 +125,7 @@ async def _publish_run_started(
         logger.warning("Failed to publish run_started: %s", e)
 
 
-async def _publish_run_control(
-    event_type: str, workflow_id: str = "", run_id: str = ""
-) -> None:
+async def _publish_run_control(event_type: str, workflow_id: str = "", run_id: str = "") -> None:
     """Publish a run-control event (resume_run, cancel_run) so the voice overlay can act."""
     try:
         job_ctx = get_job_context()

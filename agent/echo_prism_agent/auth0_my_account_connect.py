@@ -8,9 +8,10 @@ Legacy Connect uses ``/authorize?connection=`` and requires **Authentication** o
 Default Echo Connect uses this module’s My Account path instead (see auth0-server-python
 ``examples/ConnectedAccounts.md``).
 
-Docs: https://auth0.com/docs/secure/tokens/token-vault/connected-accounts-for-token-vault  
+Docs: https://auth0.com/docs/secure/tokens/token-vault/connected-accounts-for-token-vault
 My Account API: https://auth0.com/docs/manage-users/my-account-api
 """
+
 from __future__ import annotations
 
 import base64
@@ -22,7 +23,6 @@ from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import httpx
-
 from echo_prism_agent.auth0_token_vault import OAUTH_TOKEN_REQUEST_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -30,8 +30,7 @@ logger = logging.getLogger(__name__)
 # Scopes for exchanging the user's Auth0 refresh token for a My Account API access token (MRRT).
 # Match Auth0 docs: create + read + delete Connected Accounts on the `https://<domain>/me/` audience.
 MY_ACCOUNT_REFRESH_SCOPES = (
-    "openid profile offline_access "
-    "create:me:connected_accounts read:me:connected_accounts delete:me:connected_accounts"
+    "openid profile offline_access create:me:connected_accounts read:me:connected_accounts delete:me:connected_accounts"
 )
 
 
@@ -42,11 +41,7 @@ def my_account_audience(domain: str) -> str:
 
 def _pkce_pair() -> tuple[str, str]:
     verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
-    challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
-        .decode()
-        .rstrip("=")
-    )
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
     return verifier, challenge
 
 

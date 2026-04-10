@@ -37,9 +37,18 @@ WorkflowType = Literal["browser", "desktop"]
 
 def use_ui_tars_v15_desktop_prompt() -> bool:
     """Match UI-TARS-desktop ``getSystemPromptV1_5`` when using a 1.5 model on OpenRouter."""
-    if (os.environ.get("ECHOPRISM_UI_TARS_PROMPT") or "").strip().lower() in ("legacy", "echo", "0"):
+    if (os.environ.get("ECHOPRISM_UI_TARS_PROMPT") or "").strip().lower() in (
+        "legacy",
+        "echo",
+        "0",
+    ):
         return False
-    if (os.environ.get("ECHOPRISM_UI_TARS_PROMPT") or "").strip().lower() in ("1.5", "v1.5", "desktop", "1"):
+    if (os.environ.get("ECHOPRISM_UI_TARS_PROMPT") or "").strip().lower() in (
+        "1.5",
+        "v1.5",
+        "desktop",
+        "1",
+    ):
         return True
     mid = effective_ui_tars_model_id().lower()
     return "ui-tars-1.5" in mid or "ui-tars-1-5" in mid
@@ -274,14 +283,10 @@ def system_prompt(
     v15 = use_ui_tars_v15_desktop_prompt()
     if v15:
         action_space = UI_TARS_V1_5_ACTION_SPACE_CORE
-        action_space += (
-            UI_TARS_V1_5_DESKTOP_EXTRA if workflow_type == "desktop" else UI_TARS_V1_5_BROWSER_EXTRA
-        )
+        action_space += UI_TARS_V1_5_DESKTOP_EXTRA if workflow_type == "desktop" else UI_TARS_V1_5_BROWSER_EXTRA
         coord_line = ""
     else:
-        action_space = (
-            DESKTOP_ACTION_SPACE if workflow_type == "desktop" else BROWSER_ACTION_SPACE
-        )
+        action_space = DESKTOP_ACTION_SPACE if workflow_type == "desktop" else BROWSER_ACTION_SPACE
         coord_line = """
 Coordinates are normalized 0-1000. (0,0) = top-left corner, (1000,1000) = bottom-right corner.
 
@@ -379,9 +384,7 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
             r"\bto:",
             r"subject",
         )
-        needs_typing = bool(text_param) or any(
-            re.search(p, combined_hint) for p in _typing_patterns
-        )
+        needs_typing = bool(text_param) or any(re.search(p, combined_hint) for p in _typing_patterns)
         parts.append(
             f"Interact with {desc}. "
             "Choose the BEST action: if this is an application to open/launch, "
@@ -408,9 +411,7 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
                 "repeated click() alone cannot enter text."
             )
         else:
-            parts.append(
-                "Otherwise use Click / click(start_box=...) with coordinates you verify in the screenshot."
-            )
+            parts.append("Otherwise use Click / click(start_box=...) with coordinates you verify in the screenshot.")
     elif action == "type_text_at":
         text = params.get("text", "")
         desc = params.get("description", "the input field")
@@ -450,9 +451,7 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
         keys = params.get("keys", [])
         desc = params.get("description", "")
         combo = "+".join(keys) if keys else "unknown"
-        parts.append(
-            f"Press keyboard shortcut {combo}" + (f" — {desc}" if desc else "")
-        )
+        parts.append(f"Press keyboard shortcut {combo}" + (f" — {desc}" if desc else ""))
     elif action == "open_app":
         app_name = params.get("appName", "")
         parts.append(f"Launch the application '{app_name}'")
@@ -601,7 +600,8 @@ CORRECTED_THOUGHT: <an improved thought that better describes the reasoning>
 # =============================================================================
 
 MEDIA_SYNTHESIS_PROMPT = (
-    """You are an expert workflow extraction system for EchoPrism, a Vision-Language UI agent.
+    (
+        """You are an expert workflow extraction system for EchoPrism, a Vision-Language UI agent.
 EchoPrism does NOT use DOM or selectors at runtime. It uses YOUR rich natural-language descriptions and expected outcomes so a VLM can find targets on future screenshots.
 
 CRITICAL: Do NOT output x, y, x1, y1, x2, y2 or any pixel coordinates in params. Never use 500/500 as a guess.
@@ -676,11 +676,15 @@ RULES
 6. wait_for_element after navigations/modals that load content.
 7. **Text entry**: If the user types into a field (name, search, message body), include a `type_text_at` step with `params.text` (literal or {{var}}), typically after a `click_at` that focuses the field and before `press_key` if they submit. Do not represent typing as only `click_at` + `press_key` — the runtime VLM cannot infer hidden strings from pixels alone.
 8. OUTPUT: valid JSON only."""
-) + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + API_CALL_SYNTHESIS_APPENDIX
+    )
+    + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    + API_CALL_SYNTHESIS_APPENDIX
+)
 
 
 FROM_DESCRIPTION_PROMPT = (
-    """You are an expert workflow synthesis system for EchoPrism (VLM UI agent at runtime).
+    (
+        """You are an expert workflow synthesis system for EchoPrism (VLM UI agent at runtime).
 
 Produce steps with the SAME schema as media synthesis: NO x/y in params. Rich anchored descriptions (BAD: "Click the button." GOOD: "Click the blue 'Submit' in the bottom-right of the login modal.").
 
@@ -702,12 +706,19 @@ Output ONLY valid JSON:
 Include expected_outcome on steps where checking success matters; omit or keep minimal for trivial steps.
 
 9. **Data before send (api_call / Gmail / Slack):** If a step sends email or chat with *dynamic* content (figures, rankings, extracted text), you MUST place UI or api_call steps **before** that send so the message body contains concrete data (numbers, tickers, pasted text). Never output a `gmail_send` or Slack post whose body is only an instruction to the assistant (e.g. "find the top 5 stocks") — gather data in prior steps first."""
-) + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + API_CALL_SYNTHESIS_APPENDIX
+    )
+    + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    + API_CALL_SYNTHESIS_APPENDIX
+)
 
 
 FRAME_SINGLE_STEP_SYSTEM = (
-    """You are EchoPrism frame synthesis. Given ONE screenshot frame from a recording, output ONE JSON object describing the primary UI action the user is performing in this frame, using the SAME rules as full media synthesis: rich anchored descriptions, NO x/y coordinates in params."""
-) + "\n\n" + API_CALL_SYNTHESIS_APPENDIX
+    (
+        """You are EchoPrism frame synthesis. Given ONE screenshot frame from a recording, output ONE JSON object describing the primary UI action the user is performing in this frame, using the SAME rules as full media synthesis: rich anchored descriptions, NO x/y coordinates in params."""
+    )
+    + "\n\n"
+    + API_CALL_SYNTHESIS_APPENDIX
+)
 
 FRAME_SINGLE_STEP_USER = """Frame {idx}/{total}. Describe the single clearest user action in this frame.
 If the user is entering text (cursor in a field, visible characters changing), use action "type_text_at" with params.text set to the literal text (or {{var}}), not only click_at.
@@ -772,5 +783,3 @@ def openrouter_system_prompt_suffix() -> str:
 
     extra = (os.environ.get("ECHOPRISM_VLM_SYSTEM_SUFFIX") or "").strip()
     return f"\n\n{extra}" if extra else ""
-
-

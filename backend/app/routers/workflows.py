@@ -3,19 +3,19 @@ Workflow and step CRUD: GET/POST /api/workflows, GET/PUT/DELETE /api/workflows/{
 GET/POST /api/workflows/{id}/steps, PUT/DELETE /api/workflows/{id}/steps/{step_id},
 PUT /api/workflows/{id}/steps/reorder
 """
+
 import logging
+import re
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
 import firebase_admin.auth
 import firebase_admin.firestore
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from google.api_core import exceptions as gcp_exceptions
-from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion, ArrayRemove, FieldFilter
+from google.cloud.firestore import SERVER_TIMESTAMP, ArrayRemove, ArrayUnion, FieldFilter
 from pydantic import BaseModel
-
-import re
 
 from app.auth import get_current_uid, get_firebase_app
 
@@ -105,13 +105,15 @@ async def create_workflow(
     db = firebase_admin.firestore.client(app)
     workflow_id = str(uuid.uuid4())
     ref = db.collection("workflows").document(workflow_id)
-    ref.set({
-        "owner_uid": uid,
-        "name": (body.name if body else None) or "Untitled workflow",
-        "status": "draft",
-        "createdAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    ref.set(
+        {
+            "owner_uid": uid,
+            "name": (body.name if body else None) or "Untitled workflow",
+            "status": "draft",
+            "createdAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"id": workflow_id}
 
 
@@ -182,6 +184,7 @@ async def get_thumbnail(
         raise HTTPException(status_code=500, detail="Invalid thumbnail path")
     blob_name = match.group(1)
     from app.services.gcs import generate_signed_read_url
+
     signed_url = generate_signed_read_url(blob_name, expiration_minutes=60)
     return {"url": signed_url}
 
@@ -210,14 +213,10 @@ async def get_thumbnail_image(
     try:
         body = download_file(blob_name)
     except gcp_exceptions.NotFound as e:
-        raise HTTPException(
-            status_code=404, detail="Thumbnail blob not found"
-        ) from e
+        raise HTTPException(status_code=404, detail="Thumbnail blob not found") from e
     except Exception as e:
         _log.exception("Thumbnail download failed for workflow %s", workflow_id)
-        raise HTTPException(
-            status_code=500, detail="Could not load thumbnail"
-        ) from e
+        raise HTTPException(status_code=500, detail="Could not load thumbnail") from e
     lower = blob_name.lower()
     media = "image/jpeg"
     if lower.endswith(".png"):
@@ -265,37 +264,43 @@ async def share_workflow(
     except Exception:
         from_name = uid
     invite_ref = db.collection("workflow_invites").document()
-    invite_ref.set({
-        "workflow_id": workflow_id,
-        "workflow_name": wf_data.get("name", "Untitled workflow"),
-        "from_uid": uid,
-        "from_name": from_name,
-        "to_uid": target_user.uid,
-        "to_email": target_user.email or body.email,
-        "status": "pending",
-        "createdAt": SERVER_TIMESTAMP,
-    })
+    invite_ref.set(
+        {
+            "workflow_id": workflow_id,
+            "workflow_name": wf_data.get("name", "Untitled workflow"),
+            "from_uid": uid,
+            "from_name": from_name,
+            "to_uid": target_user.uid,
+            "to_email": target_user.email or body.email,
+            "status": "pending",
+            "createdAt": SERVER_TIMESTAMP,
+        }
+    )
     # Create a notification for the recipient so they see it on the notifications page
     workflow_name = wf_data.get("name", "Untitled workflow")
     notif_ref = db.collection("notifications").document()
-    notif_ref.set({
-        "to_uid": target_user.uid,
-        "type": "workflow_shared",
-        "title": "Workflow shared with you",
-        "body": f"{from_name} shared the workflow \"{workflow_name}\" with you.",
-        "workflow_id": workflow_id,
-        "workflow_name": workflow_name,
-        "from_uid": uid,
-        "from_name": from_name,
-        "invite_id": invite_ref.id,
-        "read": False,
-        "createdAt": SERVER_TIMESTAMP,
-    })
+    notif_ref.set(
+        {
+            "to_uid": target_user.uid,
+            "type": "workflow_shared",
+            "title": "Workflow shared with you",
+            "body": f'{from_name} shared the workflow "{workflow_name}" with you.',
+            "workflow_id": workflow_id,
+            "workflow_name": workflow_name,
+            "from_uid": uid,
+            "from_name": from_name,
+            "invite_id": invite_ref.id,
+            "read": False,
+            "createdAt": SERVER_TIMESTAMP,
+        }
+    )
     # Make invitees appear immediately in the owner's "Shared with" list.
-    wf_ref.update({
-        "shared_with": ArrayUnion([target_user.uid]),
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    wf_ref.update(
+        {
+            "shared_with": ArrayUnion([target_user.uid]),
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True, "invite_id": invite_ref.id}
 
 
@@ -326,17 +331,19 @@ async def accept_invite(
     wf_data = wf_doc.to_dict() or {}
     new_id = str(uuid.uuid4())
     new_ref = db.collection("workflows").document(new_id)
-    new_ref.set({
-        "owner_uid": uid,
-        "name": wf_data.get("name", "Untitled"),
-        "status": wf_data.get("status", "draft"),
-        "workflow_type": wf_data.get("workflow_type", "desktop"),
-        "shared_with": [],
-        "forked_from": workflow_id,
-        "thumbnail_gcs_path": wf_data.get("thumbnail_gcs_path"),
-        "createdAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    new_ref.set(
+        {
+            "owner_uid": uid,
+            "name": wf_data.get("name", "Untitled"),
+            "status": wf_data.get("status", "draft"),
+            "workflow_type": wf_data.get("workflow_type", "desktop"),
+            "shared_with": [],
+            "forked_from": workflow_id,
+            "thumbnail_gcs_path": wf_data.get("thumbnail_gcs_path"),
+            "createdAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     for step_doc in wf_ref.collection("steps").order_by("order").stream():
         step_data = step_doc.to_dict() or {}
         new_ref.collection("steps").document(str(uuid.uuid4())).set(step_data)
@@ -425,19 +432,23 @@ async def get_collaborators(
         status = "pending" if shared_uid in pending_uids else "accepted"
         try:
             user = firebase_admin.auth.get_user(shared_uid)
-            collaborators.append({
-                "uid": shared_uid,
-                "email": user.email or "",
-                "display_name": user.display_name or user.email or shared_uid,
-                "status": status,
-            })
+            collaborators.append(
+                {
+                    "uid": shared_uid,
+                    "email": user.email or "",
+                    "display_name": user.display_name or user.email or shared_uid,
+                    "status": status,
+                }
+            )
         except Exception:
-            collaborators.append({
-                "uid": shared_uid,
-                "email": "",
-                "display_name": shared_uid,
-                "status": status,
-            })
+            collaborators.append(
+                {
+                    "uid": shared_uid,
+                    "email": "",
+                    "display_name": shared_uid,
+                    "status": status,
+                }
+            )
     return {"collaborators": collaborators}
 
 
@@ -453,16 +464,18 @@ async def fork_workflow(
     db = firebase_admin.firestore.client(app)
     new_id = str(uuid.uuid4())
     new_ref = db.collection("workflows").document(new_id)
-    new_ref.set({
-        "owner_uid": uid,
-        "name": f"{data.get('name', 'Untitled')} (copy)",
-        "status": "draft",
-        "workflow_type": data.get("workflow_type", "browser"),
-        "shared_with": [],
-        "forked_from": workflow_id,
-        "createdAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    new_ref.set(
+        {
+            "owner_uid": uid,
+            "name": f"{data.get('name', 'Untitled')} (copy)",
+            "status": "draft",
+            "workflow_type": data.get("workflow_type", "browser"),
+            "shared_with": [],
+            "forked_from": workflow_id,
+            "createdAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     # Copy all steps
     old_ref = db.collection("workflows").document(workflow_id)
     for step_doc in old_ref.collection("steps").order_by("order").stream():
@@ -508,13 +521,15 @@ async def create_step(
     existing = list(wf_ref.collection("steps").order_by("order", direction="DESCENDING").limit(1).stream())
     next_order = (existing[0].to_dict().get("order", -1) + 1) if existing else 0
     step_id = str(uuid.uuid4())
-    wf_ref.collection("steps").document(step_id).set({
-        "order": next_order,
-        "action": body.action,
-        "context": body.context,
-        "params": body.params,
-        "expected_outcome": body.expected_outcome,
-    })
+    wf_ref.collection("steps").document(step_id).set(
+        {
+            "order": next_order,
+            "action": body.action,
+            "context": body.context,
+            "params": body.params,
+            "expected_outcome": body.expected_outcome,
+        }
+    )
     wf_ref.update({"updatedAt": SERVER_TIMESTAMP})
     return {"id": step_id}
 

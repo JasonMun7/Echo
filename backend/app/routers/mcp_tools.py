@@ -1,6 +1,7 @@
 """
 User MCP Tools CRUD: GET/POST/PUT/DELETE /api/mcp-tools + POST /api/mcp-tools/{id}/test
 """
+
 import logging
 import uuid
 
@@ -29,9 +30,7 @@ class McpToolBody(BaseModel):
 async def list_mcp_tools(uid: str = Depends(get_current_uid)):
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
-    docs = (
-        db.collection("users").document(uid).collection("mcp_tools").stream()
-    )
+    docs = db.collection("users").document(uid).collection("mcp_tools").stream()
     tools = [{"id": d.id, **d.to_dict()} for d in docs]
     return {"tools": tools}
 

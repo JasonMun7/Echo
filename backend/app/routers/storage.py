@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.auth import get_current_uid
 from app.config import GCS_BUCKET
-from app.services.gcs import upload_file, generate_signed_upload_url
+from app.services.gcs import generate_signed_upload_url, upload_file
 
 router = APIRouter(prefix="/storage", tags=["storage"])
 

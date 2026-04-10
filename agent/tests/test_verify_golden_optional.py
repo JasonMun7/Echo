@@ -3,6 +3,7 @@ Optional golden assets for GUI verify regression (disabled until fixtures are co
 
 Enable by adding ``agent/tests/fixtures/verify_before.png`` and ``verify_after.png``.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

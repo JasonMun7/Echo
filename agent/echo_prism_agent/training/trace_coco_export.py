@@ -6,6 +6,7 @@ Output: COCO4GUI JSON with images (screenshot refs), annotations (bbox, keypoint
   thought, action, quality, error, corrected_thought)
 Tag recovery actions as category: "recovery_action"
 """
+
 import json
 import logging
 import os
@@ -28,7 +29,11 @@ def _parse_coords_from_action(action_str: str) -> tuple[float | None, float | No
     m = re.search(r"point\s*\(\s*\[\s*([\d.]+)\s*,\s*([\d.]+)\s*\]\s*\)", action_str, re.I)
     if m:
         return round(float(m.group(1)), 3), round(float(m.group(2)), 3)
-    m = re.search(r"(?:RightClick|DoubleClick|Hover|SelectOption)\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)", action_str, re.I)
+    m = re.search(
+        r"(?:RightClick|DoubleClick|Hover|SelectOption)\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)",
+        action_str,
+        re.I,
+    )
     if m:
         x, y = float(m.group(1)), float(m.group(2))
         return round(x / 1000, 3), round(y / 1000, 3)
@@ -40,13 +45,7 @@ def _is_recovery_action(action_str: str, thought: str) -> bool:
     if not action_str:
         return False
     s = (action_str + " " + (thought or "")).lower()
-    return (
-        "escape" in s
-        or "presskey(\"escape\")" in s
-        or "blind" in s
-        or "0.050, 0.050" in s
-        or "0.950, 0.050" in s
-    )
+    return "escape" in s or 'presskey("escape")' in s or "blind" in s or "0.050, 0.050" in s or "0.950, 0.050" in s
 
 
 def export_run_to_coco(
@@ -61,11 +60,11 @@ def export_run_to_coco(
     gcs_base = f"gs://{bucket}" if bucket else ""
 
     logs_ref = run_ref.collection("logs")
-    trace_logs = [
-        d.to_dict()
-        for d in logs_ref.stream()
-        if d.to_dict().get("trace") is True
-    ]
+    trace_logs: list[dict] = []
+    for d in logs_ref.stream():
+        doc = d.to_dict() or {}
+        if doc.get("trace") is True:
+            trace_logs.append(doc)
     trace_logs.sort(key=lambda x: x.get("step_index", 0))
 
     doc_id = f"{workflow_id}_{run_id}"
@@ -109,7 +108,8 @@ def export_run_to_coco(
             sequence_id=run_id,
             sequence_position=step_index,
             sequence_description=f"Workflow {workflow_id}",
-            gcs_url=screenshot_url or (f"{gcs_base}/traces/{workflow_id}/{run_id}/step_{step_index}.png" if gcs_base else None),
+            gcs_url=screenshot_url
+            or (f"{gcs_base}/traces/{workflow_id}/{run_id}/step_{step_index}.png" if gcs_base else None),
         )
 
         x_norm, y_norm = _parse_coords_from_action(action_str)
@@ -167,6 +167,7 @@ async def export_and_upload_coco(
 
     try:
         from google.cloud import storage
+
         client = storage.Client()
         bucket_obj = client.bucket(bucket)
         blob = bucket_obj.blob(blob_name)

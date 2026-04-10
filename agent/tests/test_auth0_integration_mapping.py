@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from echo_prism_agent.auth0_token_vault import connection_name_for_integration
 
 

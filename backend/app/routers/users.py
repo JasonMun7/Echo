@@ -1,6 +1,7 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException
+
 import firebase_admin.firestore
+from fastapi import APIRouter, Depends, HTTPException
 from firebase_admin import auth as firebase_auth
 from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel
@@ -19,6 +20,7 @@ def _normalize_phone_e164(value: str) -> str:
     if len(digits) == 11 and digits.startswith("1"):
         return "+" + digits
     return s if s.startswith("+") else ("+" + digits if digits else s)
+
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -45,10 +47,7 @@ async def init_user(current_user: dict = Depends(get_current_user)):
     user_ref = db.collection("users").document(uid)
     snapshot = user_ref.get()
 
-    provider = (
-        current_user.get("firebase", {}).get("sign_in_provider")
-        or current_user.get("provider", "password")
-    )
+    provider = current_user.get("firebase", {}).get("sign_in_provider") or current_user.get("provider", "password")
     if isinstance(provider, dict):
         provider = provider.get("sign_in_provider", "password") or "password"
 

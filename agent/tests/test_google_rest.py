@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from echo_prism_agent.integrations.google_rest import is_trusted_google_api_host, sanitize_extra_headers
+from echo_prism_agent.integrations.google_rest import (
+    is_trusted_google_api_host,
+    sanitize_extra_headers,
+)
 
 
 def test_host_allowlist_accepts_googleapis() -> None:
@@ -20,7 +23,5 @@ def test_host_allowlist_rejects() -> None:
 
 
 def test_sanitize_extra_headers_strips_auth() -> None:
-    h = sanitize_extra_headers(
-        {"X-Goog-User-Project": "p", "Authorization": "Bearer x", "Cookie": "a=b"}
-    )
+    h = sanitize_extra_headers({"X-Goog-User-Project": "p", "Authorization": "Bearer x", "Cookie": "a=b"})
     assert h == {"X-Goog-User-Project": "p"}

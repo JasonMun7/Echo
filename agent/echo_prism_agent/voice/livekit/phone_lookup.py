@@ -5,6 +5,7 @@ When a SIP caller is identified (sip.phoneNumber), the entrypoint can look up
 the user by phone and store uid here so tools use the correct user instead of
 participant.identity (which is SIP-specific).
 """
+
 # Room name -> resolved uid / displayName (set by main.py after phone lookup)
 _resolved_uid_by_room: dict[str, str] = {}
 _resolved_display_name_by_room: dict[str, str] = {}

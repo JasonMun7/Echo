@@ -6,24 +6,25 @@ Workflow JSON may include ``api_call`` steps; allowed integrations and methods a
 synthesis prompts from ``echo_prism_agent.integrations.api_call_catalog`` (see ``METHODS`` on each
 connector in ``echo_prism_agent.integrations.{slack,github,google}``).
 """
+
+import asyncio
 import os
 import re
 import sys
-import time
 import tempfile
 import uuid
 from pathlib import Path
 
+import firebase_admin.firestore
+from app.auth import get_current_uid, get_firebase_app
+from app.config import GCS_BUCKET, GEMINI_API_KEY
+from app.services.gcs import download_file as gcs_download_file
+from app.services.gcs import upload_file
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from google import genai
-from google.genai import types
-import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
+from google.genai import types
 from pydantic import BaseModel as PydanticBaseModel
-
-from app.auth import get_current_uid, get_firebase_app
-from app.config import GEMINI_API_KEY, GCS_BUCKET
-from app.services.gcs import upload_file, download_file as gcs_download_file
 
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
 
@@ -35,19 +36,27 @@ def _ensure_agent_path() -> None:
         sys.path.insert(0, str(root))
 
 
-def _upload_to_gemini(content: bytes, mime_type: str) -> types.Part:
+async def _upload_to_gemini(
+    content: bytes,
+    mime_type: str,
+    *,
+    max_wait_seconds: int = 300,
+) -> types.Part:
     """Upload file to Gemini Files API and return Part for generate_content."""
     client = genai.Client(api_key=GEMINI_API_KEY)
     with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
         f.write(content)
         path = f.name
     try:
-        uploaded = client.files.upload(
-            file=path, config=types.UploadFileConfig(mime_type=mime_type)
-        )
-        # Poll until active
+        uploaded = client.files.upload(file=path, config=types.UploadFileConfig(mime_type=mime_type))
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max_wait_seconds
         while getattr(uploaded.state, "name", str(uploaded.state)) == "PROCESSING":
-            time.sleep(1)
+            if loop.time() >= deadline:
+                raise TimeoutError(
+                    f"Gemini file upload still processing after {max_wait_seconds}s (name={uploaded.name!r})"
+                )
+            await asyncio.sleep(1)
             uploaded = client.files.get(name=uploaded.name)
         state_name = getattr(uploaded.state, "name", str(uploaded.state))
         if state_name != "ACTIVE":
@@ -92,9 +101,7 @@ async def synthesize(
         _source_recording_id = _sorted_ss[0].filename if _sorted_ss else "screenshots"
 
     if has_video and screenshots:
-        raise HTTPException(
-            status_code=400, detail="Provide either video or screenshots, not both"
-        )
+        raise HTTPException(status_code=400, detail="Provide either video or screenshots, not both")
     if not has_video and not screenshots:
         raise HTTPException(status_code=400, detail="Provide video or screenshots")
 
@@ -128,14 +135,12 @@ async def synthesize(
             blob_name = f"{gcs_prefix}/{video.filename or 'video.mp4'}"
             upload_file(blob_name, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            part = _upload_to_gemini(content, mime)
+            part = await _upload_to_gemini(content, mime)
             parts.append(part)
         elif video_gcs_path:
             match = re.match(r"gs://[^/]+/(.+)", video_gcs_path)
             if not match:
-                raise HTTPException(
-                    status_code=400, detail="Invalid video_gcs_path format"
-                )
+                raise HTTPException(status_code=400, detail="Invalid video_gcs_path format")
             blob_name = match.group(1)
             ext = blob_name.rsplit(".", 1)[-1].lower() if "." in blob_name else ""
             ct = {
@@ -148,7 +153,7 @@ async def synthesize(
             dest_blob = f"{gcs_prefix}/{blob_name.rsplit('/', 1)[-1]}"
             upload_file(dest_blob, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            part = _upload_to_gemini(content, mime)
+            part = await _upload_to_gemini(content, mime)
             parts.append(part)
         else:
             sorted_screenshots = sorted(screenshots, key=lambda f: f.filename or "")
@@ -158,7 +163,7 @@ async def synthesize(
                 blob_name = f"{gcs_prefix}/{f.filename or f'image_{i}.png'}"
                 upload_file(blob_name, content, ct)
                 mime = mime_map.get(ct, "image/png")
-                part = _upload_to_gemini(content, mime)
+                part = await _upload_to_gemini(content, mime)
                 parts.append(part)
 
         if not parts:
@@ -246,27 +251,23 @@ async def synthesize_from_description_impl(
 
     workflow_id = str(uuid.uuid4())
     workflow_ref = db.collection("workflows").document(workflow_id)
+    normalized_wf_type = workflow_type if workflow_type in ("browser", "desktop") else "browser"
     payload: dict = {
         "name": name,
         "status": "processing",
         "owner_uid": uid,
-        "workflow_type": workflow_type
-        if workflow_type in ("browser", "desktop")
-        else "browser",
+        "workflow_type": normalized_wf_type,
         "createdAt": SERVER_TIMESTAMP,
         "updatedAt": SERVER_TIMESTAMP,
     }
     if ephemeral:
         payload["ephemeral"] = True
     workflow_ref.set(payload)
-
     client = genai.Client(api_key=GEMINI_API_KEY)
-    result = await synthesize_workflow_from_description(
-        description, name, workflow_type, client
-    )
+    result = await synthesize_workflow_from_description(description, name, normalized_wf_type, client)
     steps_data = result.get("steps", [])
     variables = result.get("variables", [])
-    actual_type = result.get("workflow_type", workflow_type)
+    actual_type = result.get("workflow_type", normalized_wf_type)
     if actual_type not in ("browser", "desktop"):
         actual_type = "browser"
 
@@ -309,9 +310,7 @@ async def synthesize_from_description_endpoint(
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     try:
-        workflow_id = await synthesize_from_description_impl(
-            uid, body.name, body.description, body.workflow_type, db
-        )
+        workflow_id = await synthesize_from_description_impl(uid, body.name, body.description, body.workflow_type, db)
         return {"workflow_id": workflow_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

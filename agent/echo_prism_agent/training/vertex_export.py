@@ -16,6 +16,7 @@ Global model architecture (UI-TARS style):
     global_model/current  (Firestore)
   All users automatically benefit from the improved model on their next run.
 """
+
 import io
 import json
 import logging
@@ -154,19 +155,31 @@ async def export_training_data(
 
     # Upload to GCS
     _bucket_name = bucket_name or os.environ.get("ECHO_GCS_BUCKET")
-    if not _bucket_name:
-        raise ValueError("ECHO_GCS_BUCKET environment variable not set")
 
-    # output_gcs_path is like "training/{uid}/dataset.jsonl"
-    blob_name = output_gcs_path.lstrip("gs://").split("/", 1)[-1] if output_gcs_path.startswith("gs://") else output_gcs_path
+    # output_gcs_path is like "training/{uid}/dataset.jsonl" or "gs://bucket/prefix/object.jsonl"
+    target_bucket: str | None = None
+    if output_gcs_path.startswith("gs://"):
+        without_scheme = output_gcs_path.removeprefix("gs://")
+        if "/" not in without_scheme:
+            raise ValueError("output_gcs_path gs:// URI must include an object path (expected gs://bucket/object/...)")
+        first, rest = without_scheme.split("/", 1)
+        target_bucket = first
+        blob_name = rest
+    else:
+        blob_name = output_gcs_path
+
+    upload_bucket = target_bucket or _bucket_name
+    if not upload_bucket:
+        raise ValueError("ECHO_GCS_BUCKET environment variable not set (or provide gs://bucket/... path)")
 
     try:
         from google.cloud import storage
+
         gcs_client = storage.Client()
-        bucket = gcs_client.bucket(_bucket_name)
+        bucket = gcs_client.bucket(upload_bucket)
         blob = bucket.blob(blob_name)
         blob.upload_from_file(jsonl_bytes, content_type="application/jsonl")
-        gcs_uri = f"gs://{_bucket_name}/{blob_name}"
+        gcs_uri = f"gs://{upload_bucket}/{blob_name}"
         logger.info("Uploaded %d training examples to %s", len(examples), gcs_uri)
     except Exception as e:
         raise RuntimeError(f"GCS upload failed: {e}") from e
@@ -226,18 +239,22 @@ async def create_tuning_job(
         if db is not None:
             try:
                 from google.cloud.firestore import SERVER_TIMESTAMP
-                db.collection("global_model").document("current").set({
-                    "job_name": job_name,
-                    "job_status": "training",
-                    "tuned_model_id": None,
-                    "base_model": base_model,
-                    "example_count": example_count,
-                    "gcs_dataset_uri": gcs_dataset_uri,
-                    "location": location,
-                    "project": _project,
-                    "submitted_at": SERVER_TIMESTAMP,
-                    "completed_at": None,
-                }, merge=False)
+
+                db.collection("global_model").document("current").set(
+                    {
+                        "job_name": job_name,
+                        "job_status": "training",
+                        "tuned_model_id": None,
+                        "base_model": base_model,
+                        "example_count": example_count,
+                        "gcs_dataset_uri": gcs_dataset_uri,
+                        "location": location,
+                        "project": _project,
+                        "submitted_at": SERVER_TIMESTAMP,
+                        "completed_at": None,
+                    },
+                    merge=False,
+                )
                 logger.info("Persisted global tuning job to global_model/current")
             except Exception as fs_err:
                 logger.warning("Failed to persist job to Firestore: %s", fs_err)

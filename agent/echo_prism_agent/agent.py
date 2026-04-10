@@ -14,14 +14,11 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
-from google import genai
-
-from echo_prism_agent.vision.thought_utils import extract_thought
-from echo_prism_agent.model_prompts import WorkflowType, step_instruction
 from echo_prism_agent.execution.operator import (
     merge_type_text_at_workflow_literal,
     resolve_coords_for_action,
 )
+from echo_prism_agent.model_prompts import WorkflowType, step_instruction
 from echo_prism_agent.utils.state import (
     MAX_INFERENCE_FAILURES,
     GuiRunState,
@@ -33,6 +30,8 @@ from echo_prism_agent.utils.tools import (
     build_inference_graph,
     build_synthesis_graph,
 )
+from echo_prism_agent.vision.thought_utils import extract_thought
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +59,7 @@ def _inference_thread_id(
     return f"{base}{retry_suffix}" if retry_suffix else base
 
 
-def _type_text_at_pointer_only_guardrail(
-    step_data: dict[str, Any], parsed: dict[str, Any] | None
-) -> bool:
+def _type_text_at_pointer_only_guardrail(step_data: dict[str, Any], parsed: dict[str, Any] | None) -> bool:
     """True when step is type_text_at but the model returned a pointer-only action (no typing)."""
     if not parsed:
         return False
@@ -208,8 +205,7 @@ async def run_ambiguous_step_inference_langgraph(
     history = history or []
     if goal_only and goal:
         instruction = (
-            goal.strip()
-            + "\n\nThere is no fixed step list—use each screenshot to choose the best next action. "
+            goal.strip() + "\n\nThere is no fixed step list—use each screenshot to choose the best next action. "
             "If the goal appears achieved, call Finished(). "
             "If stuck, try a different approach; never use CallUser."
         )
@@ -226,9 +222,7 @@ async def run_ambiguous_step_inference_langgraph(
 
     extra_context = ""
     if last_error_from_client:
-        extra_context = (
-            f"Previous attempt failed: {last_error_from_client}\nTry a clearly different action."
-        )
+        extra_context = f"Previous attempt failed: {last_error_from_client}\nTry a clearly different action."
 
     initial: InferenceStepState = {
         "screenshot_bytes": screenshot_bytes,
@@ -282,22 +276,15 @@ async def run_ambiguous_step_inference_langgraph(
     if not parsed:
         return False, "", "", None, "Could not parse action from model output"
 
-    parsed = merge_type_text_at_workflow_literal(
-        step_data, parsed, typing_override=typing_override
-    )
+    parsed = merge_type_text_at_workflow_literal(step_data, parsed, typing_override=typing_override)
 
-    if (
-        not goal_only
-        and _type_text_at_pointer_only_guardrail(step_data, parsed)
-    ):
+    if not goal_only and _type_text_at_pointer_only_guardrail(step_data, parsed):
         logger.info(
             "type_text_at guardrail: model returned %r — retrying inference once",
             (parsed.get("action") or ""),
         )
         retry_block = _retry_extra_type_text_at(step_data)
-        merged_ctx = "\n\n".join(
-            x for x in (extra_context, retry_block) if x
-        ).strip()
+        merged_ctx = "\n\n".join(x for x in (extra_context, retry_block) if x).strip()
         initial_retry: InferenceStepState = {
             **initial,
             "extra_context": merged_ctx,
@@ -335,9 +322,7 @@ async def run_ambiguous_step_inference_langgraph(
         parsed = out.get("parsed")
         if not parsed:
             return False, "", "", None, "Could not parse action from model output (retry)"
-        parsed = merge_type_text_at_workflow_literal(
-            step_data, parsed, typing_override=typing_override
-        )
+        parsed = merge_type_text_at_workflow_literal(step_data, parsed, typing_override=typing_override)
 
     client = genai.Client(api_key=api_key or os.environ.get("GEMINI_API_KEY", ""))
     parsed, _loc = await resolve_coords_for_action(
@@ -346,9 +331,7 @@ async def run_ambiguous_step_inference_langgraph(
         client,
         step_data,
     )
-    parsed = merge_type_text_at_workflow_literal(
-        step_data, parsed, typing_override=typing_override
-    )
+    parsed = merge_type_text_at_workflow_literal(step_data, parsed, typing_override=typing_override)
 
     parsed_action_name = (parsed.get("action") or "").lower()
     skip_keys = {"action"}
