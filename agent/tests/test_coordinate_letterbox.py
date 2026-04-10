@@ -13,8 +13,8 @@ def test_coordinate_transformer_center_without_margins():
 
 def test_centered_square_letterbox_margins_16_10():
     # 1920x1200 inside square 1920 — horizontal full, vertical letterbox
-    l, top, r, bot = centered_square_letterbox_margins(1920, 1200, 1920)
-    assert abs(l) < 1e-9 and abs(r) < 1e-9
+    left, top, right, bot = centered_square_letterbox_margins(1920, 1200, 1920)
+    assert abs(left) < 1e-9 and abs(right) < 1e-9
     assert abs(top - 360 / 1920) < 1e-9 and abs(bot - 360 / 1920) < 1e-9
 
 

@@ -2,6 +2,7 @@
 SSE endpoint: GET /api/run/{workflow_id}/{run_id}/stream
 Streams real-time EchoPrism thought+action events from Firestore logs.
 """
+
 import asyncio
 import json
 import logging
@@ -25,12 +26,7 @@ async def stream_run_thoughts(
     """Server-Sent Events stream of EchoPrism thoughts for a live run."""
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
-    run_ref = (
-        db.collection("workflows")
-        .document(workflow_id)
-        .collection("runs")
-        .document(run_id)
-    )
+    run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
     run_snap = await asyncio.to_thread(run_ref.get)
     if not run_snap.exists:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -50,9 +46,7 @@ async def stream_run_thoughts(
                 run_status = run_data.get("status", "")
 
                 logs_ref = run_ref.collection("logs")
-                docs = await asyncio.to_thread(
-                    lambda: list(logs_ref.order_by("timestamp").stream())
-                )
+                docs = await asyncio.to_thread(lambda: list(logs_ref.order_by("timestamp").stream()))
 
                 new_events = []
                 for doc in docs:
@@ -64,12 +58,14 @@ async def stream_run_thoughts(
                         step_index = data.get("step_index", 0)
                         level = data.get("level", "info")
                         if thought or action:
-                            new_events.append({
-                                "thought": thought,
-                                "action": action,
-                                "step_index": step_index,
-                                "level": level,
-                            })
+                            new_events.append(
+                                {
+                                    "thought": thought,
+                                    "action": action,
+                                    "step_index": step_index,
+                                    "level": level,
+                                }
+                            )
 
                 if new_events:
                     consecutive_empty = 0

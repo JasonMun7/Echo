@@ -3,10 +3,6 @@
 import asyncio
 
 import pytest
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END
-from langgraph.types import Command
-
 from echo_prism_agent.agent import (
     build_inference_graph,
     build_synthesis_graph,
@@ -18,8 +14,11 @@ from echo_prism_agent.utils.nodes import (
     parse_and_validate,
     route_after_inference,
 )
-from echo_prism_agent.utils.tools import build_context_subgraph, build_gui_run_graph
 from echo_prism_agent.utils.state import MAX_INFERENCE_FAILURES
+from echo_prism_agent.utils.tools import build_context_subgraph, build_gui_run_graph
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END
+from langgraph.types import Command
 
 
 def test_context_subgraph_observe_screen_node_only():

@@ -21,6 +21,7 @@ Filtered trace documents are stored at:
   filtered_traces/{workflow_id}_{run_id}/steps (subcollection)
   filtered_traces/{workflow_id}_{run_id} (parent doc with metadata)
 """
+
 import asyncio
 import logging
 import os
@@ -33,9 +34,7 @@ from echo_prism_agent.model_prompts import TRACE_SCORING_PROMPT as _SCORING_PROM
 logger = logging.getLogger(__name__)
 
 # Pass 2 VLM scoring (offline / CLI only; override via env)
-TRACE_SCORING_MODEL = os.environ.get(
-    "ECHOPRISM_TRACE_SCORING_MODEL", DEFAULT_TRACE_SCORING_MODEL
-)
+TRACE_SCORING_MODEL = os.environ.get("ECHOPRISM_TRACE_SCORING_MODEL", DEFAULT_TRACE_SCORING_MODEL)
 
 
 def _is_duplicate(entry: dict, prior_entry: dict | None) -> bool:
@@ -44,6 +43,7 @@ def _is_duplicate(entry: dict, prior_entry: dict | None) -> bool:
         return False
     if not entry.get("action", ""):
         return False
+
     # Compare full action string including coordinates/params (not just action name)
     def _action_key(e: dict) -> str:
         act = e.get("action", "").lower()
@@ -51,6 +51,7 @@ def _is_duplicate(entry: dict, prior_entry: dict | None) -> bool:
         y = e.get("y", e.get("params", {}).get("y", ""))
         content = e.get("content", e.get("params", {}).get("text", ""))
         return f"{act}({x},{y},{content})"
+
     return _action_key(entry) == _action_key(prior_entry)
 
 
@@ -184,11 +185,7 @@ async def score_trace(
 
     # Fetch all trace log entries (only those with trace=True)
     logs_ref = run_ref.collection("logs")
-    trace_docs = [
-        {"id": d.id, **d.to_dict()}
-        for d in logs_ref.stream()
-        if d.to_dict().get("trace") is True
-    ]
+    trace_docs = [{"id": d.id, **d.to_dict()} for d in logs_ref.stream() if d.to_dict().get("trace") is True]
 
     if not trace_docs:
         logger.info("No trace entries found for run %s", run_id)
@@ -206,6 +203,7 @@ async def score_trace(
         try:
             from google import genai
             from google.cloud.firestore import SERVER_TIMESTAMP  # noqa: F401 — import check
+
             client = genai.Client(api_key=key)
             sem = asyncio.Semaphore(5)
             tasks = [_vlm_score_entry(client, entry, sem) for entry in unknown]
@@ -232,17 +230,21 @@ async def score_trace(
 
     # Store in filtered_traces collection using batch writes
     from google.cloud.firestore import SERVER_TIMESTAMP
+
     doc_id = f"{workflow_id}_{run_id}"
     ft_ref = db.collection("filtered_traces").document(doc_id)
-    ft_ref.set({
-        "workflow_id": workflow_id,
-        "run_id": run_id,
-        "owner_uid": owner_uid,
-        "step_count": len(scored),
-        "good_count": sum(1 for e in scored if e["quality"] == "good"),
-        "bad_count": sum(1 for e in scored if e["quality"] == "bad"),
-        "scored_at": SERVER_TIMESTAMP,
-    }, merge=True)
+    ft_ref.set(
+        {
+            "workflow_id": workflow_id,
+            "run_id": run_id,
+            "owner_uid": owner_uid,
+            "step_count": len(scored),
+            "good_count": sum(1 for e in scored if e["quality"] == "good"),
+            "bad_count": sum(1 for e in scored if e["quality"] == "bad"),
+            "scored_at": SERVER_TIMESTAMP,
+        },
+        merge=True,
+    )
 
     steps_ref = ft_ref.collection("steps")
     batch = db.batch()
@@ -269,6 +271,7 @@ async def score_trace(
             if isinstance(screenshot_bytes, bytes) and len(screenshot_bytes) > 0:
                 try:
                     from app.services.gcs import upload_file as gcs_upload
+
                     blob_name = f"traces/{workflow_id}/{run_id}/{step_doc_id}.jpg"
                     gcs_url = gcs_upload(blob_name, screenshot_bytes, content_type="image/jpeg")
                     step_data["screenshot_url"] = gcs_url

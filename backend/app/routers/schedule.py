@@ -2,8 +2,8 @@
 Schedule endpoints: POST/PUT/DELETE /api/schedule/{workflow_id}
 Uses Cloud Scheduler; OIDC verification for scheduler-triggered runs.
 """
+
 import os
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -21,8 +21,8 @@ class ScheduleBody(BaseModel):
 
 def _get_scheduler_client():
     try:
-        from google.cloud.scheduler_v1 import CloudSchedulerClient
-        from google.cloud.scheduler_v1 import Job, HttpTarget, OidcToken
+        from google.cloud.scheduler_v1 import CloudSchedulerClient, HttpTarget, Job, OidcToken
+
         return CloudSchedulerClient(), Job, HttpTarget, OidcToken
     except ImportError:
         return None

@@ -5,7 +5,6 @@ Reference dimensions were cross-checked with the same algorithm in Node.
 """
 
 import pytest
-
 from echo_prism_agent.constants import MAX_PIXELS_UI_TARS_1_5, MIN_PIXELS, RESIZE_FACTOR
 from echo_prism_agent.ui_tars.screenshot_pipeline import smart_resize_for_v15
 
@@ -20,12 +19,8 @@ from echo_prism_agent.ui_tars.screenshot_pipeline import smart_resize_for_v15
         (100, 100, (280, 280)),
     ],
 )
-def test_smart_resize_matches_ui_tars_desktop_v15(
-    width: int, height: int, expected: tuple[int, int]
-) -> None:
-    out = smart_resize_for_v15(
-        width, height, max_pixels=MAX_PIXELS_UI_TARS_1_5, min_pixels=MIN_PIXELS
-    )
+def test_smart_resize_matches_ui_tars_desktop_v15(width: int, height: int, expected: tuple[int, int]) -> None:
+    out = smart_resize_for_v15(width, height, max_pixels=MAX_PIXELS_UI_TARS_1_5, min_pixels=MIN_PIXELS)
     assert out == expected
 
 
@@ -39,9 +34,7 @@ def test_remap_matches_raw_over_vlm_dims(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("UI_TARS_MODEL_ID", "bytedance/ui-tars-1.5-7b")
     from echo_prism_agent.ui_tars.coords import remap_grounding_coords_for_vlm_canvas
 
-    w_bar, h_bar = smart_resize_for_v15(
-        1920, 1080, max_pixels=MAX_PIXELS_UI_TARS_1_5
-    ) or (0, 0)
+    w_bar, h_bar = smart_resize_for_v15(1920, 1080, max_pixels=MAX_PIXELS_UI_TARS_1_5) or (0, 0)
     assert w_bar == 1932 and h_bar == 1092
     raw_x, raw_y = 966, 546
     parsed = {"action": "click", "x": raw_x, "y": raw_y}

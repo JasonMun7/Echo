@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from echo_prism_agent.hitl.api_call_gate import build_api_call_gate_graph
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
-
-from echo_prism_agent.hitl.api_call_gate import build_api_call_gate_graph
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ Global model architecture (UI-TARS style):
     global_model/current  (Firestore)
   All users automatically benefit from the improved model on their next run.
 """
+
 import io
 import json
 import logging
@@ -158,10 +159,13 @@ async def export_training_data(
         raise ValueError("ECHO_GCS_BUCKET environment variable not set")
 
     # output_gcs_path is like "training/{uid}/dataset.jsonl"
-    blob_name = output_gcs_path.lstrip("gs://").split("/", 1)[-1] if output_gcs_path.startswith("gs://") else output_gcs_path
+    blob_name = (
+        output_gcs_path.lstrip("gs://").split("/", 1)[-1] if output_gcs_path.startswith("gs://") else output_gcs_path
+    )
 
     try:
         from google.cloud import storage
+
         gcs_client = storage.Client()
         bucket = gcs_client.bucket(_bucket_name)
         blob = bucket.blob(blob_name)
@@ -226,18 +230,22 @@ async def create_tuning_job(
         if db is not None:
             try:
                 from google.cloud.firestore import SERVER_TIMESTAMP
-                db.collection("global_model").document("current").set({
-                    "job_name": job_name,
-                    "job_status": "training",
-                    "tuned_model_id": None,
-                    "base_model": base_model,
-                    "example_count": example_count,
-                    "gcs_dataset_uri": gcs_dataset_uri,
-                    "location": location,
-                    "project": _project,
-                    "submitted_at": SERVER_TIMESTAMP,
-                    "completed_at": None,
-                }, merge=False)
+
+                db.collection("global_model").document("current").set(
+                    {
+                        "job_name": job_name,
+                        "job_status": "training",
+                        "tuned_model_id": None,
+                        "base_model": base_model,
+                        "example_count": example_count,
+                        "gcs_dataset_uri": gcs_dataset_uri,
+                        "location": location,
+                        "project": _project,
+                        "submitted_at": SERVER_TIMESTAMP,
+                        "completed_at": None,
+                    },
+                    merge=False,
+                )
                 logger.info("Persisted global tuning job to global_model/current")
             except Exception as fs_err:
                 logger.warning("Failed to persist job to Firestore: %s", fs_err)

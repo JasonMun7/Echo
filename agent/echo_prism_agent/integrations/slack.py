@@ -1,4 +1,5 @@
 """Slack Web API connector (Bearer token)."""
+
 from __future__ import annotations
 
 import logging

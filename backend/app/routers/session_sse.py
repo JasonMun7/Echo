@@ -1,4 +1,5 @@
 """Exchange Firebase Bearer for a short-lived HttpOnly cookie used by EventSource (SSE)."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response

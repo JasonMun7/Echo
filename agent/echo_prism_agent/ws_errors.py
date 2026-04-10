@@ -3,6 +3,7 @@ WebSocket error taxonomy for agent ↔ desktop (ECHO_* codes).
 
 Used in ``routers/agent.py`` so clients can classify failures (auth, guard, inference, etc.).
 """
+
 from __future__ import annotations
 
 # --- Codes (stable string identifiers) ---

@@ -6,6 +6,7 @@ Token optimization for screenshot-heavy workloads.
 - Observation window (last N screenshots)
 - Text summaries for older steps
 """
+
 from __future__ import annotations
 
 import io
@@ -216,7 +217,10 @@ def compress_screenshot(
                 img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                 logger.debug(
                     "compress_screenshot: %dx%d → %dx%d (smart_resize)",
-                    w, h, new_w, new_h,
+                    w,
+                    h,
+                    new_w,
+                    new_h,
                 )
             else:
                 logger.debug("compress_screenshot: %dx%d (no resize needed)", w, h)

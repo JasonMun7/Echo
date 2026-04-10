@@ -6,6 +6,7 @@ you need; the federated access token will include scopes the user consented to.
 
 Canonical scope URLs: https://developers.google.com/identity/protocols/oauth2/scopes
 """
+
 from __future__ import annotations
 
 # (Auth0 / Google Cloud label, OAuth 2 scope URL)
@@ -22,7 +23,10 @@ GOOGLE_OAUTH_MAX_BY_PRODUCT: dict[str, list[tuple[str, str]]] = {
         ("Calendar.Read", "https://www.googleapis.com/auth/calendar.readonly"),
         ("Calendar.Events", "https://www.googleapis.com/auth/calendar.events"),
         ("Calendar.Events.ReadOnly", "https://www.googleapis.com/auth/calendar.events.readonly"),
-        ("Calendar.Settings.ReadOnly", "https://www.googleapis.com/auth/calendar.settings.readonly"),
+        (
+            "Calendar.Settings.ReadOnly",
+            "https://www.googleapis.com/auth/calendar.settings.readonly",
+        ),
         ("Calendar.Addons.Execute", "https://www.googleapis.com/auth/calendar.addons.execute"),
     ],
     "Gmail": [

@@ -65,6 +65,7 @@ def _strip_markdown_code_fences(text: str) -> str:
 # Multi-format coordinate parsing (adapted from UI-TARS ActionParserHelper)
 # ---------------------------------------------------------------------------
 
+
 def _parse_coords_multi(s: str, count: int) -> list[int] | None:
     """
     Parse coordinates from multiple formats and return as int list.
@@ -107,9 +108,12 @@ def _parse_coords_multi(s: str, count: int) -> list[int] | None:
 
     # Format 4 & 5: Parenthesized or bracketed — (x, y) or [x, y]
     if nums is None:
-        m = re.search(r"[\(\[]\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)" +
-                       r"(?:\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?))?" +
-                       r"\s*[\)\]]", s)
+        m = re.search(
+            r"[\(\[]\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)"
+            + r"(?:\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?))?"
+            + r"\s*[\)\]]",
+            s,
+        )
         if m:
             nums = [float(m.group(i)) for i in range(1, 5) if m.group(i) is not None]
 
@@ -240,14 +244,22 @@ def parse_action(text: str) -> dict[str, Any] | None:
         m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
     if not m:
         # Try: "Action: Click 500, 300" (no parens)
-        m = re.search(r"(?:Action):\s*(Click|left_click|left_single|RightClick|right_click|right_single|DoubleClick|double_click|left_double|Hover|mouse_move)\s+([\d,\s]+)$", action_line, re.IGNORECASE)
+        m = re.search(
+            r"(?:Action):\s*(Click|left_click|left_single|RightClick|right_click|right_single|DoubleClick|double_click|left_double|Hover|mouse_move)\s+([\d,\s]+)$",
+            action_line,
+            re.IGNORECASE,
+        )
         if m:
             # Wrap the coords so downstream parsing works
             action_line = f"Action: {m.group(1)}({m.group(2)})"
             m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
     if not m:
         # Try: "Action: OpenApp IntelliJ IDEA" (no parens, string arg)
-        m = re.search(r'(?:Action):\s*(OpenApp|FocusApp|PressKey|Navigate)\s+["\']?(.+?)["\']?\s*$', action_line, re.IGNORECASE)
+        m = re.search(
+            r'(?:Action):\s*(OpenApp|FocusApp|PressKey|Navigate)\s+["\']?(.+?)["\']?\s*$',
+            action_line,
+            re.IGNORECASE,
+        )
         if m:
             action_line = f'Action: {m.group(1)}("{m.group(2)}")'
             m = re.search(r"(?:Action):\s*(\w+)\s*\((.*?)\)", action_line, re.IGNORECASE)
@@ -311,7 +323,11 @@ def parse_action(text: str) -> dict[str, Any] | None:
                 result["x2"], result["y2"] = end_coords
         if "x1" not in result:
             # Try start_point / end_point format
-            sp_m = re.search(r"start_point\s*=\s*['\"]?(.+?)['\"]?\s*(?:,\s*end_point|$)", args_str, re.IGNORECASE)
+            sp_m = re.search(
+                r"start_point\s*=\s*['\"]?(.+?)['\"]?\s*(?:,\s*end_point|$)",
+                args_str,
+                re.IGNORECASE,
+            )
             ep_m = re.search(r"end_point\s*=\s*['\"]?(.+?)['\"]?\s*(?:\)|$)", args_str, re.IGNORECASE)
             if sp_m and ep_m:
                 start_coords = _parse_coords_multi(sp_m.group(1), 2)
@@ -326,7 +342,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
     elif name == "scroll":
         named_dir = re.search(r'\bdirection\s*=\s*["\']?(\w+)["\']?', args_str, re.IGNORECASE)
         named_dist = re.search(r"\bdistance\s*=\s*(-?\d+)", args_str, re.IGNORECASE)
-        
+
         dir_val = named_dir.group(1).lower() if named_dir else "down"
         dist_val = int(named_dist.group(1)) if named_dist else None
 
@@ -366,9 +382,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
         if key_m:
             keys = [k.strip().lower() for k in key_m.group(1).split() if k.strip()]
         else:
-            keys = [
-                p.strip().strip("\"'").lower() for p in args_str.split(",") if p.strip()
-            ]
+            keys = [p.strip().strip("\"'").lower() for p in args_str.split(",") if p.strip()]
         result["keys"] = keys
     elif name == "wait":
         result["seconds"] = 1
@@ -378,11 +392,7 @@ def parse_action(text: str) -> dict[str, Any] | None:
         except (ValueError, TypeError):
             pass
     elif name == "presskey" or name == "press":
-        key = (
-            _extract_quoted(args_str)
-            if (args_str.startswith('"') or args_str.startswith("'"))
-            else args_str.strip()
-        )
+        key = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
         result["action"] = "presskey"
         result["key"] = key or "enter"
     elif name == "navigate" or name == "navigate_back":
@@ -428,29 +438,19 @@ def parse_action(text: str) -> dict[str, Any] | None:
         if coords:
             result["x"], result["y"] = coords[0], coords[1]
     elif name in ("copy", "paste", "readclipboard"):
-        pass # No parameters needed
+        pass  # No parameters needed
     elif name == "waitforelement":
-        desc = (
-            _extract_quoted(args_str)
-            if (args_str.startswith('"') or args_str.startswith("'"))
-            else args_str.strip()
-        )
+        desc = _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
         result["description"] = desc
-        result["selector"] = (
-            "body"  # fallback visual wait — operator uses this if needed
-        )
+        result["selector"] = "body"  # fallback visual wait — operator uses this if needed
     elif name in ("openapp", "focusapp"):
         app_name = (
-            _extract_quoted(args_str)
-            if (args_str.startswith('"') or args_str.startswith("'"))
-            else args_str.strip()
+            _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
         )
         result["appName"] = app_name
     elif name in ("applescript", "powershell"):
         script_code = (
-            _extract_quoted(args_str)
-            if (args_str.startswith('"') or args_str.startswith("'"))
-            else args_str.strip()
+            _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
         )
         result["script"] = script_code
     elif name in ("finished", "calluser", "call_user"):
@@ -515,5 +515,3 @@ def _extract_quoted(s: str) -> str:
         # Replace all escaped quotes globally
         return re.sub(r"\\" + quote, quote, inner)
     return s[1:]
-
-

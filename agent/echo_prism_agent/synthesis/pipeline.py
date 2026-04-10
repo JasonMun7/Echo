@@ -8,6 +8,7 @@ Supports three modes:
 
 Uses SYNTHESIS_MODEL from models_config.py.
 """
+
 import asyncio
 import hashlib
 import json
@@ -31,7 +32,6 @@ from echo_prism_agent.constants import (
     TITLE_MAX_OUTPUT_TOKENS,
     TITLE_MAX_STEPS_FOR_SUMMARY,
 )
-from echo_prism_agent.ui_tars.screenshot_pipeline import compress_screenshot
 from echo_prism_agent.model_prompts import (
     FRAME_SINGLE_STEP_SYSTEM,
     FRAME_SINGLE_STEP_USER,
@@ -39,6 +39,7 @@ from echo_prism_agent.model_prompts import (
     MEDIA_SYNTHESIS_PROMPT,
 )
 from echo_prism_agent.models_config import SYNTHESIS_MODEL
+from echo_prism_agent.ui_tars.screenshot_pipeline import compress_screenshot
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +176,12 @@ async def synthesize_frame_step(
     user_parts: list = []
     if history_text:
         user_parts.append(gtypes.Part.from_text(text=f"Prior steps summary:\n{history_text}"))
-    user_parts.extend([
-        gtypes.Part.from_text(text=user_text),
-        gtypes.Part.from_bytes(data=compressed, mime_type="image/jpeg"),
-    ])
+    user_parts.extend(
+        [
+            gtypes.Part.from_text(text=user_text),
+            gtypes.Part.from_bytes(data=compressed, mime_type="image/jpeg"),
+        ]
+    )
 
     config = gtypes.GenerateContentConfig(
         system_instruction=FRAME_SINGLE_STEP_SYSTEM,
@@ -218,7 +221,7 @@ async def synthesize_frame_step(
         if not step.get("action"):
             return None, wf_type, None
         return step, wf_type, None
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return None, None, "Timeout"
     except json.JSONDecodeError as e:
         logger.warning("Frame JSON parse failed: %s", e)
@@ -241,15 +244,13 @@ async def _generate_title_from_steps(
         ctx = s.get("context", "")
         act = s.get("action", "")
         if ctx or act:
-            summaries.append(
-                f"{i}. {act}: {ctx[:TITLE_CONTEXT_SLICE_CHARS]}".strip(": ")
-            )
+            summaries.append(f"{i}. {act}: {ctx[:TITLE_CONTEXT_SLICE_CHARS]}".strip(": "))
     if not summaries:
         return None
     prompt = (
         "Given these workflow steps:\n"
         + "\n".join(summaries)
-        + '\n\nReturn ONLY a short title (3-6 words) describing what this workflow does. No quotes, no punctuation at end.'
+        + "\n\nReturn ONLY a short title (3-6 words) describing what this workflow does. No quotes, no punctuation at end."
     )
     try:
         from google.genai import types as gtypes
@@ -275,7 +276,7 @@ async def _generate_title_from_steps(
                             text += p.text
         title = text.strip().strip('"').strip("'") if text else ""
         return title if title else None
-    except (asyncio.TimeoutError, Exception) as e:
+    except (TimeoutError, Exception) as e:
         logger.warning("Title generation failed (will use fallback): %s", e)
         return None
 
@@ -397,9 +398,7 @@ async def synthesize_workflow_from_frames(
             frame_bytes,
             idx,
             len(sampled),
-            history_text="\n".join(history_parts[-HISTORY_ROLLING_STEPS:])
-            if history_parts
-            else "",
+            history_text="\n".join(history_parts[-HISTORY_ROLLING_STEPS:]) if history_parts else "",
             model=model,
         )
         if err:
@@ -458,9 +457,7 @@ async def synthesize_workflow_from_description(
         return {"title": name, "workflow_type": workflow_type, "steps": [], "variables": []}
 
     prompt = FROM_DESCRIPTION_PROMPT + f"\n\nWorkflow description:\n{description}"
-    contents = [
-        gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=prompt)])
-    ]
+    contents = [gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=prompt)])]
     config = gtypes.GenerateContentConfig(
         response_mime_type="application/json",
         temperature=MEDIA_SYNTHESIS_TEMPERATURE,

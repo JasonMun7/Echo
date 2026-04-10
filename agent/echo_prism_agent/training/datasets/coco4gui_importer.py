@@ -7,10 +7,11 @@ for Vertex AI fine-tuning.
 Each annotation → one JSONL line: image + task_description → point([x, y])
 Coordinates: 3-decimal [0.000, 1.000] normalized.
 """
+
 import json
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
 
 from .coco4gui_schema import COCO4GUIDataset
 
@@ -93,17 +94,31 @@ def coco4gui_to_vertex_examples(
             continue
 
         output_text = f"point([{x_norm:.3f}, {y_norm:.3f}])"
-        file_uri = f"{image_base_url.rstrip('/')}/{img.file_name}" if image_base_url else (img.gcs_url or f"gs://placeholder/{img.file_name}")
+        file_uri = (
+            f"{image_base_url.rstrip('/')}/{img.file_name}"
+            if image_base_url
+            else (img.gcs_url or f"gs://placeholder/{img.file_name}")
+        )
 
         if format == "vertex":
             # Vertex-native: systemInstruction + contents with fileData (matches Colab)
             yield {
                 "systemInstruction": {
                     "role": "user",
-                    "parts": [{"text": "You are a GUI grounding agent. Given a screenshot and a task or instruction, locate the target GUI element and output only its center as normalized coordinates. Use the format point([x, y]) where x and y are in [0, 1] with 3 decimal places (e.g. point([0.850, 0.120])). (0, 0) is top-left, (1, 1) is bottom-right. Output nothing else—no explanation, labels, or extra text."}],
+                    "parts": [
+                        {
+                            "text": "You are a GUI grounding agent. Given a screenshot and a task or instruction, locate the target GUI element and output only its center as normalized coordinates. Use the format point([x, y]) where x and y are in [0, 1] with 3 decimal places (e.g. point([0.850, 0.120])). (0, 0) is top-left, (1, 1) is bottom-right. Output nothing else—no explanation, labels, or extra text."
+                        }
+                    ],
                 },
                 "contents": [
-                    {"role": "user", "parts": [{"fileData": {"mimeType": "image/png", "fileUri": file_uri}}, {"text": task_desc}]},
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"fileData": {"mimeType": "image/png", "fileUri": file_uri}},
+                            {"text": task_desc},
+                        ],
+                    },
                     {"role": "model", "parts": [{"text": output_text}]},
                 ],
             }

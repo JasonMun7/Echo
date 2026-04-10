@@ -6,7 +6,7 @@ from echo_prism_agent.muscle.muscle_output_mapper import muscle_step_to_parsed
 
 
 def test_muscle_done_to_finished() -> None:
-    p = muscle_step_to_parsed({"plan": 'TOOL_USE name=done input={}'}, [])
+    p = muscle_step_to_parsed({"plan": "TOOL_USE name=done input={}"}, [])
     assert p.get("action") == "finished"
 
 

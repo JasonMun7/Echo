@@ -3,6 +3,7 @@ EchoPrism execution: Playwright operators, deterministic steps, GCS uploads, API
 
 Consolidates former `action_operators`, `deterministic_steps`, `step_bridge`, and `gcs_screenshots`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -194,9 +195,7 @@ class PlaywrightOperator(BaseOperator):
                 for k in reversed(keys[:-1]):
                     await self._page.keyboard.up(k)
             else:
-                logging.getLogger(__name__).warning(
-                    "PlaywrightOperator: unknown action '%s'", act
-                )
+                logging.getLogger(__name__).warning("PlaywrightOperator: unknown action '%s'", act)
                 return False
 
             try:
@@ -233,13 +232,9 @@ class ApiCallOperator(BaseOperator):
         try:
             from echo_prism_agent.integrations.resolver import get_integration_access_token
 
-            access_token = await get_integration_access_token(
-                self._uid, integration, self._db
-            )
+            access_token = await get_integration_access_token(self._uid, integration, self._db)
 
-            connector = importlib.import_module(
-                f"echo_prism_agent.integrations.{integration}"
-            )
+            connector = importlib.import_module(f"echo_prism_agent.integrations.{integration}")
             result = await connector.execute(method, args, access_token)
             return True if result.get("ok") else False
         except Exception:
@@ -337,9 +332,7 @@ def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
     if "key" in params:
         result["key"] = str(params["key"])
     if "keys" in params:
-        result["keys"] = (
-            list(params["keys"]) if isinstance(params["keys"], (list, tuple)) else [params["keys"]]
-        )
+        result["keys"] = list(params["keys"]) if isinstance(params["keys"], (list, tuple)) else [params["keys"]]
     if "seconds" in params:
         result["seconds"] = min(int(params["seconds"]), 60)
     if "direction" in params:
@@ -498,9 +491,7 @@ async def execute_step(page: Any, step: dict[str, Any]) -> tuple[bool, str]:
             try:
                 await page.wait_for_selector(selector, timeout=15000)
             except Exception as timeout_err:
-                logger.warning(
-                    "wait_for_element timed out for selector %r: %s", selector, timeout_err
-                )
+                logger.warning("wait_for_element timed out for selector %r: %s", selector, timeout_err)
                 return True, ""
         elif action == "wait":
             secs = params.get("seconds", 2)
@@ -550,8 +541,8 @@ def upload_screenshot(screenshot_bytes: bytes, url: str) -> None:
     use_public = os.environ.get("GCS_PUBLIC_BUCKET", "").lower() in ("1", "true", "yes")
 
     try:
-        from google.cloud import storage
         from firebase_admin import firestore
+        from google.cloud import storage
         from google.cloud.firestore import SERVER_TIMESTAMP
 
         client = storage.Client()
@@ -583,12 +574,7 @@ def upload_screenshot(screenshot_bytes: bytes, url: str) -> None:
                 )
 
         db = firestore.client()
-        run_ref = (
-            db.collection("workflows")
-            .document(workflow_id)
-            .collection("runs")
-            .document(run_id)
-        )
+        run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
         run_ref.update(
             {
                 "lastScreenshotUrl": screenshot_ref,
@@ -738,9 +724,7 @@ async def execute_api_call(
         )
 
         args = sanitize_api_call_string_args(dict(args) if isinstance(args, dict) else {})
-        connector = importlib.import_module(
-            f"echo_prism_agent.integrations.{integration}"
-        )
+        connector = importlib.import_module(f"echo_prism_agent.integrations.{integration}")
         result = await connector.execute(method, args, access_token)
         ok = result.get("ok", False)
         if not ok:

@@ -207,7 +207,7 @@ def test_google_gmail_labels(mock_ac: MagicMock) -> None:
 
     out = _run(google.execute("gmail_list_labels", {}, "tok"))
     assert out["ok"] is True
-    assert any(l["id"] == "INBOX" for l in out["result"]["labels"])
+    assert any(label["id"] == "INBOX" for label in out["result"]["labels"])
 
 
 @patch("echo_prism_agent.integrations.google.httpx.AsyncClient")
@@ -315,4 +315,3 @@ def test_github_list_repos_http_error(mock_ac: MagicMock) -> None:
 def test_methods_dicts_nonempty() -> None:
     for mod in (slack, github, google):
         assert getattr(mod, "METHODS", {}), f"{mod.__name__} should expose METHODS"
-

@@ -6,6 +6,7 @@ Hosts:
   - /api/synthesize — Workflow synthesis (video, images, description)
   - /api/agent/run — Runner WebSocket (screenshot → action)
 """
+
 import logging
 import os as _os
 import sys
@@ -36,9 +37,7 @@ if _sa and not _os.path.isfile(_sa):
     # Absolute path to a missing file (e.g. Doppler leaked a laptop path) breaks ADC on Cloud Run.
     if _os.path.isabs(_sa):
         _os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-        logging.getLogger(__name__).warning(
-            "Ignoring GOOGLE_APPLICATION_CREDENTIALS (missing file): %s", _sa
-        )
+        logging.getLogger(__name__).warning("Ignoring GOOGLE_APPLICATION_CREDENTIALS (missing file): %s", _sa)
     else:
         _service_root = Path(__file__).resolve().parent
         for _candidate in [
@@ -66,8 +65,8 @@ if str(_service_root) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from routers import chat, synthesize, agent as agent_router, livekit
+from routers import agent as agent_router
+from routers import chat, livekit, synthesize
 
 app = FastAPI(title="Echo Prism Agent", version="0.2.0")
 
