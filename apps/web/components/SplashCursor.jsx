@@ -65,7 +65,7 @@ function SplashCursor({
       config.SHADING = false;
     }
 
-    let rafId = 0;
+    let rafId = null;
     let cleanedUp = false;
 
     function getWebGLContext(canvas) {
@@ -685,7 +685,15 @@ function SplashCursor({
       applyInputs();
       step(dt);
       render(null);
-      rafId = requestAnimationFrame(updateFrame);
+      if (!cleanedUp) {
+        rafId = requestAnimationFrame(updateFrame);
+      }
+    }
+
+    /** Start the RAF loop only when nothing is already scheduled (single entry point). */
+    function kickRaf() {
+      if (cleanedUp || rafId != null) return;
+      updateFrame();
     }
 
     function calcDeltaTime() {
@@ -988,7 +996,6 @@ function SplashCursor({
       let posX = scaleByPixelRatio(e.clientX);
       let posY = scaleByPixelRatio(e.clientY);
       let color = generateColor();
-      updateFrame();
       updatePointerMoveData(pointer, posX, posY, color);
       document.body.removeEventListener('mousemove', handleFirstMouseMove);
     }
@@ -1009,7 +1016,6 @@ function SplashCursor({
       for (let i = 0; i < touches.length; i++) {
         let posX = scaleByPixelRatio(touches[i].clientX);
         let posY = scaleByPixelRatio(touches[i].clientY);
-        updateFrame();
         updatePointerDownData(pointer, touches[i].identifier, posX, posY);
       }
       document.body.removeEventListener('touchstart', handleFirstTouchStart);
@@ -1047,11 +1053,12 @@ function SplashCursor({
     }
     window.addEventListener('touchend', onSplashTouchEnd);
 
-    updateFrame();
+    kickRaf();
 
     return () => {
       cleanedUp = true;
-      cancelAnimationFrame(rafId);
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = null;
       window.removeEventListener('mousedown', onSplashMouseDown);
       document.body.removeEventListener('mousemove', handleFirstMouseMove);
       window.removeEventListener('mousemove', onSplashMouseMove);

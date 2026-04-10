@@ -5,6 +5,7 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
 } from "react";
 import {
@@ -273,6 +274,8 @@ export default function DatasetCreatorPage() {
     images: [],
     annotations: [],
   });
+  const datasetRef = useRef(dataset);
+  const currentFrameRef = useRef<Frame | null>(null);
   const [taskDescriptions, setTaskDescriptions] = useState<Set<string>>(new Set());
   const [sequenceTasks, setSequenceTasks] = useState<Set<string>>(new Set());
 
@@ -293,6 +296,14 @@ export default function DatasetCreatorPage() {
   useEffect(() => {
     nextAnnotationIdRef.current = nextAnnotationId;
   }, [nextAnnotationId]);
+
+  useLayoutEffect(() => {
+    datasetRef.current = dataset;
+  }, [dataset]);
+  useLayoutEffect(() => {
+    currentFrameRef.current = currentFrame;
+  }, [currentFrame]);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const showFileStatus = (msg: string, type: "success" | "error") => {
@@ -869,57 +880,60 @@ export default function DatasetCreatorPage() {
 
   const switchToCapture = () => {
     if (appMode === "review" && currentFrame) {
-      persistCurrentSampleToDataset();
+      persistFrameToDataset(currentFrame);
     }
     setAppMode("capture");
     setCurrentSampleIndex(-1);
   };
 
-  const persistCurrentSampleToDataset = useCallback(() => {
-    if (!currentFrame) return;
-    const img = dataset.images.find((i) => i.id === currentFrame.id);
-    if (!img) return;
-    const clamped = currentFrame.annotations.map((ann) =>
-      clampAnnotation(ann, currentFrame.width, currentFrame.height)
-    );
-    const cocoAnns = currentFrame.annotations.map((ann, i) => {
-      const c = clamped[i];
+  const persistFrameToDataset = useCallback((frame: Frame | null) => {
+    if (!frame) return;
+    setDataset((d) => {
+      const img = d.images.find((i) => i.id === frame.id);
+      if (!img) return d;
+      const clamped = frame.annotations.map((ann) =>
+        clampAnnotation(ann, frame.width, frame.height)
+      );
+      const cocoAnns = frame.annotations.map((ann, i) => {
+        const c = clamped[i];
+        return {
+          id: ann.id,
+          image_id: frame.id,
+          category_id: CATEGORY_MAP[ann.action_type] ?? 1,
+          bbox: c.bbox ?? ann.bbox,
+          keypoints: c.keypoints ?? ann.keypoints,
+          area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
+          iscrowd: 0,
+          attributes: {
+            task_description: ann.task_description,
+            action_type: ann.action_type,
+            element_info: ann.element_info,
+            custom_metadata: ann.custom_metadata || {},
+          },
+        };
+      });
+      const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
+      nextAnnotationIdRef.current = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
       return {
-        id: ann.id,
-        image_id: currentFrame.id,
-        category_id: CATEGORY_MAP[ann.action_type] ?? 1,
-        bbox: c.bbox ?? ann.bbox,
-        keypoints: c.keypoints ?? ann.keypoints,
-        area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
-        iscrowd: 0,
-        attributes: {
-          task_description: ann.task_description,
-          action_type: ann.action_type,
-          element_info: ann.element_info,
-          custom_metadata: ann.custom_metadata || {},
-        },
+        ...d,
+        images: d.images.map((im) =>
+          im.id === frame.id
+            ? { ...im, application: application || im.application, platform: platform || im.platform }
+            : im
+        ),
+        annotations: [...d.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
       };
     });
-    const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...dataset.annotations.map((a) => a.id));
-    nextAnnotationIdRef.current = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
     setNextAnnotationId(nextAnnotationIdRef.current);
-    setDataset((d) => ({
-      ...d,
-      images: d.images.map((im) =>
-        im.id === currentFrame.id
-          ? { ...im, application: application || im.application, platform: platform || im.platform }
-          : im
-      ),
-      annotations: [...d.annotations.filter((a) => a.image_id !== currentFrame.id), ...cocoAnns],
-    }));
-  }, [currentFrame, dataset, application, platform]);
+  }, [application, platform]);
 
   const loadSample = useCallback(
     async (index: number) => {
       if (index < 0 || index >= filteredSamples.length) return;
       const sample = filteredSamples[index];
-      if (currentFrame && currentFrame.id !== sample.id) {
-        persistCurrentSampleToDataset();
+      const prevFrame = currentFrameRef.current;
+      if (prevFrame && prevFrame.id !== sample.id) {
+        persistFrameToDataset(prevFrame);
       }
       setCurrentSampleIndex(index);
       let dataUrl = loadedSampleCache.current.get(sample.id);
@@ -940,7 +954,8 @@ export default function DatasetCreatorPage() {
           return;
         }
       }
-      const frameAnns = dataset.annotations.filter((a) => a.image_id === sample.id);
+      const d = datasetRef.current;
+      const frameAnns = d.annotations.filter((a) => a.image_id === sample.id);
       const frame: Frame = {
         id: sample.id,
         dataUrl,
@@ -963,7 +978,7 @@ export default function DatasetCreatorPage() {
       setMode("annotating");
       setStatus(`Sample ${index + 1} of ${filteredSamples.length}`);
     },
-    [filteredSamples, dataset, currentFrame, persistCurrentSampleToDataset]
+    [filteredSamples, persistFrameToDataset]
   );
 
   useEffect(() => {

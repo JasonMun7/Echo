@@ -60,8 +60,8 @@ declare global {
       cancelRun: () => Promise<void>;
       sendInterrupt: (text: string) => Promise<void>;
       openVoiceInterruption: () => Promise<{ ok: boolean; error?: string }>;
-      closeVoiceInterruption: () => Promise<void>;
-      resumeRunFromVoice: () => Promise<void>;
+      closeVoiceInterruption: () => Promise<{ ok: true }>;
+      resumeRunFromVoice: () => Promise<{ ok: true }>;
       onVoiceInterruptionContext: (callback: (ctx: {
         workflowId: string;
         runId: string;
