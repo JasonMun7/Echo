@@ -1,15 +1,15 @@
 <!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+
 <a id="readme-top"></a>
 
 <!-- PROJECT SHIELDS -->
+
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
-
-
 
 <!-- PROJECT LOGO -->
 <br />
@@ -33,8 +33,6 @@
     <a href="https://github.com/JasonMun7/echo/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
   </p>
 </div>
-
-
 
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -69,9 +67,8 @@
   </ol>
 </details>
 
-
-
 <!-- ABOUT THE PROJECT -->
+
 ## About The Project
 
 [![Echo Dashboard Screenshot][product-screenshot]](https://echo-frontend-607073095974.us-central1.run.app)
@@ -80,23 +77,17 @@
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 ### Architecture
 
 ![Architecture Diagram][architecture-diagram]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 ### Agent Diagram
 
 ![Agent Diagram][agent-diagram]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Built With
 
@@ -111,9 +102,8 @@
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- GETTING STARTED -->
+
 ## Getting Started
 
 To run the full stack locally or deploy from scratch, follow the phases below.
@@ -150,26 +140,26 @@ Doc index: [https://auth0.com/llms.txt](https://auth0.com/llms.txt). Echo can us
 
 **Auth0 AI (product):** [Token Vault overview](https://auth0.com/ai/docs/intro/token-vault), [Google integration](https://auth0.com/ai/docs/integrations/google), [Call others’ APIs quickstart](https://auth0.com/ai/docs/get-started/call-others-apis-on-users-behalf). Echo follows the **“applications with refresh tokens”** pattern (Regular Web Application + stored Auth0 refresh token), not the SPA “access-token-only” Token Vault variant.
 
-| Authentication (Dashboard) | Connected Accounts for Token Vault | Behavior (per Auth0) |
-|------------------------------|-------------------------------------|----------------------|
-| On | Off | `/authorize` login only; **identities**. |
-| Off | On | **My Account** Connected Accounts flow only; vault tokens; connection not a login IdP. |
-| On | On | Both login and vault; Echo **Connect** defaults to My Account **`connect`/`complete`** (set **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** for legacy **`/authorize`** Connect only). |
+| Authentication (Dashboard) | Connected Accounts for Token Vault | Behavior (per Auth0)                                                                                                                                                              |
+| -------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| On                         | Off                                | `/authorize` login only; **identities**.                                                                                                                                          |
+| Off                        | On                                 | **My Account** Connected Accounts flow only; vault tokens; connection not a login IdP.                                                                                            |
+| On                         | On                                 | Both login and vault; Echo **Connect** defaults to My Account **`connect`/`complete`** (set **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** for legacy **`/authorize`** Connect only). |
 
 **Important:** **Link Auth0** stores an **Auth0** refresh token on the user document. **Provider** tokens (Google, etc.) are written to Token Vault only after the user completes a **Connect account** flow for that provider; Universal Login alone does not populate the vault ([how it works](https://auth0.com/ai/docs/intro/token-vault#how-it-works)).
 
 **`/authorize` vs My Account Connected Accounts:** Auth0 documents **Connected Accounts for Token Vault** using the **My Account API** (`POST https://<tenant>/me/v1/connected-accounts/connect`, then `…/complete`). Echo’s **default** **Connect** path uses that flow (requires [My Account API](https://auth0.com/docs/manage-users/my-account-api) + MRRT for audience `https://<tenant>/me/`). Set **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** only if you need the legacy **`/authorize?connection=<provider>`** path (requires the connection’s **Purpose** to include **Authentication**).
 
-| | Universal Login (`/authorize`) | Connected Accounts (`/me/v1/connected-accounts/*`) |
-|---|----------------|----------------------|
-| **Purpose** | Identify the user (session). | Delegate access; **Token Vault** storage. |
-| **Auth0 storage** | Session / **identities**. | **connected_accounts** (vault). |
+|                         | Universal Login (`/authorize`)     | Connected Accounts (`/me/v1/connected-accounts/*`)            |
+| ----------------------- | ---------------------------------- | ------------------------------------------------------------- |
+| **Purpose**             | Identify the user (session).       | Delegate access; **Token Vault** storage.                     |
+| **Auth0 storage**       | Session / **identities**.          | **connected_accounts** (vault).                               |
 | **Agent / Google APIs** | Not sufficient alone for vault RT. | **connect** → user consents → **`complete`** seals the vault. |
 
 **My Account path in Echo:** `connect` returns `connect_uri` + `auth_session`; after redirect, **`GET /api/auth0/callback?connect_code=…&state=…`** runs **`…/connected-accounts/complete`** server-side (with PKCE **`code_verifier`**). Skipping callback (or a broken `state`) means the vault stays empty. The backend exchanges the user’s Auth0 refresh token for a My Account API access token using scopes **`openid profile offline_access create:me:connected_accounts read:me:connected_accounts delete:me:connected_accounts`** — align **MRRT** / Application Access on **Auth0 My Account API** with those Connected Accounts permissions. For **Connect Google**, Echo omits upstream **`scopes`** in the My Account request unless **`AUTH0_MY_ACCOUNT_GOOGLE_SCOPES`** is set, so Auth0 requests the Google permissions you enabled under **Social → Google** in the Dashboard (and your GCP OAuth consent screen). **`authorization_params`** uses **`prompt=consent`** only. Optional env override: comma-separated scope URLs; do **not** add **`offline_access`** unless it is on your GCP consent screen—use Auth0 **Offline Access** on the connection for federated refresh tokens.
 
 1. In Auth0: create a **Regular Web Application**, register an **API** (audience), enable **Token Vault** / **Connected Accounts** on your Social connections (Slack, GitHub, and **Google**), and add callback URL `https://<your-backend>/api/auth0/callback` (local: `http://localhost:8000/api/auth0/callback`).
-2. **Google (Gmail / Calendar / Drive-style APIs):** In [Google Cloud Console](https://console.cloud.google.com), enable each API you need (e.g. **Google Calendar API** for `calendar_list` / `calendar_freebusy`). → **APIs & Services → Credentials**, create an **OAuth 2.0 Client ID** (Web application). Set **Authorized redirect URI** to `https://<AUTH0_DOMAIN>/login/callback` and **Authorized JavaScript origin** to `https://<AUTH0_DOMAIN>` (not the Echo backend). In Auth0 → **Authentication → Social → Google**, paste the Google client ID/secret. Under **Purpose**, choose **Authentication and Connected Accounts for Token Vault** (both)—Echo **Connect Google** defaults to the My Account connected-accounts flow; set **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** only if you use legacy **`/authorize`** with `connection=google-oauth2`, which Auth0 only allows when **Authentication** is enabled on that connection (**Connected Accounts for Token Vault** alone causes *The connection is not active for authentication* on that legacy path). Under **Permissions**, enable **Offline Access** so Google can issue refresh tokens for Token Vault. For **free/busy** queries (`api_call` method `calendar_freebusy`), add scope **`https://www.googleapis.com/auth/calendar.freebusy`** on the connection (or a broader Calendar scope). To keep **Link Auth0** on email/password (so Universal Login does not offer Google), set **`AUTH0_LINK_CONNECTION`** to `Username-Password-Authentication` (or `?connection=` on `GET /api/auth0/link-url`). Do not rely on **`NEXT_PUBLIC_AUTH0_LINK_CONNECTION`** for the default web app—it is deprecated (see `scripts/doppler-env-reference.md`). Attach the connection to your Echo application. Echo uses integration id `google`, mapped to Auth0 connection `google-oauth2` by default (`AUTH0_CONNECTION_GOOGLE` overrides the Auth0 connection name).
+2. **Google (Gmail / Calendar / Drive-style APIs):** In [Google Cloud Console](https://console.cloud.google.com), enable each API you need (e.g. **Google Calendar API** for `calendar_list` / `calendar_freebusy`). → **APIs & Services → Credentials**, create an **OAuth 2.0 Client ID** (Web application). Set **Authorized redirect URI** to `https://<AUTH0_DOMAIN>/login/callback` and **Authorized JavaScript origin** to `https://<AUTH0_DOMAIN>` (not the Echo backend). In Auth0 → **Authentication → Social → Google**, paste the Google client ID/secret. Under **Purpose**, choose **Authentication and Connected Accounts for Token Vault** (both)—Echo **Connect Google** defaults to the My Account connected-accounts flow; set **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** only if you use legacy **`/authorize`** with `connection=google-oauth2`, which Auth0 only allows when **Authentication** is enabled on that connection (**Connected Accounts for Token Vault** alone causes _The connection is not active for authentication_ on that legacy path). Under **Permissions**, enable **Offline Access** so Google can issue refresh tokens for Token Vault. For **free/busy** queries (`api_call` method `calendar_freebusy`), add scope **`https://www.googleapis.com/auth/calendar.freebusy`** on the connection (or a broader Calendar scope). To keep **Link Auth0** on email/password (so Universal Login does not offer Google), set **`AUTH0_LINK_CONNECTION`** to `Username-Password-Authentication` (or `?connection=` on `GET /api/auth0/link-url`). Do not rely on **`NEXT_PUBLIC_AUTH0_LINK_CONNECTION`** for the default web app—it is deprecated (see `scripts/doppler-env-reference.md`). Attach the connection to your Echo application. Echo uses integration id `google`, mapped to Auth0 connection `google-oauth2` by default (`AUTH0_CONNECTION_GOOGLE` overrides the Auth0 connection name).
 3. Set environment variables on the **backend** (and **Echo Prism agent** if it runs `api_call` with Firestore): `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_AUDIENCE`. Users **Link Auth0** with any **authentication** connection enabled on the Echo Regular Web Application (step 2: Google must include **Authentication** in Purpose for **Connect** to work), then **Connect Google** from Integrations so Token Vault stores a Google refresh token for API calls—see troubleshooting below if exchange fails. See `scripts/doppler-env-reference.md`.
 4. Local backend: `pnpm run dev:backend` sets `PYTHONPATH=../agent` so integration connectors load from `echo_prism_agent/integrations/`.
 5. In the web app **Integrations** page: **Link Auth0 for integrations**, then **Connect (Token Vault)** per provider.
@@ -190,7 +180,7 @@ Doc index: [https://auth0.com/llms.txt](https://auth0.com/llms.txt). Echo can us
 
 **Connectors (Echo Prism agent + `/api/integrations/{id}/call`):** Slack — `list_channels`, `post_message`. GitHub — `list_repos`, `create_issue`. Google — convenience methods: `userinfo`, `calendar_list`, `calendar_freebusy`, `gmail_list_labels`, `gmail_send`, `drive_list_files`; plus **`rest`** (alias **`google_rest`**) for any [Google API](https://developers.google.com/discovery) on a `*.googleapis.com` host (`verb`, `url`, optional `params`, `json`, `timeout_seconds`). Enable the **Google Cloud APIs** and matching **OAuth scopes** in Auth0 (Calendar, Gmail, Drive, Sheets, Slides, Contacts, Tasks, sign-in profile — see `google_scopes.py`); otherwise Google returns 403. **`calendar_freebusy`** expects `timeMin` and `timeMax` (RFC3339), optional `timeZone` (default `UTC`), optional `items` (default `[{"id":"primary"}]`). **`gmail_send`** expects `to` (recipient email), optional `subject`, `body` or `text`, optional `cc`, `bcc`, `html` (multipart if `html` is set); requires **Gmail.Send** scope. Integrations are **Auth0 Token Vault only** (no classic Slack/GitHub OAuth redirect to Echo). Legacy Firestore-stored OAuth tokens are ignored unless `ECHO_INTEGRATIONS_TOKEN_VAULT_ONLY=0` (see `scripts/doppler-env-reference.md`).
 
-**Google — maximum OAuth scope surface (Auth0 / Google Cloud):** If you enable *everything* in the Google connection and consent screen, Echo aligns with at most the scope groups in [`agent/echo_prism_agent/integrations/google_scopes.py`](agent/echo_prism_agent/integrations/google_scopes.py) — **Calendar** (full / read / events / settings / add-ons), **Gmail** (labels through full mailbox), **Drive** (metadata through full Drive), **Sheets**, **Slides**, **Contacts** (including directory read-only), and **Tasks**. In practice, enable only the toggles your product needs; tokens only carry scopes the user consented to.
+**Google — maximum OAuth scope surface (Auth0 / Google Cloud):** If you enable _everything_ in the Google connection and consent screen, Echo aligns with at most the scope groups in [`agent/echo_prism_agent/integrations/google_scopes.py`](agent/echo_prism_agent/integrations/google_scopes.py) — **Calendar** (full / read / events / settings / add-ons), **Gmail** (labels through full mailbox), **Drive** (metadata through full Drive), **Sheets**, **Slides**, **Contacts** (including directory read-only), and **Tasks**. In practice, enable only the toggles your product needs; tokens only carry scopes the user consented to.
 
 **Troubleshooting:** `access_denied` on return to Echo usually means the user cancelled the provider screen, or the Social connection is not enabled for your Auth0 app (**Authentication → Social → [Slack/GitHub/Google] → Applications** → enable your Regular Web Application).
 
@@ -198,15 +188,13 @@ Doc index: [https://auth0.com/llms.txt](https://auth0.com/llms.txt). Echo can us
 
 **`OAuth error (invalid_request): The connection is not active for authentication`:** This applies to the **legacy** **`/authorize`** Connect path when **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`**. Auth0 treats **`/authorize`** with `connection=` as an **authentication** transaction, so vault-only social connections fail on that path. **Option A:** set **Google / GitHub** to **Authentication and Connected Accounts for Token Vault** (both on). **Option B (vault-only IdPs):** keep **My Account Connect** (default; do not set **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`**). Echo uses Auth0’s **My Account API** (`POST https://<tenant>/me/v1/connected-accounts/connect` per [Connected Accounts](https://auth0.com/docs/secure/tokens/token-vault/connected-accounts-for-token-vault)), matching `mount_connected_account_routes` / `start_connect_account` in [auth0-server-python `ConnectedAccounts.md`](https://github.com/auth0/auth0-server-python/blob/main/examples/ConnectedAccounts.md). You must [activate My Account API](https://auth0.com/docs/manage-users/my-account-api#activate-the-my-account-api), configure **MRRT** so the user’s Auth0 refresh token can request audience `https://<tenant>/me/` with scopes including `create:me:connected_accounts`, then **Link Auth0** again if needed. Optional: **`AUTH0_MY_ACCOUNT_GOOGLE_SCOPES`** (comma-separated Google scopes for the connect request).
 
-**`Federated connection Refresh Token not found` (401 on `/oauth/token`):** Auth0 has no Google (etc.) federated refresh token in Token Vault for this user—even though Echo may show connected. Complete **Connect** after **Link Auth0** (**Integrations → Connect Google**). If your tenant is oriented around **Connected Accounts** only, avoid **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** — the legacy **`/authorize?connection=`** path may not persist vault tokens the way the default **My Account** flow does (`POST …/me/v1/connected-accounts/connect` + callback `connect_code`; see troubleshooting for *not active for authentication*). **Verify in Dashboard:** **User Management → Users → [user] → Connected Accounts**—if empty, Token Vault has nothing to exchange yet. Also ensure **Social → Google** has **Connected Accounts for Token Vault** + **Offline Access**; **Grant types** on **Echo Web** include **Authorization Code**, **Refresh Token**, **Token Vault**. Revoke Google third-party access and re-run **Connect** if needed. Management API: `GET /api/v2/users/{auth0_user_id}/connected-accounts`.
+**`Federated connection Refresh Token not found` (401 on `/oauth/token`):** Auth0 has no Google (etc.) federated refresh token in Token Vault for this user—even though Echo may show connected. Complete **Connect** after **Link Auth0** (**Integrations → Connect Google**). If your tenant is oriented around **Connected Accounts** only, avoid **`AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT=0`** — the legacy **`/authorize?connection=`** path may not persist vault tokens the way the default **My Account** flow does (`POST …/me/v1/connected-accounts/connect` + callback `connect_code`; see troubleshooting for _not active for authentication_). **Verify in Dashboard:** **User Management → Users → [user] → Connected Accounts**—if empty, Token Vault has nothing to exchange yet. Also ensure **Social → Google** has **Connected Accounts for Token Vault** + **Offline Access**; **Grant types** on **Echo Web** include **Authorization Code**, **Refresh Token**, **Token Vault**. Revoke Google third-party access and re-run **Connect** if needed. Management API: `GET /api/v2/users/{auth0_user_id}/connected-accounts`.
 
 If you see **`Access denied: Service not found: …`**, the **`AUTH0_AUDIENCE`** env var does not match any **API** in Auth0. In the dashboard go to **APIs**, open your API (or **Create API**), and set **`AUTH0_AUDIENCE` to that API’s Identifier** exactly (often a URL like `https://echo-api` — not the hex id shown in the error). Recreate the API if it was deleted, then restart the backend so the new value loads.
 
 **`OAuth error (invalid_request): Client "…" is not authorized to access resource server "…"`:** The backend sends `audience=` on `/authorize` (from **`AUTH0_AUDIENCE`**). That value must be the **Identifier** of an API listed under **Applications → APIs** in Auth0, and your **Echo Regular Web Application** must be **authorized** for that API (**Applications → [your app] → APIs** → toggle the API on). If you used a placeholder like `https://<tenant>.auth0.com/me/`, create a **Custom API** (**APIs → Create API**) with a stable Identifier (e.g. `https://echo-api`), authorize the app, set **`AUTH0_AUDIENCE`** to that Identifier, and restart the backend. Alternatively, temporarily unset `AUTH0_AUDIENCE` only for local debugging (not recommended for production Token Vault flows).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Phase 1: GCP Setup
 
@@ -222,8 +210,6 @@ If you see **`Access denied: Service not found: …`**, the **`AUTH0_AUDIENCE`**
 3. Go to **Cloud Storage → Buckets**, create a bucket with **Uniform bucket-level access**, and note the name (e.g. `echo-assets-prod`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Phase 2: Firebase Setup
 
@@ -242,8 +228,6 @@ If you see **`Access denied: Service not found: …`**, the **`AUTH0_AUDIENCE`**
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 ### Phase 3: Service Accounts & IAM
 
 Use the default compute service account for Cloud Run and ensure it has:
@@ -254,8 +238,6 @@ Use the default compute service account for Cloud Run and ensure it has:
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 ### Phase 4: Gemini API Key
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
@@ -263,8 +245,6 @@ Use the default compute service account for Cloud Run and ensure it has:
 3. Copy the key — you'll need it for `GEMINI_API_KEY`
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Phase 5: Local Development
 
@@ -317,33 +297,32 @@ cd backend && cp .env.example .env
 ```
 
 **Local URLs:**
+
 - Frontend: [http://localhost:3000](http://localhost:3000)
 - Backend: [http://localhost:8000](http://localhost:8000)
 - Echo Prism agent: [http://localhost:8083](http://localhost:8083)
 
 **Environment Variables Reference:**
 
-| Variable | Required | Description |
-|---|---|---|
-| `ECHO_GCP_PROJECT_ID` | Yes | GCP project ID |
-| `ECHO_GCS_BUCKET` | Yes | GCS bucket name |
-| `GEMINI_API_KEY` | Yes | Gemini API key |
-| `NEXT_PUBLIC_API_URL` | Yes | Backend URL (web) |
-| `NEXT_PUBLIC_ECHO_AGENT_URL` | Yes | Echo Prism agent URL (web) |
-| `NEXT_PUBLIC_FIREBASE_*` | Yes | Firebase config (web) |
-| `VITE_API_URL` | Yes | Backend URL (desktop) |
-| `VITE_ECHO_AGENT_URL` | Yes | Echo Prism agent URL (desktop) |
-| `OPENROUTER_API_KEY` | Recommended | OpenRouter key for LangGraph/UI-Tars inference |
-| `LIVEKIT_URL` | Voice only | LiveKit server URL |
-| `LIVEKIT_API_KEY` | Voice only | LiveKit API key |
-| `LIVEKIT_API_SECRET` | Voice only | LiveKit API secret |
-| `ECHO_CLOUD_RUN_REGION` | No | Default `us-central1` |
+| Variable                     | Required    | Description                                    |
+| ---------------------------- | ----------- | ---------------------------------------------- |
+| `ECHO_GCP_PROJECT_ID`        | Yes         | GCP project ID                                 |
+| `ECHO_GCS_BUCKET`            | Yes         | GCS bucket name                                |
+| `GEMINI_API_KEY`             | Yes         | Gemini API key                                 |
+| `NEXT_PUBLIC_API_URL`        | Yes         | Backend URL (web)                              |
+| `NEXT_PUBLIC_ECHO_AGENT_URL` | Yes         | Echo Prism agent URL (web)                     |
+| `NEXT_PUBLIC_FIREBASE_*`     | Yes         | Firebase config (web)                          |
+| `VITE_API_URL`               | Yes         | Backend URL (desktop)                          |
+| `VITE_ECHO_AGENT_URL`        | Yes         | Echo Prism agent URL (desktop)                 |
+| `OPENROUTER_API_KEY`         | Recommended | OpenRouter key for LangGraph/UI-Tars inference |
+| `LIVEKIT_URL`                | Voice only  | LiveKit server URL                             |
+| `LIVEKIT_API_KEY`            | Voice only  | LiveKit API key                                |
+| `LIVEKIT_API_SECRET`         | Voice only  | LiveKit API secret                             |
+| `ECHO_CLOUD_RUN_REGION`      | No          | Default `us-central1`                          |
 
 See [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) for the full reference.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Phase 6: Deploy to Cloud Run
 
@@ -364,13 +343,12 @@ pnpm run deploy:livekit-agent
 
 Requires `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_AGENT_SECRET`, `ECHOPRISM_AGENT_URL`, and `GEMINI_API_KEY`.
 
-**Forks:** use your GCP project and ensure Doppler **prd** includes `NEXT_PUBLIC_FIREBASE_*` (and optional desktop download URLs) so the full deploy builds a complete web image. See [scripts/deploy/README.md](scripts/deploy/README.md) and [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) (section *Fork / alternate GitHub*).
+**Forks:** use your GCP project and ensure Doppler **prd** includes `NEXT_PUBLIC_FIREBASE_*` (and optional desktop download URLs) so the full deploy builds a complete web image. See [scripts/deploy/README.md](scripts/deploy/README.md) and [scripts/doppler-env-reference.md](scripts/doppler-env-reference.md) (section _Fork / alternate GitHub_).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- USAGE EXAMPLES -->
+
 ## Usage
 
 Visit the [live demo](https://echo-frontend-607073095974.us-central1.run.app) to check out our web app. Make sure to follow the instructions in our [releases](https://github.com/JasonMun7/Echo/releases) page to ensure the desktop app can be ran.
@@ -382,9 +360,8 @@ Visit the [live demo](https://echo-frontend-607073095974.us-central1.run.app) to
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- ROADMAP -->
+
 ## Roadmap
 
 - [ ] **Mobile app automation** — Allow Echo to automate tasks on phones as well
@@ -398,9 +375,8 @@ See the [open issues](https://github.com/JasonMun7/echo/issues) for a full list 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- CONTRIBUTING -->
+
 ## Contributing
 
 Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
@@ -422,18 +398,16 @@ Don't forget to give the project a star!
   <img src="https://contrib.rocks/image?repo=JasonMun7/echo" alt="contrib.rocks image" />
 </a>
 
-
-
 <!-- LICENSE -->
+
 ## License
 
 Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- CONTACT -->
+
 ## Contact
 
 **Jason Mun** — jason.mun484@gmail.com · [LinkedIn](https://www.linkedin.com/in/jason-mun-25181b1b9/)
@@ -444,22 +418,20 @@ Project Link: [https://github.com/JasonMun7/echo](https://github.com/JasonMun7/e
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- ACKNOWLEDGMENTS -->
+
 ## Acknowledgments
 
-* [OpenRouter](https://openrouter.ai/) — UI-Tars–compatible models for LangGraph inference
-* [LiveKit](https://livekit.io) — Real-time voice and video infrastructure
-* [Gemini](https://deepmind.google/technologies/gemini/) — Vision-language model powering EchoPrism
-* [UI-TARS](https://github.com/bytedance/UI-TARS) — GUI agent model for automated UI interaction
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
+- [OpenRouter](https://openrouter.ai/) — UI-Tars–compatible models for LangGraph inference
+- [LiveKit](https://livekit.io) — Real-time voice and video infrastructure
+- [Gemini](https://deepmind.google/technologies/gemini/) — Vision-language model powering EchoPrism
+- [UI-TARS](https://github.com/bytedance/UI-TARS) — GUI agent model for automated UI interaction
+- [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- MARKDOWN LINKS & IMAGES -->
+
 [contributors-shield]: https://img.shields.io/github/contributors/JasonMun7/echo.svg?style=for-the-badge
 [contributors-url]: https://github.com/JasonMun7/echo/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/JasonMun7/echo.svg?style=for-the-badge
@@ -475,7 +447,6 @@ Project Link: [https://github.com/JasonMun7/echo](https://github.com/JasonMun7/e
 [product-screenshot]: apps/web/public/dashboard-screenshot.png
 [architecture-diagram]: architecture-diagram.png
 [agent-diagram]: agent-diagram.png
-
 [Next.js]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
 [Next-url]: https://nextjs.org/
 [React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
