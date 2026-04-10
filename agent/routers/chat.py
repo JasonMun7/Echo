@@ -271,18 +271,55 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                 }
         if not workflow_id:
             return {"ok": False, "error": "Provide workflow_id or workflow_name to run a workflow."}
-        _cancel_other_active_runs_for_user(uid, db)
+        wf_snap = db.collection("workflows").document(workflow_id).get()
+        if not wf_snap.exists:
+            return {"ok": False, "error": "Workflow not found."}
+        if (wf_snap.to_dict() or {}).get("owner_uid") != uid:
+            return {"ok": False, "error": "Not authorized to run this workflow."}
+        # Extract workflow name from document if not provided
+        if not workflow_name:
+            workflow_name = (wf_snap.to_dict() or {}).get("name", "")
+
+        # Wrap cancel + create in a transaction to prevent race conditions
         run_id = str(uuid.uuid4())
-        run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
-        run_ref.set(
-            {
-                "status": "pending",
-                "owner_uid": uid,
-                "createdAt": SERVER_TIMESTAMP,
-                "confirmation_status": None,
-                "source": "desktop",
-            }
-        )
+
+        @firebase_admin.firestore.transactional
+        def cancel_and_create_run(transaction, uid, workflow_id, run_id):
+            # Cancel all active runs for this user
+            active = (
+                db.collection_group("runs")
+                .where(filter=FieldFilter("owner_uid", "==", uid))
+                .where(filter=FieldFilter("status", "in", list(ACTIVE_RUN_STATUSES)))
+                .stream()
+            )
+            for doc in active:
+                try:
+                    transaction.update(
+                        doc.reference,
+                        {
+                            "status": "cancelled",
+                            "cancel_requested": True,
+                            "completedAt": SERVER_TIMESTAMP,
+                            "updatedAt": SERVER_TIMESTAMP,
+                        },
+                    )
+                except Exception as e:
+                    logger.warning("Failed to cancel run %s: %s", doc.id, e)
+            # Create the new run
+            run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
+            transaction.set(
+                run_ref,
+                {
+                    "status": "pending",
+                    "owner_uid": uid,
+                    "createdAt": SERVER_TIMESTAMP,
+                    "confirmation_status": None,
+                    "source": "desktop",
+                },
+            )
+
+        transaction = db.transaction()
+        cancel_and_create_run(transaction, uid, workflow_id, run_id)
         if websocket:
             try:
                 await websocket.send_text(
@@ -298,7 +335,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug("Failed to send run_started websocket message", exc_info=True)
         result = {
             "ok": True,
             "run_id": run_id,
@@ -325,33 +362,65 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             uid,
         )
         # Goal-only run: no step synthesis; create minimal ephemeral workflow and run with goal
-        _cancel_other_active_runs_for_user(uid, db)
+        # Wrap cancel + create in a transaction to prevent race conditions
         workflow_id = str(uuid.uuid4())
-        workflow_ref = db.collection("workflows").document(workflow_id)
-        workflow_ref.set(
-            {
-                "name": workflow_name,
-                "status": "ready",
-                "owner_uid": uid,
-                "workflow_type": workflow_type if workflow_type in ("browser", "desktop") else "browser",
-                "ephemeral": True,
-                "createdAt": SERVER_TIMESTAMP,
-                "updatedAt": SERVER_TIMESTAMP,
-            }
-        )
         run_id = str(uuid.uuid4())
-        run_ref = workflow_ref.collection("runs").document(run_id)
-        run_ref.set(
-            {
-                "status": "pending",
-                "owner_uid": uid,
-                "createdAt": SERVER_TIMESTAMP,
-                "confirmation_status": None,
-                "source": "desktop",
-                "goal": instruction,
-                "run_mode": "goal_only",
-            }
-        )
+
+        @firebase_admin.firestore.transactional
+        def cancel_and_create_adhoc_run(
+            transaction, uid, workflow_id, run_id, workflow_name, workflow_type, instruction
+        ):
+            # Cancel all active runs for this user
+            active = (
+                db.collection_group("runs")
+                .where(filter=FieldFilter("owner_uid", "==", uid))
+                .where(filter=FieldFilter("status", "in", list(ACTIVE_RUN_STATUSES)))
+                .stream()
+            )
+            for doc in active:
+                try:
+                    transaction.update(
+                        doc.reference,
+                        {
+                            "status": "cancelled",
+                            "cancel_requested": True,
+                            "completedAt": SERVER_TIMESTAMP,
+                            "updatedAt": SERVER_TIMESTAMP,
+                        },
+                    )
+                except Exception as e:
+                    logger.warning("Failed to cancel run %s: %s", doc.id, e)
+            # Create the ephemeral workflow
+            workflow_ref = db.collection("workflows").document(workflow_id)
+            transaction.set(
+                workflow_ref,
+                {
+                    "name": workflow_name,
+                    "status": "ready",
+                    "owner_uid": uid,
+                    "workflow_type": workflow_type if workflow_type in ("browser", "desktop") else "browser",
+                    "ephemeral": True,
+                    "createdAt": SERVER_TIMESTAMP,
+                    "updatedAt": SERVER_TIMESTAMP,
+                },
+            )
+            # Create the new run
+            run_ref = workflow_ref.collection("runs").document(run_id)
+            transaction.set(
+                run_ref,
+                {
+                    "status": "pending",
+                    "owner_uid": uid,
+                    "createdAt": SERVER_TIMESTAMP,
+                    "confirmation_status": None,
+                    "source": "desktop",
+                    "goal": instruction,
+                    "run_mode": "goal_only",
+                },
+            )
+
+        transaction = db.transaction()
+        cancel_and_create_adhoc_run(transaction, uid, workflow_id, run_id, workflow_name, workflow_type, instruction)
         run_link = {
             "workflowId": workflow_id,
             "runId": run_id,
@@ -371,7 +440,12 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to send run_started websocket message (run_adhoc workflow_id=%s run_id=%s)",
+                    workflow_id,
+                    run_id,
+                    exc_info=True,
+                )
         logger.info(
             "run_adhoc created goal-only run: workflow_id=%s run_id=%s goal=%s",
             workflow_id,
@@ -413,7 +487,11 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to send synthesis_complete websocket message (workflow_id=%s)",
+                    wf_id,
+                    exc_info=True,
+                )
         return {"ok": True, "workflow_id": wf_id, "workflow_name": workflow_name}
 
     elif name == "redirect_run":
@@ -460,7 +538,24 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         return {"integrations": integrations}
 
     elif name == "call_integration":
-        integration = args.get("integration", "")
+        from echo_prism_agent.auth0_token_vault import normalize_integration_id
+        from echo_prism_agent.integrations.api_call_catalog import _INTEGRATION_IDS
+
+        integration_raw = args.get("integration")
+        if integration_raw is None:
+            return {"ok": False, "error": "integration is required."}
+        if not isinstance(integration_raw, str):
+            integration_raw = str(integration_raw)
+        if not integration_raw.strip():
+            return {"ok": False, "error": "integration is required."}
+        integration = normalize_integration_id(integration_raw)
+
+        if integration not in _INTEGRATION_IDS:
+            return {
+                "ok": False,
+                "error": (f"Unsupported integration '{integration}'. Supported: {', '.join(_INTEGRATION_IDS)}."),
+            }
+
         method = args.get("method", "")
         raw_args = args.get("arguments")
         if raw_args is None:
@@ -472,6 +567,8 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         try:
             from echo_prism_agent.integrations.resolver import get_integration_access_token
 
+            if not integration:
+                return {"ok": False, "error": "integration is required."}
             access_token = await get_integration_access_token(uid, integration, db)
             if not access_token:
                 return {

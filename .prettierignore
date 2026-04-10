@@ -40,9 +40,9 @@ apps/mobile/.expo
 **/*.ttf
 **/*.eot
 
-# Python (Ruff handles these)
-agent
-backend
+# Python sources (Ruff formats these; keep Prettier available for other files under agent/backend)
+agent/**/*.py
+backend/**/*.py
 **/__pycache__
 **/*.pyc
 

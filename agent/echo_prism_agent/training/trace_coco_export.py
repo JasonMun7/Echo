@@ -60,7 +60,11 @@ def export_run_to_coco(
     gcs_base = f"gs://{bucket}" if bucket else ""
 
     logs_ref = run_ref.collection("logs")
-    trace_logs = [d.to_dict() for d in logs_ref.stream() if d.to_dict().get("trace") is True]
+    trace_logs: list[dict] = []
+    for d in logs_ref.stream():
+        doc = d.to_dict() or {}
+        if doc.get("trace") is True:
+            trace_logs.append(doc)
     trace_logs.sort(key=lambda x: x.get("step_index", 0))
 
     doc_id = f"{workflow_id}_{run_id}"
