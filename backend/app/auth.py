@@ -1,6 +1,12 @@
+import base64
+import binascii
+import json
+import logging
+import os
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import firebase_admin
 from firebase_admin import auth as firebase_auth
@@ -8,14 +14,42 @@ from firebase_admin import credentials
 
 from app.config import ECHO_GCP_PROJECT_ID, GOOGLE_APPLICATION_CREDENTIALS
 
+logger = logging.getLogger(__name__)
+
 security = HTTPBearer(auto_error=False)
+
+
+def _id_token_aud_unverified(token: str) -> str | None:
+    """Decode JWT payload without verification (debug only)."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        payload = parts[1]
+        pad = "=" * (-len(payload) % 4)
+        raw = base64.urlsafe_b64decode(payload + pad)
+        data = json.loads(raw)
+        aud = data.get("aud")
+        return aud if isinstance(aud, str) else None
+    except (ValueError, TypeError, json.JSONDecodeError, binascii.Error):
+        return None
 
 
 def get_firebase_app():
     if not firebase_admin._apps:
+        cred_path = (GOOGLE_APPLICATION_CREDENTIALS or "").strip()
+        if cred_path and not Path(cred_path).is_file():
+            logger.warning(
+                "GOOGLE_APPLICATION_CREDENTIALS points to missing file (%s); "
+                "clearing env and using Application Default Credentials",
+                cred_path,
+            )
+            # ADC still honors GOOGLE_APPLICATION_CREDENTIALS; remove so metadata/Workload Identity is used.
+            os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+            cred_path = ""
         cred = (
-            credentials.Certificate(GOOGLE_APPLICATION_CREDENTIALS)
-            if GOOGLE_APPLICATION_CREDENTIALS
+            credentials.Certificate(cred_path)
+            if cred_path
             else credentials.ApplicationDefault()
         )
         opts = {"projectId": ECHO_GCP_PROJECT_ID} if ECHO_GCP_PROJECT_ID else {}
@@ -37,13 +71,58 @@ async def get_current_user(
         get_firebase_app()
         decoded = firebase_auth.verify_id_token(token)
         return decoded
-    except Exception:
+    except (
+        ValueError,
+        firebase_auth.InvalidIdTokenError,
+        firebase_auth.ExpiredIdTokenError,
+        firebase_auth.RevokedIdTokenError,
+        firebase_auth.UserDisabledError,
+    ) as e:
+        aud = _id_token_aud_unverified(token)
+        logger.warning(
+            "verify_id_token failed (ECHO_GCP_PROJECT_ID=%s, token aud=%s): %s",
+            ECHO_GCP_PROJECT_ID or "(unset)",
+            aud or "(unparsed)",
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
+    except firebase_auth.CertificateFetchError as e:
+        logger.warning("Firebase certificate fetch failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service temporarily unavailable",
+        ) from e
+    except Exception as e:
+        logger.exception("Unexpected error verifying Firebase ID token")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error",
+        ) from e
 
 
 def get_current_uid(current_user: Annotated[dict, Depends(get_current_user)]) -> str:
     return current_user.get("uid", "")
+
+
+async def get_current_uid_for_stream(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
+) -> str:
+    """SSE: EventSource cannot send Bearer; accept short-lived HttpOnly cookie or optional Bearer."""
+    from app.sse_session import SSE_COOKIE_NAME, verify_sse_cookie_value
+
+    cookie_uid = verify_sse_cookie_value(request.cookies.get(SSE_COOKIE_NAME))
+    if cookie_uid:
+        return cookie_uid
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing SSE session cookie or authorization",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = await get_current_user(credentials)
+    return user.get("uid", "")

@@ -330,7 +330,7 @@ function StepCard({
   };
 
   const needsContext = isNew && !step.context;
-  // Priority: invalid (red) > dirty (purple) > new (purple)
+  // Priority: invalid (red) > dirty (lavender) > new (lavender)
   const ringClass = isInvalid
     ? "ring-2 ring-echo-error ring-offset-2"
     : isDirty || needsContext
@@ -358,7 +358,7 @@ function StepCard({
         <IconGripVertical className="h-5 w-5" />
       </button>
       <div className="flex-1 min-w-0 space-y-3 break-words">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-[#A577FF]/70">Step {index + 1}</span>
           {isInvalid && (
             <p className="text-xs font-medium text-echo-error">
@@ -584,7 +584,6 @@ export default function WorkflowEditPage() {
     }
     setSaving(true);
     try {
-      // Flush all locally-edited steps to the backend in parallel
       const dirtySteps = steps.filter((s) => dirtyStepIds.has(s.id));
       await Promise.all(
         dirtySteps.map((s) =>

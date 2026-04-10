@@ -25,6 +25,7 @@ class PatchRunBody(BaseModel):
     status: str
     callUserReason: str | None = None
     error: str | None = None
+    errorCode: str | None = None
 
     class Config:
         extra = "ignore"
@@ -50,6 +51,8 @@ async def patch_run(
         updates["callUserReason"] = body.callUserReason
     if body.error is not None:
         updates["error"] = body.error
+    if body.errorCode is not None:
+        updates["errorCode"] = body.errorCode
     if body.status == "failed":
         updates["completedAt"] = SERVER_TIMESTAMP
     run_ref.update(updates)

@@ -2,6 +2,10 @@
 Auth0 link (Approach A): store Auth0 refresh token + sub on Firestore user doc for Token Vault exchange.
 
 Callback URL must match Auth0 Application: https://<backend>/api/auth0/callback
+
+Resolution order: ``AUTH0_CALLBACK_URL`` (full URL), else ``BACKEND_URL`` + ``/api/auth0/callback``
+(injected by ``scripts/deploy/deploy-backend.sh``), else ``request.base_url`` (local dev).
+Do not use ``FRONTEND_ORIGIN`` — OAuth callbacks hit the API host, not the Next.js host.
 """
 from __future__ import annotations
 
@@ -62,6 +66,9 @@ def _callback_url(request: Request) -> str:
     explicit = (os.getenv("AUTH0_CALLBACK_URL") or "").strip()
     if explicit:
         return explicit.rstrip("/")
+    backend = (os.getenv("BACKEND_URL") or "").strip()
+    if backend:
+        return backend.rstrip("/") + "/api/auth0/callback"
     return str(request.base_url).rstrip("/") + "/api/auth0/callback"
 
 
@@ -94,6 +101,9 @@ def _redirect_uri_for_token_exchange(request: Request, payload: dict) -> str:
     explicit = (os.getenv("AUTH0_CALLBACK_URL") or "").strip()
     if explicit:
         return explicit.rstrip("/")
+    backend = (os.getenv("BACKEND_URL") or "").strip()
+    if backend:
+        return backend.rstrip("/") + "/api/auth0/callback"
     return str(request.url).split("?")[0]
 
 

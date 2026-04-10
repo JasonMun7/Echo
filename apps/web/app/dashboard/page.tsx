@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
+import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
 const STATUS_LABELS: Record<string, string> = {
   draft: "Setting Up",
   processing: "Synthesizing",
@@ -245,7 +246,7 @@ export default function DashboardPage() {
           totalWorkflows={0}
           activeWorkflows={0}
           totalRuns={0}
-          inProgressCount={0}
+          awaitingInput={0}
         />
         <Skeleton className="h-70 w-full rounded-lg" />
         <Skeleton className="h-64 w-full rounded-lg" />
@@ -344,13 +345,13 @@ export default function DashboardPage() {
         totalWorkflows={totalWorkflows}
         activeWorkflows={activeWorkflows}
         totalRuns={totalRuns}
-        inProgressCount={allRuns.filter(
+        awaitingInput={allRuns.filter(
           (r) =>
             r.status === "running" ||
             r.status === "pending" ||
             r.status === "awaiting_user"
         ).length}
-        onInProgressClick={() => {
+        onAwaitingClick={() => {
           if (inProgressRun) {
             window.location.href = `/dashboard/workflows/${inProgressRun.workflowId}/runs/${inProgressRun.runId}`;
           }
@@ -412,45 +413,6 @@ export default function DashboardPage() {
   );
 }
 
-function WorkflowThumbnail({ workflowId }: { workflowId: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch(`/api/workflows/${workflowId}/thumbnail`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => {
-        if (!cancelled) setUrl(d.url);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workflowId]);
-
-  if (failed) return null;
-
-  if (!url) {
-    return <Skeleton className="h-28 w-full rounded-none" />;
-  }
-
-  return (
-    <div className="relative h-28 w-full overflow-hidden bg-[#F5F7FC]">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="Workflow screenshot"
-        className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]"
-        onError={() => setFailed(true)}
-      />
-      <div className="absolute inset-0 bg-linear-to-t from-white/60 via-transparent to-transparent" />
-    </div>
-  );
-}
-
 function WorkflowCard({
   workflow: w,
   isLatest,
@@ -487,7 +449,7 @@ function WorkflowCard({
       )}
       {/* Thumbnail */}
       {w.thumbnail_gcs_path ? (
-        <WorkflowThumbnail workflowId={w.id} />
+        <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
       ) : (
         <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#A577FF]/10">

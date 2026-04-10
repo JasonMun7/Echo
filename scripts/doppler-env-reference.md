@@ -23,13 +23,16 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 
 ## Backend only
 
+**Cloud Run:** `pnpm run deploy:backend` and `pnpm run deploy` inject backend environment variables from Doppler **prd** using [`scripts/deploy/backend_env_to_yaml.py`](deploy/backend_env_to_yaml.py) (including `AUTH0_*`). Changing Doppler alone does not update a running service until you redeploy the backend.
+
 | Variable | Description |
 |----------|-------------|
 | `AUTH0_DOMAIN` | Auth0 tenant domain, e.g. `your-tenant.us.auth0.com` (no `https://`) |
 | `AUTH0_CLIENT_ID` | Regular Web Application client ID |
 | `AUTH0_CLIENT_SECRET` | Application client secret (server-side only) |
 | `AUTH0_AUDIENCE` | Auth0 API identifier (audience) for access tokens — required for many Token Vault flows |
-| `AUTH0_CALLBACK_URL` | Optional fixed callback URL, e.g. `https://<echo-backend>/api/auth0/callback` (must match Auth0 Application settings) |
+| `AUTH0_CALLBACK_URL` | Optional. Full **Link** OAuth redirect URI (must match Auth0 → Allowed Callback URLs). If unset, Echo uses `BACKEND_URL` + `/api/auth0/callback` when `BACKEND_URL` is set (set automatically by `deploy-backend.sh`), otherwise derives from the incoming request (local dev). |
+| `BACKEND_URL` | Optional in Doppler; **deploy** sets `https://echo-backend-<PROJECT_NUMBER>.<region>.run.app` and passes it to Cloud Run. Used for Auth0 callback URL when `AUTH0_CALLBACK_URL` is unset. |
 | `AUTH0_LINK_CONNECTION` | Optional. If set, sent as `connection=` on **Link Auth0** (`GET /api/auth0/link-url`) to force that IdP (e.g. `google-oauth2`). If unset, Universal Login shows all connections with **Authentication** enabled (default Echo UX: Google). Query `?connection=` on `link-url` overrides this for one request. |
 | `AUTH0_VAULT_VERIFY_ATTEMPTS` | Optional. After Connect (vault) OAuth, Echo verifies Token Vault with repeated federated exchanges (default `4`, max `12`) with 0.5s delay — reduces false “not connected” if Auth0 commits vault state slightly late. |
 | `AUTH0_VAULT_CALLBACK_URL` | Optional. Full **Connect** OAuth redirect URI (must match Auth0 Application → Allowed Callback URLs). If unset, Connect uses the same URL as Link (`AUTH0_CALLBACK_URL` or `…/api/auth0/callback`) — same idea as Auth0’s **preferred** Token Vault sample (`mount_connected_account_routes`, see `call-others-apis-on-users-behalf-langchain-fastapi-py-sample/ECHO-PARITY.md`). Set to e.g. `https://<backend>/api/auth0/connect/callback` only if you want parity with the **legacy** `mount_connect_routes` sample (`authenticate-users-langchain-fastapi-py-sample/ECHO-PARITY.md`); Echo exposes `GET /api/auth0/connect/callback` for that. |
@@ -68,6 +71,10 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL` | Mac DMG download URL (e.g. GitHub release asset); when set, download page shows "Download for Mac" |
 | `NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL` | Windows installer download URL; when set, download page shows "Download for Windows" |
 
+**Troubleshooting (401 / Firestore):** `net::ERR_BLOCKED_BY_CLIENT` on `firestore.googleapis.com` is usually an **ad or privacy extension** blocking Firestore; allowlist your app origin or test in a clean/incognito profile. Repeated **`401`** on `/api/*` with a Bearer token: ensure **echo-backend** `ECHO_GCP_PROJECT_ID` matches **`NEXT_PUBLIC_FIREBASE_PROJECT_ID`** (deploy passes project ID from `gcloud`; confirm in Cloud Run). Server logs `verify_id_token failed (project=…)` when token verification fails.
+
+**Works on localhost but not deployed:** `NEXT_PUBLIC_*` is **baked in at Docker build time** (Cloud Build), not read from Cloud Run at runtime. Local `pnpm dev` uses Doppler each session; production only matches if you run **`doppler run --config prd -- pnpm run deploy:frontend`** (or full `pnpm run deploy`) so substitutions include all `NEXT_PUBLIC_FIREBASE_*`. Compare **`GET https://<echo-backend>/health/echo`** field `echo_gcp_project_id` to the web app’s `NEXT_PUBLIC_FIREBASE_PROJECT_ID` (browser devtools → Sources or build log); they must be the same GCP/Firebase project id string. In **Firebase Console → Authentication → Settings → Authorized domains**, add your **`echo-frontend-….run.app`** host if sign-in fails only in production.
+
 ## Desktop (dev + production)
 
 | Variable | Description |
@@ -81,8 +88,26 @@ Canonical list of environment variables for Echo. Use Doppler as the single sour
 | `VITE_APP_URL` | Web app URL (default: http://localhost:3000). **Production:** set to your deployed web app URL (e.g. https://app.echo.ai) so "Sign in" opens the real site. |
 | `VITE_LIVEKIT_SANDBOX_ID` | (Optional) LiveKit Cloud sandbox token server ID; when set, skips backend token fetch for dev |
 | `GH_TOKEN` or `GITHUB_TOKEN` | (Optional) For `pnpm desktop:dist`: when set, electron-builder publishes the build to GitHub Releases so existing users receive the update. |
+| `VITE_GITHUB_UPDATE_OWNER` | Optional. GitHub org or user for `electron-updater` (e.g. your fork). If unset, the app parses `repository.url` in `apps/desktop/package.json`. |
+| `VITE_GITHUB_UPDATE_REPO` | Optional. Repository name for updates (e.g. `Echo`). If unset, derived from `repository.url`. |
+
+**Auto-updates (intentional stack):** Echo uses **`electron-updater`** with **`electron-builder`** publishing to **GitHub Releases** — not `update-electron-app` or **update.electronjs.org**. That matches the builder output, supports custom in-app UI (`UpdateBar`), fork overrides (`VITE_GITHUB_UPDATE_*`), and avoids an extra update service. macOS builds should still be **code-signed** (and notarized for distribution) for a smooth update experience.
 
 LiveKit token is fetched from `VITE_ECHO_AGENT_URL` (Echo Prism agent). Use `VITE_API_URL` = main backend (8000), `VITE_ECHO_AGENT_URL` = agent service (8083) for dual-backend setup.
+
+## Fork / alternate GitHub
+
+Use this checklist when you deploy from a **fork** or a different GitHub org than upstream.
+
+| Concern | What to set |
+|--------|-------------|
+| **GCP** | `ECHO_GCP_PROJECT_ID`, `ECHO_CLOUD_RUN_REGION`; authenticate with `gcloud` to the project you control. |
+| **Full deploy (`pnpm run deploy`)** | Doppler **prd** must include `NEXT_PUBLIC_FIREBASE_*` and optional `NEXT_PUBLIC_DESKTOP_DOWNLOAD_*` — the unified Cloud Build passes them into the web image (see `echo_frontend_cloudbuild_substitutions` in `scripts/deploy/common.sh`). |
+| **Marketing download page** | `NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL` / `NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL` → stable URLs to your installers (GitHub Releases assets, GCS, or static hosting). |
+| **Desktop sign-in** | `VITE_APP_URL` in **prd** → your deployed web app URL (`echo-frontend` on Cloud Run) so “Sign in” opens your site. |
+| **GitHub Releases & auto-update** | Set `repository` in `apps/desktop/package.json` to your fork; use `GH_TOKEN` / `GITHUB_TOKEN` when running `pnpm desktop:dist`. Optionally set `VITE_GITHUB_UPDATE_OWNER` / `VITE_GITHUB_UPDATE_REPO` so updates resolve to your repo even if `package.json` is ambiguous. |
+
+Renaming Cloud Run service names (`echo-frontend`, etc.) for multiple deployments in one project is not covered here; that would require script and URL changes across the repo.
 
 ## Mobile (React Native / Expo)
 
@@ -115,6 +140,7 @@ Run locally: `pnpm dev:mobile` (wraps `doppler run -- pnpm run start`)
 | **Desktop app** | `VITE_LIVEKIT_SANDBOX_ID` | Optional; when set, desktop uses LiveKit Cloud sandbox for tokens and does not call your backend | Leave **unset** so the desktop fetches the token from EchoPrism (`/api/livekit/token`) |
 | **Echo Prism agent** (Cloud Run) | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Not needed if you only run chat/synthesis locally | **Required** for voice; set in Cloud Run (e.g. via Doppler secrets or `gcloud run services update --set-env-vars`) so `/api/livekit/token` can issue tokens |
 | **Echo Prism agent** (Cloud Run) | `GEMINI_API_KEY`, `ECHO_GCS_BUCKET`, `OPENROUTER_API_KEY` | From Doppler/local env when running locally | Injected by deploy script from your Doppler **prd** (or shell) when you run `pnpm run deploy:agent` |
+| **Echo Prism agent** (Cloud Run) | `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, optional `AUTH0_AUDIENCE`, `AUTH0_CONNECTION_*`, `AUTH0_TOKEN_VAULT`, `ECHO_INTEGRATIONS_TOKEN_VAULT_ONLY` | Same values as echo-backend in Doppler **prd** | **Required for workflow `api_call` / Token Vault:** the agent exchanges the user’s Auth0 refresh token for provider tokens. If only echo-backend has these, the Integrations page can show “connected” while runs fail with “Integration not connected”. `deploy-echo-prism-agent.sh` must run with Doppler (or export the same vars). |
 | **LiveKit worker** (Cloud Run) | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | From Doppler when running `pnpm run dev:livekit-agent` (repo root; `PYTHONPATH` set in the npm script) | Set by `deploy-livekit-agent.sh` from your shell/Doppler (same values as LiveKit Cloud project) |
 | **LiveKit Agent** (worker) | `ECHOPRISM_AGENT_URL` | `http://localhost:8083` (local agent) | Set by deploy script to **Echo Prism agent Cloud Run URL** so the worker can call `/api/agent/tool` |
 | **LiveKit Agent** (worker) | `LIVEKIT_AGENT_SECRET`, `GEMINI_API_KEY` | From Doppler for local worker | Set by deploy script from shell/Doppler |

@@ -79,6 +79,29 @@ load_config() {
   export IMAGE_BASE="gcr.io/${PROJECT_ID}"
 }
 
+# Comma-separated gcloud --substitutions for Cloud Build frontend images.
+# Call after load_config. Reads NEXT_PUBLIC_* from the environment (e.g. Doppler prd).
+echo_frontend_cloudbuild_substitutions() {
+  local missing=()
+  [ -z "${IMAGE_TAG:-}" ] && missing+=("IMAGE_TAG")
+  [ -z "${BACKEND_URL:-}" ] && missing+=("BACKEND_URL")
+  [ -z "${ECHO_PRISM_AGENT_URL:-}" ] && missing+=("ECHO_PRISM_AGENT_URL")
+  [ -z "${NEXT_PUBLIC_FIREBASE_API_KEY:-}" ] && missing+=("NEXT_PUBLIC_FIREBASE_API_KEY")
+  [ -z "${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}" ] && missing+=("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN")
+  [ -z "${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}" ] && missing+=("NEXT_PUBLIC_FIREBASE_PROJECT_ID")
+  [ -z "${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}" ] && missing+=("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET")
+  [ -z "${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}" ] && missing+=("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID")
+  [ -z "${NEXT_PUBLIC_FIREBASE_APP_ID:-}" ] && missing+=("NEXT_PUBLIC_FIREBASE_APP_ID")
+  [ -z "${NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL:-}" ] && missing+=("NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL")
+  [ -z "${NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL:-}" ] && missing+=("NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL")
+  if [ "${#missing[@]}" -ne 0 ]; then
+    echo "ERROR: Missing required environment variables for frontend Cloud Build substitutions:" >&2
+    printf '  - %s\n' "${missing[@]}" >&2
+    exit 1
+  fi
+  echo "_IMAGE_TAG=$IMAGE_TAG,_BACKEND_URL=$BACKEND_URL,_AGENT_URL=$ECHO_PRISM_AGENT_URL,_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY,_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID,_FIREBASE_STORAGE_BUCKET=$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,_FIREBASE_MESSAGING_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID,_DESKTOP_DOWNLOAD_MAC_URL=$NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL,_DESKTOP_DOWNLOAD_WIN_URL=$NEXT_PUBLIC_DESKTOP_DOWNLOAD_WIN_URL"
+}
+
 # Echo header (always shown when common.sh is sourced)
 echo_header() {
   echo ""

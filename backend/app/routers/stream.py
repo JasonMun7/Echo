@@ -7,10 +7,10 @@ import json
 import logging
 
 import firebase_admin.firestore
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
-from app.auth import get_current_uid, get_firebase_app
+from app.auth import get_current_uid_for_stream, get_firebase_app
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["stream"])
@@ -20,11 +20,23 @@ router = APIRouter(tags=["stream"])
 async def stream_run_thoughts(
     workflow_id: str,
     run_id: str,
-    uid: str = Depends(get_current_uid),
+    uid: str = Depends(get_current_uid_for_stream),
 ):
     """Server-Sent Events stream of EchoPrism thoughts for a live run."""
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
+    run_ref = (
+        db.collection("workflows")
+        .document(workflow_id)
+        .collection("runs")
+        .document(run_id)
+    )
+    run_snap = await asyncio.to_thread(run_ref.get)
+    if not run_snap.exists:
+        raise HTTPException(status_code=404, detail="Run not found")
+    run_owner = (run_snap.to_dict() or {}).get("owner_uid")
+    if run_owner != uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     async def event_generator():
         seen_ids: set[str] = set()
@@ -33,12 +45,6 @@ async def stream_run_thoughts(
 
         while True:
             try:
-                run_ref = (
-                    db.collection("workflows")
-                    .document(workflow_id)
-                    .collection("runs")
-                    .document(run_id)
-                )
                 run_snap = await asyncio.to_thread(run_ref.get)
                 run_data = run_snap.to_dict() or {}
                 run_status = run_data.get("status", "")

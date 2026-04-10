@@ -41,8 +41,11 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     const unsub = auth?.onAuthStateChanged((u) => {
-      if (!u) router.replace("/signin");
-      else void loadIntegrations();
+      if (!u) {
+        router.replace("/signin");
+        return;
+      }
+      void loadIntegrations();
     });
     return () => unsub?.();
   }, [router, loadIntegrations]);
@@ -128,10 +131,13 @@ export default function IntegrationsPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
       <div className="flex flex-1 flex-col gap-6 p-6 pb-24 md:p-10 md:pb-24">
         <div>
-          <h1 className="text-2xl font-semibold text-[#150A35]">Integrations</h1>
+          <h1 className="text-2xl font-semibold text-[#150A35]">App Integrations</h1>
           <p className="mt-1 max-w-2xl text-sm text-echo-text-muted">
-            Connect Slack, GitHub, and Google so Echo can act on your behalf. Link Auth0 once to store tokens
-            securely, then use <span className="font-medium text-[#150A35]">Connect</span> for each service.
+            Connect Slack, GitHub, or Google for workflow API calls. Echo login stays on Firebase; the first time
+            you connect an app you link Auth0 (for Token Vault), then use{" "}
+            <span className="font-medium text-[#150A35]">Connect</span> for each provider. If Google is reserved
+            for Token Vault only in Auth0, link with email/password (or another auth connection)—not Google—then
+            Connect Google here. Sign-in opens in this window so you return to Echo with the correct status.
           </p>
         </div>
 

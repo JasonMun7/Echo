@@ -9,7 +9,6 @@ import {
   shell,
 } from "electron";
 import { createServer } from "http";
-import { autoUpdater, type UpdateInfo } from "electron-updater";
 import type { Step, WorkflowType } from "@echo/types";
 import {
   runWorkflowRemote,
@@ -32,6 +31,11 @@ import {
 } from "./windows";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
+import {
+  quitAndInstallIfReady,
+  runUpdateCheck,
+  setupAutoUpdater,
+} from "./update-app";
 
 const AUTH_TOKEN_FILE = "echo-auth-token.json";
 const WEB_APP_URL = process.env.VITE_APP_URL || "http://localhost:3000";
@@ -711,17 +715,7 @@ app.whenReady().then(async () => {
   }
 
   if (app.isPackaged) {
-    autoUpdater.on("update-available", () => {
-      mainWindow?.webContents.send("update-available");
-    });
-    autoUpdater.on("update-downloaded", (_event: unknown, info: UpdateInfo) => {
-      mainWindow?.webContents.send("update-downloaded", {
-        version: info?.version ?? "unknown",
-      });
-    });
-    autoUpdater.checkForUpdates().catch(() => {
-      // Ignore (e.g. no network or invalid publish config)
-    });
+    setupAutoUpdater(() => mainWindow);
   }
 
   app.on("activate", () => {
@@ -801,17 +795,10 @@ ipcMain.handle("auth-open-signin", () => {
 });
 
 ipcMain.handle("quit-and-install", () => {
-  if (app.isPackaged) {
-    autoUpdater.quitAndInstall(false, true);
-  }
+  quitAndInstallIfReady();
 });
 
-ipcMain.handle("check-for-updates", () => {
-  if (app.isPackaged) {
-    return autoUpdater.checkForUpdates().catch(() => null);
-  }
-  return Promise.resolve(null);
-});
+ipcMain.handle("check-for-updates", () => runUpdateCheck());
 
 ipcMain.handle("desktop-collapse", () => {
   collapseWindow();

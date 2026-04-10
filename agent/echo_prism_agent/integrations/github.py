@@ -16,7 +16,7 @@ METHODS: dict[str, str] = {
 
 async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[str, Any]:
     if not access_token:
-        return {"ok": False, "error": "missing_access_token"}
+        return {"ok": False, "error": "missing_access_token", "result": {}}
     method = (method or "").strip().lower().replace("-", "_")
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -38,7 +38,7 @@ async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[
             repo = args.get("repo", "")
             title = args.get("title", "")
             if not owner or not repo or not title:
-                return {"ok": False, "error": "owner, repo, title required"}
+                return {"ok": False, "error": "owner, repo, title required", "result": {}}
             body = {"title": title, "body": args.get("body", "")}
             r = await client.post(
                 f"https://api.github.com/repos/{owner}/{repo}/issues",

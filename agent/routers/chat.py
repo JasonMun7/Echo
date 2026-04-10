@@ -430,7 +430,13 @@ async def _execute_tool(
     elif name == "call_integration":
         integration = args.get("integration", "")
         method = args.get("method", "")
-        call_args = args.get("args", {})
+        raw_args = args.get("arguments")
+        if raw_args is None:
+            call_args = args.get("args", {})
+        else:
+            call_args = raw_args
+        if not isinstance(call_args, dict):
+            call_args = {}
         try:
             from echo_prism_agent.integrations.resolver import get_integration_access_token
 

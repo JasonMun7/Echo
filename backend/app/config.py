@@ -40,14 +40,17 @@ if _creds and not os.path.isabs(_creds):
             if _alt.is_file():
                 _creds = str(_alt)
                 break
+# Doppler may set a laptop-relative path; on Cloud Run the file does not exist. ADC still reads
+# GOOGLE_APPLICATION_CREDENTIALS and fails unless we clear it when no file is present.
+if _creds and not os.path.isfile(_creds):
+    _creds = ""
 GOOGLE_APPLICATION_CREDENTIALS = _creds
 if _creds:
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _creds
+else:
+    os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 # Gemini / google-genai accept either name; Doppler or Google AI Studio often use one or the other.
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
-
-# EchoPrism model overrides
-CHAT_MODEL = os.getenv("ECHOPRISM_CHAT_MODEL", "gemini-3.1-flash-lite-preview")
 
 # Auth0 (Token Vault + Regular Web app — see README Auth0 section)
 AUTH0_DOMAIN = (os.getenv("AUTH0_DOMAIN") or "").strip().replace("https://", "").rstrip("/")

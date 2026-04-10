@@ -121,6 +121,17 @@ declare global {
       removeUpdateAvailableListener: () => void;
       onUpdateDownloaded: (callback: (arg: { version: string }) => void) => void;
       removeUpdateDownloadedListener: () => void;
+      onUpdateDownloadProgress: (
+        callback: (arg: {
+          percent: number;
+          bytesPerSecond: number;
+          transferred: number;
+          total: number;
+        }) => void,
+      ) => () => void;
+      removeUpdateDownloadProgressListener: () => void;
+      onUpdateError: (callback: (arg: { message: string }) => void) => () => void;
+      removeUpdateErrorListener: () => void;
       quitAndInstall: () => Promise<void>;
       checkForUpdates: () => Promise<unknown>;
     };

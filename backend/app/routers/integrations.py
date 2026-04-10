@@ -183,6 +183,12 @@ async def call_integration(
     else:
         access_token = token_data.get("access_token", "") or ""
 
+    from echo_prism_agent.integrations.user_text_sanitize import (
+        sanitize_api_call_string_args,
+    )
+
+    body.args = sanitize_api_call_string_args(dict(body.args or {}))
+
     if not access_token and AVAILABLE_INTEGRATIONS.get(name, {}).get("oauth"):
         detail = await _oauth_token_failure_detail(uid, name, db)
         raise HTTPException(status_code=400, detail=detail)

@@ -25,9 +25,11 @@ if [ -n "$BUILD_FIRST" ]; then
 fi
 
 section "Deploy Backend"
-BACKEND_ENV="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,ECHO_GCP_PROJECT_ID=$PROJECT_ID,CLOUD_RUN_REGION=$REGION,FRONTEND_ORIGIN=$FRONTEND_URL"
-[ -n "$ECHO_GCS_BUCKET" ]    && BACKEND_ENV="$BACKEND_ENV,ECHO_GCS_BUCKET=$ECHO_GCS_BUCKET"
-[ -n "$GEMINI_API_KEY" ]     && BACKEND_ENV="$BACKEND_ENV,GEMINI_API_KEY=$GEMINI_API_KEY"
+# YAML env file: avoids gcloud --set-env-vars breaking on commas/special chars in Auth0 secrets.
+DEPLOY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-backend-env.yaml.XXXXXX")"
+trap 'rm -f "$BACKEND_ENV_FILE"' EXIT
+python3 "$DEPLOY_SCRIPT_DIR/backend_env_to_yaml.py" "$PROJECT_ID" "$REGION" >"$BACKEND_ENV_FILE"
 
 step "Deploying echo-backend..."
 echo ""
@@ -36,7 +38,7 @@ gcloud run deploy echo-backend \
   --image "${IMAGE_BASE}/echo-backend:${IMAGE_TAG}" \
   --region "$REGION" \
   --platform managed \
-  --set-env-vars "$BACKEND_ENV" \
+  --env-vars-file="$BACKEND_ENV_FILE" \
   --clear-secrets \
   --allow-unauthenticated \
   --project="$PROJECT_ID"

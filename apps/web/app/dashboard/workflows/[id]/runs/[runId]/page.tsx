@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
-import { apiFetch } from "@/lib/api";
+import { MAIN_API_URL, agentFetch, apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import {
   IconArrowLeft,
@@ -29,7 +29,6 @@ import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { toast } from "sonner";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ThoughtEntry {
   thought: string;
@@ -86,26 +85,39 @@ function RunStepScreenshot({
   const step = stepIndex ?? 0;
 
   useEffect(() => {
+    let controller: AbortController | null = null;
     if (token && workflowId && runId) {
       setError(false);
-      const url = `${API_URL}/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
-      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      controller = new AbortController();
+      const { signal } = controller;
+      const path = `/api/agent/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/steps/${step}/screenshot`;
+      agentFetch(path, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      })
         .then((res) => {
+          if (signal.aborted) return null;
           if (!res.ok) throw new Error("Screenshot not found");
           return res.blob();
         })
         .then((blob) => {
+          if (!blob || signal.aborted) return;
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = URL.createObjectURL(blob);
           setSrc(blobUrlRef.current);
         })
-        .catch(() => setError(true));
+        .catch((err: unknown) => {
+          if (signal.aborted) return;
+          if (err instanceof Error && err.name === "AbortError") return;
+          setError(true);
+        });
     } else if (fallbackUrl) {
       setSrc(fallbackUrl);
     } else {
       setSrc(null);
     }
     return () => {
+      controller?.abort();
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = null;
@@ -141,7 +153,6 @@ export default function RunDetailPage() {
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const u = auth?.currentUser;
     if (u) u.getIdToken().then((t) => setToken(t)).catch(() => setToken(null));
@@ -177,31 +188,51 @@ export default function RunDetailPage() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // SSE stream for live thoughts during active run
+  // SSE stream for live thoughts during active run (HttpOnly cookie from POST /api/session/sse)
   useEffect(() => {
     const status = run?.status as string | undefined;
     const isRunning = status === "running" || status === "pending";
     if (!isRunning) return;
 
-    const fetchToken = async () => {
-      const user = auth?.currentUser;
-      if (!user) return;
-      const token = await user.getIdToken();
-      const es = new EventSource(
-        `${API_URL}/api/run/${workflowId}/${runId}/stream?token=${encodeURIComponent(token)}`
-      );
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          setLiveThoughts((prev) => [...prev, data]);
-        } catch { /* ignore */ }
-      };
-      es.onerror = () => es.close();
-      return () => es.close();
-    };
+    let es: EventSource | null = null;
+    let cancelled = false;
 
-    const cleanup = fetchToken();
-    return () => { cleanup.then((fn) => fn?.()); };
+    void (async () => {
+      try {
+        const resp = await apiFetch("/api/session/sse", {
+          method: "POST",
+          credentials: "include",
+        });
+        if (cancelled || !resp.ok) return;
+        const source = new EventSource(
+          `${MAIN_API_URL}/api/run/${workflowId}/${runId}/stream`,
+          { withCredentials: true },
+        );
+        if (cancelled) {
+          source.close();
+          return;
+        }
+        es = source;
+        source.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            setLiveThoughts((prev) => [...prev, data]);
+          } catch {
+            /* ignore */
+          }
+        };
+        source.onerror = () => {
+          source.close();
+        };
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      es?.close();
+    };
   }, [run?.status, workflowId, runId]);
 
   const handleCancel = async () => {
@@ -270,6 +301,12 @@ export default function RunDetailPage() {
   const status = run?.status as string | undefined;
   const isActive = !status || status === "pending" || status === "running";
   const isAwaitingUser = status === "awaiting_user";
+
+  const runOwner =
+    !!run &&
+    !!auth?.currentUser?.uid &&
+    (run.owner_uid as string | undefined) === auth.currentUser.uid;
+  const isTerminalStatus = !!(status && TERMINAL_STATUSES.has(status));
 
   // ── Active run: show border haze + live thoughts + cancel ─────────────────
   if (isActive) {
@@ -464,9 +501,14 @@ export default function RunDetailPage() {
         {/* Error message + retry if failed */}
         {status === "failed" && (
           <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
-            <p className="text-sm text-echo-error flex-1">
+            <div className="flex-1">
+            <p className="text-sm text-echo-error">
               {run?.error != null ? String(run.error) : "Run failed"}
             </p>
+            {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (
+              <p className="mt-1 text-xs font-mono text-echo-error/80">{run.errorCode}</p>
+            )}
+            </div>
                 <button
                   type="button"
                   onClick={handleRetry}
@@ -559,6 +601,7 @@ export default function RunDetailPage() {
               <div ref={logsEndRef} />
             </div>
         </div>
+
       </div>
     </div>
   );

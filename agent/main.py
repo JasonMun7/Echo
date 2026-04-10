@@ -32,25 +32,35 @@ logging.basicConfig(
 logging.getLogger("google_genai.models").setLevel(logging.WARNING)
 
 _sa = _os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
-if _sa and not _os.path.isabs(_sa) and not _os.path.isfile(_sa):
-    _service_root = Path(__file__).resolve().parent
-    for _candidate in [
-        _service_root.parent / _sa,
-        _service_root.parent / "backend" / _sa,
-        _service_root / _sa,
-    ]:
-        if _candidate.is_file():
-            _os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(_candidate.resolve())
-            logging.getLogger(__name__).info(
-                "Resolved GOOGLE_APPLICATION_CREDENTIALS -> %s",
-                _os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
-            )
-            break
+if _sa and not _os.path.isfile(_sa):
+    # Absolute path to a missing file (e.g. Doppler leaked a laptop path) breaks ADC on Cloud Run.
+    if _os.path.isabs(_sa):
+        _os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        logging.getLogger(__name__).warning(
+            "Ignoring GOOGLE_APPLICATION_CREDENTIALS (missing file): %s", _sa
+        )
+    else:
+        _service_root = Path(__file__).resolve().parent
+        for _candidate in [
+            _service_root.parent / _sa,
+            _service_root.parent / "backend" / _sa,
+            _service_root / _sa,
+        ]:
+            if _candidate.is_file():
+                _os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(_candidate.resolve())
+                logging.getLogger(__name__).info(
+                    "Resolved GOOGLE_APPLICATION_CREDENTIALS -> %s",
+                    _os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
+                )
+                break
 
 _service_root = Path(__file__).resolve().parent
-_backend = _service_root.parent / "backend"
-if _backend.exists():
-    sys.path.insert(0, str(_backend))
+# Monorepo: agent/main.py → ../backend. Docker: /app/main.py → /app/backend (not /backend).
+_backend = _service_root / "backend"
+if not _backend.is_dir():
+    _backend = _service_root.parent / "backend"
+if _backend.is_dir():
+    sys.path.insert(0, str(_backend.resolve()))
 if str(_service_root) not in sys.path:
     sys.path.insert(0, str(_service_root))
 
@@ -60,6 +70,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import chat, synthesize, agent as agent_router, livekit
 
 app = FastAPI(title="Echo Prism Agent", version="0.2.0")
+
+
+@app.get("/health")
+async def agent_health():
+    """Liveness for Cloud Run and post-deploy smoke (see scripts/deploy/post-deploy-smoke.sh)."""
+    return {"status": "ok", "service": "echo-prism-agent"}
+
 
 _origins = [
     "http://localhost:3000",

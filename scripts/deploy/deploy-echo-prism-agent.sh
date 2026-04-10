@@ -25,17 +25,11 @@ if [ -n "$BUILD_FIRST" ]; then
 fi
 
 section "Deploy EchoPrism Agent"
-AGENT_ENV="GEMINI_API_KEY=$GEMINI_API_KEY,ECHO_GCP_PROJECT_ID=$PROJECT_ID,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,ECHOPRISM_INFERENCE_BACKEND=openrouter"
-[ -n "$OPENROUTER_API_KEY" ] && AGENT_ENV="$AGENT_ENV,OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
-[ -n "$OPENROUTER_BASE_URL" ] && AGENT_ENV="$AGENT_ENV,OPENROUTER_BASE_URL=$OPENROUTER_BASE_URL"
-[ -n "$UI_TARS_MODEL_ID" ] && AGENT_ENV="$AGENT_ENV,UI_TARS_MODEL_ID=$UI_TARS_MODEL_ID"
-[ -n "$FRONTEND_URL" ]        && AGENT_ENV="$AGENT_ENV,ECHO_APP_URL=$FRONTEND_URL"
-[ -n "$ECHO_GCS_BUCKET" ]    && AGENT_ENV="$AGENT_ENV,ECHO_GCS_BUCKET=$ECHO_GCS_BUCKET"
-[ -n "$GEMINI_API_KEY" ]     && AGENT_ENV="$AGENT_ENV,GEMINI_API_KEY=$GEMINI_API_KEY"
-[ -n "$LIVEKIT_URL" ]         && AGENT_ENV="$AGENT_ENV,LIVEKIT_URL=$LIVEKIT_URL"
-[ -n "$LIVEKIT_API_KEY" ]     && AGENT_ENV="$AGENT_ENV,LIVEKIT_API_KEY=$LIVEKIT_API_KEY"
-[ -n "$LIVEKIT_API_SECRET" ] && AGENT_ENV="$AGENT_ENV,LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET"
-[ -n "$LIVEKIT_AGENT_SECRET" ] && AGENT_ENV="$AGENT_ENV,LIVEKIT_AGENT_SECRET=$LIVEKIT_AGENT_SECRET"
+# YAML env file: avoids gcloud --set-env-vars breaking on commas/special chars in secrets.
+DEPLOY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENT_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-agent-env.yaml.XXXXXX")"
+trap 'rm -f "$AGENT_ENV_FILE"' EXIT
+python3 "$DEPLOY_SCRIPT_DIR/agent_env_to_yaml.py" "$PROJECT_ID" >"$AGENT_ENV_FILE"
 
 step "Deploying echo-prism-agent..."
 echo ""
@@ -44,7 +38,12 @@ gcloud run deploy echo-prism-agent \
   --image "${IMAGE_BASE}/echo-prism-agent:${IMAGE_TAG}" \
   --region "$REGION" \
   --platform managed \
-  --set-env-vars "$AGENT_ENV" \
+  --memory 4Gi \
+  --cpu 2 \
+  --cpu-boost \
+  --no-cpu-throttling \
+  --startup-probe=initialDelaySeconds=10,timeoutSeconds=5,periodSeconds=10,failureThreshold=60,tcpSocket.port=8080 \
+  --env-vars-file="$AGENT_ENV_FILE" \
   --clear-secrets \
   --allow-unauthenticated \
   --project="$PROJECT_ID"
