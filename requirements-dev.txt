@@ -1,0 +1,2 @@
+# Repo-wide Python dev tools (install from repo root: pip install -r requirements-dev.txt)
+ruff>=0.9.0
