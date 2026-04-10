@@ -313,12 +313,10 @@ async def entrypoint(ctx: agents.JobContext):
                 getattr(dtmf, "participant", None), "identity", ""
             )
             code = getattr(dtmf, "code", "")
-            digit = getattr(dtmf, "digit", "")
             _logger.info(
-                "[EchoPrism] DTMF from %s: code=%s digit=%s",
+                "[EchoPrism] DTMF from %s: code=%s digit=<redacted>",
                 participant_identity,
                 code,
-                digit,
             )
 
     except Exception as e:

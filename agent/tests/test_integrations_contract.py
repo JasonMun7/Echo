@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -32,6 +33,20 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+@contextmanager
+def github_httpx_async_client_mock():
+    """Shared AsyncClient context-manager mock for ``github.execute`` GET list_repos-style tests."""
+    with patch("echo_prism_agent.integrations.github.httpx.AsyncClient") as mock_ac:
+        mock_resp = type("R", (), {})()
+        mock_resp.status_code = 200
+        mock_resp.json = lambda: [{"name": "r"}]
+        mc = type("C", (), {})()
+        mc.get = AsyncMock(return_value=mock_resp)
+        mock_ac.return_value.__aenter__ = AsyncMock(return_value=mc)
+        mock_ac.return_value.__aexit__ = AsyncMock(return_value=None)
+        yield mc
+
+
 @pytest.mark.parametrize("mod", INTEGRATION_MODULES)
 def test_methods_nonempty_descriptions_are_strings(mod) -> None:
     methods = getattr(mod, "METHODS", None)
@@ -53,14 +68,7 @@ def test_execute_missing_token_contract(mod) -> None:
 
 def test_execute_success_includes_result() -> None:
     """Happy paths must include ``result`` so ``execute_api_call`` can inspect ``ok``."""
-    with patch("echo_prism_agent.integrations.github.httpx.AsyncClient") as mock_ac:
-        mock_resp = type("R", (), {})()
-        mock_resp.status_code = 200
-        mock_resp.json = lambda: [{"name": "r"}]
-        mc = type("C", (), {})()
-        mc.get = AsyncMock(return_value=mock_resp)
-        mock_ac.return_value.__aenter__ = AsyncMock(return_value=mc)
-        mock_ac.return_value.__aexit__ = AsyncMock(return_value=None)
+    with github_httpx_async_client_mock():
         out = _run(github.execute("list_repos", {}, "ghs_x"))
     assert out["ok"] is True
     assert "result" in out
@@ -88,12 +96,16 @@ def test_token_vault_connection_mapping(mod_name) -> None:
 )
 def test_method_string_normalized_before_http(mod, method, args) -> None:
     """Non-canonical method strings normalize and hit the intended branch (not unknown_method)."""
+    if mod is github:
+        with github_httpx_async_client_mock() as mc:
+            out = _run(mod.execute(method, args, "test-token"))
+        assert out.get("ok") is True
+        assert mc.get.await_count >= 1
+        return
     with patch(f"{mod.__name__}.httpx.AsyncClient") as mock_ac:
         mock_resp = type("R", (), {})()
         mock_resp.status_code = 200
-        if mod is github:
-            mock_resp.json = lambda: [{"name": "r"}]
-        elif mod is slack:
+        if mod is slack:
             mock_resp.json = lambda: {"ok": True, "channels": []}
         else:
             mock_resp.json = lambda: {"sub": "x"}
@@ -185,6 +197,7 @@ async def test_execute_api_call_dispatches_to_slack_connector() -> None:
     call = m_exec.await_args
     assert call[0][0] == "list_channels"
     assert call[0][1] == {"limit": 10}
+    assert call[0][2] == "xoxb-test"
 
 
 @pytest.mark.asyncio
