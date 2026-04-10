@@ -566,8 +566,12 @@ export default function DatasetCreatorPage() {
     });
     if (selectedAnnotation?.id === ann.id) setSelectedAnnotation(null);
     if (remaining.length === 0) {
-      nextAnnotationIdRef.current = 1;
-      setNextAnnotationId(1);
+      const anns = datasetRef.current.annotations;
+      const maxId =
+        anns.length === 0 ? 0 : Math.max(...anns.map((a) => a.id));
+      const next = Math.max(maxId + 1, nextAnnotationIdRef.current);
+      nextAnnotationIdRef.current = next;
+      setNextAnnotationId(next);
     }
   }, [currentFrame, selectedAnnotation]);
 
