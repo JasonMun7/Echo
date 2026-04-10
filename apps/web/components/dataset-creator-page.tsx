@@ -258,6 +258,7 @@ export default function DatasetCreatorPage() {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(-1);
   const [filteredSamples, setFilteredSamples] = useState<DatasetImage[]>([]);
   const loadedSampleCache = useRef<Map<number, string>>(new Map());
+  const loadSampleRequestIdRef = useRef(0);
 
   const [currentSequence, setCurrentSequence] = useState<{
     id: string;
@@ -888,44 +889,41 @@ export default function DatasetCreatorPage() {
 
   const persistFrameToDataset = useCallback((frame: Frame | null) => {
     if (!frame) return;
-    const prevNextAnnotationId = nextAnnotationIdRef.current;
-    let computedNext = prevNextAnnotationId;
-    setDataset((d) => {
-      const img = d.images.find((i) => i.id === frame.id);
-      if (!img) return d;
-      const clamped = frame.annotations.map((ann) =>
-        clampAnnotation(ann, frame.width, frame.height)
-      );
-      const cocoAnns = frame.annotations.map((ann, i) => {
-        const c = clamped[i];
-        return {
-          id: ann.id,
-          image_id: frame.id,
-          category_id: CATEGORY_MAP[ann.action_type] ?? 1,
-          bbox: c.bbox ?? ann.bbox,
-          keypoints: c.keypoints ?? ann.keypoints,
-          area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
-          iscrowd: 0,
-          attributes: {
-            task_description: ann.task_description,
-            action_type: ann.action_type,
-            element_info: ann.element_info,
-            custom_metadata: ann.custom_metadata || {},
-          },
-        };
-      });
-      const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
-      computedNext = Math.max(prevNextAnnotationId, maxAnnId + 1);
+    const d = datasetRef.current;
+    const img = d.images.find((i) => i.id === frame.id);
+    if (!img) return;
+    const clamped = frame.annotations.map((ann) =>
+      clampAnnotation(ann, frame.width, frame.height)
+    );
+    const cocoAnns = frame.annotations.map((ann, i) => {
+      const c = clamped[i];
       return {
-        ...d,
-        images: d.images.map((im) =>
-          im.id === frame.id
-            ? { ...im, application: application || im.application, platform: platform || im.platform }
-            : im
-        ),
-        annotations: [...d.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
+        id: ann.id,
+        image_id: frame.id,
+        category_id: CATEGORY_MAP[ann.action_type] ?? 1,
+        bbox: c.bbox ?? ann.bbox,
+        keypoints: c.keypoints ?? ann.keypoints,
+        area: c.bbox ? c.bbox[2] * c.bbox[3] : ann.bbox ? ann.bbox[2] * (ann.bbox[3] ?? 0) : 0,
+        iscrowd: 0,
+        attributes: {
+          task_description: ann.task_description,
+          action_type: ann.action_type,
+          element_info: ann.element_info,
+          custom_metadata: ann.custom_metadata || {},
+        },
       };
     });
+    const maxAnnId = Math.max(0, ...cocoAnns.map((a) => a.id), ...d.annotations.map((a) => a.id));
+    const computedNext = Math.max(nextAnnotationIdRef.current, maxAnnId + 1);
+    setDataset((prev) => ({
+      ...prev,
+      images: prev.images.map((im) =>
+        im.id === frame.id
+          ? { ...im, application: application || im.application, platform: platform || im.platform }
+          : im
+      ),
+      annotations: [...prev.annotations.filter((a) => a.image_id !== frame.id), ...cocoAnns],
+    }));
     nextAnnotationIdRef.current = computedNext;
     setNextAnnotationId(computedNext);
   }, [application, platform]);
@@ -933,30 +931,39 @@ export default function DatasetCreatorPage() {
   const loadSample = useCallback(
     async (index: number) => {
       if (index < 0 || index >= filteredSamples.length) return;
+      const requestId = ++loadSampleRequestIdRef.current;
       const sample = filteredSamples[index];
       const prevFrame = currentFrameRef.current;
       if (prevFrame && prevFrame.id !== sample.id) {
         persistFrameToDataset(prevFrame);
       }
+      if (requestId !== loadSampleRequestIdRef.current) return;
       setCurrentSampleIndex(index);
       let dataUrl = loadedSampleCache.current.get(sample.id);
       if (!dataUrl) {
         try {
           const res = await apiFetch(`/api/datasets/image?folder=data&file=${encodeURIComponent(sample.file_name)}`);
+          if (requestId !== loadSampleRequestIdRef.current) return;
           const data = await res.json();
+          if (requestId !== loadSampleRequestIdRef.current) return;
           const imgRes = await fetch(data.url);
+          if (requestId !== loadSampleRequestIdRef.current) return;
           const blob = await imgRes.blob();
+          if (requestId !== loadSampleRequestIdRef.current) return;
           dataUrl = await new Promise<string>((resolve) => {
             const r = new FileReader();
             r.onload = () => resolve(r.result as string);
             r.readAsDataURL(blob);
           });
           loadedSampleCache.current.set(sample.id, dataUrl);
+          if (requestId !== loadSampleRequestIdRef.current) return;
         } catch {
+          if (requestId !== loadSampleRequestIdRef.current) return;
           setStatus("Failed to load image");
           return;
         }
       }
+      if (requestId !== loadSampleRequestIdRef.current) return;
       const d = datasetRef.current;
       const frameAnns = d.annotations.filter((a) => a.image_id === sample.id);
       const frame: Frame = {
@@ -975,6 +982,7 @@ export default function DatasetCreatorPage() {
           custom_metadata: a.attributes.custom_metadata || {},
         })),
       };
+      if (requestId !== loadSampleRequestIdRef.current) return;
       setCurrentFrame(frame);
       setApplication(sample.application || "");
       setPlatform(sample.platform || "");
