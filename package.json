@@ -45,7 +45,15 @@
     "simple-git-hooks": "^2.11.1"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}": "prettier --write"
+    "*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}": "prettier --write",
+    "agent/**/*.py": [
+      "ruff format",
+      "ruff check --fix --force-exclude"
+    ],
+    "backend/**/*.py": [
+      "ruff format",
+      "ruff check --fix --force-exclude"
+    ]
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"

@@ -271,6 +271,11 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                 }
         if not workflow_id:
             return {"ok": False, "error": "Provide workflow_id or workflow_name to run a workflow."}
+        wf_snap = db.collection("workflows").document(workflow_id).get()
+        if not wf_snap.exists:
+            return {"ok": False, "error": "Workflow not found."}
+        if (wf_snap.to_dict() or {}).get("owner_uid") != uid:
+            return {"ok": False, "error": "Not authorized to run this workflow."}
         _cancel_other_active_runs_for_user(uid, db)
         run_id = str(uuid.uuid4())
         run_ref = db.collection("workflows").document(workflow_id).collection("runs").document(run_id)
@@ -298,7 +303,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug("Failed to send run_started websocket message", exc_info=True)
         result = {
             "ok": True,
             "run_id": run_id,
@@ -371,7 +376,12 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to send run_started websocket message (run_adhoc workflow_id=%s run_id=%s)",
+                    workflow_id,
+                    run_id,
+                    exc_info=True,
+                )
         logger.info(
             "run_adhoc created goal-only run: workflow_id=%s run_id=%s goal=%s",
             workflow_id,
@@ -413,7 +423,11 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     )
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to send synthesis_complete websocket message (workflow_id=%s)",
+                    wf_id,
+                    exc_info=True,
+                )
         return {"ok": True, "workflow_id": wf_id, "workflow_name": workflow_name}
 
     elif name == "redirect_run":
@@ -460,7 +474,24 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         return {"integrations": integrations}
 
     elif name == "call_integration":
-        integration = args.get("integration", "")
+        from echo_prism_agent.auth0_token_vault import normalize_integration_id
+        from echo_prism_agent.integrations.api_call_catalog import _INTEGRATION_IDS
+
+        integration_raw = args.get("integration")
+        if integration_raw is None:
+            return {"ok": False, "error": "integration is required."}
+        if not isinstance(integration_raw, str):
+            integration_raw = str(integration_raw)
+        if not integration_raw.strip():
+            return {"ok": False, "error": "integration is required."}
+        integration = normalize_integration_id(integration_raw)
+
+        if integration not in _INTEGRATION_IDS:
+            return {
+                "ok": False,
+                "error": (f"Unsupported integration '{integration}'. Supported: {', '.join(_INTEGRATION_IDS)}."),
+            }
+
         method = args.get("method", "")
         raw_args = args.get("arguments")
         if raw_args is None:
@@ -472,6 +503,8 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         try:
             from echo_prism_agent.integrations.resolver import get_integration_access_token
 
+            if not integration:
+                return {"ok": False, "error": "integration is required."}
             access_token = await get_integration_access_token(uid, integration, db)
             if not access_token:
                 return {

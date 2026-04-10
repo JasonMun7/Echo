@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["stream"])
 
 
+def _list_logs_ordered(logs_ref):
+    return list(logs_ref.order_by("timestamp").stream())
+
+
 @router.get("/run/{workflow_id}/{run_id}/stream")
 async def stream_run_thoughts(
     workflow_id: str,
@@ -46,7 +50,7 @@ async def stream_run_thoughts(
                 run_status = run_data.get("status", "")
 
                 logs_ref = run_ref.collection("logs")
-                docs = await asyncio.to_thread(lambda: list(logs_ref.order_by("timestamp").stream()))
+                docs = await asyncio.to_thread(_list_logs_ordered, logs_ref)
 
                 new_events = []
                 for doc in docs:
