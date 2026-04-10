@@ -12,10 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { apiFetch } from "@/lib/api";
-import {
-  useOwnedWorkflows,
-  usePendingInvites,
-} from "@/hooks/use-firestore-listener";
+import { useOwnedWorkflows, usePendingInvites } from "@/hooks/use-firestore-listener";
 import { WorkflowCard } from "@/components/echo/WorkflowCard";
 import { GradientButton } from "@/components/ui/GradientButton";
 import { colors } from "@echo/design-tokens";
@@ -45,8 +42,7 @@ export default function WorkflowListScreen() {
   const router = useRouter();
 
   // Real-time Firestore listeners
-  const { data: firestoreWorkflows, loading: fsLoading } =
-    useOwnedWorkflows(uid);
+  const { data: firestoreWorkflows, loading: fsLoading } = useOwnedWorkflows(uid);
   const { data: invites } = usePendingInvites(uid) as unknown as {
     data: WorkflowInvite[];
   };
@@ -81,31 +77,22 @@ export default function WorkflowListScreen() {
     for (const w of apiWorkflows) map.set(w.id, w);
     for (const w of firestoreWorkflows as Workflow[]) map.set(w.id, w);
     return Array.from(map.values())
-      .filter(
-        (w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true,
-      )
-      .sort(
-        (a, b) =>
-          getTime(b.createdAt ?? b.updatedAt) -
-          getTime(a.createdAt ?? a.updatedAt),
-      );
+      .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
+      .sort((a, b) => getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt));
   }, [firestoreWorkflows, apiWorkflows]);
 
   const [search, setSearch] = useState("");
   const filtered = search
-    ? workflows.filter((w) =>
-        (w.name || "").toLowerCase().includes(search.toLowerCase()),
-      )
+    ? workflows.filter((w) => (w.name || "").toLowerCase().includes(search.toLowerCase()))
     : workflows;
 
   const loading = fsLoading && apiWorkflows.length === 0;
 
   async function handleAcceptInvite(invite: WorkflowInvite) {
     try {
-      const res = await apiFetch(
-        `/api/workflows/${invite.workflow_id}/invite/accept`,
-        { method: "POST" },
-      );
+      const res = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/accept`, {
+        method: "POST",
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.fork_id) {
@@ -147,9 +134,7 @@ export default function WorkflowListScreen() {
             paddingBottom: insets.bottom + 112,
           },
         ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           invites.length > 0 ? (
             <View style={styles.invitesSection}>
@@ -159,9 +144,7 @@ export default function WorkflowListScreen() {
                     <Text style={styles.inviteText}>
                       <Text style={styles.inviteBold}>{invite.from_name}</Text>
                       {" invited you to "}
-                      <Text style={styles.inviteBold}>
-                        "{invite.workflow_name}"
-                      </Text>
+                      <Text style={styles.inviteBold}>"{invite.workflow_name}"</Text>
                     </Text>
                   </View>
                   <View style={styles.inviteActions}>
@@ -171,10 +154,7 @@ export default function WorkflowListScreen() {
                     >
                       <Text style={styles.declineBtnText}>Decline</Text>
                     </Pressable>
-                    <Pressable
-                      style={styles.acceptBtn}
-                      onPress={() => handleAcceptInvite(invite)}
-                    >
+                    <Pressable style={styles.acceptBtn} onPress={() => handleAcceptInvite(invite)}>
                       <Text style={styles.acceptBtnText}>Accept</Text>
                     </Pressable>
                   </View>
@@ -191,18 +171,13 @@ export default function WorkflowListScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              {loading ? "Loading..." : "No workflows found"}
-            </Text>
+            <Text style={styles.emptyText}>{loading ? "Loading..." : "No workflows found"}</Text>
           </View>
         }
       />
 
       {/* FAB */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => router.push("/(tabs)/workflows/new")}
-      >
+      <Pressable style={styles.fab} onPress={() => router.push("/(tabs)/workflows/new")}>
         <Text style={styles.fabText}>+</Text>
       </Pressable>
     </View>

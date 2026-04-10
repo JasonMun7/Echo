@@ -19,124 +19,112 @@ export function ContactFormGridWithDetails() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 py-12 pt-20 md:px-8 md:py-16 md:pt-24">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 lg:grid-cols-2">
-      <div className="echo-gradient-secondary relative flex flex-col items-center overflow-hidden rounded-2xl p-6 md:p-8 lg:items-start">
-        <div className="flex items-start justify-start">
-          <FeatureIconContainer className="flex items-center justify-center overflow-hidden">
-            <IconMailFilled className="h-6 w-6 text-white" />
-          </FeatureIconContainer>
-        </div>
-        <h2 className="mt-9 bg-gradient-to-r from-white to-white/90 bg-clip-text text-left text-xl font-bold text-transparent md:text-3xl lg:text-5xl">
-          Contact us
-        </h2>
-        <p className="mt-8 max-w-lg text-center text-base text-white/80 md:text-left">
-          We are always looking for ways to improve our products and services.
-          Contact us and let us know how we can help you.
-        </p>
+        <div className="echo-gradient-secondary relative flex flex-col items-center overflow-hidden rounded-2xl p-6 md:p-8 lg:items-start">
+          <div className="flex items-start justify-start">
+            <FeatureIconContainer className="flex items-center justify-center overflow-hidden">
+              <IconMailFilled className="h-6 w-6 text-white" />
+            </FeatureIconContainer>
+          </div>
+          <h2 className="mt-9 bg-gradient-to-r from-white to-white/90 bg-clip-text text-left text-xl font-bold text-transparent md:text-3xl lg:text-5xl">
+            Contact us
+          </h2>
+          <p className="mt-8 max-w-lg text-center text-base text-white/80 md:text-left">
+            We are always looking for ways to improve our products and services. Contact us and let
+            us know how we can help you.
+          </p>
 
-        <div className="mt-10 flex flex-col flex-wrap items-center gap-4 md:flex-row">
-          <a
-            href="mailto:contact@echo.ai"
-            className="text-sm font-medium text-white hover:underline"
-          >
-            contact@echo.ai
-          </a>
-          <div className="hidden h-1 w-1 rounded-full bg-white/40 md:block" />
-          <p className="text-sm text-white/70">+1 (800) 123-4567</p>
-          <div className="hidden h-1 w-1 rounded-full bg-white/40 md:block" />
-          <a
-            href="mailto:support@echo.ai"
-            className="text-sm font-medium text-white hover:underline"
-          >
-            support@echo.ai
-          </a>
+          <div className="mt-10 flex flex-col flex-wrap items-center gap-4 md:flex-row">
+            <a
+              href="mailto:contact@echo.ai"
+              className="text-sm font-medium text-white hover:underline"
+            >
+              contact@echo.ai
+            </a>
+            <div className="hidden h-1 w-1 rounded-full bg-white/40 md:block" />
+            <p className="text-sm text-white/70">+1 (800) 123-4567</p>
+            <div className="hidden h-1 w-1 rounded-full bg-white/40 md:block" />
+            <a
+              href="mailto:support@echo.ai"
+              className="text-sm font-medium text-white hover:underline"
+            >
+              support@echo.ai
+            </a>
+          </div>
+          <div className="relative mt-20 flex w-[min(500px,100%)] flex-shrink-0 items-center justify-center [perspective:800px] [transform-style:preserve-3d]">
+            <ContactMapPin className="top-0 right-1" />
+            <Image
+              src="https://assets.aceternity.com/pro/world.svg"
+              width={500}
+              height={500}
+              alt="World map"
+              className="[transform:rotateX(45deg)_translateZ(0px)] invert opacity-90"
+            />
+          </div>
         </div>
-        <div className="relative mt-20 flex w-[min(500px,100%)] flex-shrink-0 items-center justify-center [perspective:800px] [transform-style:preserve-3d]">
-          <ContactMapPin className="top-0 right-1" />
-          <Image
-            src="https://assets.aceternity.com/pro/world.svg"
-            width={500}
-            height={500}
-            alt="World map"
-            className="[transform:rotateX(45deg)_translateZ(0px)] invert opacity-90"
-          />
+
+        <div className="relative mx-auto flex w-full max-w-2xl flex-col items-start gap-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-10">
+          <Grid size={20} />
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="relative z-20 flex w-full flex-col gap-4"
+          >
+            <div className="w-full">
+              <Label htmlFor="name" className="mb-2 block text-sm font-medium text-[#150A35]">
+                Full name
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Your name"
+                variant="plain"
+                className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+              />
+            </div>
+            <div className="w-full">
+              <Label htmlFor="email" className="mb-2 block text-sm font-medium text-[#150A35]">
+                Email address
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                variant="plain"
+                className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+              />
+            </div>
+            <div className="w-full">
+              <Label htmlFor="company" className="mb-2 block text-sm font-medium text-[#150A35]">
+                Company
+              </Label>
+              <Input
+                id="company"
+                type="text"
+                placeholder="Your company"
+                variant="plain"
+                className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+              />
+            </div>
+            <div className="w-full">
+              <Label htmlFor="message" className="mb-2 block text-sm font-medium text-[#150A35]">
+                Message
+              </Label>
+              <Textarea
+                id="message"
+                rows={5}
+                placeholder="Type your message here"
+                className="min-h-24 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] px-4 py-3 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+              />
+            </div>
+            <StatefulButton
+              type="submit"
+              onClick={handleSubmit}
+              className="echo-btn-primary mt-2 w-full sm:w-auto"
+            >
+              Send message
+            </StatefulButton>
+          </form>
         </div>
       </div>
-
-      <div className="relative mx-auto flex w-full max-w-2xl flex-col items-start gap-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-10">
-        <Grid size={20} />
-        <form
-          onSubmit={(e) => e.preventDefault()}
-          className="relative z-20 flex w-full flex-col gap-4"
-        >
-          <div className="w-full">
-            <Label
-              htmlFor="name"
-              className="mb-2 block text-sm font-medium text-[#150A35]"
-            >
-              Full name
-            </Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Your name"
-              variant="plain"
-              className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
-            />
-          </div>
-          <div className="w-full">
-            <Label
-              htmlFor="email"
-              className="mb-2 block text-sm font-medium text-[#150A35]"
-            >
-              Email address
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              variant="plain"
-              className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
-            />
-          </div>
-          <div className="w-full">
-            <Label
-              htmlFor="company"
-              className="mb-2 block text-sm font-medium text-[#150A35]"
-            >
-              Company
-            </Label>
-            <Input
-              id="company"
-              type="text"
-              placeholder="Your company"
-              variant="plain"
-              className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
-            />
-          </div>
-          <div className="w-full">
-            <Label
-              htmlFor="message"
-              className="mb-2 block text-sm font-medium text-[#150A35]"
-            >
-              Message
-            </Label>
-            <Textarea
-              id="message"
-              rows={5}
-              placeholder="Type your message here"
-              className="min-h-24 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] px-4 py-3 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
-            />
-          </div>
-          <StatefulButton
-            type="submit"
-            onClick={handleSubmit}
-            className="echo-btn-primary mt-2 w-full sm:w-auto"
-          >
-            Send message
-          </StatefulButton>
-        </form>
-      </div>
-    </div>
     </div>
   );
 }
@@ -147,7 +135,7 @@ function ContactMapPin({ className }: { className?: string }) {
       style={{ transform: "translateZ(1px)" }}
       className={cn(
         "pointer-events-none absolute z-[60] flex h-40 w-96 items-center justify-center opacity-100 transition duration-500",
-        className
+        className,
       )}
     >
       <div className="h-full w-full">
@@ -199,10 +187,7 @@ const FeatureIconContainer = ({
 }) => {
   return (
     <div
-      className={cn(
-        "echo-glass-light relative h-14 w-14 rounded-lg p-[4px] shadow-sm",
-        className
-      )}
+      className={cn("echo-glass-light relative h-14 w-14 rounded-lg p-[4px] shadow-sm", className)}
     >
       <div className="relative z-20 flex h-full w-full items-center justify-center rounded-[6px] bg-white/10">
         {children}
@@ -212,16 +197,16 @@ const FeatureIconContainer = ({
   );
 };
 
-const Grid = ({
-  pattern,
-  size,
-}: {
-  pattern?: number[][];
-  size?: number;
-}) => {
+const Grid = ({ pattern, size }: { pattern?: number[][]; size?: number }) => {
   const p =
     pattern ??
-    ([[7, 2], [10, 4], [8, 6], [11, 3], [9, 5]] as number[][]);
+    ([
+      [7, 2],
+      [10, 4],
+      [8, 6],
+      [11, 3],
+      [9, 5],
+    ] as number[][]);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.03]">
       <div className="absolute inset-0">

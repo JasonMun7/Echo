@@ -16,9 +16,7 @@ export function LegalPageTemplate({
 }: LegalPageTemplateProps) {
   return (
     <main className="mx-auto max-w-3xl px-8 py-24">
-      <h1 className="font-serif text-3xl font-semibold text-[#150A35]">
-        {title}
-      </h1>
+      <h1 className="font-serif text-3xl font-semibold text-[#150A35]">{title}</h1>
       <div className="mt-6 text-sm leading-relaxed text-gray-600">{children}</div>
       <p className="mt-8">
         <Link

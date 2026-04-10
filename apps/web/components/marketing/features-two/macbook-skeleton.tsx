@@ -76,21 +76,13 @@ export function MacbookSkeleton() {
   );
 }
 
-function MacbookDynamicIsland({
-  ref,
-}: {
-  ref: React.Ref<DynamicIslandHandle>;
-}) {
+function MacbookDynamicIsland({ ref }: { ref: React.Ref<DynamicIslandHandle> }) {
   const [scope, animate] = useAnimate();
   const hasAnimatedRef = useRef(false);
 
   const reset = () => {
     hasAnimatedRef.current = false;
-    animate(
-      scope.current,
-      { width: 28, height: 10, borderRadius: 5 },
-      SPRING_OPTIONS,
-    );
+    animate(scope.current, { width: 28, height: 10, borderRadius: 5 }, SPRING_OPTIONS);
     animate("#mac-idle", { opacity: 1 }, { duration: 0.15 });
     animate("#mac-loading", { opacity: 0 }, { duration: 0.1 });
     animate("#mac-done", { opacity: 0 }, { duration: 0.1 });
@@ -101,19 +93,11 @@ function MacbookDynamicIsland({
     hasAnimatedRef.current = true;
 
     await animate("#mac-idle", { opacity: 0 }, { duration: 0.1 });
-    animate(
-      scope.current,
-      { width: 16, height: 10, borderRadius: 5 },
-      SPRING_OPTIONS,
-    );
+    animate(scope.current, { width: 16, height: 10, borderRadius: 5 }, SPRING_OPTIONS);
     await animate("#mac-loading", { opacity: 1 }, { duration: 0.15 });
     await new Promise((r) => setTimeout(r, 1000));
     await animate("#mac-loading", { opacity: 0 }, { duration: 0.1 });
-    animate(
-      scope.current,
-      { width: 48, height: 10, borderRadius: 5 },
-      SPRING_OPTIONS,
-    );
+    animate(scope.current, { width: 48, height: 10, borderRadius: 5 }, SPRING_OPTIONS);
     await animate("#mac-done", { opacity: 1 }, { duration: 0.15, delay: 0.1 });
   };
 
@@ -148,9 +132,7 @@ function MacbookDynamicIsland({
           className="absolute inset-0 flex items-center justify-center"
           style={{ opacity: 0 }}
         >
-          <span className="text-[3px] leading-none font-medium text-white">
-            Airpods Connected
-          </span>
+          <span className="text-[3px] leading-none font-medium text-white">Airpods Connected</span>
           <div className="ml-0.5 flex h-1 w-2 items-center rounded-xs border border-green-500">
             <div className="h-full w-[85%] bg-green-500" />
           </div>

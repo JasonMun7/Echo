@@ -17,11 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -186,102 +182,100 @@ export default function SchedulePage() {
       <div className="flex min-h-0 flex-1 flex-col gap-6 p-6 md:p-10">
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1A1A2E]">Scheduled Runs</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Automatically run workflows on a schedule using Cloud Scheduler.
-          </p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="echo-btn-cyan-lavender">
-              <IconPlus className="mr-2 h-4 w-4" />
-              New Schedule
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create Schedule</DialogTitle>
-              <DialogDescription>
-                Choose a workflow and how often it should run.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label>Workflow</Label>
-                <Select value={selectedWorkflow} onValueChange={setSelectedWorkflow}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a workflow..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {workflows.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Frequency</Label>
-                <Select value={cronPreset} onValueChange={setCronPreset}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRON_PRESETS.map((p) => (
-                      <SelectItem key={p.label} value={p.value || "custom"}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {(!cronPreset || cronPreset === "custom") && (
+          <div>
+            <h1 className="text-2xl font-bold text-[#1A1A2E]">Scheduled Runs</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Automatically run workflows on a schedule using Cloud Scheduler.
+            </p>
+          </div>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="echo-btn-cyan-lavender">
+                <IconPlus className="mr-2 h-4 w-4" />
+                New Schedule
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Schedule</DialogTitle>
+                <DialogDescription>
+                  Choose a workflow and how often it should run.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
                 <div className="grid gap-1.5">
-                  <Label>Custom Cron Expression</Label>
-                  <Input
-                    placeholder="0 9 * * 1-5"
-                    value={customCron}
-                    onChange={(e) => setCustomCron(e.target.value)}
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-gray-400">
-                    Format: minute hour day month weekday
-                  </p>
+                  <Label>Workflow</Label>
+                  <Select value={selectedWorkflow} onValueChange={setSelectedWorkflow}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a workflow..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workflows.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-              <div className="grid gap-1.5">
-                <Label>Timezone</Label>
-                <Select value={timezone} onValueChange={setTimezone}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="UTC">UTC</SelectItem>
-                    <SelectItem value="America/New_York">Eastern (ET)</SelectItem>
-                    <SelectItem value="America/Los_Angeles">Pacific (PT)</SelectItem>
-                    <SelectItem value="America/Chicago">Central (CT)</SelectItem>
-                    <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                    <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid gap-1.5">
+                  <Label>Frequency</Label>
+                  <Select value={cronPreset} onValueChange={setCronPreset}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRON_PRESETS.map((p) => (
+                        <SelectItem key={p.label} value={p.value || "custom"}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(!cronPreset || cronPreset === "custom") && (
+                  <div className="grid gap-1.5">
+                    <Label>Custom Cron Expression</Label>
+                    <Input
+                      placeholder="0 9 * * 1-5"
+                      value={customCron}
+                      onChange={(e) => setCustomCron(e.target.value)}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-gray-400">Format: minute hour day month weekday</p>
+                  </div>
+                )}
+                <div className="grid gap-1.5">
+                  <Label>Timezone</Label>
+                  <Select value={timezone} onValueChange={setTimezone}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="UTC">UTC</SelectItem>
+                      <SelectItem value="America/New_York">Eastern (ET)</SelectItem>
+                      <SelectItem value="America/Los_Angeles">Pacific (PT)</SelectItem>
+                      <SelectItem value="America/Chicago">Central (CT)</SelectItem>
+                      <SelectItem value="Europe/London">London (GMT)</SelectItem>
+                      <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={createSchedule}
-                disabled={!selectedWorkflow || (!cronPreset && !customCron) || saving}
-                className="echo-btn-cyan-lavender"
-              >
-                {saving ? "Saving..." : "Create Schedule"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={createSchedule}
+                  disabled={!selectedWorkflow || (!cronPreset && !customCron) || saving}
+                  className="echo-btn-cyan-lavender"
+                >
+                  {saving ? "Saving..." : "Create Schedule"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Schedules list or empty state */}
@@ -306,7 +300,9 @@ export default function SchedulePage() {
                 <IconCalendarClock className="h-6 w-6 text-[#A577FF]" />
               </div>
               <p className="font-medium text-[#150A35]">No schedules yet</p>
-              <p className="text-sm text-[#150A35]/70">Create a schedule to automatically run workflows.</p>
+              <p className="text-sm text-[#150A35]/70">
+                Create a schedule to automatically run workflows.
+              </p>
               <Button
                 onClick={() => setDialogOpen(true)}
                 className="echo-btn-cyan-lavender inline-flex items-center gap-2"
@@ -317,47 +313,47 @@ export default function SchedulePage() {
             </div>
           </div>
         ) : (
-        <div className="flex flex-col gap-3">
-          {schedules.map((sched) => (
-            <div
-              key={sched.workflowId}
-              className="flex items-center justify-between rounded-xl border border-[#A577FF]/20 bg-[#F5F3FF]/30 p-4 hover:border-[#A577FF]/40"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#A577FF]/10 text-[#A577FF]">
-                  <IconClock className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-[#1A1A2E]">{sched.workflowName}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Badge
-                      variant="outline"
-                      className="border-[#A577FF]/30 text-[#A577FF] font-mono text-xs"
-                    >
-                      {sched.cron}
-                    </Badge>
-                    <span className="text-xs text-gray-400">{parseCronHuman(sched.cron)}</span>
-                    <span className="text-xs text-gray-400">·</span>
-                    <span className="text-xs text-gray-400">{sched.timezone}</span>
+          <div className="flex flex-col gap-3">
+            {schedules.map((sched) => (
+              <div
+                key={sched.workflowId}
+                className="flex items-center justify-between rounded-xl border border-[#A577FF]/20 bg-[#F5F3FF]/30 p-4 hover:border-[#A577FF]/40"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#A577FF]/10 text-[#A577FF]">
+                    <IconClock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1A1A2E]">{sched.workflowName}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge
+                        variant="outline"
+                        className="border-[#A577FF]/30 text-[#A577FF] font-mono text-xs"
+                      >
+                        {sched.cron}
+                      </Badge>
+                      <span className="text-xs text-gray-400">{parseCronHuman(sched.cron)}</span>
+                      <span className="text-xs text-gray-400">·</span>
+                      <span className="text-xs text-gray-400">{sched.timezone}</span>
+                    </div>
                   </div>
                 </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteSchedule(sched.workflowId)}
+                      className="h-8 text-red-500 hover:bg-red-50"
+                    >
+                      <IconTrash className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete schedule</TooltipContent>
+                </Tooltip>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteSchedule(sched.workflowId)}
-                    className="h-8 text-red-500 hover:bg-red-50"
-                  >
-                    <IconTrash className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete schedule</TooltipContent>
-              </Tooltip>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

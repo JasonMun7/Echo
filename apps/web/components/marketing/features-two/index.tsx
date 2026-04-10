@@ -21,8 +21,7 @@ export function FeaturesTwo() {
           Run Echo anywhere
         </Heading>
         <SubHeading className="text-balance">
-          From your web dashboard to your desktop to your voice — Echo is always
-          one command away.
+          From your web dashboard to your desktop to your voice — Echo is always one command away.
         </SubHeading>
       </div>
 
@@ -53,8 +52,8 @@ export function FeaturesTwo() {
           <IPhoneSkeleton />
           <FeatureTitle>Voice from any device</FeatureTitle>
           <FeatureDescription>
-            Trigger any workflow hands-free. Say it, and EchoPrism handles the
-            rest — no mouse, no keyboard needed.
+            Trigger any workflow hands-free. Say it, and EchoPrism handles the rest — no mouse, no
+            keyboard needed.
           </FeatureDescription>
         </FeatureItem>
 
@@ -62,8 +61,8 @@ export function FeaturesTwo() {
           <MacbookSkeleton />
           <FeatureTitle>Full desktop control</FeatureTitle>
           <FeatureDescription>
-            Browser tabs, native apps, system dialogs — EchoPrism sees and
-            controls your entire screen.
+            Browser tabs, native apps, system dialogs — EchoPrism sees and controls your entire
+            screen.
           </FeatureDescription>
         </FeatureItem>
 
@@ -71,8 +70,8 @@ export function FeaturesTwo() {
           <IPadSkeleton />
           <FeatureTitle>Web dashboard</FeatureTitle>
           <FeatureDescription>
-            Monitor live runs, review thought logs, share workflows, and manage
-            your team from anywhere.
+            Monitor live runs, review thought logs, share workflows, and manage your team from
+            anywhere.
           </FeatureDescription>
         </FeatureItem>
       </div>
@@ -120,11 +119,7 @@ function BeamCircle() {
 }
 
 function FeatureTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="mt-6 text-center text-base font-medium text-neutral-900">
-      {children}
-    </h3>
-  );
+  return <h3 className="mt-6 text-center text-base font-medium text-neutral-900">{children}</h3>;
 }
 
 function FeatureDescription({ children }: { children: React.ReactNode }) {

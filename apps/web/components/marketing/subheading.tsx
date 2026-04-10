@@ -12,12 +12,5 @@ export const SubHeading = ({
   className?: string;
   as?: SubheadingTag;
 }) => (
-  <Tag
-    className={cn(
-      "text-sm text-gray-600 md:text-base lg:text-lg",
-      className
-    )}
-  >
-    {children}
-  </Tag>
+  <Tag className={cn("text-sm text-gray-600 md:text-base lg:text-lg", className)}>{children}</Tag>
 );

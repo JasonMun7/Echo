@@ -2,7 +2,12 @@
 import { cn } from "@/lib/utils";
 import React, { useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconMenu2, IconX } from "@tabler/icons-react";
+import {
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+  IconMenu2,
+  IconX,
+} from "@tabler/icons-react";
 import NextLink from "next/link";
 
 interface Links {
@@ -17,9 +22,7 @@ interface SidebarContextProps {
   animate: boolean;
 }
 
-const SidebarContext = createContext<SidebarContextProps | undefined>(
-  undefined
-);
+const SidebarContext = createContext<SidebarContextProps | undefined>(undefined);
 
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
@@ -81,9 +84,7 @@ export const Sidebar = ({
 }) => {
   return (
     <>
-      <DesktopSidebar className={className}>
-        {children}
-      </DesktopSidebar>
+      <DesktopSidebar className={className}>{children}</DesktopSidebar>
       <MobileSidebar className={className} {...(props as React.ComponentProps<"div">)}>
         {children}
       </MobileSidebar>
@@ -106,7 +107,10 @@ export const SidebarTrigger = ({ className, ...props }: React.ComponentProps<"bu
       type="button"
       aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
       onClick={() => setOpen(!open)}
-      className={cn("flex size-9 items-center justify-center rounded-md text-[#150A35] hover:bg-[#A577FF]/10 transition-colors", className)}
+      className={cn(
+        "flex size-9 items-center justify-center rounded-md text-[#150A35] hover:bg-[#A577FF]/10 transition-colors",
+        className,
+      )}
       {...props}
     >
       {open ? (
@@ -122,9 +126,7 @@ export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
   const { className, children } = props;
   return (
     <>
-      <DesktopSidebar className={className}>
-        {children as React.ReactNode}
-      </DesktopSidebar>
+      <DesktopSidebar className={className}>{children as React.ReactNode}</DesktopSidebar>
       <MobileSidebar {...(props as React.ComponentProps<"div">)} />
     </>
   );
@@ -147,7 +149,13 @@ export const SidebarGroupContent = ({ className, ...props }: React.ComponentProp
   <div className={cn("flex flex-col gap-1", className)} {...props} />
 );
 export const SidebarGroupLabel = ({ className, ...props }: React.ComponentProps<"div">) => (
-  <div className={cn("px-2 py-1.5 text-xs font-semibold text-white/70 uppercase tracking-wider", className)} {...props} />
+  <div
+    className={cn(
+      "px-2 py-1.5 text-xs font-semibold text-white/70 uppercase tracking-wider",
+      className,
+    )}
+    {...props}
+  />
 );
 export const SidebarMenu = ({ className, ...props }: React.ComponentProps<"ul">) => (
   <ul className={cn("flex flex-col gap-1 list-none p-0 m-0", className)} {...props} />
@@ -162,12 +170,16 @@ export const SidebarMenuButton = ({
   size = "default",
   children: ch,
   ...props
-}: React.ComponentProps<"button"> & { asChild?: boolean; tooltip?: string; size?: "default" | "sm" | "lg" }) => {
+}: React.ComponentProps<"button"> & {
+  asChild?: boolean;
+  tooltip?: string;
+  size?: "default" | "sm" | "lg";
+}) => {
   const slotClass = cn(
     "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-white/90 hover:bg-white/10 hover:text-white transition-colors",
     size === "sm" && "py-1 text-xs",
     size === "lg" && "py-2 text-base",
-    className
+    className,
   );
   if (asChild && ch && React.isValidElement(ch)) {
     const childProps = (ch as React.ReactElement<{ className?: string; title?: string }>).props;
@@ -211,10 +223,7 @@ export const DesktopSidebar = ({
   const { open } = useSidebar();
   return (
     <motion.div
-      className={cn(
-        "h-full hidden md:flex md:flex-col shrink-0 overflow-hidden",
-        className
-      )}
+      className={cn("h-full hidden md:flex md:flex-col shrink-0 overflow-hidden", className)}
       initial={false}
       animate={{
         width: open ? SIDEBAR_WIDTH : 0,
@@ -224,7 +233,7 @@ export const DesktopSidebar = ({
     >
       <div
         className={cn(
-          "echo-sidebar-inset h-full min-w-[300px] px-4 py-4 flex flex-col overflow-y-auto"
+          "echo-sidebar-inset h-full min-w-[300px] px-4 py-4 flex flex-col overflow-y-auto",
         )}
       >
         {children}
@@ -233,25 +242,18 @@ export const DesktopSidebar = ({
   );
 };
 
-export const MobileSidebar = ({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"div">) => {
+export const MobileSidebar = ({ className, children, ...props }: React.ComponentProps<"div">) => {
   const { open, setOpen } = useSidebar();
   return (
     <>
       <div
         className={cn(
-          "h-10 px-4 py-4 flex flex-row md:hidden  items-center justify-between bg-neutral-100 dark:bg-neutral-800 w-full"
+          "h-10 px-4 py-4 flex flex-row md:hidden  items-center justify-between bg-neutral-100 dark:bg-neutral-800 w-full",
         )}
         {...props}
       >
         <div className="flex justify-end z-20 w-full">
-          <IconMenu2
-            className="text-[#150A35]"
-            onClick={() => setOpen(!open)}
-          />
+          <IconMenu2 className="text-[#150A35]" onClick={() => setOpen(!open)} />
         </div>
         <AnimatePresence>
           {open && (
@@ -265,7 +267,7 @@ export const MobileSidebar = ({
               }}
               className={cn(
                 "fixed h-full w-full inset-0 bg-white p-10 z-[100] flex flex-col justify-between",
-                className
+                className,
               )}
             >
               <div
@@ -301,7 +303,7 @@ export const SidebarLink = ({
         "flex cursor-pointer items-center justify-start gap-2 group/sidebar rounded-lg py-2 px-2.5 transition-colors",
         active && "bg-[#A577FF] text-white",
         !active && "text-white/80 hover:bg-white/10 hover:text-white",
-        className
+        className,
       )}
       {...props}
     >

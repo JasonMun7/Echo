@@ -2,9 +2,7 @@
 declare global {
   interface Window {
     electronAPI?: {
-      getSources: () => Promise<
-        { id: string; name: string; thumbnail: string }[]
-      >;
+      getSources: () => Promise<{ id: string; name: string; thumbnail: string }[]>;
       getPrimarySourceId: () => Promise<string | null>;
       createRun: (args: {
         workflowId: string;
@@ -62,11 +60,13 @@ declare global {
       openVoiceInterruption: () => Promise<{ ok: boolean; error?: string }>;
       closeVoiceInterruption: () => Promise<{ ok: true }>;
       resumeRunFromVoice: () => Promise<{ ok: true }>;
-      onVoiceInterruptionContext: (callback: (ctx: {
-        workflowId: string;
-        runId: string;
-        recentThoughts: Array<{ thought: string; action: string; step: number }>;
-      }) => void) => void;
+      onVoiceInterruptionContext: (
+        callback: (ctx: {
+          workflowId: string;
+          runId: string;
+          recentThoughts: Array<{ thought: string; action: string; step: number }>;
+        }) => void,
+      ) => void;
       removeVoiceInterruptionContextListener: () => void;
       onRunProgress: (
         cb: (entry: { thought: string; action: string; step: number }) => void,
@@ -75,26 +75,18 @@ declare global {
       onRunThinkingDelta: (cb: (payload: { delta: string; step: number }) => void) => void;
       removeRunThinkingDeltaListener: () => void;
       onRunHitl: (
-        cb: (evt: {
-          kind: string;
-          payload: Record<string, unknown>;
-          step: number;
-        }) => void,
+        cb: (evt: { kind: string; payload: Record<string, unknown>; step: number }) => void,
       ) => void;
       removeRunHitlListener: () => void;
       onRunHitlClear: (cb: () => void) => void;
       removeRunHitlClearListener: () => void;
       hitlSubmitResume: (resume?: unknown) => Promise<{ ok: boolean }>;
-      hitlReopenOauth: () => Promise<
-        { ok: true } | { ok: false; error: string }
-      >;
+      hitlReopenOauth: () => Promise<{ ok: true } | { ok: false; error: string }>;
       onRunPausedByVoice: (callback: () => void) => void;
       removeRunPausedByVoiceListener: () => void;
       onRunResumedByVoice: (callback: () => void) => void;
       removeRunResumedByVoiceListener: () => void;
-      onRunFromUrl: (
-        cb: (arg: { workflowId: string; runId: string }) => void,
-      ) => void;
+      onRunFromUrl: (cb: (arg: { workflowId: string; runId: string }) => void) => void;
       removeRunFromUrlListener: () => void;
       onOpenEchoPrism: (callback: () => void) => void;
       removeOpenEchoPrismListener: () => void;
@@ -120,9 +112,7 @@ declare global {
       removeRunAwaitingUserListener: () => void;
       desktopCollapse: () => Promise<void>;
       desktopExpand: () => Promise<void>;
-      onDesktopStateChanged: (
-        callback: (arg: { collapsed: boolean }) => void,
-      ) => void;
+      onDesktopStateChanged: (callback: (arg: { collapsed: boolean }) => void) => void;
       removeDesktopStateChangedListener: () => void;
       quitApp: () => Promise<void>;
       onUpdateAvailable: (callback: () => void) => void;

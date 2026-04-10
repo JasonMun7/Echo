@@ -12,7 +12,7 @@ export function MarketingCard({
     <div
       className={cn(
         "rounded-2xl bg-white shadow-sm ring-1 shadow-black/10 ring-black/10",
-        className
+        className,
       )}
     >
       {children}
@@ -37,9 +37,7 @@ export function MarketingCardHeader({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={cn("flex flex-col gap-2 p-6", className)}>{children}</div>
-  );
+  return <div className={cn("flex flex-col gap-2 p-6", className)}>{children}</div>;
 }
 
 export function MarketingCardTitle({
@@ -49,11 +47,7 @@ export function MarketingCardTitle({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <h3 className={cn("text-sm font-semibold text-neutral-900", className)}>
-      {children}
-    </h3>
-  );
+  return <h3 className={cn("text-sm font-semibold text-neutral-900", className)}>{children}</h3>;
 }
 
 export function MarketingCardDescription({
@@ -63,11 +57,7 @@ export function MarketingCardDescription({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <p className={cn("text-sm text-balance text-neutral-600", className)}>
-      {children}
-    </p>
-  );
+  return <p className={cn("text-sm text-balance text-neutral-600", className)}>{children}</p>;
 }
 
 export function MarketingCardSkeleton({
@@ -93,9 +83,7 @@ export function MarketingFeatureCard({
     <div className="group rounded-2xl bg-white p-6">
       {icon}
       <h3 className="mt-4 text-sm font-semibold text-neutral-900">{title}</h3>
-      <p className="mt-2 text-sm text-balance text-neutral-600">
-        {description}
-      </p>
+      <p className="mt-2 text-sm text-balance text-neutral-600">{description}</p>
     </div>
   );
 }
@@ -115,9 +103,7 @@ export function MarketingFeatureBlock({
         {icon}
       </div>
       <h3 className="mt-4 text-sm font-semibold text-neutral-900">{title}</h3>
-      <p className="mt-2 text-sm text-balance text-neutral-600">
-        {description}
-      </p>
+      <p className="mt-2 text-sm text-balance text-neutral-600">{description}</p>
     </div>
   );
 }

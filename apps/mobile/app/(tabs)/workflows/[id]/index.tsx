@@ -178,9 +178,7 @@ export default function WorkflowDetailScreen() {
     );
   }
 
-  const sortedRuns = [...runs].sort(
-    (a, b) => getTime(b.createdAt) - getTime(a.createdAt),
-  );
+  const sortedRuns = [...runs].sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
 
   return (
     <>
@@ -192,18 +190,14 @@ export default function WorkflowDetailScreen() {
             paddingBottom: insets.bottom + 112,
           },
         ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{workflow.name || "Untitled"}</Text>
             {!isOwner && (
-              <Text style={styles.sharedNote}>
-                Shared with you · Fork to edit your own copy
-              </Text>
+              <Text style={styles.sharedNote}>Shared with you · Fork to edit your own copy</Text>
             )}
           </View>
           <StatusBadge status={workflow.status} />
@@ -226,10 +220,7 @@ export default function WorkflowDetailScreen() {
               >
                 <Text style={styles.actionBtnText}>Edit</Text>
               </Pressable>
-              <Pressable
-                style={styles.actionBtn}
-                onPress={() => setShareOpen(true)}
-              >
+              <Pressable style={styles.actionBtn} onPress={() => setShareOpen(true)}>
                 <Text style={styles.actionBtnText}>Share</Text>
               </Pressable>
               <Pressable style={styles.dangerBtn} onPress={handleDelete}>
@@ -238,11 +229,7 @@ export default function WorkflowDetailScreen() {
             </>
           ) : (
             <Pressable
-              style={[
-                styles.actionBtn,
-                styles.forkBtn,
-                forkLoading && { opacity: 0.6 },
-              ]}
+              style={[styles.actionBtn, styles.forkBtn, forkLoading && { opacity: 0.6 }]}
               onPress={handleFork}
               disabled={forkLoading}
             >
@@ -259,9 +246,7 @@ export default function WorkflowDetailScreen() {
         {isOwner && collaborators.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Shared with ({collaborators.length})
-              </Text>
+              <Text style={styles.sectionTitle}>Shared with ({collaborators.length})</Text>
               <Pressable onPress={() => setShareOpen(true)}>
                 <Text style={styles.addPeopleText}>Add people</Text>
               </Pressable>
@@ -338,9 +323,7 @@ export default function WorkflowDetailScreen() {
                 <Pressable
                   key={run.id}
                   style={styles.runItem}
-                  onPress={() =>
-                    router.push(`/(tabs)/workflows/${id}/runs/${run.id}`)
-                  }
+                  onPress={() => router.push(`/(tabs)/workflows/${id}/runs/${run.id}`)}
                 >
                   <View style={styles.runLeft}>
                     <StatusBadge status={run.status} />

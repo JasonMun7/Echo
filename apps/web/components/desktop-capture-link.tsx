@@ -44,17 +44,11 @@ export const DesktopCaptureLink = forwardRef<
         }
       }, REDIRECT_DELAY_MS);
     },
-    [router]
+    [router],
   );
 
   return (
-    <a
-      ref={ref}
-      href={CAPTURE_URL}
-      onClick={handleClick}
-      className={className}
-      {...props}
-    >
+    <a ref={ref} href={CAPTURE_URL} onClick={handleClick} className={className} {...props}>
       {children}
     </a>
   );

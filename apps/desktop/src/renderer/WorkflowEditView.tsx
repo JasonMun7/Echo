@@ -8,11 +8,7 @@ import {
   IconChevronDown,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /* ── Action types ────────────────────────────────────────────────────────── */
 
@@ -126,7 +122,12 @@ function ParamFields({
     );
   }
 
-  if (action === "click_at" || action === "type_text_at" || action === "double_click" || action === "right_click") {
+  if (
+    action === "click_at" ||
+    action === "type_text_at" ||
+    action === "double_click" ||
+    action === "right_click"
+  ) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
@@ -139,8 +140,11 @@ function ParamFields({
             style={{ ...inputStyle, resize: "vertical", wordWrap: "break-word" }}
           />
         </div>
-        <p style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0, lineHeight: 1.4 }}>
-          Target position is inferred from the live screen at run time (VLM); coordinates are not required.
+        <p
+          style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0, lineHeight: 1.4 }}
+        >
+          Target position is inferred from the live screen at run time (VLM); coordinates are not
+          required.
         </p>
         {action === "type_text_at" && (
           <div>
@@ -301,7 +305,9 @@ function ParamFields({
             style={inputStyle}
           />
         </div>
-        <p style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0, lineHeight: 1.4 }}>
+        <p
+          style={{ fontSize: 11, color: "var(--echo-text-secondary)", margin: 0, lineHeight: 1.4 }}
+        >
           Start and end positions are inferred at run time from the live screen.
         </p>
       </div>
@@ -337,9 +343,17 @@ function ParamFields({
         <div>
           <label style={labelStyle}>Args (JSON object)</label>
           <textarea
-            value={typeof params.args === "object" ? JSON.stringify(params.args, null, 2) : (params.args as string) || ""}
+            value={
+              typeof params.args === "object"
+                ? JSON.stringify(params.args, null, 2)
+                : (params.args as string) || ""
+            }
             onChange={(e) => {
-              try { update("args", JSON.parse(e.target.value)); } catch { update("args", e.target.value); }
+              try {
+                update("args", JSON.parse(e.target.value));
+              } catch {
+                update("args", e.target.value);
+              }
             }}
             placeholder='Slack: {"channel":"general","text":"Hello!"} — Google: {"to":"name@example.com","subject":"Hi","body":"…"}'
             rows={3}
@@ -435,10 +449,28 @@ function StepCard({
       </div>
 
       {/* Step content */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8, wordWrap: "break-word" }}>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          wordWrap: "break-word",
+        }}
+      >
         {/* Action selector */}
         <div>
-          <label style={{ display: "block", fontSize: 11, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Action</label>
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              color: "var(--echo-text-secondary)",
+              marginBottom: 4,
+            }}
+          >
+            Action
+          </label>
           <select
             value={step.action}
             onChange={(e) => onUpdate({ action: e.target.value })}
@@ -452,32 +484,43 @@ function StepCard({
             }}
           >
             {ALL_ACTIONS.map((a) => (
-              <option key={a} value={a}>{a}</option>
+              <option key={a} value={a}>
+                {a}
+              </option>
             ))}
           </select>
         </div>
 
         {/* Context */}
         <div>
-          <label style={{ display: "block", fontSize: 11, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Context</label>
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              color: "var(--echo-text-secondary)",
+              marginBottom: 4,
+            }}
+          >
+            Context
+          </label>
           <textarea
             value={step.context}
             onChange={(e) => onUpdate({ context: e.target.value })}
             placeholder="Description of this step"
             rows={2}
-          style={{
-            width: "100%",
-            minWidth: 0,
-            borderRadius: 6,
-            border: "1px solid rgba(165,119,255,0.4)",
-            background: "var(--echo-input-bg)",
-            padding: "6px 10px",
-            fontSize: 13,
-            outline: "none",
-            color: "var(--echo-text)",
-            resize: "vertical",
-            wordWrap: "break-word" as const,
-          }}
+            style={{
+              width: "100%",
+              minWidth: 0,
+              borderRadius: 6,
+              border: "1px solid rgba(165,119,255,0.4)",
+              background: "var(--echo-input-bg)",
+              padding: "6px 10px",
+              fontSize: 13,
+              outline: "none",
+              color: "var(--echo-text)",
+              resize: "vertical",
+              wordWrap: "break-word" as const,
+            }}
           />
         </div>
 
@@ -520,10 +563,13 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
   const nameSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const base = apiUrl.replace(/\/$/, "");
-  const headers = useCallback((): Record<string, string> => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  }), [token]);
+  const headers = useCallback(
+    (): Record<string, string> => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    }),
+    [token],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -533,7 +579,9 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
       try {
         const [wfRes, stepsRes] = await Promise.all([
           fetch(`${base}/api/workflows/${encodeURIComponent(workflowId)}`, { headers: headers() }),
-          fetch(`${base}/api/workflows/${encodeURIComponent(workflowId)}/steps`, { headers: headers() }),
+          fetch(`${base}/api/workflows/${encodeURIComponent(workflowId)}/steps`, {
+            headers: headers(),
+          }),
         ]);
         if (cancelled) return;
         if (!wfRes.ok) throw new Error(`Workflow: ${wfRes.status}`);
@@ -543,7 +591,7 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
         const wf = { id: workflowId, ...wfData };
         setWorkflow(wf);
         setWorkflowName(wf.name || "");
-        const list = (Array.isArray(stepsData) ? stepsData : stepsData.steps ?? []) as StepData[];
+        const list = (Array.isArray(stepsData) ? stepsData : (stepsData.steps ?? [])) as StepData[];
         setSteps(list.sort((a, b) => a.order - b.order));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -604,14 +652,11 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
   const handleAddStep = async (action: AnyAction) => {
     setAddMenuOpen(false);
     try {
-      const res = await fetch(
-        `${base}/api/workflows/${encodeURIComponent(workflowId)}/steps`,
-        {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ action, context: "", params: {}, expected_outcome: "" }),
-        },
-      );
+      const res = await fetch(`${base}/api/workflows/${encodeURIComponent(workflowId)}/steps`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ action, context: "", params: {}, expected_outcome: "" }),
+      });
       if (!res.ok) throw new Error("Failed to add step");
       const newStep = await res.json();
       setSteps((prev) => [...prev, { ...newStep, order: newStep.order ?? prev.length }]);
@@ -627,14 +672,11 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
     [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
     setSteps(reordered);
     try {
-      await fetch(
-        `${base}/api/workflows/${encodeURIComponent(workflowId)}/steps/reorder`,
-        {
-          method: "PUT",
-          headers: headers(),
-          body: JSON.stringify({ step_ids: reordered.map((s) => s.id) }),
-        },
-      );
+      await fetch(`${base}/api/workflows/${encodeURIComponent(workflowId)}/steps/reorder`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ step_ids: reordered.map((s) => s.id) }),
+      });
     } catch {
       // Revert on failure
       setSteps(steps);
@@ -646,7 +688,9 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
     // Validate: all steps need context
     const emptyContext = steps.filter((s) => !s.context?.trim());
     if (emptyContext.length > 0) {
-      setError(`${emptyContext.length} step(s) missing context. Fill in all step descriptions before saving.`);
+      setError(
+        `${emptyContext.length} step(s) missing context. Fill in all step descriptions before saving.`,
+      );
       return;
     }
     setSaving(true);
@@ -689,7 +733,14 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
   if (loading) {
     return (
       <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 20,
+          }}
+        >
           <button
             type="button"
             onClick={onBack}
@@ -778,7 +829,15 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
           <button
             type="button"
             onClick={() => setError("")}
-            style={{ float: "right", background: "none", border: "none", color: "#ef4444", fontWeight: 600, fontSize: 16, lineHeight: 1 }}
+            style={{
+              float: "right",
+              background: "none",
+              border: "none",
+              color: "#ef4444",
+              fontWeight: 600,
+              fontSize: 16,
+              lineHeight: 1,
+            }}
           >
             ×
           </button>
@@ -786,7 +845,14 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
       )}
 
       {/* Steps section */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
         <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--echo-text)", margin: 0 }}>
           Steps ({steps.length})
         </h3>
@@ -833,8 +899,17 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
                     fontFamily: "monospace",
                     color: "var(--echo-text)",
                   }}
-                  onMouseEnter={(e) => { const t = e.target as HTMLButtonElement; t.style.background = "linear-gradient(to right, rgba(33, 196, 221, 0.15), rgba(165, 119, 255, 0.2))"; t.style.transform = "scale(1.02)"; }}
-                  onMouseLeave={(e) => { const t = e.target as HTMLButtonElement; t.style.background = "none"; t.style.transform = "scale(1)"; }}
+                  onMouseEnter={(e) => {
+                    const t = e.target as HTMLButtonElement;
+                    t.style.background =
+                      "linear-gradient(to right, rgba(33, 196, 221, 0.15), rgba(165, 119, 255, 0.2))";
+                    t.style.transform = "scale(1.02)";
+                  }}
+                  onMouseLeave={(e) => {
+                    const t = e.target as HTMLButtonElement;
+                    t.style.background = "none";
+                    t.style.transform = "scale(1)";
+                  }}
                 >
                   {a === "api_call" ? "⚡ api_call (Integration)" : a}
                 </button>
@@ -863,7 +938,8 @@ export default function WorkflowEditView({ workflowId, token, apiUrl, onBack, on
             fontSize: 14,
           }}
         >
-          No steps yet. Click <span style={{ fontWeight: 600, color: "#A577FF" }}>Add Step</span> to create one.
+          No steps yet. Click <span style={{ fontWeight: 600, color: "#A577FF" }}>Add Step</span> to
+          create one.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 40 }}>

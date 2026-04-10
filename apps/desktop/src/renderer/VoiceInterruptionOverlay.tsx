@@ -15,24 +15,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AgentSessionView_01 } from "@/components/agents-ui/blocks/agent-session-view-01";
 import { useAgent } from "@livekit/components-react";
 import { Button } from "@/components/ui/button";
-import {
-  IconMicrophone,
-  IconPlayerPlay,
-  IconX,
-  IconBrain,
-} from "@tabler/icons-react";
+import { IconMicrophone, IconPlayerPlay, IconX, IconBrain } from "@tabler/icons-react";
 
 const AGENT_NAME = "echoprism-agent";
 
 const API_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  "http://localhost:8000";
+  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "http://localhost:8000";
 const ECHO_AGENT_URL =
-  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env
-    ?.VITE_ECHO_AGENT_URL ?? API_URL;
-const SANDBOX_ID = (
-  import.meta as { env?: { VITE_LIVEKIT_SANDBOX_ID?: string } }
-).env?.VITE_LIVEKIT_SANDBOX_ID;
+  (import.meta as { env?: { VITE_ECHO_AGENT_URL?: string } }).env?.VITE_ECHO_AGENT_URL ?? API_URL;
+const SANDBOX_ID = (import.meta as { env?: { VITE_LIVEKIT_SANDBOX_ID?: string } }).env
+  ?.VITE_LIVEKIT_SANDBOX_ID;
 
 const BARGE_IN_DEBOUNCE_MS = 280;
 const BARGE_IN_COOLDOWN_MS = 1500;
@@ -44,11 +36,7 @@ interface RunContext {
 }
 
 /** Barge-in effect — same pattern as EchoPrismLiveKitSession */
-function BargeInEffect({
-  session,
-}: {
-  session: ReturnType<typeof useSession>;
-}) {
+function BargeInEffect({ session }: { session: ReturnType<typeof useSession> }) {
   const agent = useAgent();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cooldownUntilRef = useRef<number>(0);
@@ -75,9 +63,7 @@ function BargeInEffect({
 
         const agentParticipant =
           Array.from(room.remoteParticipants.values()).find(
-            (p) =>
-              (p as { isAgent?: boolean }).isAgent ??
-              p.identity?.includes("agent"),
+            (p) => (p as { isAgent?: boolean }).isAgent ?? p.identity?.includes("agent"),
           ) ?? Array.from(room.remoteParticipants.values())[0];
         if (!agentParticipant) return;
         void room.localParticipant
@@ -115,18 +101,10 @@ function RunControlPacketEffect({
     const room = session.room;
     if (!room) return;
 
-    const handler = (
-      payload: Uint8Array,
-      _p: unknown,
-      _k: unknown,
-      topic?: string,
-    ) => {
+    const handler = (payload: Uint8Array, _p: unknown, _k: unknown, topic?: string) => {
       if (topic !== "echoprism") return;
       try {
-        const data = JSON.parse(new TextDecoder().decode(payload)) as Record<
-          string,
-          unknown
-        >;
+        const data = JSON.parse(new TextDecoder().decode(payload)) as Record<string, unknown>;
         if (data?.type === "resume_run") onResumeRun();
         if (data?.type === "cancel_run") onCancelRun();
       } catch {}
@@ -148,8 +126,7 @@ function VoiceSession({
   onResumeRun: () => void;
   onCancelRun: () => void;
 }) {
-  const getToken = async () =>
-    (await window.electronAPI?.authGetToken?.()) ?? null;
+  const getToken = async () => (await window.electronAPI?.authGetToken?.()) ?? null;
 
   // Read workflowId / runId from URL params synchronously — they are embedded in
   // the window URL by the main process before the window loads, so they are always
@@ -185,25 +162,22 @@ function VoiceSession({
       if (SANDBOX_ID) return TokenSource.sandboxTokenServer(SANDBOX_ID);
       return TokenSource.custom(async (options) => {
         const t = await getToken();
-        const res = await fetch(
-          `${ECHO_AGENT_URL.replace(/\/$/, "")}/api/livekit/token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(t ? { Authorization: `Bearer ${t}` } : {}),
-            },
-            body: JSON.stringify({
-              room_name: options.roomName,
-              participant_identity: options.participantIdentity,
-              participant_name: options.participantName,
-              participant_attributes: participantAttributes,
-              room_config: options.agentName
-                ? { agents: [{ agent_name: options.agentName }] }
-                : undefined,
-            }),
+        const res = await fetch(`${ECHO_AGENT_URL.replace(/\/$/, "")}/api/livekit/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(t ? { Authorization: `Bearer ${t}` } : {}),
           },
-        );
+          body: JSON.stringify({
+            room_name: options.roomName,
+            participant_identity: options.participantIdentity,
+            participant_name: options.participantName,
+            participant_attributes: participantAttributes,
+            room_config: options.agentName
+              ? { agents: [{ agent_name: options.agentName }] }
+              : undefined,
+          }),
+        });
         if (!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
         const data = (await res.json()) as {
           server_url: string;
@@ -219,10 +193,7 @@ function VoiceSession({
     [participantAttributes],
   );
 
-  const roomName = useMemo(
-    () => `echoprism-interrupt-${Date.now()}`,
-    [],
-  );
+  const roomName = useMemo(() => `echoprism-interrupt-${Date.now()}`, []);
 
   const session = useSession(tokenSource, {
     roomName,
@@ -279,7 +250,9 @@ export default function VoiceInterruptionOverlay() {
 
   useEffect(() => {
     document.body.style.background = "transparent";
-    return () => { document.body.style.background = ""; };
+    return () => {
+      document.body.style.background = "";
+    };
   }, []);
 
   useEffect(() => {
@@ -320,16 +293,18 @@ export default function VoiceInterruptionOverlay() {
         {/* Header */}
         <div
           className="echo-hud-grab-handle"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 14px",
-            borderBottom: "1px solid rgba(165, 119, 255, 0.15)",
-            background: "rgba(165, 119, 255, 0.06)",
-            WebkitAppRegion: "drag",
-            appRegion: "drag",
-          } as CSSProperties}
+          style={
+            {
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 14px",
+              borderBottom: "1px solid rgba(165, 119, 255, 0.15)",
+              background: "rgba(165, 119, 255, 0.06)",
+              WebkitAppRegion: "drag",
+              appRegion: "drag",
+            } as CSSProperties
+          }
         >
           <IconMicrophone size={15} style={{ color: "#A577FF", flexShrink: 0 }} />
           <span
@@ -344,17 +319,19 @@ export default function VoiceInterruptionOverlay() {
           </span>
           <button
             onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--echo-text-secondary)",
-              padding: 2,
-              display: "flex",
-              alignItems: "center",
-              WebkitAppRegion: "no-drag",
-              appRegion: "no-drag",
-            } as CSSProperties}
+            style={
+              {
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--echo-text-secondary)",
+                padding: 2,
+                display: "flex",
+                alignItems: "center",
+                WebkitAppRegion: "no-drag",
+                appRegion: "no-drag",
+              } as CSSProperties
+            }
           >
             <IconX size={14} />
           </button>
@@ -363,13 +340,15 @@ export default function VoiceInterruptionOverlay() {
         {/* Run context strip */}
         {lastThought && (
           <div
-            style={{
-              padding: "8px 14px",
-              borderBottom: "1px solid rgba(165, 119, 255, 0.1)",
-              background: "rgba(165, 119, 255, 0.03)",
-              WebkitAppRegion: "no-drag",
-              appRegion: "no-drag",
-            } as CSSProperties}
+            style={
+              {
+                padding: "8px 14px",
+                borderBottom: "1px solid rgba(165, 119, 255, 0.1)",
+                background: "rgba(165, 119, 255, 0.03)",
+                WebkitAppRegion: "no-drag",
+                appRegion: "no-drag",
+              } as CSSProperties
+            }
           >
             <div
               style={{
@@ -386,15 +365,17 @@ export default function VoiceInterruptionOverlay() {
               Paused at Step {lastThought.step + 1}
             </div>
             <div
-              style={{
-                fontSize: 11,
-                color: "var(--echo-text-secondary)",
-                lineHeight: 1.4,
-                overflow: "hidden",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-              } as CSSProperties}
+              style={
+                {
+                  fontSize: 11,
+                  color: "var(--echo-text-secondary)",
+                  lineHeight: 1.4,
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                } as CSSProperties
+              }
             >
               {lastThought.thought}
             </div>
@@ -419,14 +400,16 @@ export default function VoiceInterruptionOverlay() {
 
         {/* Footer action buttons */}
         <div
-          style={{
-            display: "flex",
-            gap: 8,
-            padding: "10px 14px",
-            borderTop: "1px solid rgba(165, 119, 255, 0.15)",
-            WebkitAppRegion: "no-drag",
-            appRegion: "no-drag",
-          } as CSSProperties}
+          style={
+            {
+              display: "flex",
+              gap: 8,
+              padding: "10px 14px",
+              borderTop: "1px solid rgba(165, 119, 255, 0.15)",
+              WebkitAppRegion: "no-drag",
+              appRegion: "no-drag",
+            } as CSSProperties
+          }
         >
           <Button
             className="echo-btn-primary"

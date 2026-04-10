@@ -525,7 +525,9 @@ body[data-echo-prism-open] [data-slot="select-content"] {
   border-color: var(--echo-border) !important;
 }
 body[data-echo-prism-open] [data-slot="select-item"] {
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
   transform-origin: center;
 }
 body[data-echo-prism-open] [data-slot="select-item"][data-highlighted],

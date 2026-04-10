@@ -21,9 +21,9 @@ export default function TermsPage() {
         <time dateTime={LAST_UPDATED_ISO}>{LAST_UPDATED_DISPLAY}</time>
       </p>
       <p className="mb-4">
-        These Terms of Service (&quot;Terms&quot;) govern your access to and use of Echo
-        and related services (collectively, the &quot;Service&quot;). By using the Service,
-        you agree to these Terms.
+        These Terms of Service (&quot;Terms&quot;) govern your access to and use of Echo and related
+        services (collectively, the &quot;Service&quot;). By using the Service, you agree to these
+        Terms.
       </p>
       <h2 className="mt-8 mb-2 font-semibold text-[#150A35]">1. The Service</h2>
       <p className="mb-4">
@@ -39,15 +39,15 @@ export default function TermsPage() {
       <h2 className="mt-8 mb-2 font-semibold text-[#150A35]">3. Acceptable use</h2>
       <p className="mb-4">
         You may not misuse the Service, including by attempting unauthorized access, interfering
-        with other users, distributing malware, or violating others&apos; rights. We may suspend
-        or terminate access for conduct that violates these Terms or creates risk for the Service
-        or third parties.
+        with other users, distributing malware, or violating others&apos; rights. We may suspend or
+        terminate access for conduct that violates these Terms or creates risk for the Service or
+        third parties.
       </p>
       <h2 className="mt-8 mb-2 font-semibold text-[#150A35]">4. Third-party services</h2>
       <p className="mb-4">
         The Service may interoperate with third-party products (for example, authentication or
-        productivity tools). Those services are governed by their own terms; we are not
-        responsible for third-party services.
+        productivity tools). Those services are governed by their own terms; we are not responsible
+        for third-party services.
       </p>
       <h2 className="mt-8 mb-2 font-semibold text-[#150A35]">5. Disclaimers</h2>
       <p className="mb-4">
@@ -63,14 +63,14 @@ export default function TermsPage() {
       </p>
       <h2 className="mt-8 mb-2 font-semibold text-[#150A35]">7. Changes</h2>
       <p className="mb-4">
-        We may update these Terms from time to time. We will post the revised Terms on this page
-        and update the &quot;Last updated&quot; date. Continued use after changes constitutes
-        acceptance of the revised Terms.
+        We may update these Terms from time to time. We will post the revised Terms on this page and
+        update the &quot;Last updated&quot; date. Continued use after changes constitutes acceptance
+        of the revised Terms.
       </p>
       <h2 className="mt-8 mb-2 font-semibold text-[#150A35]">8. Contact</h2>
       <p>
-        For questions about these Terms, contact the Echo team through the support channel listed
-        on your deployment or organization&apos;s documentation.
+        For questions about these Terms, contact the Echo team through the support channel listed on
+        your deployment or organization&apos;s documentation.
       </p>
     </LegalPageTemplate>
   );

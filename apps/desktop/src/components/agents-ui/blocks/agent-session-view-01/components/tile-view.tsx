@@ -1,19 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   useLocalParticipant,
   useTracks,
   useVoiceAssistant,
   VideoTrack,
   type TrackReference,
-} from '@livekit/components-react';
-import { Track } from 'livekit-client';
-import { AnimatePresence, motion, type MotionProps } from 'motion/react';
+} from "@livekit/components-react";
+import { Track } from "livekit-client";
+import { AnimatePresence, motion, type MotionProps } from "motion/react";
 
-import { cn } from '@/lib/utils';
-import { AudioVisualizer } from './audio-visualizer';
+import { cn } from "@/lib/utils";
+import { AudioVisualizer } from "./audio-visualizer";
 
-const ANIMATION_TRANSITION: MotionProps['transition'] = {
-  type: 'spring',
+const ANIMATION_TRANSITION: MotionProps["transition"] = {
+  type: "spring",
   stiffness: 675,
   damping: 75,
   mass: 1,
@@ -23,39 +23,39 @@ const tileViewClassNames = {
   // GRID
   // 2 Columns x 3 Rows
   grid: [
-    'h-full w-full',
-    'grid gap-x-2 place-content-center',
-    'grid-cols-[1fr_1fr] grid-rows-[90px_1fr_90px]',
+    "h-full w-full",
+    "grid gap-x-2 place-content-center",
+    "grid-cols-[1fr_1fr] grid-rows-[90px_1fr_90px]",
   ],
   // Agent
   // chatOpen: true,
   // hasSecondTile: true
   // layout: Column 1 / Row 1
   // align: x-end y-center
-  agentChatOpenWithSecondTile: ['col-start-1 row-start-1', 'self-center justify-self-end'],
+  agentChatOpenWithSecondTile: ["col-start-1 row-start-1", "self-center justify-self-end"],
   // Agent
   // chatOpen: true,
   // hasSecondTile: false
   // layout: Column 1 / Row 1 / Column-Span 2
   // align: x-center y-center
-  agentChatOpenWithoutSecondTile: ['col-start-1 row-start-1', 'col-span-2', 'place-content-center'],
+  agentChatOpenWithoutSecondTile: ["col-start-1 row-start-1", "col-span-2", "place-content-center"],
   // Agent
   // chatOpen: false
   // layout: Column 1 / Row 1 / Column-Span 2 / Row-Span 3
   // align: x-center y-center
-  agentChatClosed: ['col-start-1 row-start-1', 'col-span-2 row-span-3', 'place-content-center'],
+  agentChatClosed: ["col-start-1 row-start-1", "col-span-2 row-span-3", "place-content-center"],
   // Second tile
   // chatOpen: true,
   // hasSecondTile: true
   // layout: Column 2 / Row 1
   // align: x-start y-center
-  secondTileChatOpen: ['col-start-2 row-start-1', 'self-center justify-self-start'],
+  secondTileChatOpen: ["col-start-2 row-start-1", "self-center justify-self-start"],
   // Second tile
   // chatOpen: false,
   // hasSecondTile: false
   // layout: Column 2 / Row 2
   // align: x-end y-end
-  secondTileChatClosed: ['col-start-2 row-start-3', 'place-content-end'],
+  secondTileChatClosed: ["col-start-2 row-start-3", "place-content-end"],
 };
 
 export function useLocalTrackRef(source: Track.Source) {
@@ -70,7 +70,7 @@ export function useLocalTrackRef(source: Track.Source) {
 
 interface TileLayoutProps {
   chatOpen: boolean;
-  audioVisualizerType?: 'bar' | 'wave' | 'grid' | 'radial' | 'aura';
+  audioVisualizerType?: "bar" | "wave" | "grid" | "radial" | "aura";
   audioVisualizerColor?: `#${string}`;
   audioVisualizerColorShift?: number;
   audioVisualizerWaveLineWidth?: number;
@@ -113,7 +113,7 @@ export function TileLayout({
           {/* Agent */}
           <div
             className={cn([
-              'grid',
+              "grid",
               !chatOpen && tileViewClassNames.agentChatClosed,
               chatOpen && hasSecondTile && tileViewClassNames.agentChatOpenWithSecondTile,
               chatOpen && !hasSecondTile && tileViewClassNames.agentChatOpenWithoutSecondTile,
@@ -131,7 +131,7 @@ export function TileLayout({
                     ...ANIMATION_TRANSITION,
                     delay: animationDelay,
                   }}
-                  className={cn('relative aspect-square h-[90px]')}
+                  className={cn("relative aspect-square h-[90px]")}
                 >
                   <AudioVisualizer
                     key="audio-visualizer"
@@ -152,9 +152,9 @@ export function TileLayout({
                     audioVisualizerWaveLineWidth={audioVisualizerWaveLineWidth}
                     isChatOpen={chatOpen}
                     className={cn(
-                      'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-                      'bg-background rounded-[50px] border border-transparent transition-[border,drop-shadow]',
-                      chatOpen && 'border-input shadow-2xl/10 delay-200',
+                      "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                      "bg-background rounded-[50px] border border-transparent transition-[border,drop-shadow]",
+                      chatOpen && "border-input shadow-2xl/10 delay-200",
                     )}
                     style={{ color: audioVisualizerColor }}
                   />
@@ -170,13 +170,13 @@ export function TileLayout({
                     scale: 1,
                     opacity: 1,
                     maskImage:
-                      'radial-gradient(circle, rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 20px, transparent 20px)',
-                    filter: 'blur(20px)',
+                      "radial-gradient(circle, rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 20px, transparent 20px)",
+                    filter: "blur(20px)",
                   }}
                   animate={{
                     maskImage:
-                      'radial-gradient(circle, rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 500px, transparent 500px)',
-                    filter: 'blur(0px)',
+                      "radial-gradient(circle, rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 500px, transparent 500px)",
+                    filter: "blur(0px)",
                     borderRadius: chatOpen ? 6 : 12,
                   }}
                   transition={{
@@ -190,15 +190,15 @@ export function TileLayout({
                     },
                   }}
                   className={cn(
-                    'overflow-hidden bg-black drop-shadow-xl/80',
-                    chatOpen ? 'h-[90px]' : 'h-auto w-full',
+                    "overflow-hidden bg-black drop-shadow-xl/80",
+                    chatOpen ? "h-[90px]" : "h-auto w-full",
                   )}
                 >
                   <VideoTrack
                     width={videoWidth}
                     height={videoHeight}
                     trackRef={agentVideoTrack}
-                    className={cn(chatOpen && 'size-[90px] object-cover')}
+                    className={cn(chatOpen && "size-[90px] object-cover")}
                   />
                 </motion.div>
               )}
@@ -207,7 +207,7 @@ export function TileLayout({
 
           <div
             className={cn([
-              'grid',
+              "grid",
               chatOpen && tileViewClassNames.secondTileChatOpen,
               !chatOpen && tileViewClassNames.secondTileChatClosed,
             ])}

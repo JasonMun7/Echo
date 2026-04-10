@@ -25,14 +25,31 @@ import { colors } from "@echo/design-tokens";
 import type { Step, BrowserStepAction, DesktopStepAction } from "@echo/types";
 
 const BROWSER_ACTIONS: string[] = [
-  "navigate", "click_at", "type_text_at", "scroll", "wait",
-  "press_key", "select_option", "hover", "wait_for_element",
+  "navigate",
+  "click_at",
+  "type_text_at",
+  "scroll",
+  "wait",
+  "press_key",
+  "select_option",
+  "hover",
+  "wait_for_element",
   "api_call",
 ];
 
 const DESKTOP_ACTIONS: DesktopStepAction[] = [
-  "click_at", "right_click", "double_click", "type_text_at", "hotkey",
-  "scroll", "drag", "wait", "press_key", "open_app", "focus_app", "api_call",
+  "click_at",
+  "right_click",
+  "double_click",
+  "type_text_at",
+  "hotkey",
+  "scroll",
+  "drag",
+  "wait",
+  "press_key",
+  "open_app",
+  "focus_app",
+  "api_call",
 ];
 
 export default function EditWorkflowScreen() {
@@ -193,7 +210,12 @@ export default function EditWorkflowScreen() {
           ]}
         >
           <View style={styles.stepHeader}>
-            <Pressable onLongPress={drag} delayLongPress={150} hitSlop={6} style={styles.dragHandle}>
+            <Pressable
+              onLongPress={drag}
+              delayLongPress={150}
+              hitSlop={6}
+              style={styles.dragHandle}
+            >
               <Ionicons name="reorder-three-outline" size={20} color={colors.textLight} />
             </Pressable>
             <View style={styles.stepNumber}>
@@ -202,23 +224,17 @@ export default function EditWorkflowScreen() {
             <View style={styles.stepInfo}>
               <Text style={styles.stepAction}>{item.action}</Text>
               {item.context ? (
-                <Text style={styles.stepContext} numberOfLines={1}>{item.context}</Text>
+                <Text style={styles.stepContext} numberOfLines={1}>
+                  {item.context}
+                </Text>
               ) : (
                 <Text style={styles.stepMissing}>Tap to add details</Text>
               )}
             </View>
-            <Pressable
-              onPress={() => setEditingStep(item)}
-              hitSlop={8}
-              style={styles.editBtn}
-            >
+            <Pressable onPress={() => setEditingStep(item)} hitSlop={8} style={styles.editBtn}>
               <Ionicons name="pencil-outline" size={15} color={colors.lavender} />
             </Pressable>
-            <Pressable
-              onPress={() => removeStep(item.id)}
-              hitSlop={8}
-              style={styles.deleteBtn}
-            >
+            <Pressable onPress={() => removeStep(item.id)} hitSlop={8} style={styles.deleteBtn}>
               <Ionicons name="trash-outline" size={15} color={colors.error} />
             </Pressable>
           </View>
@@ -311,22 +327,19 @@ export default function EditWorkflowScreen() {
 
                 <StepParams step={editingStep} onUpdate={saveStep} />
 
-            <View style={styles.modalSaveRow}>
-              <Pressable
-                style={styles.modalCancelBtn}
-                onPress={() => setEditingStep(null)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalSaveBtn, saving && { opacity: 0.6 }]}
-                onPress={commitStep}
-                disabled={saving}
-              >
-                <Text style={styles.modalSaveText}>{saving ? "Saving..." : "Save Step"}</Text>
-              </Pressable>
-            </View>
-          </ScrollView>
+                <View style={styles.modalSaveRow}>
+                  <Pressable style={styles.modalCancelBtn} onPress={() => setEditingStep(null)}>
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalSaveBtn, saving && { opacity: 0.6 }]}
+                    onPress={commitStep}
+                    disabled={saving}
+                  >
+                    <Text style={styles.modalSaveText}>{saving ? "Saving..." : "Save Step"}</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             )}
           </View>
         </KeyboardAvoidingView>
@@ -334,19 +347,12 @@ export default function EditWorkflowScreen() {
 
       {/* Action Picker Modal */}
       <Modal visible={showActionPicker} transparent animationType="slide">
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowActionPicker(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowActionPicker(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Step</Text>
             <View style={styles.modalActions}>
               {actions.map((a) => (
-                <Pressable
-                  key={a}
-                  style={styles.modalActionBtn}
-                  onPress={() => addStep(a)}
-                >
+                <Pressable key={a} style={styles.modalActionBtn} onPress={() => addStep(a)}>
                   <Text style={styles.modalActionText}>{a}</Text>
                 </Pressable>
               ))}
@@ -369,16 +375,9 @@ export default function EditWorkflowScreen() {
 }
 
 /** Dynamic param fields based on step action */
-function StepParams({
-  step,
-  onUpdate,
-}: {
-  step: Step;
-  onUpdate: (s: Step) => void;
-}) {
+function StepParams({ step, onUpdate }: { step: Step; onUpdate: (s: Step) => void }) {
   const p = step.params ?? {};
-  const set = (key: string, val: string) =>
-    onUpdate({ ...step, params: { ...p, [key]: val } });
+  const set = (key: string, val: string) => onUpdate({ ...step, params: { ...p, [key]: val } });
 
   switch (step.action) {
     case "navigate":
@@ -403,7 +402,7 @@ function StepParams({
           <Text style={styles.label}>Text to type</Text>
           <TextInput
             style={styles.input}
-            placeholder='Text or {{variable}}'
+            placeholder="Text or {{variable}}"
             placeholderTextColor={colors.textLight}
             value={(p.text as string) ?? ""}
             onChangeText={(t) => set("text", t)}
@@ -571,7 +570,9 @@ function StepParams({
             style={[styles.input, { minHeight: 60 }]}
             placeholder='Slack: {"channel":"#general","text":"Hello"} — Google: {"to":"name@example.com","subject":"Hi","body":"…"}'
             placeholderTextColor={colors.textLight}
-            value={typeof p.args === "string" ? p.args : p.args ? JSON.stringify(p.args, null, 2) : ""}
+            value={
+              typeof p.args === "string" ? p.args : p.args ? JSON.stringify(p.args, null, 2) : ""
+            }
             onChangeText={(t) => set("args", t)}
             multiline
             autoCapitalize="none"

@@ -1,23 +1,23 @@
 import Link from "next/link";
-import { IconArrowLeft, IconDeviceDesktop, IconBrandApple, IconBrandWindows } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconDeviceDesktop,
+  IconBrandApple,
+  IconBrandWindows,
+} from "@tabler/icons-react";
 import { Container } from "@/components/marketing/container";
 import { Logo } from "@/components/marketing/logo";
 import { Heading } from "@/components/marketing/heading";
 import { SubHeading } from "@/components/marketing/subheading";
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getSEOTags } from "@/lib/seo";
 import { DownloadPageClient } from "./download-page-client";
 
 export const metadata = getSEOTags({
   title: "Download Echo Desktop | Echo",
-  description: "Download Echo Desktop for Mac or Windows. Build and run AI-driven workflows locally.",
+  description:
+    "Download Echo Desktop for Mac or Windows. Build and run AI-driven workflows locally.",
 });
 
 const MAC_URL = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_MAC_URL;
@@ -46,10 +46,7 @@ export default function DownloadPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               {MAC_URL ? (
-                <Button
-                  asChild
-                  className="echo-btn-cyan-lavender h-12 w-full gap-2 font-medium"
-                >
+                <Button asChild className="echo-btn-cyan-lavender h-12 w-full gap-2 font-medium">
                   <a href={MAC_URL} target="_blank" rel="noopener noreferrer">
                     <IconBrandApple className="size-5" />
                     Download for Mac
@@ -66,10 +63,7 @@ export default function DownloadPage() {
                 </Button>
               )}
               {WIN_URL ? (
-                <Button
-                  asChild
-                  className="echo-btn-cyan-lavender h-12 w-full gap-2 font-medium"
-                >
+                <Button asChild className="echo-btn-cyan-lavender h-12 w-full gap-2 font-medium">
                   <a href={WIN_URL} target="_blank" rel="noopener noreferrer">
                     <IconBrandWindows className="size-5" />
                     Download for Windows

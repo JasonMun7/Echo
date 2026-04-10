@@ -1,11 +1,4 @@
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  Alert,
-  StyleSheet,
-} from "react-native";
+import { View, Text, FlatList, Pressable, Alert, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -80,11 +73,7 @@ export default function ConversationsScreen() {
         onLongPress={() => handleDelete(item)}
       >
         <View style={styles.cardIcon}>
-          <Ionicons
-            name="chatbubble-outline"
-            size={20}
-            color={colors.lavender}
-          />
+          <Ionicons name="chatbubble-outline" size={20} color={colors.lavender} />
         </View>
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle} numberOfLines={1}>
@@ -111,15 +100,9 @@ export default function ConversationsScreen() {
         ListEmptyComponent={
           loading ? null : (
             <View style={styles.empty}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={48}
-                color={colors.textLight}
-              />
+              <Ionicons name="chatbubbles-outline" size={48} color={colors.textLight} />
               <Text style={styles.emptyText}>No conversations yet</Text>
-              <Text style={styles.emptySubtext}>
-                Start a new chat to get going
-              </Text>
+              <Text style={styles.emptySubtext}>Start a new chat to get going</Text>
             </View>
           )
         }

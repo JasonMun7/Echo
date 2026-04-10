@@ -25,8 +25,7 @@ const features = [
   {
     icon: <IconRocket className="h-8 w-8 text-neutral-200" />,
     title: "Replicate great Art",
-    description:
-      "Generate the painting of renowned artists, like Van Gogh or Monet or Majnu bhai.",
+    description: "Generate the painting of renowned artists, like Van Gogh or Monet or Majnu bhai.",
     content: (
       <Image
         src="https://assets.aceternity.com/pro/art.jpeg"
@@ -75,8 +74,8 @@ export default function FeaturesWithStickyScroll() {
           AI Smarter than Aliens
         </h2>
         <p className="mx-auto mt-4 max-w-md text-sm text-white md:text-base">
-          Our AI is smarter than aliens, it can predict the future and help you
-          generate wild images.
+          Our AI is smarter than aliens, it can predict the future and help you generate wild
+          images.
         </p>
       </div>
       <StickyScroll content={features} />
@@ -102,22 +101,12 @@ export const StickyScroll = memo(function StickyScroll({
     <div className="py-4 md:py-20">
       <div className="relative mx-auto hidden h-full max-w-7xl flex-col justify-between p-10 lg:flex">
         {content.map((item, index) => (
-          <ScrollContent
-            key={item.title + index}
-            item={item}
-            index={index}
-            theme={theme}
-          />
+          <ScrollContent key={item.title + index} item={item} index={index} theme={theme} />
         ))}
       </div>
       <div className="relative mx-auto flex max-w-7xl flex-col justify-between p-10 lg:hidden">
         {content.map((item, index) => (
-          <ScrollContentMobile
-            key={item.title + index}
-            item={item}
-            index={index}
-            theme={theme}
-          />
+          <ScrollContentMobile key={item.title + index} item={item} index={index} theme={theme} />
         ))}
       </div>
     </div>
@@ -140,17 +129,9 @@ export const ScrollContent = memo(function ScrollContent({
   });
   const translate = useTransform(scrollYProgress, [0, 1], [0, 250]);
   const translateContent = useTransform(scrollYProgress, [0, 1], [0, -200]);
-  const opacity = useTransform(
-    scrollYProgress,
-    [0, 0.05, 0.5, 0.7, 1],
-    [0, 1, 1, 0, 0],
-  );
+  const opacity = useTransform(scrollYProgress, [0, 0.05, 0.5, 0.7, 1], [0, 1, 1, 0, 0]);
 
-  const opacityContent = useTransform(
-    scrollYProgress,
-    [0, 0.2, 0.5, 0.8, 1],
-    [0, 0, 1, 1, 0],
-  );
+  const opacityContent = useTransform(scrollYProgress, [0, 0.2, 0.5, 0.8, 1], [0, 0, 1, 1, 0]);
 
   const isEcho = theme === "echo";
   const titleClass = isEcho
@@ -166,9 +147,7 @@ export const ScrollContent = memo(function ScrollContent({
       className={`relative grid grid-cols-2 gap-12 lg:gap-16 ${isEcho ? "my-56 min-h-[520px]" : "my-40"}`}
     >
       <div className="w-full">
-        <motion.div
-          style={{ y: translate, opacity: index === 0 ? opacityContent : 1 }}
-        >
+        <motion.div style={{ y: translate, opacity: index === 0 ? opacityContent : 1 }}>
           {item.icon && <div className={isEcho ? "text-[#A577FF]" : ""}>{item.icon}</div>}
           <h2 className={titleClass}>{item.title}</h2>
           <p className={descClass}>{item.description}</p>

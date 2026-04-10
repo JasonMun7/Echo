@@ -276,11 +276,11 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             return {"ok": False, "error": "Workflow not found."}
         if (wf_snap.to_dict() or {}).get("owner_uid") != uid:
             return {"ok": False, "error": "Not authorized to run this workflow."}
-        # Issue 1 fix: Extract workflow name from document if not provided
+        # Extract workflow name from document if not provided
         if not workflow_name:
             workflow_name = (wf_snap.to_dict() or {}).get("name", "")
 
-        # Issue 2 fix: Wrap cancel + create in a transaction to prevent race conditions
+        # Wrap cancel + create in a transaction to prevent race conditions
         run_id = str(uuid.uuid4())
 
         @firebase_admin.firestore.transactional
@@ -301,7 +301,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                             "cancel_requested": True,
                             "completedAt": SERVER_TIMESTAMP,
                             "updatedAt": SERVER_TIMESTAMP,
-                        }
+                        },
                     )
                 except Exception as e:
                     logger.warning("Failed to cancel run %s: %s", doc.id, e)
@@ -315,7 +315,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     "createdAt": SERVER_TIMESTAMP,
                     "confirmation_status": None,
                     "source": "desktop",
-                }
+                },
             )
 
         transaction = db.transaction()
@@ -362,12 +362,14 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             uid,
         )
         # Goal-only run: no step synthesis; create minimal ephemeral workflow and run with goal
-        # Issue 2 fix: Wrap cancel + create in a transaction to prevent race conditions
+        # Wrap cancel + create in a transaction to prevent race conditions
         workflow_id = str(uuid.uuid4())
         run_id = str(uuid.uuid4())
 
         @firebase_admin.firestore.transactional
-        def cancel_and_create_adhoc_run(transaction, uid, workflow_id, run_id, workflow_name, workflow_type, instruction):
+        def cancel_and_create_adhoc_run(
+            transaction, uid, workflow_id, run_id, workflow_name, workflow_type, instruction
+        ):
             # Cancel all active runs for this user
             active = (
                 db.collection_group("runs")
@@ -384,7 +386,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                             "cancel_requested": True,
                             "completedAt": SERVER_TIMESTAMP,
                             "updatedAt": SERVER_TIMESTAMP,
-                        }
+                        },
                     )
                 except Exception as e:
                     logger.warning("Failed to cancel run %s: %s", doc.id, e)
@@ -400,7 +402,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     "ephemeral": True,
                     "createdAt": SERVER_TIMESTAMP,
                     "updatedAt": SERVER_TIMESTAMP,
-                }
+                },
             )
             # Create the new run
             run_ref = workflow_ref.collection("runs").document(run_id)
@@ -414,7 +416,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
                     "source": "desktop",
                     "goal": instruction,
                     "run_mode": "goal_only",
-                }
+                },
             )
 
         transaction = db.transaction()

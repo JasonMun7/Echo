@@ -49,9 +49,7 @@ export default function NewWorkflowPage() {
         <IconDeviceDesktop className="h-7 w-7 text-[#A577FF]" />
       </div>
       <div className="flex flex-col items-center gap-1.5 text-center">
-        <p className="text-base font-semibold text-[#150A35]">
-          Opening Echo Desktop…
-        </p>
+        <p className="text-base font-semibold text-[#150A35]">Opening Echo Desktop…</p>
         <p className="text-sm text-[#150A35]/60">
           Echo Desktop will open so you can record a workflow.
         </p>

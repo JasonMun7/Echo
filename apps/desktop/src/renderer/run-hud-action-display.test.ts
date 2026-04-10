@@ -3,9 +3,7 @@ import { dedupeHudActions, formatHudAction } from "./run-hud-action-display";
 
 describe("dedupeHudActions", () => {
   it("drops bare click_at when click(...) is present", () => {
-    expect(dedupeHudActions(["click_at", "click(20, 380)"])).toEqual([
-      "click(20, 380)",
-    ]);
+    expect(dedupeHudActions(["click_at", "click(20, 380)"])).toEqual(["click(20, 380)"]);
   });
 
   it("keeps click_at when no detailed line", () => {
@@ -13,9 +11,7 @@ describe("dedupeHudActions", () => {
   });
 
   it("drops type_text_at when type(...) exists", () => {
-    expect(
-      dedupeHudActions(["type_text_at", "type(hello)"]),
-    ).toEqual(["type(hello)"]);
+    expect(dedupeHudActions(["type_text_at", "type(hello)"])).toEqual(["type(hello)"]);
   });
 });
 

@@ -18,11 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AGENT_URL } from "@/lib/api";
 import { MultiStepLoader } from "@/components/ui/multi-step-loader";
 
@@ -118,9 +114,7 @@ export function EchoPrismVoiceModal({
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const isMutedRef = useRef(false);
   const transcriptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
+  const audioCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep isMutedRef in sync
   useEffect(() => {
@@ -151,8 +145,7 @@ export function EchoPrismVoiceModal({
     if (!playbackCtxRef.current) {
       playbackCtxRef.current = new (
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       )({ sampleRate: 24000 });
       nextPlayTimeRef.current = 0;
     }
@@ -187,8 +180,7 @@ export function EchoPrismVoiceModal({
       mediaStreamRef.current = stream;
       const ctx = new (
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       )({ sampleRate: 16000 });
       micCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
@@ -221,24 +213,13 @@ export function EchoPrismVoiceModal({
         return;
       }
       try {
-        const data = JSON.parse(event.data as string) as Record<
-          string,
-          unknown
-        >;
+        const data = JSON.parse(event.data as string) as Record<string, unknown>;
 
-        if (
-          data.type === "transcript" &&
-          typeof data.text === "string" &&
-          data.text
-        ) {
+        if (data.type === "transcript" && typeof data.text === "string" && data.text) {
           setTranscript(data.text);
           // Auto-clear transcript 4s after last update
-          if (transcriptTimerRef.current)
-            clearTimeout(transcriptTimerRef.current);
-          transcriptTimerRef.current = setTimeout(
-            () => setTranscript(""),
-            8000,
-          );
+          if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
+          transcriptTimerRef.current = setTimeout(() => setTranscript(""), 8000);
         } else if (data.type === "tool_call" && typeof data.name === "string") {
           setActiveTool(data.name);
           if (data.name === "synthesize_from_description") {
@@ -315,16 +296,7 @@ export function EchoPrismVoiceModal({
       ws.close();
       wsRef.current = null;
     };
-  }, [
-    isOpen,
-    token,
-    workflowId,
-    runId,
-    startMic,
-    stopMic,
-    handleMessage,
-    stopAudioCheck,
-  ]);
+  }, [isOpen, token, workflowId, runId, startMic, stopMic, handleMessage, stopAudioCheck]);
 
   function toggleMute() {
     const next = !isMuted;
@@ -358,7 +330,10 @@ export function EchoPrismVoiceModal({
     const ws = new WebSocket(`${WS_URL}/ws/chat?${params.toString()}`);
     wsRef.current = ws;
     let didOpen = false;
-    ws.onopen = () => { didOpen = true; startMic(ws); };
+    ws.onopen = () => {
+      didOpen = true;
+      startMic(ws);
+    };
     ws.onmessage = handleMessage;
     ws.onerror = () => {
       if (!didOpen) toast.error("Couldn't reconnect to EchoPrism");
@@ -403,9 +378,7 @@ export function EchoPrismVoiceModal({
         {/* Header — just branding, no X */}
         <div className="flex w-full items-center justify-start gap-2">
           <IconWaveSine className="h-5 w-5 text-[#A577FF]" />
-          <span className="text-sm font-semibold text-white tracking-wide">
-            EchoPrismVoice
-          </span>
+          <span className="text-sm font-semibold text-white tracking-wide">EchoPrismVoice</span>
         </div>
 
         {/* Orb + status + transcript + tool pill */}
@@ -439,8 +412,7 @@ export function EchoPrismVoiceModal({
               className={cn(
                 "relative rounded-full bg-linear-to-br from-[#A577FF] to-[#7C3AED] shadow-2xl shadow-[#A577FF]/50 transition-all duration-300",
                 orbSize,
-                (voiceState === "muted" || voiceState === "idle") &&
-                  "opacity-50 saturate-50",
+                (voiceState === "muted" || voiceState === "idle") && "opacity-50 saturate-50",
               )}
             >
               <div className="absolute inset-0 rounded-full bg-linear-to-tr from-white/10 to-transparent" />
@@ -455,22 +427,13 @@ export function EchoPrismVoiceModal({
                 {statusLabel}
                 {showDots && (
                   <span className="inline-flex gap-0.5 ml-1">
-                    <span
-                      className="animate-bounce"
-                      style={{ animationDelay: "0ms" }}
-                    >
+                    <span className="animate-bounce" style={{ animationDelay: "0ms" }}>
                       .
                     </span>
-                    <span
-                      className="animate-bounce"
-                      style={{ animationDelay: "150ms" }}
-                    >
+                    <span className="animate-bounce" style={{ animationDelay: "150ms" }}>
                       .
                     </span>
-                    <span
-                      className="animate-bounce"
-                      style={{ animationDelay: "300ms" }}
-                    >
+                    <span className="animate-bounce" style={{ animationDelay: "300ms" }}>
                       .
                     </span>
                   </span>
@@ -481,9 +444,7 @@ export function EchoPrismVoiceModal({
             {/* Transcript */}
             {transcript && !isSynthesizing && (
               <div className="w-full max-w-sm text-center">
-                <p className="text-sm text-white/70 leading-relaxed font-light">
-                  {transcript}
-                </p>
+                <p className="text-sm text-white/70 leading-relaxed font-light">{transcript}</p>
               </div>
             )}
 
@@ -503,9 +464,7 @@ export function EchoPrismVoiceModal({
               <div className="flex flex-col items-center gap-3">
                 <p className="text-sm text-white/70 text-center">
                   Workflow ready:{" "}
-                  <span className="text-white font-medium">
-                    {synthesizedWorkflow.name}
-                  </span>
+                  <span className="text-white font-medium">{synthesizedWorkflow.name}</span>
                 </p>
                 <a
                   href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
@@ -542,10 +501,7 @@ export function EchoPrismVoiceModal({
             <IconHelp className="h-3.5 w-3.5" />
             What can I say?
             <IconChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform",
-                showHelp && "rotate-180",
-              )}
+              className={cn("h-3.5 w-3.5 transition-transform", showHelp && "rotate-180")}
             />
           </button>
           {showHelp && (

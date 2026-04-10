@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
-import {
-  IconNotification,
-  IconCheck,
-  IconShare3,
-  IconArrowRight,
-} from "@tabler/icons-react";
+import { IconNotification, IconCheck, IconShare3, IconArrowRight } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Notification {
@@ -74,7 +69,9 @@ export default function NotificationsPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const markRead = async (id: string) => {
@@ -82,9 +79,7 @@ export default function NotificationsPage() {
       method: "PATCH",
     });
     if (res.ok) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     }
   };
 
@@ -92,9 +87,7 @@ export default function NotificationsPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
       <div className="flex flex-col gap-6 p-6 md:p-10">
         <div>
-          <h1 className="text-2xl font-semibold text-[#150A35]">
-            Notifications
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#150A35]">Notifications</h1>
           <p className="mt-1 text-sm text-echo-text-muted">
             Workflow shares and other updates. Click to open or mark as read.
           </p>
@@ -103,18 +96,13 @@ export default function NotificationsPage() {
         {loading ? (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
-              <Skeleton
-                key={i}
-                className="h-20 w-full rounded-xl border border-[#A577FF]/20"
-              />
+              <Skeleton key={i} className="h-20 w-full rounded-xl border border-[#A577FF]/20" />
             ))}
           </div>
         ) : notifications.length === 0 ? (
           <div className="echo-card flex flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white/80 p-12 text-center">
             <IconNotification className="h-12 w-12 text-[#150A35]/20" />
-            <p className="mt-3 text-base font-medium text-[#150A35]">
-              No notifications yet
-            </p>
+            <p className="mt-3 text-base font-medium text-[#150A35]">No notifications yet</p>
             <p className="mt-1 text-sm text-echo-text-muted">
               When someone shares a workflow with you, it will appear here.
             </p>
@@ -125,9 +113,7 @@ export default function NotificationsPage() {
               <li key={n.id}>
                 <div
                   className={`echo-card rounded-xl border bg-white/90 shadow-sm transition-colors ${
-                    n.read
-                      ? "border-[#150A35]/10"
-                      : "border-[#A577FF]/30 bg-[#A577FF]/5"
+                    n.read ? "border-[#150A35]/10" : "border-[#A577FF]/30 bg-[#A577FF]/5"
                   }`}
                 >
                   <div className="flex items-start gap-4 p-4">
@@ -137,13 +123,9 @@ export default function NotificationsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="font-medium text-[#150A35]">
-                            {n.title}
-                          </p>
+                          <p className="font-medium text-[#150A35]">{n.title}</p>
                           {n.body && (
-                            <p className="mt-0.5 text-sm text-echo-text-muted">
-                              {n.body}
-                            </p>
+                            <p className="mt-0.5 text-sm text-echo-text-muted">{n.body}</p>
                           )}
                         </div>
                         <span className="shrink-0 text-xs text-echo-text-muted">

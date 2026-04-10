@@ -21,11 +21,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiFetch, agentFetch, AGENT_URL } from "@/lib/api";
 import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { ChatMessageContent } from "@/components/chat-message-content";
@@ -180,21 +176,18 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const addAssistantMessage = useCallback(
-    (text: string, runLink?: Message["runLink"]) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          role: "assistant" as const,
-          text,
-          timestamp: new Date(),
-          runLink,
-        },
-      ]);
-    },
-    [],
-  );
+  const addAssistantMessage = useCallback((text: string, runLink?: Message["runLink"]) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        role: "assistant" as const,
+        text,
+        timestamp: new Date(),
+        runLink,
+      },
+    ]);
+  }, []);
 
   const startScreenRecording = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- same arity as connectWebSocket(token); recording uses agentFetch + existing session
@@ -222,14 +215,11 @@ export default function ChatPage() {
               workflow_id: string;
               workflow_name?: string;
             };
-            addAssistantMessage(
-              "Screen recording processed! Your workflow has been created.",
-              {
-                workflowId: data.workflow_id,
-                runId: "",
-                name: data.workflow_name || "New Workflow",
-              },
-            );
+            addAssistantMessage("Screen recording processed! Your workflow has been created.", {
+              workflowId: data.workflow_id,
+              runId: "",
+              name: data.workflow_name || "New Workflow",
+            });
           }
           setIsSynthesizing(false);
         };
@@ -256,9 +246,7 @@ export default function ChatPage() {
     (t: string) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) return;
       // mode=text → TEXT modality, no audio blobs
-      const ws = new WebSocket(
-        `${WS_URL}/ws/chat?token=${encodeURIComponent(t)}&mode=text`,
-      );
+      const ws = new WebSocket(`${WS_URL}/ws/chat?token=${encodeURIComponent(t)}&mode=text`);
       wsRef.current = ws;
 
       ws.onopen = () => setIsConnected(true);
@@ -272,13 +260,9 @@ export default function ChatPage() {
         // Text-mode never sends audio blobs
         if (event.data instanceof Blob) return;
         try {
-          const data = JSON.parse(event.data as string) as Record<
-            string,
-            unknown
-          >;
+          const data = JSON.parse(event.data as string) as Record<string, unknown>;
           if (data.type === "text" && data.text) {
-            const runLink =
-              (data.runLink as Message["runLink"]) ?? pendingRunLink ?? undefined;
+            const runLink = (data.runLink as Message["runLink"]) ?? pendingRunLink ?? undefined;
             addAssistantMessage(data.text as string, runLink);
             setPendingRunLink(null);
           } else if (data.type === "run_started" && data.runLink) {
@@ -314,10 +298,7 @@ export default function ChatPage() {
             });
           } else if (data.type === "turn_complete") {
             // nothing to reset for text mode
-          } else if (
-            data.type === "control" &&
-            data.action === "start_screen_recording"
-          ) {
+          } else if (data.type === "control" && data.action === "start_screen_recording") {
             startScreenRecording(t);
           } else if (data.type === "error") {
             addAssistantMessage(`Error: ${data.text as string}`);
@@ -348,12 +329,7 @@ export default function ChatPage() {
   }
 
   function sendTextMessage(text: string) {
-    if (
-      !text.trim() ||
-      !wsRef.current ||
-      wsRef.current.readyState !== WebSocket.OPEN
-    )
-      return;
+    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     addUserMessage(text);
     wsRef.current.send(JSON.stringify({ type: "text", text }));
     setInput("");
@@ -426,9 +402,7 @@ export default function ChatPage() {
               <IconSparkles className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-[#1A1A2E]">
-                EchoPrism
-              </h1>
+              <h1 className="text-lg font-semibold text-[#1A1A2E]">EchoPrism</h1>
               <p className="text-xs text-gray-400">
                 {isConnected ? (
                   <span className="flex items-center gap-1">
@@ -523,9 +497,7 @@ export default function ChatPage() {
           <div className="border-t border-[#A577FF]/20 px-6 py-3 flex items-center justify-between gap-4">
             <p className="text-sm text-gray-600">
               Workflow ready:{" "}
-              <span className="font-medium text-[#1A1A2E]">
-                {synthesizedWorkflow.name}
-              </span>
+              <span className="font-medium text-[#1A1A2E]">{synthesizedWorkflow.name}</span>
             </p>
             <a
               href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
@@ -582,9 +554,7 @@ export default function ChatPage() {
                 )}
               </button>
             </TooltipTrigger>
-            <TooltipContent>
-              {isDictating ? "Stop dictation" : "Dictate message"}
-            </TooltipContent>
+            <TooltipContent>{isDictating ? "Stop dictation" : "Dictate message"}</TooltipContent>
           </Tooltip>
 
           <Input

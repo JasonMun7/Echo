@@ -8,9 +8,7 @@ const pages = [
   { title: "Early access", href: "/sign-up" },
 ];
 
-const socials = [
-  { title: "GitHub", href: "https://github.com/Dbzman/echo" },
-];
+const socials = [{ title: "GitHub", href: "https://github.com/Dbzman/echo" }];
 
 const legals = [
   { title: "Privacy Policy", href: "/privacy" },

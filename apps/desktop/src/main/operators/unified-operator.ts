@@ -47,11 +47,15 @@ async function ensureBrowserPage(): Promise<Page> {
 export async function closeBrowser(): Promise<void> {
   try {
     if (page && !page.isClosed()) await page.close();
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   page = null;
   try {
     if (browser) await browser.close();
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   browser = null;
 }
 
@@ -145,10 +149,14 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
     } else if (act === "waitforelement") {
       try {
         await p.waitForLoadState("domcontentloaded", { timeout: 10000 });
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       try {
         await p.waitForLoadState("networkidle", { timeout: 5000 });
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       await new Promise((r) => setTimeout(r, 500));
     } else if (act === "selectoption") {
       const value = String(action.value ?? "");
@@ -159,16 +167,13 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
         const { x: wx, y: wy } = scaleToViewport(Number(x), Number(y), vp);
         await p.mouse.click(wx, wy);
         await new Promise((r) => setTimeout(r, 300));
-        await p.evaluate(
-          (v) => {
-            const el = document.activeElement as HTMLSelectElement | null;
-            if (el?.tagName === "SELECT") {
-              el.value = v;
-              el.dispatchEvent(new Event("change", { bubbles: true }));
-            }
-          },
-          value
-        );
+        await p.evaluate((v) => {
+          const el = document.activeElement as HTMLSelectElement | null;
+          if (el?.tagName === "SELECT") {
+            el.value = v;
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }, value);
       } else {
         const sel = action.selector ?? (action as Record<string, unknown>).selector;
         if (sel) await p.selectOption(String(sel), value);
@@ -182,7 +187,9 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
     try {
       await p.waitForLoadState("domcontentloaded", { timeout: 5000 });
       await new Promise((r) => setTimeout(r, 500));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return true;
   } catch (e) {
     console.error("[unified-operator] Playwright execute failed:", e);
@@ -193,7 +200,7 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
 /** Capture screenshot. Uses Playwright page if in browser context; else desktop capture. */
 export async function captureScreen(
   sourceId: string,
-  options?: { maxDimension?: number }
+  options?: { maxDimension?: number },
 ): Promise<CaptureScreenResult> {
   if (hasBrowserContext() && page && !page.isClosed()) {
     try {

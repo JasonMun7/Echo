@@ -8,12 +8,7 @@ import Scales from "@/components/ui/scales";
 
 export function SecuritySkeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        "mx-auto flex max-w-20 items-center justify-center p-2",
-        className,
-      )}
-    >
+    <div className={cn("mx-auto flex max-w-20 items-center justify-center p-2", className)}>
       <Scales size={8} className="rounded-lg" />
       <div className="flex items-center gap-0">
         {/* Left Avatar - Blurred */}

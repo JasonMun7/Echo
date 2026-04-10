@@ -14,10 +14,7 @@ type Theme = "light" | "dark" | "system";
  * Echo Design System toasts: success/error/warning/info use Echo tokens.
  * Use with toast.success(), toast.error(), etc. from "sonner".
  */
-const Toaster = ({
-  theme = "dark",
-  ...props
-}: Omit<ToasterProps, "theme"> & { theme?: Theme }) => {
+const Toaster = ({ theme = "dark", ...props }: Omit<ToasterProps, "theme"> & { theme?: Theme }) => {
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}

@@ -30,9 +30,7 @@ const Pricing = dynamic(() =>
 const FAQs = dynamic(() =>
   import("@/components/marketing/faqs").then((m) => ({ default: m.FAQs })),
 );
-const CTA = dynamic(() =>
-  import("@/components/marketing/cta").then((m) => ({ default: m.CTA })),
-);
+const CTA = dynamic(() => import("@/components/marketing/cta").then((m) => ({ default: m.CTA })));
 
 export const metadata = getSEOTags();
 

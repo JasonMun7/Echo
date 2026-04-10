@@ -40,16 +40,12 @@ function getHudBoundsOnDisplay(
   const w = isRun ? HUD_RUN_WIDTH : HUD_RECORDING_WIDTH;
   const h = isRun ? HUD_RUN_HEIGHT : HUD_RECORDING_HEIGHT;
   const margin = 24;
-  const x = isRun
-    ? Math.floor(screenWidth - w - margin)
-    : Math.floor((screenWidth - w) / 2);
+  const x = isRun ? Math.floor(screenWidth - w - margin) : Math.floor((screenWidth - w) / 2);
   const y = Math.floor(screenHeight - h - 48);
   return { x, y, w, h };
 }
 
-export function createHudOverlayWindow(
-  mode: "recording" | "run",
-): BrowserWindow {
+export function createHudOverlayWindow(mode: "recording" | "run"): BrowserWindow {
   const display = getDisplayUnderCursor();
   const isRun = mode === "run";
   const { x, y, w, h } = getHudBoundsOnDisplay(display, isRun);
@@ -84,9 +80,13 @@ export function createHudOverlayWindow(
 }
 
 /** Return the display and bounds for positioning the HUD on the display under the cursor. Used by main to move the HUD when the user switches screens. */
-export function getHudPositionOnCursorDisplay(
-  mode: "recording" | "run",
-): { display: Display; x: number; y: number; w: number; h: number } {
+export function getHudPositionOnCursorDisplay(mode: "recording" | "run"): {
+  display: Display;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
   const display = getDisplayUnderCursor();
   const isRun = mode === "run";
   const { x, y, w, h } = getHudBoundsOnDisplay(display, isRun);
@@ -107,9 +107,7 @@ export function getHazeBoundsOnCursorDisplay(): {
 export function createHazeOverlayWindow(displayId?: number): BrowserWindow {
   const displays = screen.getAllDisplays();
   const display =
-    displayId != null && displays[displayId]
-      ? displays[displayId]
-      : getDisplayUnderCursor();
+    displayId != null && displays[displayId] ? displays[displayId] : getDisplayUnderCursor();
   const { x, y, width, height } = display.bounds;
 
   const win = new BrowserWindow({

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import Orb from "@/components/reactbits/Orb";
@@ -47,10 +43,7 @@ export function SiteHeader({ title = "Dashboard" }: SiteHeaderProps) {
     >
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
-        <Separator
-          orientation="vertical"
-          className="mx-2 h-4 bg-[#A577FF]/20"
-        />
+        <Separator orientation="vertical" className="mx-2 h-4 bg-[#A577FF]/20" />
         <h1 className="text-base font-semibold text-[#150A35]">{title}</h1>
         <div className="ml-auto flex items-center gap-2">
           <EchoPrismOrbButton />

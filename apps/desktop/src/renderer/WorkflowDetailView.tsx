@@ -111,7 +111,7 @@ export default function WorkflowDetailView({
         const wfData = await wfRes.json();
         const stepsData = await stepsRes.json();
         setWorkflow({ id: workflowId, ...wfData });
-        const stepsList = Array.isArray(stepsData) ? stepsData : stepsData.steps ?? [];
+        const stepsList = Array.isArray(stepsData) ? stepsData : (stepsData.steps ?? []);
         setSteps(stepsList.sort((a: StepData, b: StepData) => a.order - b.order));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -120,7 +120,9 @@ export default function WorkflowDetailView({
       }
     };
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [workflowId, token, apiUrl]);
 
   const handleDelete = async () => {
@@ -247,9 +249,7 @@ export default function WorkflowDetailView({
       </div>
 
       {error && (
-        <p style={{ color: "var(--echo-error)", fontSize: 13, marginBottom: 12 }}>
-          {error}
-        </p>
+        <p style={{ color: "var(--echo-error)", fontSize: 13, marginBottom: 12 }}>{error}</p>
       )}
 
       {/* Info card */}
@@ -281,8 +281,7 @@ export default function WorkflowDetailView({
                   workflow.workflow_type === "desktop"
                     ? "rgba(165,119,255,0.15)"
                     : "rgba(34,197,94,0.12)",
-                color:
-                  workflow.workflow_type === "desktop" ? "#A577FF" : "#16a34a",
+                color: workflow.workflow_type === "desktop" ? "#A577FF" : "#16a34a",
               }}
             >
               {workflow.workflow_type === "desktop" ? "Desktop" : "Browser"}

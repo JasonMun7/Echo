@@ -25,7 +25,7 @@ export function getTimeMs(x: unknown): number {
 /** True if workflow is newest by createdAt or most recently modified (updatedAt). */
 export function isLatestOrLastModified(
   w: { id: string; createdAt?: unknown; updatedAt?: unknown },
-  all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>
+  all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>,
 ): boolean {
   if (all.length === 0) return false;
   const created = all.map((x) => getTimeMs(x.createdAt));
@@ -87,7 +87,9 @@ export const useWorkflowsStore = create<WorkflowsState>((set, get) => ({
         set({ workflowsError: result.error ?? "", workflows: [] });
       } else if (result && "workflows" in result) {
         const list = (result.workflows ?? []) as WorkflowInfo[];
-        list.sort((a, b) => getTimeMs(b.createdAt ?? b.updatedAt) - getTimeMs(a.createdAt ?? a.updatedAt));
+        list.sort(
+          (a, b) => getTimeMs(b.createdAt ?? b.updatedAt) - getTimeMs(a.createdAt ?? a.updatedAt),
+        );
         set({ workflows: list });
       }
     } finally {
@@ -163,15 +165,15 @@ export const useWorkflowsStore = create<WorkflowsState>((set, get) => ({
     const token = useAuthStore.getState().token;
     if (!token) return;
     try {
-      const base = (import.meta as { env?: { VITE_API_URL?: string } }).env
-        ?.VITE_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
-      const res = await fetch(
-        `${base}/api/workflows/${encodeURIComponent(workflowId)}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const base =
+        (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL?.replace(
+          /\/$/,
+          "",
+        ) ?? "http://localhost:8000";
+      const res = await fetch(`${base}/api/workflows/${encodeURIComponent(workflowId)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error("Failed to delete workflow");
       get().loadWorkflows();
       if (get().selectedWorkflowId === workflowId) {

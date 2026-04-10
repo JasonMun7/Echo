@@ -78,10 +78,7 @@ export default function SignInScreen() {
   return (
     <View style={styles.container}>
       {/* Gradient background */}
-      <LinearGradient
-        colors={["#0d0620", "#1a0f3a", "#0d0620"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={["#0d0620", "#1a0f3a", "#0d0620"]} style={StyleSheet.absoluteFill} />
 
       {/* Decorative gradient orbs — large, diffused */}
       <View style={styles.orb1} pointerEvents="none">
@@ -111,12 +108,7 @@ export default function SignInScreen() {
 
       {/* Frosted blur layer — diffuses the orbs into a grainy, soft background */}
       {Platform.OS === "ios" ? (
-        <BlurView
-          intensity={35}
-          tint="dark"
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+        <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
       ) : (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(8,4,20,0.25)" }]}
@@ -166,14 +158,27 @@ export default function SignInScreen() {
 }
 
 function SignInForm({
-  email, setEmail, password, setPassword, loading, googleLoading,
-  googleConfigured, googleRequest, handleSignIn, handleGoogleSignIn,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  loading,
+  googleLoading,
+  googleConfigured,
+  googleRequest,
+  handleSignIn,
+  handleGoogleSignIn,
 }: {
-  email: string; setEmail: (v: string) => void;
-  password: string; setPassword: (v: string) => void;
-  loading: boolean; googleLoading: boolean;
-  googleConfigured: boolean; googleRequest: unknown;
-  handleSignIn: () => void; handleGoogleSignIn: () => void;
+  email: string;
+  setEmail: (v: string) => void;
+  password: string;
+  setPassword: (v: string) => void;
+  loading: boolean;
+  googleLoading: boolean;
+  googleConfigured: boolean;
+  googleRequest: unknown;
+  handleSignIn: () => void;
+  handleGoogleSignIn: () => void;
 }) {
   return (
     <View style={styles.formInner}>

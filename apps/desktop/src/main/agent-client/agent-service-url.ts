@@ -7,18 +7,12 @@
  *   If unset or empty, the client uses the same origin as `VITE_API_URL` (agent routes mounted on that server).
  */
 export function getAgentServiceBaseUrl(): string {
-  const api = (process.env.VITE_API_URL || "http://localhost:8000").replace(
-    /\/$/,
-    "",
-  );
+  const api = (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
   const override = process.env.VITE_ECHO_AGENT_URL?.trim();
   return (override && override.length > 0 ? override : api).replace(/\/$/, "");
 }
 
 /** REST API base (backend), same as used for create-run and Firestore-backed routes. */
 export function getBackendApiBaseUrl(): string {
-  return (process.env.VITE_API_URL || "http://localhost:8000").replace(
-    /\/$/,
-    "",
-  );
+  return (process.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 }

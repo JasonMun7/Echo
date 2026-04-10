@@ -26,53 +26,33 @@ export function dedupeHudActions(actions: string[]): string[] {
   const trimmed = actions.map((a) => a.trim()).filter(Boolean);
   if (trimmed.length <= 1) return trimmed;
 
-  const anyMatch = (patterns: RegExp[]) =>
-    trimmed.some((a) => patterns.some((p) => p.test(a)));
+  const anyMatch = (patterns: RegExp[]) => trimmed.some((a) => patterns.some((p) => p.test(a)));
 
   const out: string[] = [];
   for (const a of trimmed) {
-    if (
-      /^click_at$/i.test(a) &&
-      anyMatch([/click\s*\(/i])
-    ) {
+    if (/^click_at$/i.test(a) && anyMatch([/click\s*\(/i])) {
       continue;
     }
-    if (
-      /^double_click$/i.test(a) &&
-      anyMatch([/double_?click\s*\(/i])
-    ) {
+    if (/^double_click$/i.test(a) && anyMatch([/double_?click\s*\(/i])) {
       continue;
     }
-    if (
-      /^right_click$/i.test(a) &&
-      anyMatch([/right_?click\s*\(/i])
-    ) {
+    if (/^right_click$/i.test(a) && anyMatch([/right_?click\s*\(/i])) {
       continue;
     }
-    if (
-      /^type_text_at$/i.test(a) &&
-      anyMatch([/(type|click_?and_?type)\s*\(/i])
-    ) {
+    if (/^type_text_at$/i.test(a) && anyMatch([/(type|click_?and_?type)\s*\(/i])) {
       continue;
     }
     if (/^scroll$/i.test(a) && anyMatch([/scroll\s*\(/i])) continue;
     if (/^hover$/i.test(a) && anyMatch([/hover\s*\(/i])) continue;
     if (/^wait$/i.test(a) && anyMatch([/wait\s*\(/i])) continue;
     if (/^drag$/i.test(a) && anyMatch([/drag\s*\(/i])) continue;
-    if (
-      /^press_key$/i.test(a) &&
-      anyMatch([/(hotkey|press_?key)\s*\(/i])
-    ) {
+    if (/^press_key$/i.test(a) && anyMatch([/(hotkey|press_?key)\s*\(/i])) {
       continue;
     }
-    if (
-      /^select_option$/i.test(a) &&
-      anyMatch([/select_?option\s*\(/i])
-    ) {
+    if (/^select_option$/i.test(a) && anyMatch([/select_?option\s*\(/i])) {
       continue;
     }
-    if (/^wait_for_element$/i.test(a) && anyMatch([/wait_?for_?element\s*\(/i]))
-      continue;
+    if (/^wait_for_element$/i.test(a) && anyMatch([/wait_?for_?element\s*\(/i])) continue;
     if (/^navigate$/i.test(a) && anyMatch([/navigate\s*\(/i])) continue;
     if (/^open_app$/i.test(a) && anyMatch([/open_?app\s*\(/i])) continue;
     if (/^focus_app$/i.test(a) && anyMatch([/focus_?app\s*\(/i])) continue;
@@ -148,9 +128,7 @@ export function formatHudAction(raw: string): HudActionDisplay {
       case "type":
       case "clickandtype":
         return {
-          summary: inner
-            ? `Type ${inner.replace(/^['"]|['"]$/g, "")}`
-            : "Type text",
+          summary: inner ? `Type ${inner.replace(/^['"]|['"]$/g, "")}` : "Type text",
           Icon: IconTypography,
         };
       case "hotkey":

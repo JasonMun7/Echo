@@ -12,9 +12,7 @@
 module.exports = ({ config }) => {
   // Read from Doppler-injected env (NEXT_PUBLIC_*) or EXPO_PUBLIC_* fallback
   const firebaseApiKey =
-    process.env.EXPO_PUBLIC_FIREBASE_API_KEY ??
-    process.env.NEXT_PUBLIC_FIREBASE_API_KEY ??
-    "";
+    process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "";
   const firebaseAuthDomain =
     process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ??
     process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ??
@@ -32,14 +30,10 @@ module.exports = ({ config }) => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ??
     "";
   const firebaseAppId =
-    process.env.EXPO_PUBLIC_FIREBASE_APP_ID ??
-    process.env.NEXT_PUBLIC_FIREBASE_APP_ID ??
-    "";
+    process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "";
 
   const apiUrl =
-    process.env.EXPO_PUBLIC_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000";
+    process.env.EXPO_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
   const agentUrl =
     process.env.EXPO_PUBLIC_ECHO_AGENT_URL ??
     process.env.NEXT_PUBLIC_ECHO_AGENT_URL ??
@@ -49,17 +43,11 @@ module.exports = ({ config }) => {
   // The web client ID is required (used on all platforms); iOS/Android are optional overrides.
   // These come from the Firebase project's Google Cloud Console OAuth 2.0 credentials.
   const googleClientIdWeb =
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB ??
-    process.env.GOOGLE_CLIENT_ID_WEB ??
-    "";
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB ?? process.env.GOOGLE_CLIENT_ID_WEB ?? "";
   const googleClientIdIos =
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ??
-    process.env.GOOGLE_CLIENT_ID_IOS ??
-    "";
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ?? process.env.GOOGLE_CLIENT_ID_IOS ?? "";
   const googleClientIdAndroid =
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ??
-    process.env.GOOGLE_CLIENT_ID_ANDROID ??
-    "";
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ?? process.env.GOOGLE_CLIENT_ID_ANDROID ?? "";
 
   return {
     ...config,
@@ -87,9 +75,7 @@ module.exports = ({ config }) => {
           ? {
               CFBundleURLTypes: [
                 {
-                  CFBundleURLSchemes: [
-                    googleClientIdIos.split(".").reverse().join("."),
-                  ],
+                  CFBundleURLSchemes: [googleClientIdIos.split(".").reverse().join(".")],
                 },
               ],
             }

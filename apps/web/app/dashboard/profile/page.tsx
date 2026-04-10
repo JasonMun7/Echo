@@ -8,12 +8,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import {
-  IconBrandGoogle,
-  IconCheck,
-  IconPencil,
-  IconPhone,
-} from "@tabler/icons-react";
+import { IconBrandGoogle, IconCheck, IconPencil, IconPhone } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -62,10 +57,7 @@ function parseProfileDate(value: unknown): Date | null {
 
     if (typeof maybeTimestamp.toDate === "function") {
       const parsed = maybeTimestamp.toDate();
-      if (
-        parsed instanceof Date &&
-        !Number.isNaN(parsed.getTime())
-      ) {
+      if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
         return parsed;
       }
     }
@@ -129,9 +121,7 @@ export default function ProfilePage() {
       toast.success("Display name updated");
       setEditing(false);
     } catch (e: unknown) {
-      toast.error(
-        `Failed: ${e instanceof Error ? e.message : "Unknown error"}`,
-      );
+      toast.error(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally {
       setSaving(false);
     }
@@ -140,9 +130,7 @@ export default function ProfilePage() {
   async function savePhone() {
     const value = phone.trim() || null;
     if (value && !isValidE164(value)) {
-      toast.error(
-        "Enter a valid phone number in E.164 format (e.g. +18016741971)",
-      );
+      toast.error("Enter a valid phone number in E.164 format (e.g. +18016741971)");
       return;
     }
     setSavingPhone(true);
@@ -156,17 +144,14 @@ export default function ProfilePage() {
       toast.success(value ? "Phone number saved" : "Phone number cleared");
       setEditingPhone(false);
     } catch (e: unknown) {
-      toast.error(
-        `Failed: ${e instanceof Error ? e.message : "Unknown error"}`,
-      );
+      toast.error(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally {
       setSavingPhone(false);
     }
   }
 
   const createdAtDate =
-    parseProfileDate(profile?.createdAt) ??
-    parseProfileDate(profile?.created_at);
+    parseProfileDate(profile?.createdAt) ?? parseProfileDate(profile?.created_at);
   const createdAt = createdAtDate ? createdAtDate.toLocaleDateString() : null;
 
   const initials = (user?.displayName || user?.email || "U")
@@ -194,11 +179,7 @@ export default function ProfilePage() {
               {user?.displayName || "Echo User"}
             </p>
             <p className="text-sm text-gray-500">{user?.email}</p>
-            {createdAt && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                Member since {createdAt}
-              </p>
-            )}
+            {createdAt && <p className="text-xs text-gray-400 mt-0.5">Member since {createdAt}</p>}
           </div>
         </div>
 
@@ -250,8 +231,8 @@ export default function ProfilePage() {
             <h2 className="font-semibold text-[#150A35]">Phone number</h2>
           </div>
           <p className="text-sm text-gray-600">
-            Used when you call Echo by phone so we can greet you by name and
-            show your workflows. Use E.164 format (e.g. +1 555 123 4567).
+            Used when you call Echo by phone so we can greet you by name and show your workflows.
+            Use E.164 format (e.g. +1 555 123 4567).
           </p>
           {editingPhone ? (
             <div className="flex flex-col gap-3">
@@ -272,9 +253,7 @@ export default function ProfilePage() {
                 />
                 <FieldDescription
                   className={
-                    phone.trim() !== "" && !isValidE164(phone)
-                      ? "text-red-600"
-                      : undefined
+                    phone.trim() !== "" && !isValidE164(phone) ? "text-red-600" : undefined
                   }
                 >
                   {phone.trim() !== "" && !isValidE164(phone)
@@ -285,9 +264,7 @@ export default function ProfilePage() {
               <div className="flex gap-2">
                 <Button
                   onClick={savePhone}
-                  disabled={
-                    savingPhone || (phone.trim() !== "" && !isValidE164(phone))
-                  }
+                  disabled={savingPhone || (phone.trim() !== "" && !isValidE164(phone))}
                   className="bg-gradient-to-r from-[#A577FF] to-[#7C3AED] text-white hover:opacity-90"
                 >
                   <IconCheck className="mr-2 h-4 w-4" />
@@ -325,10 +302,7 @@ export default function ProfilePage() {
           <h2 className="font-semibold text-[#1A1A2E]">Email</h2>
           <div className="flex items-center justify-between">
             <span className="text-[#1A1A2E]">{user?.email}</span>
-            <Badge
-              variant="outline"
-              className="border-gray-200 text-gray-500 text-xs"
-            >
+            <Badge variant="outline" className="border-gray-200 text-gray-500 text-xs">
               Read-only
             </Badge>
           </div>

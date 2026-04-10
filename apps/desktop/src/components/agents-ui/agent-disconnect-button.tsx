@@ -1,18 +1,17 @@
-'use client';
+"use client";
 
-import { type ComponentProps } from 'react';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useSessionContext } from '@livekit/components-react';
-import { type VariantProps } from 'class-variance-authority';
-import { PhoneOffIcon } from 'lucide-react';
+import { type ComponentProps } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useSessionContext } from "@livekit/components-react";
+import { type VariantProps } from "class-variance-authority";
+import { PhoneOffIcon } from "lucide-react";
 
 /**
  * Props for the AgentDisconnectButton component.
  */
 export interface AgentDisconnectButtonProps
-  extends ComponentProps<'button'>,
-    VariantProps<typeof buttonVariants> {
+  extends ComponentProps<"button">, VariantProps<typeof buttonVariants> {
   /**
    * Custom icon to display. Defaults to PhoneOffIcon.
    */
@@ -21,12 +20,12 @@ export interface AgentDisconnectButtonProps
    * The size of the button.
    * @default 'default'
    */
-  size?: 'default' | 'sm' | 'lg' | 'icon';
+  size?: "default" | "sm" | "lg" | "icon";
   /**
    * The variant of the button.
    * @default 'destructive'
    */
-  variant?: 'default' | 'outline' | 'destructive' | 'ghost' | 'link';
+  variant?: "default" | "outline" | "destructive" | "ghost" | "link";
   /**
    * The children to render.
    */
@@ -50,8 +49,8 @@ export interface AgentDisconnectButtonProps
  */
 export function AgentDisconnectButton({
   icon,
-  size = 'default',
-  variant = 'destructive',
+  size = "default",
+  variant = "destructive",
   children,
   onClick,
   ...props
@@ -59,7 +58,7 @@ export function AgentDisconnectButton({
   const { end } = useSessionContext();
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     onClick?.(event);
-    if (typeof end === 'function') {
+    if (typeof end === "function") {
       end();
     }
   };
@@ -67,7 +66,7 @@ export function AgentDisconnectButton({
   return (
     <Button size={size} variant={variant} onClick={handleClick} {...props}>
       {icon ?? <PhoneOffIcon />}
-      {children ?? <span className={cn(size?.includes('icon') && 'sr-only')}>END CALL</span>}
+      {children ?? <span className={cn(size?.includes("icon") && "sr-only")}>END CALL</span>}
     </Button>
   );
 }

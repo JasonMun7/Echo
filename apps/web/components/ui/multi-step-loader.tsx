@@ -74,7 +74,7 @@ const LoaderCore = ({
               "text-base font-medium transition-colors",
               isActive && "text-[#150A35]",
               isDone && "text-[#A577FF]",
-              !isActive && !isDone && "text-[#150A35]/30"
+              !isActive && !isDone && "text-[#150A35]/30",
             )}
           >
             {loadingState.text}
@@ -116,15 +116,14 @@ export const MultiStepLoader = ({
           ? prevState === loadingStates.length - 1
             ? 0
             : prevState + 1
-          : Math.min(prevState + 1, loadingStates.length - 1)
+          : Math.min(prevState + 1, loadingStates.length - 1),
       );
     }, duration);
 
     return () => clearTimeout(timeout);
   }, [controlledValue, internalState, loading, loop, loadingStates.length, duration]);
 
-  const currentState =
-    controlledValue !== undefined ? controlledValue : internalState;
+  const currentState = controlledValue !== undefined ? controlledValue : internalState;
 
   return (
     <AnimatePresence mode="wait">
@@ -143,13 +142,7 @@ export const MultiStepLoader = ({
             className="echo-card mb-2 flex flex-col items-center gap-3 rounded-2xl border border-[#A577FF]/20 px-6 py-4 shadow-sm"
           >
             <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
-              <Image
-                src="/echo_logo.png"
-                alt="Echo"
-                fill
-                className="object-contain p-2"
-                priority
-              />
+              <Image src="/echo_logo.png" alt="Echo" fill className="object-contain p-2" priority />
             </div>
             <p className="text-xs font-semibold uppercase tracking-widest text-[#A577FF]">
               {title}

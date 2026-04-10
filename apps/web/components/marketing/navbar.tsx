@@ -6,12 +6,7 @@ import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
 import GradientText from "@/components/reactbits/GradientText";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  motion,
-  useMotionValueEvent,
-  useScroll,
-  useTransform,
-} from "motion/react";
+import { motion, useMotionValueEvent, useScroll, useTransform } from "motion/react";
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -185,10 +180,7 @@ export const Navbar = () => {
               containerClassName="mt-3 h-12 w-full rounded-xl"
               className="flex h-full w-full items-center justify-center px-4 py-3.5 text-base font-medium"
             >
-              <Link
-                href="/get-started"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/get-started" onClick={() => setMobileMenuOpen(false)}>
                 Get started
               </Link>
             </HoverBorderGradient>

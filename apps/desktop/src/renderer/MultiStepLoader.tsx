@@ -6,13 +6,7 @@ import GradientText from "./reactbits/GradientText";
 
 export type LoadingState = { text: string };
 
-const CheckIcon = ({
-  className,
-  style,
-}: {
-  className?: string;
-  style?: CSSProperties;
-}) => (
+const CheckIcon = ({ className, style }: { className?: string; style?: CSSProperties }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
@@ -26,13 +20,7 @@ const CheckIcon = ({
   </svg>
 );
 
-const CheckFilled = ({
-  className,
-  style,
-}: {
-  className?: string;
-  style?: CSSProperties;
-}) => (
+const CheckFilled = ({ className, style }: { className?: string; style?: CSSProperties }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
@@ -94,10 +82,7 @@ function LoaderCore({
                 </div>
               )}
               {index > value && (
-                <CheckIcon
-                  className="opacity-30"
-                  style={{ color: "var(--echo-text)" }}
-                />
+                <CheckIcon className="opacity-30" style={{ color: "var(--echo-text)" }} />
               )}
             </div>
             <span
@@ -219,8 +204,7 @@ export function MultiStepLoader({
           <div
             className="pointer-events-none absolute inset-x-0 top-0 h-24"
             style={{
-              background:
-                "linear-gradient(to bottom, var(--echo-bg), transparent)",
+              background: "linear-gradient(to bottom, var(--echo-bg), transparent)",
             }}
           />
         </motion.div>

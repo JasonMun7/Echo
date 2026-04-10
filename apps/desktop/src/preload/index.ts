@@ -2,8 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   getSources: () => ipcRenderer.invoke("get-sources"),
-  getPrimarySourceId: () =>
-    ipcRenderer.invoke("get-primary-source-id") as Promise<string | null>,
+  getPrimarySourceId: () => ipcRenderer.invoke("get-primary-source-id") as Promise<string | null>,
   createRun: (args: { workflowId: string; token: string }) =>
     ipcRenderer.invoke("create-run", args),
   runWorkflowLocal: (args: {
@@ -24,11 +23,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     runId: string;
     token: string;
   }) => ipcRenderer.invoke("run-goal-only-local", args),
-  fetchWorkflow: (args: {
-    workflowId: string;
-    apiUrl?: string;
-    token?: string;
-  }) => ipcRenderer.invoke("fetch-workflow", args),
+  fetchWorkflow: (args: { workflowId: string; apiUrl?: string; token?: string }) =>
+    ipcRenderer.invoke("fetch-workflow", args),
   authGetToken: () => ipcRenderer.invoke("auth-get-token") as Promise<string | null>,
   authStoreToken: (token: string) => ipcRenderer.invoke("auth-store-token", token),
   authClearToken: () => ipcRenderer.invoke("auth-clear-token"),
@@ -127,11 +123,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeRunThinkingDeltaListener: () => ipcRenderer.removeAllListeners("run-thinking-delta"),
 
   onRunHitl: (
-    callback: (evt: {
-      kind: string;
-      payload: Record<string, unknown>;
-      step: number;
-    }) => void,
+    callback: (evt: { kind: string; payload: Record<string, unknown>; step: number }) => void,
   ) => {
     ipcRenderer.on("run-hitl", (_, evt) => callback(evt));
   },
@@ -143,19 +135,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
   hitlSubmitResume: (resume?: unknown) =>
     ipcRenderer.invoke("hitl-submit-resume", resume) as Promise<{ ok: boolean }>,
   hitlReopenOauth: () =>
-    ipcRenderer.invoke("hitl-reopen-oauth") as Promise<
-      { ok: true } | { ok: false; error: string }
-    >,
+    ipcRenderer.invoke("hitl-reopen-oauth") as Promise<{ ok: true } | { ok: false; error: string }>,
 
   // Voice interruption
   openVoiceInterruption: () => ipcRenderer.invoke("open-voice-interruption"),
   closeVoiceInterruption: () => ipcRenderer.invoke("close-voice-interruption"),
   resumeRunFromVoice: () => ipcRenderer.invoke("resume-run-from-voice"),
-  onVoiceInterruptionContext: (callback: (ctx: {
-    workflowId: string;
-    runId: string;
-    recentThoughts: Array<{ thought: string; action: string; step: number }>;
-  }) => void) => {
+  onVoiceInterruptionContext: (
+    callback: (ctx: {
+      workflowId: string;
+      runId: string;
+      recentThoughts: Array<{ thought: string; action: string; step: number }>;
+    }) => void,
+  ) => {
     ipcRenderer.on("voice-interruption-context", (_, ctx) => callback(ctx));
   },
   removeVoiceInterruptionContextListener: () => {
@@ -212,10 +204,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     /* Prefer unsubscribe returned from onUpdateDownloadProgress */
   },
   onUpdateError: (callback: (arg: { message: string }) => void) => {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      arg: { message: string },
-    ) => callback(arg);
+    const listener = (_event: Electron.IpcRendererEvent, arg: { message: string }) => callback(arg);
     ipcRenderer.on("update-error", listener);
     return () => {
       ipcRenderer.removeListener("update-error", listener);

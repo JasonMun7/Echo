@@ -48,10 +48,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <LinearGradient
-      colors={[...gradients.dark.colors]}
-      style={styles.container}
-    >
+    <LinearGradient colors={[...gradients.dark.colors]} style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -108,8 +105,7 @@ export default function SignUpScreen() {
                   style={({ pressed }) => [
                     styles.googleButton,
                     pressed && styles.googleButtonPressed,
-                    (!googleRequest || googleLoading) &&
-                      styles.googleButtonDisabled,
+                    (!googleRequest || googleLoading) && styles.googleButtonDisabled,
                   ]}
                   onPress={handleGoogleSignIn}
                   disabled={!googleRequest || googleLoading}
@@ -119,9 +115,7 @@ export default function SignUpScreen() {
                   ) : (
                     <>
                       <Text style={styles.googleG}>G</Text>
-                      <Text style={styles.googleText}>
-                        Continue with Google
-                      </Text>
+                      <Text style={styles.googleText}>Continue with Google</Text>
                     </>
                   )}
                 </Pressable>

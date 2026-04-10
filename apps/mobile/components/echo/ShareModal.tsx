@@ -98,12 +98,7 @@ export function ShareModal({ visible, onClose, workflowId }: ShareModalProps) {
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -149,11 +144,7 @@ export function ShareModal({ visible, onClose, workflowId }: ShareModalProps) {
           {/* Collaborators */}
           <Text style={styles.sectionLabel}>Shared with</Text>
           {loading ? (
-            <ActivityIndicator
-              size="small"
-              color={colors.lavender}
-              style={{ marginTop: 12 }}
-            />
+            <ActivityIndicator size="small" color={colors.lavender} style={{ marginTop: 12 }} />
           ) : collaborators.length === 0 ? (
             <Text style={styles.emptyText}>Not shared with anyone yet.</Text>
           ) : (

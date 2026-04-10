@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { type ComponentProps } from 'react';
-import { type AgentState, type ReceivedMessage } from '@livekit/components-react';
+import { type ComponentProps } from "react";
+import { type AgentState, type ReceivedMessage } from "@livekit/components-react";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
-} from '@/components/ai-elements/conversation';
-import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
-import { AgentChatIndicator } from '@/components/agents-ui/agent-chat-indicator';
-import { AnimatePresence } from 'motion/react';
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { AgentChatIndicator } from "@/components/agents-ui/agent-chat-indicator";
+import { AnimatePresence } from "motion/react";
 
 /**
  * Props for the AgentChatTranscript component.
  */
-export interface AgentChatTranscriptProps extends ComponentProps<'div'> {
+export interface AgentChatTranscriptProps extends ComponentProps<"div"> {
   /**
    * The current state of the agent. When 'thinking', displays a loading indicator.
    */
@@ -56,12 +56,12 @@ export function AgentChatTranscript({
       <ConversationContent>
         {messages.map((receivedMessage) => {
           const { id, timestamp, from, message } = receivedMessage;
-          const locale = navigator?.language ?? 'en-US';
-          const messageOrigin = from?.isLocal ? 'user' : 'assistant';
+          const locale = navigator?.language ?? "en-US";
+          const messageOrigin = from?.isLocal ? "user" : "assistant";
           const time = new Date(timestamp);
           const title = Number.isNaN(time.getTime())
-            ? ''
-            : time.toLocaleTimeString(locale, { timeStyle: 'full' });
+            ? ""
+            : time.toLocaleTimeString(locale, { timeStyle: "full" });
 
           return (
             <Message key={id} title={title} from={messageOrigin}>
@@ -72,7 +72,7 @@ export function AgentChatTranscript({
           );
         })}
         <AnimatePresence>
-          {agentState === 'thinking' && <AgentChatIndicator size="sm" />}
+          {agentState === "thinking" && <AgentChatIndicator size="sm" />}
         </AnimatePresence>
       </ConversationContent>
       <ConversationScrollButton />

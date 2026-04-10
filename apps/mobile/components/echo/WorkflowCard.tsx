@@ -13,10 +13,7 @@ export function WorkflowCard({ workflow, onPress }: WorkflowCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        { opacity: pressed ? 0.95 : 1 },
-      ]}
+      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.95 : 1 }]}
     >
       {workflow.thumbnailUrl && (
         <Image

@@ -34,14 +34,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     auth ? signInWithEmailAndPassword(auth, email, password) : Promise.reject(),
 
   signUp: (email, password) =>
-    auth
-      ? createUserWithEmailAndPassword(auth, email, password)
-      : Promise.reject(),
+    auth ? createUserWithEmailAndPassword(auth, email, password) : Promise.reject(),
 
   signInWithGoogle: () =>
-    auth
-      ? signInWithPopup(auth, new GoogleAuthProvider())
-      : Promise.reject(),
+    auth ? signInWithPopup(auth, new GoogleAuthProvider()) : Promise.reject(),
 
   signOut: () => (auth ? signOut(auth) : Promise.resolve()),
 

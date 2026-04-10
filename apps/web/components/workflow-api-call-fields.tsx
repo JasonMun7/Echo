@@ -106,10 +106,7 @@ function hasStructuredForm(method: string): boolean {
   return argsFormKind(method) !== "json";
 }
 
-export function WorkflowApiCallFields({
-  params,
-  onChange,
-}: WorkflowApiCallFieldsProps) {
+export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallFieldsProps) {
   const patchParams = useCallback(
     (patch: Record<string, unknown>) => {
       onChange({ ...params, ...patch });
@@ -175,26 +172,20 @@ export function WorkflowApiCallFields({
       setMethodsError(null);
 
       try {
-        const res = await apiFetch(
-          `/api/integrations/${encodeURIComponent(integration)}/methods`,
-        );
+        const res = await apiFetch(`/api/integrations/${encodeURIComponent(integration)}/methods`);
         if (!res.ok) {
           const t = await res.text();
           throw new Error(t || res.statusText);
         }
         const data = (await res.json()) as { methods?: Record<string, string> };
         if (!cancelled) {
-          setMethods(
-            data.methods && typeof data.methods === "object" ? data.methods : {},
-          );
+          setMethods(data.methods && typeof data.methods === "object" ? data.methods : {});
           setMethodsError(null);
         }
       } catch {
         if (!cancelled) {
           setMethods(null);
-          setMethodsError(
-            "Could not load methods — enter the method name manually.",
-          );
+          setMethodsError("Could not load methods — enter the method name manually.");
         }
       } finally {
         if (!cancelled) setMethodsLoading(false);
@@ -213,19 +204,12 @@ export function WorkflowApiCallFields({
   }, [methods]);
 
   const methodInList = Boolean(
-    methods &&
-      rawMethod &&
-      Object.prototype.hasOwnProperty.call(methods, rawMethod),
+    methods && rawMethod && Object.prototype.hasOwnProperty.call(methods, rawMethod),
   );
 
-  const methodSelectValue = !rawMethod
-    ? METHOD_NONE
-    : methodInList
-      ? rawMethod
-      : METHOD_CUSTOM;
+  const methodSelectValue = !rawMethod ? METHOD_NONE : methodInList ? rawMethod : METHOD_CUSTOM;
 
-  const selectedDescription =
-    methods && rawMethod && methodInList ? methods[rawMethod] : null;
+  const selectedDescription = methods && rawMethod && methodInList ? methods[rawMethod] : null;
 
   const showCustomMethodInput =
     Boolean(methods && !methodsError) &&
@@ -236,11 +220,7 @@ export function WorkflowApiCallFields({
       ? JSON.stringify(params.args, null, 2)
       : (params.args as string) || "";
 
-  const showForm =
-    structuredAvailable &&
-    !useRawJson &&
-    formKind !== "json" &&
-    formKind !== "none";
+  const showForm = structuredAvailable && !useRawJson && formKind !== "json" && formKind !== "none";
 
   const renderStructuredArgs = () => {
     switch (formKind) {
@@ -462,8 +442,9 @@ export function WorkflowApiCallFields({
           <div className="space-y-2 rounded-md border border-[#A577FF]/12 bg-white/90 px-3 py-3">
             <p className="text-sm font-medium text-[#150A35]">No arguments required</p>
             <p className="text-xs leading-relaxed text-echo-text-muted">
-              This method runs without parameters. Use <span className="font-medium text-[#150A35]">Edit as JSON</span>{" "}
-              if you need optional or advanced fields.
+              This method runs without parameters. Use{" "}
+              <span className="font-medium text-[#150A35]">Edit as JSON</span> if you need optional
+              or advanced fields.
             </p>
           </div>
         );
@@ -511,8 +492,9 @@ export function WorkflowApiCallFields({
         return (
           <div className="space-y-3">
             <p className="text-xs leading-relaxed text-echo-text-muted">
-              Call any Google API on a <code className="rounded bg-white/80 px-1">*.googleapis.com</code> host. Match
-              OAuth scopes in Auth0 to the API you use.
+              Call any Google API on a{" "}
+              <code className="rounded bg-white/80 px-1">*.googleapis.com</code> host. Match OAuth
+              scopes in Auth0 to the API you use.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="w-full shrink-0 space-y-1.5 sm:w-[6.5rem]">
@@ -558,11 +540,7 @@ export function WorkflowApiCallFields({
                       return;
                     }
                     const parsed = JSON.parse(t) as unknown;
-                    if (
-                      parsed !== null &&
-                      typeof parsed === "object" &&
-                      !Array.isArray(parsed)
-                    ) {
+                    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
                       setArgs({ ...argsObj, params: parsed as Record<string, unknown> });
                     }
                   } catch {
@@ -644,11 +622,7 @@ export function WorkflowApiCallFields({
                       return;
                     }
                     const parsed = JSON.parse(t) as unknown;
-                    if (
-                      parsed !== null &&
-                      typeof parsed === "object" &&
-                      !Array.isArray(parsed)
-                    ) {
+                    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
                       setArgs({ ...argsObj, headers: parsed as Record<string, unknown> });
                     }
                   } catch {
@@ -669,11 +643,7 @@ export function WorkflowApiCallFields({
             <Label className="text-xs text-[#150A35]">Limit (optional)</Label>
             <Input
               type="number"
-              value={
-                argsObj.limit != null && argsObj.limit !== ""
-                  ? String(argsObj.limit)
-                  : ""
-              }
+              value={argsObj.limit != null && argsObj.limit !== "" ? String(argsObj.limit) : ""}
               onChange={(e) => {
                 const n = e.target.value;
                 if (n === "") {
@@ -696,9 +666,7 @@ export function WorkflowApiCallFields({
             <Input
               type="number"
               value={
-                argsObj.per_page != null && argsObj.per_page !== ""
-                  ? String(argsObj.per_page)
-                  : ""
+                argsObj.per_page != null && argsObj.per_page !== "" ? String(argsObj.per_page) : ""
               }
               onChange={(e) => {
                 const n = e.target.value;
@@ -770,8 +738,8 @@ export function WorkflowApiCallFields({
                 className={cn("h-9 font-mono text-[11px]", fieldClass)}
               />
               <p className="text-[10px] text-echo-text-muted">
-                Google Drive <code className="rounded bg-white/80 px-0.5">fields</code> mask; leave empty for the
-                default.
+                Google Drive <code className="rounded bg-white/80 px-0.5">fields</code> mask; leave
+                empty for the default.
               </p>
             </div>
           </div>
@@ -822,15 +790,11 @@ export function WorkflowApiCallFields({
           <Label htmlFor="wf-api-method" className="text-xs font-medium text-[#150A35]">
             Method
           </Label>
-          {methodsLoading && (
-            <span className="text-[10px] text-echo-text-muted">Loading…</span>
-          )}
+          {methodsLoading && <span className="text-[10px] text-echo-text-muted">Loading…</span>}
         </div>
 
         {!integration && (
-          <p className="text-xs text-echo-text-muted">
-            Select an integration to choose a method.
-          </p>
+          <p className="text-xs text-echo-text-muted">Select an integration to choose a method.</p>
         )}
 
         {integration && methodsError && (
@@ -902,9 +866,7 @@ export function WorkflowApiCallFields({
           </>
         )}
 
-        {methodsError && (
-          <p className="text-xs text-echo-text-muted">{methodsError}</p>
-        )}
+        {methodsError && <p className="text-xs text-echo-text-muted">{methodsError}</p>}
       </div>
 
       <div className="space-y-2">

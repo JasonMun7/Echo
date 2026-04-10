@@ -83,12 +83,7 @@ function DesktopSuccessContent() {
         <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
           <div className="mb-6 flex justify-center">
             <div className="relative w-[120px] h-[120px]">
-              <Image
-                src="/echo_logo.png"
-                alt="Echo"
-                fill
-                className="object-contain"
-              />
+              <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
             </div>
           </div>
           <p className="text-sm text-red-500">{error}</p>
@@ -109,17 +104,10 @@ function DesktopSuccessContent() {
         <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
           <div className="mb-6 flex justify-center">
             <div className="relative w-[120px] h-[120px]">
-              <Image
-                src="/echo_logo.png"
-                alt="Echo"
-                fill
-                className="object-contain"
-              />
+              <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
             </div>
           </div>
-          <p className="text-center text-sm text-[#150A35]/80">
-            Preparing your session…
-          </p>
+          <p className="text-center text-sm text-[#150A35]/80">Preparing your session…</p>
         </div>
       </div>
     );
@@ -133,17 +121,10 @@ function DesktopSuccessContent() {
       <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm md:p-8">
         <div className="mb-6 flex justify-center">
           <div className="relative w-[120px] h-[120px]">
-            <Image
-              src="/echo_logo.png"
-              alt="Echo"
-              fill
-              className="object-contain"
-            />
+            <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
           </div>
         </div>
-        <h2 className="text-center text-xl font-bold text-[#150A35]">
-          You&apos;re signed in
-        </h2>
+        <h2 className="text-center text-xl font-bold text-[#150A35]">You&apos;re signed in</h2>
         <p className="mt-2 text-center text-sm text-[#150A35]/80">
           Return to the Echo Desktop app to continue.
         </p>
@@ -180,17 +161,10 @@ export default function DesktopSuccessPage() {
           <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
             <div className="mb-6 flex justify-center">
               <div className="relative w-[120px] h-[120px]">
-                <Image
-                  src="/echo_logo.png"
-                  alt="Echo"
-                  fill
-                  className="object-contain"
-                />
+                <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
               </div>
             </div>
-            <p className="text-center text-sm text-[#150A35]/80">
-              Preparing your session…
-            </p>
+            <p className="text-center text-sm text-[#150A35]/80">Preparing your session…</p>
           </div>
         </div>
       }

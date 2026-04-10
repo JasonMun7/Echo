@@ -4,9 +4,7 @@ import type { Step } from "@echo/types";
 
 describe("step-placeholders", () => {
   it("interpolateString replaces {{var}}", () => {
-    expect(
-      interpolateString("Hello {{name}}", { name: "Ada" }),
-    ).toBe("Hello Ada");
+    expect(interpolateString("Hello {{name}}", { name: "Ada" })).toBe("Hello Ada");
   });
 
   it("leaves unknown keys as placeholder", () => {
