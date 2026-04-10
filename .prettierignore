@@ -1,0 +1,50 @@
+node_modules
+**/node_modules
+.pnpm-store
+.next
+**/.next
+out
+**/out
+build
+**/build
+dist
+**/dist
+coverage
+**/coverage
+*.lock
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Generated / native
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/.expo
+
+# Tooling & env
+.turbo
+.vercel
+*.min.js
+*.min.css
+
+# Large or binary
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.ico
+**/*.svg
+**/*.woff
+**/*.woff2
+**/*.ttf
+**/*.eot
+
+# Python (Ruff handles these)
+agent
+backend
+**/__pycache__
+**/*.pyc
+
+# Firebase / misc
+firebase/.firebase
