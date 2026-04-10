@@ -6,12 +6,7 @@
  * operates in logical space) and physical pixels for screenshot capture.
  * Adapted from UI-TARS NutJSElectronOperator coordinate pipeline.
  */
-import {
-  clipboard,
-  desktopCapturer,
-  screen as electronScreen,
-  shell,
-} from "electron";
+import { clipboard, desktopCapturer, screen as electronScreen, shell } from "electron";
 import { execFile, exec } from "child_process";
 import { promisify } from "util";
 import { mouse, keyboard, sleep, Point, Button, Key } from "@nut-tree-fork/nut-js";
