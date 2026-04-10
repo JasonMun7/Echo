@@ -7,11 +7,11 @@ synthesis prompts from ``echo_prism_agent.integrations.api_call_catalog`` (see `
 connector in ``echo_prism_agent.integrations.{slack,github,google}``).
 """
 
+import asyncio
 import os
 import re
 import sys
 import tempfile
-import time
 import uuid
 from pathlib import Path
 
@@ -36,7 +36,12 @@ def _ensure_agent_path() -> None:
         sys.path.insert(0, str(root))
 
 
-def _upload_to_gemini(content: bytes, mime_type: str) -> types.Part:
+async def _upload_to_gemini(
+    content: bytes,
+    mime_type: str,
+    *,
+    max_wait_seconds: int = 300,
+) -> types.Part:
     """Upload file to Gemini Files API and return Part for generate_content."""
     client = genai.Client(api_key=GEMINI_API_KEY)
     with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
@@ -44,9 +49,14 @@ def _upload_to_gemini(content: bytes, mime_type: str) -> types.Part:
         path = f.name
     try:
         uploaded = client.files.upload(file=path, config=types.UploadFileConfig(mime_type=mime_type))
-        # Poll until active
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max_wait_seconds
         while getattr(uploaded.state, "name", str(uploaded.state)) == "PROCESSING":
-            time.sleep(1)
+            if loop.time() >= deadline:
+                raise TimeoutError(
+                    f"Gemini file upload still processing after {max_wait_seconds}s (name={uploaded.name!r})"
+                )
+            await asyncio.sleep(1)
             uploaded = client.files.get(name=uploaded.name)
         state_name = getattr(uploaded.state, "name", str(uploaded.state))
         if state_name != "ACTIVE":
@@ -125,7 +135,7 @@ async def synthesize(
             blob_name = f"{gcs_prefix}/{video.filename or 'video.mp4'}"
             upload_file(blob_name, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            part = _upload_to_gemini(content, mime)
+            part = await _upload_to_gemini(content, mime)
             parts.append(part)
         elif video_gcs_path:
             match = re.match(r"gs://[^/]+/(.+)", video_gcs_path)
@@ -143,7 +153,7 @@ async def synthesize(
             dest_blob = f"{gcs_prefix}/{blob_name.rsplit('/', 1)[-1]}"
             upload_file(dest_blob, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            part = _upload_to_gemini(content, mime)
+            part = await _upload_to_gemini(content, mime)
             parts.append(part)
         else:
             sorted_screenshots = sorted(screenshots, key=lambda f: f.filename or "")
@@ -153,7 +163,7 @@ async def synthesize(
                 blob_name = f"{gcs_prefix}/{f.filename or f'image_{i}.png'}"
                 upload_file(blob_name, content, ct)
                 mime = mime_map.get(ct, "image/png")
-                part = _upload_to_gemini(content, mime)
+                part = await _upload_to_gemini(content, mime)
                 parts.append(part)
 
         if not parts:
@@ -241,23 +251,23 @@ async def synthesize_from_description_impl(
 
     workflow_id = str(uuid.uuid4())
     workflow_ref = db.collection("workflows").document(workflow_id)
+    normalized_wf_type = workflow_type if workflow_type in ("browser", "desktop") else "browser"
     payload: dict = {
         "name": name,
         "status": "processing",
         "owner_uid": uid,
-        "workflow_type": workflow_type if workflow_type in ("browser", "desktop") else "browser",
+        "workflow_type": normalized_wf_type,
         "createdAt": SERVER_TIMESTAMP,
         "updatedAt": SERVER_TIMESTAMP,
     }
     if ephemeral:
         payload["ephemeral"] = True
     workflow_ref.set(payload)
-
     client = genai.Client(api_key=GEMINI_API_KEY)
-    result = await synthesize_workflow_from_description(description, name, workflow_type, client)
+    result = await synthesize_workflow_from_description(description, name, normalized_wf_type, client)
     steps_data = result.get("steps", [])
     variables = result.get("variables", [])
-    actual_type = result.get("workflow_type", workflow_type)
+    actual_type = result.get("workflow_type", normalized_wf_type)
     if actual_type not in ("browser", "desktop"):
         actual_type = "browser"
 

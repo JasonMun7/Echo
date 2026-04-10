@@ -238,6 +238,13 @@ async def agent_run_ws(
         except Exception as e:
             logger.warning("agent WS send failed: %s", e)
 
+    background_tasks: set[asyncio.Task[Any]] = set()
+
+    def _schedule_to_thread(func, *args) -> None:
+        task = asyncio.create_task(asyncio.to_thread(func, *args))
+        background_tasks.add(task)
+        task.add_done_callback(lambda t: background_tasks.discard(t))
+
     try:
         while True:
             raw = await websocket.receive()
@@ -512,16 +519,14 @@ async def agent_run_ws(
 
                 if result == "finished":
                     if workflow_id and run_id and thought:
-                        asyncio.create_task(
-                            asyncio.to_thread(
-                                _write_run_log,
-                                db,
-                                workflow_id,
-                                run_id,
-                                thought,
-                                "Finished",
-                                step_index,
-                            )
+                        _schedule_to_thread(
+                            _write_run_log,
+                            db,
+                            workflow_id,
+                            run_id,
+                            thought,
+                            "Finished",
+                            step_index,
                         )
                     await send({"type": "action", "thought": thought, "signal": "finished"})
                     await send({"type": "done", "success": True})
@@ -530,17 +535,15 @@ async def agent_run_ws(
                 if result == "calluser":
                     if workflow_id and run_id:
                         reason = err or "Agent needs user intervention"
-                        asyncio.create_task(
-                            asyncio.to_thread(
-                                _write_run_log,
-                                db,
-                                workflow_id,
-                                run_id,
-                                thought,
-                                f"CallUser: {reason}",
-                                step_index,
-                                "warn",
-                            )
+                        _schedule_to_thread(
+                            _write_run_log,
+                            db,
+                            workflow_id,
+                            run_id,
+                            thought,
+                            f"CallUser: {reason}",
+                            step_index,
+                            "warn",
                         )
                     await send(
                         {
@@ -556,16 +559,14 @@ async def agent_run_ws(
                     pending_thought = thought
                     pending_step_index = step_index
                     if workflow_id and run_id:
-                        asyncio.create_task(
-                            asyncio.to_thread(
-                                _write_run_log,
-                                db,
-                                workflow_id,
-                                run_id,
-                                thought,
-                                action_str,
-                                step_index,
-                            )
+                        _schedule_to_thread(
+                            _write_run_log,
+                            db,
+                            workflow_id,
+                            run_id,
+                            thought,
+                            action_str,
+                            step_index,
                         )
                     # Send thinking first so desktop Run HUD and other clients can show the full thought
                     if thought:
@@ -626,15 +627,13 @@ async def agent_run_ws(
                     pending_thought = ""
                     pending_step_index = -1
                     if workflow_id and run_id and step_index_for_screenshot >= 0:
-                        asyncio.create_task(
-                            asyncio.to_thread(
-                                _upload_and_update_log_screenshot,
-                                db,
-                                workflow_id,
-                                run_id,
-                                step_index_for_screenshot,
-                                after_bytes,
-                            )
+                        _schedule_to_thread(
+                            _upload_and_update_log_screenshot,
+                            db,
+                            workflow_id,
+                            run_id,
+                            step_index_for_screenshot,
+                            after_bytes,
                         )
                     await send({"type": "verify_result", "succeeded": True, "description": description})
                 else:
@@ -659,6 +658,8 @@ async def agent_run_ws(
         except Exception:
             pass
     finally:
+        if background_tasks:
+            await asyncio.gather(*background_tasks, return_exceptions=True)
         try:
             await websocket.close()
         except Exception:

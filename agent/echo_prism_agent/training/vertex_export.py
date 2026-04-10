@@ -158,10 +158,12 @@ async def export_training_data(
     if not _bucket_name:
         raise ValueError("ECHO_GCS_BUCKET environment variable not set")
 
-    # output_gcs_path is like "training/{uid}/dataset.jsonl"
-    blob_name = (
-        output_gcs_path.lstrip("gs://").split("/", 1)[-1] if output_gcs_path.startswith("gs://") else output_gcs_path
-    )
+    # output_gcs_path is like "training/{uid}/dataset.jsonl" or "gs://bucket/prefix/..."
+    if output_gcs_path.startswith("gs://"):
+        without_scheme = output_gcs_path.removeprefix("gs://")
+        blob_name = without_scheme.split("/", 1)[-1]
+    else:
+        blob_name = output_gcs_path
 
     try:
         from google.cloud import storage
