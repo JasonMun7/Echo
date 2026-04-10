@@ -23,19 +23,25 @@ declare module "electron-updater" {
     debug(message?: unknown, ...args: unknown[]): void;
   }
 
+  /** GitHub provider options (electron-updater@6). */
+  export interface GithubProviderOptions {
+    provider: "github";
+    owner: string;
+    repo: string;
+    token?: string;
+    private?: boolean;
+    releaseType?: string;
+    host?: string;
+    protocol?: "http" | "https";
+  }
+
   export interface AppUpdater {
     logger: Logger | null;
     autoDownload: boolean;
-    setFeedURL(options: {
-      provider: string;
-      owner: string;
-      repo: string;
-    }): void;
+    /** Generic feed URL or provider-specific configuration. */
+    setFeedURL(options: string | GithubProviderOptions): void;
     on(event: "update-available", listener: (info: UpdateInfo) => void): AppUpdater;
-    on(
-      event: "update-downloaded",
-      listener: (event: unknown, info: UpdateInfo) => void,
-    ): AppUpdater;
+    on(event: "update-downloaded", listener: (info: UpdateInfo) => void): AppUpdater;
     on(event: "download-progress", listener: (info: ProgressInfo) => void): AppUpdater;
     on(event: "error", listener: (err: Error) => void): AppUpdater;
     downloadUpdate(): Promise<string[]>;

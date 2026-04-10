@@ -544,7 +544,7 @@ export default function DatasetCreatorPage() {
     setStatus(`Annotation ${updated.id} saved`);
   };
 
-  const deleteAnnotation = (ann: Annotation) => {
+  const deleteAnnotation = useCallback((ann: Annotation) => {
     if (!currentFrame) return;
     if (!confirm(`Delete annotation ${ann.id}?`)) return;
     const remaining = currentFrame.annotations.filter((a) => a.id !== ann.id);
@@ -557,7 +557,7 @@ export default function DatasetCreatorPage() {
       nextAnnotationIdRef.current = 1;
       setNextAnnotationId(1);
     }
-  };
+  }, [currentFrame, selectedAnnotation]);
 
   const startSequence = useCallback(async () => {
     const task = prompt("Enter the overall description for this sequence:");
@@ -992,9 +992,15 @@ export default function DatasetCreatorPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-    // deleteAnnotation / refreshStream omitted: plain handlers would re-bind listeners every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAnnotation, stream, currentFrame, appMode, filteredSamples.length]);
+  }, [
+    selectedAnnotation,
+    stream,
+    currentFrame,
+    appMode,
+    filteredSamples.length,
+    deleteAnnotation,
+    refreshStream,
+  ]);
 
   const scaleX = currentFrame && containerRef.current
     ? (containerRef.current.querySelector("img")?.getBoundingClientRect().width ?? 1) / currentFrame.width

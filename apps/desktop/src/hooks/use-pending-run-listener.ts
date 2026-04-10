@@ -5,6 +5,8 @@ import {
   where,
   onSnapshot,
 } from "firebase/firestore";
+import type { FirebaseApp } from "firebase/app";
+import type { Firestore } from "firebase/firestore";
 import { getAuth, signInWithCustomToken } from "firebase/auth";
 import { db, app } from "@/lib/firebase";
 
@@ -38,12 +40,13 @@ export function usePendingRunListener(
     const firebaseApp = app;
     const firestore = db;
     if (firebaseApp == null || firestore == null) return;
+    const fApp: FirebaseApp = firebaseApp;
+    const fDb: Firestore = firestore;
 
     let unsub: (() => void) | null = null;
     let cancelled = false;
 
     async function setup() {
-      if (firebaseApp == null || firestore == null) return;
       try {
         // Get a custom token from the backend
         const resp = await fetch(`${API_URL}/api/users/custom-token`, {
@@ -54,7 +57,7 @@ export function usePendingRunListener(
         const { custom_token } = await resp.json();
 
         // Sign in to Firebase Auth with the custom token
-        const auth = getAuth(firebaseApp);
+        const auth = getAuth(fApp);
         await signInWithCustomToken(auth, custom_token);
         if (cancelled) return;
 
@@ -65,7 +68,7 @@ export function usePendingRunListener(
 
         // Subscribe to pending runs
         const q = query(
-          collectionGroup(firestore, "runs"),
+          collectionGroup(fDb, "runs"),
           where("owner_uid", "==", uid),
           where("status", "==", "pending"),
         );

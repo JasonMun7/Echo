@@ -75,13 +75,10 @@ export const SidebarWithProvider = ({
 export const Sidebar = ({
   children,
   className,
-  collapsible,
   ...props
 }: Omit<React.ComponentProps<typeof motion.div>, "children"> & {
   children?: React.ReactNode;
-  collapsible?: "offcanvas" | "icon" | "none";
 }) => {
-  void collapsible;
   return (
     <>
       <DesktopSidebar className={className}>
@@ -156,7 +153,7 @@ export const SidebarMenu = ({ className, ...props }: React.ComponentProps<"ul">)
   <ul className={cn("flex flex-col gap-1 list-none p-0 m-0", className)} {...props} />
 );
 export const SidebarMenuItem = ({ className, ...props }: React.ComponentProps<"li">) => (
-  <li className={cn("list-none", className)} {...props} />
+  <li className={cn("group/menu-item list-none", className)} {...props} />
 );
 export const SidebarMenuButton = ({
   className,
@@ -189,19 +186,18 @@ export const SidebarMenuAction = ({
   className,
   showOnHover,
   ...props
-}: React.ComponentProps<"button"> & { showOnHover?: boolean }) => {
-  void showOnHover;
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex size-7 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors",
-        className,
-      )}
-      {...props}
-    />
-  );
-};
+}: React.ComponentProps<"button"> & { showOnHover?: boolean }) => (
+  <button
+    type="button"
+    className={cn(
+      "flex size-7 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white",
+      showOnHover &&
+        "opacity-0 pointer-events-none transition-opacity group-hover/menu-item:pointer-events-auto group-hover/menu-item:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
+      className,
+    )}
+    {...props}
+  />
+);
 
 const SIDEBAR_WIDTH = 300;
 

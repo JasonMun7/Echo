@@ -85,9 +85,11 @@ function RunStepScreenshot({
   const step = stepIndex ?? 0;
 
   useEffect(() => {
+    let cancelled = false;
     let controller: AbortController | null = null;
     if (token && workflowId && runId) {
       queueMicrotask(() => {
+        if (cancelled) return;
         setError(false);
       });
       controller = new AbortController();
@@ -98,31 +100,34 @@ function RunStepScreenshot({
         signal,
       })
         .then((res) => {
-          if (signal.aborted) return null;
+          if (cancelled || signal.aborted) return null;
           if (!res.ok) throw new Error("Screenshot not found");
           return res.blob();
         })
         .then((blob) => {
-          if (!blob || signal.aborted) return;
+          if (cancelled || !blob || signal.aborted) return;
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = URL.createObjectURL(blob);
           setSrc(blobUrlRef.current);
         })
         .catch((err: unknown) => {
-          if (signal.aborted) return;
+          if (cancelled || signal.aborted) return;
           if (err instanceof Error && err.name === "AbortError") return;
           setError(true);
         });
     } else if (fallbackUrl) {
       queueMicrotask(() => {
+        if (cancelled) return;
         setSrc(fallbackUrl);
       });
     } else {
       queueMicrotask(() => {
+        if (cancelled) return;
         setSrc(null);
       });
     }
     return () => {
+      cancelled = true;
       controller?.abort();
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);

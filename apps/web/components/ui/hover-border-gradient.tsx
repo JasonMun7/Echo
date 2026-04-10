@@ -54,9 +54,11 @@ export function HoverBorderGradient({
 
   useEffect(() => {
     if (!hovered) {
+      const ms = duration * 1000;
+      if (!(ms > 0) || !Number.isFinite(ms)) return;
       const interval = setInterval(() => {
         setDirection((prevState) => rotateDirection(prevState));
-      }, duration * 1000);
+      }, ms);
       return () => clearInterval(interval);
     }
   }, [hovered, duration, rotateDirection]);
