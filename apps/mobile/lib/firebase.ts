@@ -21,8 +21,7 @@ const firebaseConfig = {
   appId: extra.firebaseAppId,
 };
 
-const hasConfig =
-  typeof firebaseConfig.apiKey === "string" && firebaseConfig.apiKey.length > 0;
+const hasConfig = typeof firebaseConfig.apiKey === "string" && firebaseConfig.apiKey.length > 0;
 
 let app: FirebaseApp;
 let auth: Auth;

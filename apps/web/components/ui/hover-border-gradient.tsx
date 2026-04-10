@@ -41,8 +41,7 @@ export function HoverBorderGradient({
   /* Echo design: Cyan (#21C4DD) and Lavender (#A577FF) gradients */
   const movingMap: Record<Direction, string> = {
     TOP: "radial-gradient(20.7% 50% at 50% 0%, #21C4DD 0%, rgba(33, 196, 221, 0.3) 50%, rgba(255, 255, 255, 0) 100%)",
-    LEFT:
-      "radial-gradient(16.6% 43.1% at 0% 50%, #A577FF 0%, rgba(165, 119, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%)",
+    LEFT: "radial-gradient(16.6% 43.1% at 0% 50%, #A577FF 0%, rgba(165, 119, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%)",
     BOTTOM:
       "radial-gradient(20.7% 50% at 50% 100%, #21C4DD 0%, rgba(33, 196, 221, 0.3) 50%, rgba(255, 255, 255, 0) 100%)",
     RIGHT:
@@ -70,22 +69,20 @@ export function HoverBorderGradient({
       onMouseLeave={() => setHovered(false)}
       className={cn(
         "relative flex rounded-lg content-center bg-[#150A35]/5 hover:bg-[#21C4DD]/5 transition duration-500 items-center flex-col flex-nowrap gap-10 h-min justify-center overflow-visible p-px decoration-clone w-fit border-0",
-        containerClassName
+        containerClassName,
       )}
       {...props}
     >
       <div
         className={cn(
           "w-auto z-10 bg-[#F5F7FC] text-[#150A35] px-4 py-2 rounded-[inherit]",
-          className
+          className,
         )}
       >
         {children}
       </div>
       <motion.div
-        className={cn(
-          "flex-none inset-0 overflow-hidden absolute z-0 rounded-[inherit]"
-        )}
+        className={cn("flex-none inset-0 overflow-hidden absolute z-0 rounded-[inherit]")}
         style={{
           filter: "blur(2px)",
           position: "absolute",
@@ -94,9 +91,7 @@ export function HoverBorderGradient({
         }}
         initial={{ background: movingMap[direction] }}
         animate={{
-          background: hovered
-            ? [movingMap[direction], highlight]
-            : movingMap[direction],
+          background: hovered ? [movingMap[direction], highlight] : movingMap[direction],
         }}
         transition={{ ease: "linear", duration: duration ?? 1 }}
       />

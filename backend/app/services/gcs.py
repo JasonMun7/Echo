@@ -2,6 +2,7 @@ import datetime
 import os
 
 from google.cloud import storage
+
 from app.config import GCS_BUCKET, GOOGLE_APPLICATION_CREDENTIALS
 
 
@@ -43,9 +44,7 @@ def generate_signed_read_url(
     if GOOGLE_APPLICATION_CREDENTIALS and os.path.isfile(GOOGLE_APPLICATION_CREDENTIALS):
         from google.oauth2 import service_account as sa_module
 
-        creds = sa_module.Credentials.from_service_account_file(
-            GOOGLE_APPLICATION_CREDENTIALS
-        )
+        creds = sa_module.Credentials.from_service_account_file(GOOGLE_APPLICATION_CREDENTIALS)
         client = storage.Client(credentials=creds)
         blob = client.bucket(GCS_BUCKET).blob(blob_name)
         return blob.generate_signed_url(
@@ -84,9 +83,7 @@ def generate_signed_upload_url(
     if GOOGLE_APPLICATION_CREDENTIALS and os.path.isfile(GOOGLE_APPLICATION_CREDENTIALS):
         from google.oauth2 import service_account as sa_module
 
-        creds = sa_module.Credentials.from_service_account_file(
-            GOOGLE_APPLICATION_CREDENTIALS
-        )
+        creds = sa_module.Credentials.from_service_account_file(GOOGLE_APPLICATION_CREDENTIALS)
         client = storage.Client(credentials=creds)
         blob = client.bucket(GCS_BUCKET).blob(blob_name)
         return blob.generate_signed_url(

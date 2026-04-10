@@ -1,18 +1,12 @@
 import { useEffect, useRef } from "react";
-import {
-  collectionGroup,
-  query,
-  where,
-  onSnapshot,
-} from "firebase/firestore";
+import { collectionGroup, query, where, onSnapshot } from "firebase/firestore";
 import type { FirebaseApp } from "firebase/app";
 import type { Firestore } from "firebase/firestore";
 import { getAuth, signInWithCustomToken } from "firebase/auth";
 import { db, app } from "@/lib/firebase";
 
 const API_URL =
-  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  "http://localhost:8000";
+  (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "http://localhost:8000";
 
 /**
  * Listens in real-time for pending runs owned by the current user via Firestore onSnapshot.

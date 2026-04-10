@@ -19,11 +19,7 @@ import {
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { DataTable } from "@/components/data-table";
 import { SectionCards } from "@/components/section-cards";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
 const STATUS_LABELS: Record<string, string> = {
@@ -76,9 +72,7 @@ function isLatestOrLastModified(
   const updated = all.map((x) => getTime(x.updatedAt));
   const maxCreated = Math.max(...created);
   const maxUpdated = Math.max(...updated);
-  return (
-    getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated
-  );
+  return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
 }
 
 export default function DashboardPage() {
@@ -96,14 +90,17 @@ export default function DashboardPage() {
   useEffect(() => {
     // Show onboarding for first-time users
     const isNew = localStorage.getItem("echo_user_created") === "true";
-    const dismissed =
-      localStorage.getItem("echo_onboarding_dismissed") === "true";
+    const dismissed = localStorage.getItem("echo_onboarding_dismissed") === "true";
     if (isNew && !dismissed) setTimeout(() => setShowOnboarding(true), 0);
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("echo_notifications_toast_shown")) return;
+    if (
+      typeof sessionStorage !== "undefined" &&
+      sessionStorage.getItem("echo_notifications_toast_shown")
+    )
+      return;
     apiFetch("/api/notifications")
       .then((res) => (res.ok ? res.json() : { notifications: [] }))
       .then((data) => {
@@ -116,9 +113,9 @@ export default function DashboardPage() {
             {
               action: {
                 label: "View",
-                onClick: () => window.location.href = "/dashboard/notifications",
+                onClick: () => (window.location.href = "/dashboard/notifications"),
               },
-            }
+            },
           );
         }
       })
@@ -132,10 +129,7 @@ export default function DashboardPage() {
     }
     const uid = user.uid;
 
-    const wfQ = query(
-      collection(db, "workflows"),
-      where("owner_uid", "==", uid),
-    );
+    const wfQ = query(collection(db, "workflows"), where("owner_uid", "==", uid));
     // Track nested runs listeners so we can clean them up when workflows are deleted
     const runUnsubs = new Map<string, () => void>();
     const runSizes = new Map<string, number>();
@@ -152,24 +146,15 @@ export default function DashboardPage() {
       setTotalRuns(total);
       setAllRuns(flat);
       const first = flat.find(
-        (r) =>
-          r.status === "running" ||
-          r.status === "pending" ||
-          r.status === "awaiting_user"
+        (r) => r.status === "running" || r.status === "pending" || r.status === "awaiting_user",
       );
-      setInProgressRun(
-        first ? { workflowId: first.workflowId, runId: first.id } : null
-      );
+      setInProgressRun(first ? { workflowId: first.workflowId, runId: first.id } : null);
     }
 
     const unsubWf = onSnapshot(wfQ, (snap) => {
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }) as Workflow)
-        .sort(
-          (a, b) =>
-            getTime(b.createdAt ?? b.updatedAt) -
-            getTime(a.createdAt ?? a.updatedAt),
-        );
+        .sort((a, b) => getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt));
       setWorkflows(list);
       setLoading(false);
 
@@ -233,192 +218,173 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-9 w-52 rounded-lg" />
-            <Skeleton className="h-4 w-72 rounded-lg" />
+        <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-9 w-52 rounded-lg" />
+              <Skeleton className="h-4 w-72 rounded-lg" />
+            </div>
+            <Skeleton className="h-10 w-36 rounded-lg" />
           </div>
-          <Skeleton className="h-10 w-36 rounded-lg" />
+          <SectionCards totalWorkflows={0} activeWorkflows={0} totalRuns={0} awaitingInput={0} />
+          <Skeleton className="h-70 w-full rounded-lg" />
+          <Skeleton className="h-64 w-full rounded-lg" />
         </div>
-        <SectionCards
-          totalWorkflows={0}
-          activeWorkflows={0}
-          totalRuns={0}
-          awaitingInput={0}
-        />
-        <Skeleton className="h-70 w-full rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#150A35]">
-            Welcome back
-            {user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}
-          </h1>
-          <p className="mt-1 text-sm text-echo-text-muted">
-            Here&apos;s what&apos;s happening with your workflows today.
-          </p>
+      <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-[#150A35]">
+              Welcome back
+              {user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}
+            </h1>
+            <p className="mt-1 text-sm text-echo-text-muted">
+              Here&apos;s what&apos;s happening with your workflows today.
+            </p>
+          </div>
+          <DesktopCaptureLink className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2">
+            <IconPlus className="h-5 w-5" />
+            New Workflow
+          </DesktopCaptureLink>
         </div>
-        <DesktopCaptureLink
-          className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2"
-        >
-          <IconPlus className="h-5 w-5" />
-          New Workflow
-        </DesktopCaptureLink>
-      </div>
 
-      {/* Onboarding banner */}
-      {showOnboarding && (
-        <div className="relative rounded-xl border border-[#A577FF]/30 bg-linear-to-r from-[#F5F3FF] to-[#EDE9FF] p-5">
-          <button
-            onClick={() => {
-              setShowOnboarding(false);
-              localStorage.setItem("echo_onboarding_dismissed", "true");
-            }}
-            className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-          >
-            <IconX className="h-4 w-4" />
-          </button>
-          <h3 className="text-base font-semibold text-[#150A35]">
-            Welcome to Echo!
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started with these 3 steps:
-          </p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            {[
-              {
-                icon: <IconRocket className="h-4 w-4" />,
-                label: "Create a workflow",
-                href: "echo-desktop://capture",
-                isCapture: true,
-              },
-              {
-                icon: <IconPlayerPlay className="h-4 w-4" />,
-                label: "Run it",
-                href: "/dashboard/workflows",
-                isCapture: false,
-              },
-            ].map((step) =>
-              step.isCapture ? (
-                <DesktopCaptureLink
-                  key={step.label}
-                  className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
-                >
-                  {step.icon}
-                  {step.label}
-                </DesktopCaptureLink>
-              ) : (
-                <Link
-                  key={step.label}
-                  href={step.href}
-                  className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
-                >
-                  {step.icon}
-                  {step.label}
-                </Link>
-              ),
-            )}
-            <a
-              href="echo-desktop://echoprism"
-              className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+        {/* Onboarding banner */}
+        {showOnboarding && (
+          <div className="relative rounded-xl border border-[#A577FF]/30 bg-linear-to-r from-[#F5F3FF] to-[#EDE9FF] p-5">
+            <button
+              onClick={() => {
+                setShowOnboarding(false);
+                localStorage.setItem("echo_onboarding_dismissed", "true");
+              }}
+              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
             >
-              <IconMessageCircle className="h-4 w-4" />
-              Try EchoPrismVoice
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* Stats */}
-      <SectionCards
-        totalWorkflows={totalWorkflows}
-        activeWorkflows={activeWorkflows}
-        totalRuns={totalRuns}
-        awaitingInput={allRuns.filter(
-          (r) =>
-            r.status === "running" ||
-            r.status === "pending" ||
-            r.status === "awaiting_user"
-        ).length}
-        onAwaitingClick={() => {
-          if (inProgressRun) {
-            window.location.href = `/dashboard/workflows/${inProgressRun.workflowId}/runs/${inProgressRun.runId}`;
-          }
-        }}
-      />
-
-      {/* Activity chart */}
-      <div className="px-4 lg:px-6">
-        <ChartAreaInteractive runs={allRuns} />
-      </div>
-
-      {/* Data table */}
-      <DataTable data={allRuns} />
-
-      {/* Recent Workflows */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[#150A35]">
-            Recent Workflows
-          </h2>
-          <Link
-            href="/dashboard/workflows"
-            className="flex cursor-pointer items-center gap-1 text-sm font-medium text-[#A577FF] hover:underline"
-          >
-            View all
-            <IconArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        {recentWorkflows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
-              <IconJumpRope className="h-7 w-7 text-[#A577FF]" />
+              <IconX className="h-4 w-4" />
+            </button>
+            <h3 className="text-base font-semibold text-[#150A35]">Welcome to Echo!</h3>
+            <p className="mt-1 text-sm text-gray-500">Get started with these 3 steps:</p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              {[
+                {
+                  icon: <IconRocket className="h-4 w-4" />,
+                  label: "Create a workflow",
+                  href: "echo-desktop://capture",
+                  isCapture: true,
+                },
+                {
+                  icon: <IconPlayerPlay className="h-4 w-4" />,
+                  label: "Run it",
+                  href: "/dashboard/workflows",
+                  isCapture: false,
+                },
+              ].map((step) =>
+                step.isCapture ? (
+                  <DesktopCaptureLink
+                    key={step.label}
+                    className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+                  >
+                    {step.icon}
+                    {step.label}
+                  </DesktopCaptureLink>
+                ) : (
+                  <Link
+                    key={step.label}
+                    href={step.href}
+                    className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+                  >
+                    {step.icon}
+                    {step.label}
+                  </Link>
+                ),
+              )}
+              <a
+                href="echo-desktop://echoprism"
+                className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+              >
+                <IconMessageCircle className="h-4 w-4" />
+                Try EchoPrismVoice
+              </a>
             </div>
-            <div className="text-center">
-              <p className="font-medium text-[#150A35]">No workflows yet</p>
-              <p className="mt-1 text-sm text-echo-text-muted">
-                Create your first workflow to get started
-              </p>
-            </div>
-            <DesktopCaptureLink className="echo-btn-cyan-lavender">
-              Create workflow
-            </DesktopCaptureLink>
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {recentWorkflows.map((w) => (
-              <WorkflowCard
-                key={w.id}
-                workflow={w}
-                isLatest={isLatestOrLastModified(w, workflows)}
-              />
-            ))}
           </div>
         )}
+
+        {/* Stats */}
+        <SectionCards
+          totalWorkflows={totalWorkflows}
+          activeWorkflows={activeWorkflows}
+          totalRuns={totalRuns}
+          awaitingInput={
+            allRuns.filter(
+              (r) =>
+                r.status === "running" || r.status === "pending" || r.status === "awaiting_user",
+            ).length
+          }
+          onAwaitingClick={() => {
+            if (inProgressRun) {
+              window.location.href = `/dashboard/workflows/${inProgressRun.workflowId}/runs/${inProgressRun.runId}`;
+            }
+          }}
+        />
+
+        {/* Activity chart */}
+        <div className="px-4 lg:px-6">
+          <ChartAreaInteractive runs={allRuns} />
+        </div>
+
+        {/* Data table */}
+        <DataTable data={allRuns} />
+
+        {/* Recent Workflows */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[#150A35]">Recent Workflows</h2>
+            <Link
+              href="/dashboard/workflows"
+              className="flex cursor-pointer items-center gap-1 text-sm font-medium text-[#A577FF] hover:underline"
+            >
+              View all
+              <IconArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {recentWorkflows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
+                <IconJumpRope className="h-7 w-7 text-[#A577FF]" />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-[#150A35]">No workflows yet</p>
+                <p className="mt-1 text-sm text-echo-text-muted">
+                  Create your first workflow to get started
+                </p>
+              </div>
+              <DesktopCaptureLink className="echo-btn-cyan-lavender">
+                Create workflow
+              </DesktopCaptureLink>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {recentWorkflows.map((w) => (
+                <WorkflowCard
+                  key={w.id}
+                  workflow={w}
+                  isLatest={isLatestOrLastModified(w, workflows)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </div>
   );
 }
 
-function WorkflowCard({
-  workflow: w,
-  isLatest,
-}: {
-  workflow: Workflow;
-  isLatest: boolean;
-}) {
+function WorkflowCard({ workflow: w, isLatest }: { workflow: Workflow; isLatest: boolean }) {
   const href =
     w.status === "draft" || w.status === "processing"
       ? `/dashboard/workflows/${w.id}/edit`
@@ -438,10 +404,7 @@ function WorkflowCard({
               onMouseDown={(e) => e.stopPropagation()}
             />
           </TooltipTrigger>
-          <TooltipContent
-            side="bottom"
-            className="border-[#A577FF]/20 bg-[#150A35] text-[#F5F7FC]"
-          >
+          <TooltipContent side="bottom" className="border-[#A577FF]/20 bg-[#150A35] text-[#F5F7FC]">
             Newest or most recently modified workflow
           </TooltipContent>
         </Tooltip>

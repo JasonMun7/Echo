@@ -5,19 +5,19 @@ Uses ``interrupt()`` so the host can confirm the API call, open Universal Login 
 necessary, then ``Command(resume=...)`` to continue. See LangGraph interrupt docs:
 https://docs.langchain.com/oss/python/langgraph/interrupts
 """
+
 from __future__ import annotations
 
 import json
 import logging
 from typing import Any, TypedDict
 
+from echo_prism_agent.auth0_token_vault import normalize_integration_id
+from echo_prism_agent.execution.operator import execute_api_call
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.config import get_config
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
-
-from echo_prism_agent.auth0_token_vault import normalize_integration_id
-from echo_prism_agent.execution.operator import execute_api_call
 
 logger = logging.getLogger(__name__)
 

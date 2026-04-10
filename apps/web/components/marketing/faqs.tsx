@@ -45,7 +45,7 @@ const faqData: FAQSection[] = [
       {
         question: "How does the voice control work?",
         answer:
-          "Echo uses LiveKit + Gemini Live for real-time native audio. You can say \"run my weekly report\", interrupt a run mid-execution with \"skip this step\", or ask \"what workflows do I have?\" — and EchoPrism responds and acts instantly.",
+          'Echo uses LiveKit + Gemini Live for real-time native audio. You can say "run my weekly report", interrupt a run mid-execution with "skip this step", or ask "what workflows do I have?" — and EchoPrism responds and acts instantly.',
       },
       {
         question: "Can I interrupt a workflow while it's running?",
@@ -82,10 +82,7 @@ export function FAQs() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setActiveId(null);
       }
     }
@@ -102,20 +99,15 @@ export function FAQs() {
       <div className="text-center">
         <Heading as="h2">Frequently Asked Questions</Heading>
         <SubHeading as="p" className="mx-auto mt-4 max-w-2xl">
-          Everything you need to know about Echo, EchoPrism, and automating
-          your workflows with voice and AI vision.
+          Everything you need to know about Echo, EchoPrism, and automating your workflows with
+          voice and AI vision.
         </SubHeading>
       </div>
 
-      <div
-        ref={containerRef}
-        className="relative mt-16 flex flex-col gap-12 px-4 md:px-8"
-      >
+      <div ref={containerRef} className="relative mt-16 flex flex-col gap-12 px-4 md:px-8">
         {faqData.map((section) => (
           <div key={section.title}>
-            <h3 className="mb-6 text-lg font-medium text-[#150A35]">
-              {section.title}
-            </h3>
+            <h3 className="mb-6 text-lg font-medium text-[#150A35]">{section.title}</h3>
             <div className="flex flex-col gap-3">
               {section.items.map((item, index) => {
                 const id = `${section.title}-${index}`;
@@ -127,27 +119,15 @@ export function FAQs() {
                       "relative rounded-lg transition-all duration-200",
                       isActive
                         ? "bg-white shadow-sm ring-1 ring-[#21C4DD]/25"
-                        : "hover:bg-white/80"
+                        : "hover:bg-white/80",
                     )}
                   >
                     {isActive && (
                       <div className="absolute inset-0">
-                        <GridLineHorizontal
-                          className="-top-[2px]"
-                          offset="100px"
-                        />
-                        <GridLineHorizontal
-                          className="-bottom-[2px]"
-                          offset="100px"
-                        />
-                        <GridLineVertical
-                          className="-left-[2px]"
-                          offset="100px"
-                        />
-                        <GridLineVertical
-                          className="-right-[2px] left-auto"
-                          offset="100px"
-                        />
+                        <GridLineHorizontal className="-top-[2px]" offset="100px" />
+                        <GridLineHorizontal className="-bottom-[2px]" offset="100px" />
+                        <GridLineVertical className="-left-[2px]" offset="100px" />
+                        <GridLineVertical className="-right-[2px] left-auto" offset="100px" />
                       </div>
                     )}
                     <button
@@ -162,7 +142,12 @@ export function FAQs() {
                         transition={{ duration: 0.2 }}
                         className="ml-4 shrink-0"
                       >
-                        <IconPlus className={cn("size-5 shrink-0", isActive ? "text-[#21C4DD]" : "text-gray-500")} />
+                        <IconPlus
+                          className={cn(
+                            "size-5 shrink-0",
+                            isActive ? "text-[#21C4DD]" : "text-gray-500",
+                          )}
+                        />
                       </motion.div>
                     </button>
                     <AnimatePresence initial={false}>

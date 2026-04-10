@@ -1,0 +1,38 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": [
+    "doppler",
+    "firebase",
+    "uvicorn",
+    "pytest",
+    "python",
+    "env",
+    "electron-builder",
+    "electron-vite",
+    "playwright",
+    "ruff"
+  ],
+  "ignoreDependencies": [
+    "expo",
+    "react",
+    "react-native",
+    "tailwindcss",
+    "@react-navigation/native",
+    "shadcn"
+  ],
+  "ignoreFiles": ["apps/mobile/metro.config.js"],
+  "workspaces": {
+    "apps/mobile": {
+      "metro": false
+    },
+    "apps/desktop": {
+      "entry": [
+        "electron.vite.config.ts",
+        "src/main/index.ts",
+        "src/preload/index.ts",
+        "src/renderer/main.tsx"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,jsx}"]
+    }
+  }
+}

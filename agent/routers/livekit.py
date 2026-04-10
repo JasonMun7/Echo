@@ -4,24 +4,23 @@ LiveKit integration: token issuance and agent tool execution.
 - POST /api/livekit/token: issue LiveKit room token (Bearer Firebase ID token)
 - POST /api/agent/tool: execute EchoPrism tool (X-Agent-Secret + uid, used by LiveKit agent)
 """
+
 import logging
-import os
 import re
 import sys
 from pathlib import Path
 
 import firebase_admin.firestore
-from fastapi import APIRouter, Body, Depends, HTTPException, Header
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
-
 from app.auth import get_firebase_app
 from app.config import (
+    LIVEKIT_AGENT_SECRET,
     LIVEKIT_API_KEY,
     LIVEKIT_API_SECRET,
-    LIVEKIT_AGENT_SECRET,
     LIVEKIT_URL,
 )
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["livekit"])
@@ -32,6 +31,7 @@ def _verify_firebase_token(token: str) -> str | None:
     """Verify Firebase ID token and return uid."""
     try:
         from firebase_admin import auth as firebase_auth
+
         get_firebase_app()
         decoded = firebase_auth.verify_id_token(token)
         return decoded.get("uid")
@@ -47,6 +47,7 @@ def _ensure_agent_path() -> None:
 
 class LiveKitTokenBody(BaseModel):
     """LiveKit endpoint token request body (standard format)."""
+
     room_name: str | None = None
     participant_identity: str | None = None
     participant_name: str | None = None
@@ -87,17 +88,20 @@ async def livekit_token(
         )
 
     import time as _time
+
     room_name = (body and body.room_name) or f"echoprism-{uid}-{int(_time.time())}"
     token = AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
     token = token.with_identity(uid).with_name(uid)
-    token = token.with_grants(VideoGrants(
-        room_join=True,
-        room_create=True,
-        room=room_name,
-        can_publish=True,
-        can_subscribe=True,
-        can_publish_data=True,
-    ))
+    token = token.with_grants(
+        VideoGrants(
+            room_join=True,
+            room_create=True,
+            room=room_name,
+            can_publish=True,
+            can_subscribe=True,
+            can_publish_data=True,
+        )
+    )
 
     # Embed participant attributes (e.g. mode=voice-interruption, workflow_id, run_id)
     participant_attributes: dict[str, str] | None = None
@@ -111,13 +115,11 @@ async def livekit_token(
 
     jwt_val = token.to_jwt()
 
-    needs_jwt_patch = (
-        (body and body.room_config and isinstance(body.room_config, dict)) or
-        participant_attributes
-    )
+    needs_jwt_patch = (body and body.room_config and isinstance(body.room_config, dict)) or participant_attributes
     if needs_jwt_patch:
         # Workaround for google.protobuf FieldDescriptor issues in livekit-api 1.1.0 vs protobuf 6.33
         import jwt
+
         claims = jwt.decode(jwt_val, options={"verify_signature": False})
 
         if body and body.room_config and isinstance(body.room_config, dict):
@@ -224,12 +226,9 @@ async def agent_tool(
         extra = ""
         if body.name == "run_workflow":
             if result.get("error"):
-                extra = " error=%r" % (result.get("error"),)
+                extra = f" error={result.get('error')!r}"
             else:
-                extra = " run_id=%s workflow_id=%s" % (
-                    result.get("run_id"),
-                    result.get("workflow_id"),
-                )
+                extra = f" run_id={result.get('run_id')} workflow_id={result.get('workflow_id')}"
         logger.info("[agent/tool] %s -> ok=%s%s", body.name, result.get("ok"), extra)
         return result
     except Exception as e:

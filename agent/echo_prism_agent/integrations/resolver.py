@@ -4,6 +4,7 @@ Resolve a short-lived provider access token for an integration (Auth0 Token Vaul
 Legacy Firestore tokens (users/{uid}/integrations/{id}) are disabled unless
 ECHO_INTEGRATIONS_TOKEN_VAULT_ONLY=0.
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,22 +53,16 @@ async def get_integration_access_token(
                 if conn:
                     try:
                         out = await exchange_federated_access_token(refresh, conn)
-                        token = (
-                            (out.get("access_token") or out.get("token") or "")
-                            .strip()
-                        )
+                        token = (out.get("access_token") or out.get("token") or "").strip()
                         if token:
                             return token
                         logger.warning(
-                            "Token Vault exchange returned no access_token for integration=%s "
-                            "(keys=%s)",
+                            "Token Vault exchange returned no access_token for integration=%s (keys=%s)",
                             iid,
                             list(out.keys()) if isinstance(out, dict) else type(out),
                         )
                     except Exception as e:
-                        logger.warning(
-                            "Token Vault exchange failed for %s: %s", iid, e
-                        )
+                        logger.warning("Token Vault exchange failed for %s: %s", iid, e)
                 else:
                     logger.warning(
                         "No Auth0 connection mapping for integration=%r (normalized=%s)",
@@ -75,9 +70,7 @@ async def get_integration_access_token(
                         iid,
                     )
             else:
-                logger.debug(
-                    "No auth0_refresh_token on user doc; cannot use Token Vault for %s", iid
-                )
+                logger.debug("No auth0_refresh_token on user doc; cannot use Token Vault for %s", iid)
         except Exception as e:
             logger.warning("Token Vault path failed: %s", e)
     else:
@@ -92,12 +85,7 @@ async def get_integration_access_token(
         return ""
 
     try:
-        token_doc = await _get_doc(
-            db.collection("users")
-            .document(uid)
-            .collection("integrations")
-            .document(iid)
-        )
+        token_doc = await _get_doc(db.collection("users").document(uid).collection("integrations").document(iid))
         if token_doc.exists:
             return (token_doc.to_dict() or {}).get("access_token", "") or ""
     except Exception as e:

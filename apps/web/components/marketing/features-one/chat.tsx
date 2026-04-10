@@ -32,9 +32,7 @@ export function ChatConversation({ className }: { className?: string }) {
   ];
 
   return (
-    <div
-      className={cn("flex min-h-60 items-center justify-center p-4", className)}
-    >
+    <div className={cn("flex min-h-60 items-center justify-center p-4", className)}>
       <div ref={ref} className="flex flex-col justify-center gap-3">
         {messages.map((message, index) => {
           const baseDelay = index * 0.3;

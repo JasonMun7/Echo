@@ -3,16 +3,15 @@
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 
-const SplashCursor = dynamic(
-  () => import("@/components/SplashCursor.jsx").then((m) => m.default),
-  { ssr: false }
-);
+const SplashCursor = dynamic(() => import("@/components/SplashCursor.jsx").then((m) => m.default), {
+  ssr: false,
+});
 
 /** Design system: Cetacean Blue #150A35, Lavender #A577FF, Cyan #21C4DD */
 const BACK_COLOR = { r: 21 / 255, g: 10 / 255, b: 53 / 255 };
 const PALETTE = [
   [165, 119, 255], // Lavender (primary)
-  [33, 196, 221],  // Cyan (secondary)
+  [33, 196, 221], // Cyan (secondary)
 ];
 
 export function SplashCursorProvider() {

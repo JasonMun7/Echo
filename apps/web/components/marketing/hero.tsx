@@ -44,8 +44,8 @@ export default function Hero() {
         </h1>
 
         <p className="mt-4 max-w-2xl text-base text-gray-600 md:text-xl">
-          Record a workflow once — Echo learns it. Then run it forever: by
-          voice, by schedule, or automatically. Powered by Gemini.
+          Record a workflow once — Echo learns it. Then run it forever: by voice, by schedule, or
+          automatically. Powered by Gemini.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">

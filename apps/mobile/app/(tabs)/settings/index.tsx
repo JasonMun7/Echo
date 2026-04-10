@@ -29,7 +29,9 @@ function GlassCard({ children, style }: { children: React.ReactNode; style?: obj
       </View>
     );
   }
-  return <View style={[styles.glassCard, style, { backgroundColor: colors.white }]}>{children}</View>;
+  return (
+    <View style={[styles.glassCard, style, { backgroundColor: colors.white }]}>{children}</View>
+  );
 }
 
 export default function SettingsScreen() {
@@ -53,10 +55,7 @@ export default function SettingsScreen() {
         pointerEvents="none"
       />
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + 100 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Profile card */}
@@ -72,9 +71,7 @@ export default function SettingsScreen() {
               </View>
             )}
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>
-                {user?.displayName || "Echo User"}
-              </Text>
+              <Text style={styles.profileName}>{user?.displayName || "Echo User"}</Text>
               <Text style={styles.profileEmail}>{user?.email}</Text>
             </View>
           </View>

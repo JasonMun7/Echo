@@ -8,9 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 const envDefine = {
   "process.env.VITE_APP_URL": JSON.stringify(process.env.VITE_APP_URL ?? ""),
   "process.env.VITE_API_URL": JSON.stringify(process.env.VITE_API_URL ?? ""),
-  "process.env.VITE_ECHO_AGENT_URL": JSON.stringify(
-    process.env.VITE_ECHO_AGENT_URL ?? "",
-  ),
+  "process.env.VITE_ECHO_AGENT_URL": JSON.stringify(process.env.VITE_ECHO_AGENT_URL ?? ""),
   "process.env.VITE_AUTH0_LINK_CONNECTION": JSON.stringify(
     process.env.VITE_AUTH0_LINK_CONNECTION ?? "",
   ),
@@ -35,9 +33,7 @@ const envDefine = {
   "process.env.VITE_GITHUB_UPDATE_OWNER": JSON.stringify(
     process.env.VITE_GITHUB_UPDATE_OWNER ?? "",
   ),
-  "process.env.VITE_GITHUB_UPDATE_REPO": JSON.stringify(
-    process.env.VITE_GITHUB_UPDATE_REPO ?? "",
-  ),
+  "process.env.VITE_GITHUB_UPDATE_REPO": JSON.stringify(process.env.VITE_GITHUB_UPDATE_REPO ?? ""),
 };
 
 export default defineConfig({

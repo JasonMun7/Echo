@@ -1,29 +1,29 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
   type AnimationPlaybackControlsWithThen,
   type ValueAnimationTransition,
   animate,
   useMotionValue,
   useMotionValueEvent,
-} from 'motion/react';
+} from "motion/react";
 import {
   type AgentState,
   type TrackReference,
   type TrackReferenceOrPlaceholder,
   useTrackVolume,
-} from '@livekit/components-react';
-import { LocalAudioTrack, RemoteAudioTrack } from 'livekit-client';
+} from "@livekit/components-react";
+import { LocalAudioTrack, RemoteAudioTrack } from "livekit-client";
 
 const DEFAULT_SPEED = 5;
 const DEFAULT_AMPLITUDE = 0.025;
 const DEFAULT_FREQUENCY = 10;
-const DEFAULT_TRANSITION: ValueAnimationTransition = { duration: 0.2, ease: 'easeOut' };
+const DEFAULT_TRANSITION: ValueAnimationTransition = { duration: 0.2, ease: "easeOut" };
 
 function useAnimatedValue<T>(initialValue: T) {
   const [value, setValue] = useState(initialValue);
   const motionValue = useMotionValue(initialValue);
   const controlsRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
-  useMotionValueEvent(motionValue, 'change', (value) => setValue(value as T));
+  useMotionValueEvent(motionValue, "change", (value) => setValue(value as T));
 
   const animateFn = useCallback(
     (targetValue: T | T[], transition: ValueAnimationTransition) => {
@@ -56,35 +56,35 @@ export function useAgentAudioVisualizerWave({
 
   useEffect(() => {
     switch (state) {
-      case 'disconnected':
+      case "disconnected":
         setSpeed(DEFAULT_SPEED);
         animateAmplitude(0, DEFAULT_TRANSITION);
         animateFrequency(0, DEFAULT_TRANSITION);
         animateOpacity(1.0, DEFAULT_TRANSITION);
         return;
-      case 'listening':
+      case "listening":
         setSpeed(DEFAULT_SPEED);
         animateAmplitude(DEFAULT_AMPLITUDE, DEFAULT_TRANSITION);
         animateFrequency(DEFAULT_FREQUENCY, DEFAULT_TRANSITION);
         animateOpacity([1.0, 0.3], {
           duration: 0.75,
           repeat: Infinity,
-          repeatType: 'mirror',
+          repeatType: "mirror",
         });
         return;
-      case 'thinking':
-      case 'connecting':
-      case 'initializing':
+      case "thinking":
+      case "connecting":
+      case "initializing":
         setSpeed(DEFAULT_SPEED * 4);
         animateAmplitude(DEFAULT_AMPLITUDE / 4, DEFAULT_TRANSITION);
         animateFrequency(DEFAULT_FREQUENCY * 4, DEFAULT_TRANSITION);
         animateOpacity([1.0, 0.3], {
           duration: 0.4,
           repeat: Infinity,
-          repeatType: 'mirror',
+          repeatType: "mirror",
         });
         return;
-      case 'speaking':
+      case "speaking":
       default:
         setSpeed(DEFAULT_SPEED * 2);
         animateAmplitude(DEFAULT_AMPLITUDE, DEFAULT_TRANSITION);
@@ -95,7 +95,7 @@ export function useAgentAudioVisualizerWave({
   }, [state, setSpeed, animateAmplitude, animateFrequency, animateOpacity]);
 
   useEffect(() => {
-    if (state === 'speaking') {
+    if (state === "speaking") {
       animateAmplitude(0.015 + 0.4 * volume, { duration: 0 });
       animateFrequency(20 + 60 * volume, { duration: 0 });
     }

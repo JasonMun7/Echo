@@ -17,6 +17,12 @@
     "desktop:dist": "pnpm run version:desktop && cd apps/desktop && doppler run --config prd -- pnpm run dist",
     "start": "cd apps/web && pnpm run start",
     "lint": "cd apps/web && pnpm run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "format:python": "ruff format agent backend",
+    "lint:python": "ruff check agent backend",
+    "lint:python:fix": "ruff check --fix agent backend",
+    "knip": "knip --include dependencies,devDependencies,unlisted,binaries,files --no-config-hints",
     "dev:backend": "cd backend && doppler run -- env PYTHONPATH=../agent uvicorn main:app --reload --host 0.0.0.0",
     "dev:agent": "cd agent && doppler run -- uvicorn main:app --reload --host 0.0.0.0 --port 8083",
     "dev:mobile": "cd apps/mobile && doppler run -- pnpm run start",
@@ -29,11 +35,20 @@
     "deploy:frontend": "doppler run --config prd -- ./scripts/deploy/deploy-frontend.sh --build",
     "deploy:backend": "doppler run --config prd -- ./scripts/deploy/deploy-backend.sh --build",
     "deploy:agent": "doppler run --config prd -- ./scripts/deploy/deploy-echo-prism-agent.sh --build",
-    "deploy:livekit-agent": "doppler run --config prd -- ./scripts/deploy/deploy-livekit-agent.sh --build"
+    "deploy:livekit-agent": "doppler run --config prd -- ./scripts/deploy/deploy-livekit-agent.sh --build",
+    "prepare": "simple-git-hooks"
   },
   "devDependencies": {
-    "@expo/ngrok": "^4.1.3",
-    "dotenv-cli": "^11.0.0"
+    "knip": "^6.3.1",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3",
+    "simple-git-hooks": "^2.11.1"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}": "prettier --write"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
   },
   "packageManager": "pnpm@9.0.0",
   "dependencies": {

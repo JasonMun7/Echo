@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  TextInput,
-  Alert,
-  StyleSheet,
-} from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, Alert, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -104,7 +96,9 @@ export default function RunDetailScreen() {
           ),
           headerRight: () => (
             <Pressable onPress={() => router.navigate("/(tabs)/workflows")} hitSlop={8}>
-              <Text style={{ fontSize: 14, color: "#8B6CF7", fontWeight: "600" }}>All Workflows</Text>
+              <Text style={{ fontSize: 14, color: "#8B6CF7", fontWeight: "600" }}>
+                All Workflows
+              </Text>
             </Pressable>
           ),
           title: `Run ${runId?.slice(0, 8) ?? ""}`,
@@ -140,11 +134,7 @@ export default function RunDetailScreen() {
             onChangeText={setFeedback}
             multiline
           />
-          <GradientButton
-            title="Send"
-            gradient="cyanLavender"
-            onPress={handleFeedback}
-          />
+          <GradientButton title="Send" gradient="cyanLavender" onPress={handleFeedback} />
         </View>
       )}
 
@@ -175,12 +165,8 @@ export default function RunDetailScreen() {
             <View key={log.id || i} style={styles.logItem}>
               <View style={styles.logDot} />
               <View style={styles.logContent}>
-                <Text style={styles.logAction}>
-                  {log.action ?? `Step ${log.step_index ?? i}`}
-                </Text>
-                {log.message && (
-                  <Text style={styles.logMessage}>{log.message}</Text>
-                )}
+                <Text style={styles.logAction}>{log.action ?? `Step ${log.step_index ?? i}`}</Text>
+                {log.message && <Text style={styles.logMessage}>{log.message}</Text>}
               </View>
               {log.status && <StatusBadge status={log.status} />}
             </View>

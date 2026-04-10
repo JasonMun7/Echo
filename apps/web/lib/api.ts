@@ -2,8 +2,7 @@ import { auth } from "./firebase";
 import { useAuthStore } from "@/stores";
 
 /** Main Echo backend (FastAPI :8000 in dev). */
-export const MAIN_API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const MAIN_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const API_URL = MAIN_API_URL;
 
@@ -11,10 +10,7 @@ const API_URL = MAIN_API_URL;
 function resolveAgentUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_ECHO_AGENT_URL?.trim();
   if (explicit) {
-    if (
-      process.env.NODE_ENV === "development" &&
-      /:(8000|8081)\b/.test(explicit)
-    ) {
+    if (process.env.NODE_ENV === "development" && /:(8000|8081)\b/.test(explicit)) {
       console.warn(
         "[Echo] NEXT_PUBLIC_ECHO_AGENT_URL is %s — chat/voice WebSockets use the Echo Prism agent. Run `pnpm dev:agent` (default :8083) and set this to http://127.0.0.1:8083 or remove it for the dev default.",
         explicit,
@@ -62,10 +58,7 @@ function withBearer(token: string | null, headers: HeadersInit | undefined): Hea
   return h;
 }
 
-export async function apiFetch(
-  path: string,
-  options: RequestInit = {}
-): Promise<Response> {
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
   const headers = withBearer(token, options.headers ?? {});
   const url = `${API_URL}${path}`;
@@ -86,10 +79,7 @@ export async function apiFetch(
 }
 
 /** Fetch from agent service (chat, voice, synthesis). Uses Bearer auth. */
-export async function agentFetch(
-  path: string,
-  options: RequestInit = {}
-): Promise<Response> {
+export async function agentFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
   const headers = withBearer(token, options.headers ?? {});
   const url = `${AGENT_URL}${path}`;

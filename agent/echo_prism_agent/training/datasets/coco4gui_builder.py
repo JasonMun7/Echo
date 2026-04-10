@@ -3,8 +3,8 @@ COCO4GUI builder — build/append annotations from screenshots and annotations.
 
 Stores bbox/keypoints in 3-decimal normalized [0.000, 1.000] floats.
 """
-import uuid
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 from typing import Any
 
 from echo_prism_agent.constants import DEFAULT_CATEGORIES
@@ -62,8 +62,8 @@ class COCO4GUIBuilder:
             info={
                 "description": description,
                 "version": "1.0",
-                "year": datetime.now(timezone.utc).year,
-                "date_created": datetime.now(timezone.utc).isoformat(),
+                "year": datetime.now(UTC).year,
+                "date_created": datetime.now(UTC).isoformat(),
             },
             categories=[
                 COCO4GUICategory(
@@ -99,7 +99,7 @@ class COCO4GUIBuilder:
                 file_name=file_name,
                 width=width,
                 height=height,
-                date_captured=datetime.now(timezone.utc).isoformat(),
+                date_captured=datetime.now(UTC).isoformat(),
                 application=application,
                 platform=platform,
                 sequence_id=sequence_id,

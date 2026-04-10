@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Alert,
-  ScrollView,
-  Pressable,
-  StyleSheet,
-} from "react-native";
+import { View, Text, TextInput, Alert, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "@/lib/api";
 import { GradientButton } from "@/components/ui/GradientButton";
@@ -49,8 +41,7 @@ export default function NewWorkflowScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Create with AI</Text>
         <Text style={styles.sectionDesc}>
-          Describe what you want to automate and our agent will build the
-          workflow for you.
+          Describe what you want to automate and our agent will build the workflow for you.
         </Text>
         <GradientButton
           title="Describe to Agent"
@@ -81,18 +72,10 @@ export default function NewWorkflowScreen() {
           {(["browser", "desktop"] as const).map((t) => (
             <Pressable
               key={t}
-              style={[
-                styles.typeBtn,
-                workflowType === t && styles.typeBtnActive,
-              ]}
+              style={[styles.typeBtn, workflowType === t && styles.typeBtnActive]}
               onPress={() => setWorkflowType(t)}
             >
-              <Text
-                style={[
-                  styles.typeBtnText,
-                  workflowType === t && styles.typeBtnTextActive,
-                ]}
-              >
+              <Text style={[styles.typeBtnText, workflowType === t && styles.typeBtnTextActive]}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </Text>
             </Pressable>

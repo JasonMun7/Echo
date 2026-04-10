@@ -2,11 +2,7 @@
 import React from "react";
 import { motion } from "motion/react";
 
-export function AnimatedBeamPathIllustration({
-  delay = 0,
-}: {
-  delay?: number;
-}) {
+export function AnimatedBeamPathIllustration({ delay = 0 }: { delay?: number }) {
   const path = "M 0 40 L 100 40 L 200 15 L 400 15 L 500 40 L 600 40";
   const idPrefix = `beam-${String(delay).replace(".", "-")}`;
 
@@ -49,13 +45,7 @@ export function AnimatedBeamPathIllustration({
           </filter>
 
           <mask id={fadeEndsMaskId}>
-            <rect
-              x="0"
-              y="0"
-              width="600"
-              height="80"
-              fill={`url(#${fadeMaskId})`}
-            />
+            <rect x="0" y="0" width="600" height="80" fill={`url(#${fadeMaskId})`} />
           </mask>
 
           <linearGradient

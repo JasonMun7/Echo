@@ -4,10 +4,12 @@ Gemini Live bidirectional audio: `client.aio.live.connect` bridge to the app Web
 Uses the same tools as text chat (`utils.tools.get_tools`). The router supplies
 `handle_tool_call` for Firestore-backed tool execution.
 """
+
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 try:
     from google.genai import types
@@ -71,9 +73,7 @@ async def run_voice_session(
                                             turn_complete=True,
                                         )
                                 except Exception as e:
-                                    logger.warning(
-                                        "voice recv_from_client parse error: %s", e
-                                    )
+                                    logger.warning("voice recv_from_client parse error: %s", e)
                 except Exception as e:
                     disconnected.set()
                     if "disconnect" not in str(e).lower():
@@ -115,30 +115,20 @@ async def run_voice_session(
                                             if not await _send_bytes(part.inline_data.data):
                                                 return
                                         if part.text:
-                                            if not await _send_text(
-                                                json.dumps({"type": "text", "text": part.text})
-                                            ):
+                                            if not await _send_text(json.dumps({"type": "text", "text": part.text})):
                                                 return
                                 if getattr(sc, "output_transcription", None):
                                     t = sc.output_transcription
                                     if getattr(t, "text", None):
-                                        if not await _send_text(
-                                            json.dumps({"type": "transcript", "text": t.text})
-                                        ):
+                                        if not await _send_text(json.dumps({"type": "transcript", "text": t.text})):
                                             return
                                 if sc.turn_complete:
-                                    if not await _send_text(
-                                        json.dumps({"type": "turn_complete"})
-                                    ):
+                                    if not await _send_text(json.dumps({"type": "turn_complete"})):
                                         return
                             if response.tool_call:
-                                tool_responses = await handle_tool_call(
-                                    response.tool_call, uid, db, websocket
-                                )
+                                tool_responses = await handle_tool_call(response.tool_call, uid, db, websocket)
                                 for tr in tool_responses:
-                                    await live_session.send_tool_response(
-                                        function_responses=tr.function_responses
-                                    )
+                                    await live_session.send_tool_response(function_responses=tr.function_responses)
                     except Exception as e:
                         if not disconnected.is_set():
                             logger.warning("voice recv_from_gemini error: %s", e)

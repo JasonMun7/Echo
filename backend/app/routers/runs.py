@@ -4,19 +4,20 @@ POST /api/run/{workflow_id}, PUT /api/run/{workflow_id}/{run_id}/confirm,
 DELETE /api/run/{workflow_id}/{run_id}, POST /api/run/{workflow_id}/{run_id}/redirect,
 POST /api/run/{workflow_id}/{run_id}/dismiss
 """
+
 import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
-logger = logging.getLogger(__name__)
 import firebase_admin.firestore
+from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, FieldFilter
+from pydantic import BaseModel
 
 from app.auth import get_current_uid, get_firebase_app
 from app.routers.workflows import _get_workflow
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["runs"])
 
@@ -138,12 +139,14 @@ def _cancel_other_active_runs_for_user(uid: str) -> None:
     )
     for doc in active:
         try:
-            doc.reference.update({
-                "status": "cancelled",
-                "cancel_requested": True,
-                "completedAt": SERVER_TIMESTAMP,
-                "updatedAt": SERVER_TIMESTAMP,
-            })
+            doc.reference.update(
+                {
+                    "status": "cancelled",
+                    "cancel_requested": True,
+                    "completedAt": SERVER_TIMESTAMP,
+                    "updatedAt": SERVER_TIMESTAMP,
+                }
+            )
             logger.info("Cancelled prior active run %s for user %s", doc.id, uid)
         except Exception as e:
             logger.warning("Failed to cancel run %s: %s", doc.id, e)
@@ -167,13 +170,15 @@ async def create_run(
     wf_ref, _ = _get_workflow(uid, workflow_id, require_owner=False)
     run_id = str(uuid.uuid4())
     run_ref = wf_ref.collection("runs").document(run_id)
-    run_ref.set({
-        "status": "running",
-        "owner_uid": uid,
-        "createdAt": SERVER_TIMESTAMP,
-        "confirmation_status": None,
-        "source": "desktop",
-    })
+    run_ref.set(
+        {
+            "status": "running",
+            "owner_uid": uid,
+            "createdAt": SERVER_TIMESTAMP,
+            "confirmation_status": None,
+            "source": "desktop",
+        }
+    )
     return {"run_id": run_id, "workflow_id": workflow_id}
 
 
@@ -188,10 +193,12 @@ async def confirm_run(
     doc = run_ref.get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Run not found")
-    run_ref.update({
-        "confirmation_status": "confirmed",
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    run_ref.update(
+        {
+            "confirmation_status": "confirmed",
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -206,12 +213,14 @@ async def cancel_run(
     doc = run_ref.get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Run not found")
-    run_ref.update({
-        "status": "cancelled",
-        "cancel_requested": True,
-        "completedAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    run_ref.update(
+        {
+            "status": "cancelled",
+            "cancel_requested": True,
+            "completedAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -237,10 +246,12 @@ async def redirect_run(
         raise HTTPException(status_code=403, detail="Forbidden")
     if data.get("status") != "running":
         raise HTTPException(status_code=400, detail="Run is not active")
-    run_ref.update({
-        "redirect_instruction": body.instruction,
-        "redirect_at": SERVER_TIMESTAMP,
-    })
+    run_ref.update(
+        {
+            "redirect_instruction": body.instruction,
+            "redirect_at": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -266,12 +277,14 @@ async def calluser_feedback(
         raise HTTPException(status_code=403, detail="Forbidden")
     if data.get("status") != "awaiting_user":
         raise HTTPException(status_code=400, detail="Run is not awaiting_user")
-    run_ref.update({
-        "calluser_feedback": body.instruction,
-        "calluser_feedback_at": SERVER_TIMESTAMP,
-        "status": "running",
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    run_ref.update(
+        {
+            "calluser_feedback": body.instruction,
+            "calluser_feedback_at": SERVER_TIMESTAMP,
+            "status": "running",
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -292,11 +305,13 @@ async def dismiss_calluser(
     data = doc.to_dict() or {}
     if data.get("status") != "awaiting_user":
         raise HTTPException(status_code=400, detail="Run is not awaiting_user")
-    run_ref.update({
-        "status": "completed",
-        "callUserDismissedAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    })
+    run_ref.update(
+        {
+            "status": "completed",
+            "callUserDismissedAt": SERVER_TIMESTAMP,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -318,10 +333,12 @@ async def get_pending_runs(uid: str = Depends(get_current_uid)):
         # Extract workflow_id from the document path: workflows/{wf_id}/runs/{run_id}
         path_parts = doc.reference.path.split("/")
         workflow_id = path_parts[1] if len(path_parts) >= 4 else ""
-        results.append({
-            "run_id": doc.id,
-            "workflow_id": workflow_id,
-            "goal": data.get("goal"),
-            "goal_only": data.get("run_mode") == "goal_only",
-        })
+        results.append(
+            {
+                "run_id": doc.id,
+                "workflow_id": workflow_id,
+                "goal": data.get("goal"),
+                "goal_only": data.get("run_mode") == "goal_only",
+            }
+        )
     return {"runs": results}

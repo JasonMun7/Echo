@@ -65,7 +65,7 @@ export default function RunLogsSection({
       if (a && !acc[step].actions.includes(a)) acc[step].actions.push(a);
       return acc;
     },
-    {} as Record<number, { thoughts: string[]; actions: string[] }>
+    {} as Record<number, { thoughts: string[]; actions: string[] }>,
   );
   const stepNumbers = [...new Set(entries.map((e) => e.step || 1))].sort((a, b) => a - b);
 
@@ -216,16 +216,10 @@ export default function RunLogsSection({
                   background: runResult.success
                     ? "rgba(34, 197, 94, 0.15)"
                     : "rgba(239, 68, 68, 0.15)",
-                  color: runResult.success
-                    ? "var(--echo-success)"
-                    : "var(--echo-error)",
+                  color: runResult.success ? "var(--echo-success)" : "var(--echo-error)",
                 }}
               >
-                {runResult.success ? (
-                  <IconCircleCheck size={14} />
-                ) : (
-                  <IconAlertCircle size={14} />
-                )}
+                {runResult.success ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
                 {runResult.success ? "Success" : "Failed"}
               </span>
               {runResult.runId && runResult.workflowId && onOpenWebUI && (
@@ -277,10 +271,7 @@ export default function RunLogsSection({
             </div>
           )}
 
-          <Separator
-            className="opacity-60"
-            style={{ borderColor: "rgba(165, 119, 255, 0.15)" }}
-          />
+          <Separator className="opacity-60" style={{ borderColor: "rgba(165, 119, 255, 0.15)" }} />
 
           {/* Steps list with AnimatedList */}
           <div

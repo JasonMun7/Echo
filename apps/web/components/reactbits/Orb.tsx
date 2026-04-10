@@ -25,7 +25,7 @@ function hexToVec3(color: string): Vec3 {
     return new Vec3(
       parseInt(rgbMatch[1]) / 255,
       parseInt(rgbMatch[2]) / 255,
-      parseInt(rgbMatch[3]) / 255
+      parseInt(rgbMatch[3]) / 255,
     );
   }
   return new Vec3(0, 0, 0);
@@ -189,11 +189,7 @@ export default function Orb({
       uniforms: {
         iTime: { value: 0 },
         iResolution: {
-          value: new Vec3(
-            gl.canvas.width,
-            gl.canvas.height,
-            gl.canvas.width / gl.canvas.height
-          ),
+          value: new Vec3(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height),
         },
         hue: { value: hue },
         hover: { value: 0 },
@@ -216,7 +212,7 @@ export default function Orb({
       program.uniforms.iResolution.value.set(
         gl.canvas.width,
         gl.canvas.height,
-        gl.canvas.width / gl.canvas.height
+        gl.canvas.width / gl.canvas.height,
       );
     }
     window.addEventListener("resize", resize);
@@ -259,8 +255,7 @@ export default function Orb({
       program.uniforms.hoverIntensity.value = hoverIntensity;
       program.uniforms.backgroundColor.value = hexToVec3(backgroundColor);
       const effectiveHover = forceHoverState ? 1 : targetHover;
-      program.uniforms.hover.value +=
-        (effectiveHover - program.uniforms.hover.value) * 0.1;
+      program.uniforms.hover.value += (effectiveHover - program.uniforms.hover.value) * 0.1;
       if (rotateOnHover && effectiveHover > 0.5) {
         currentRot += dt * rotationSpeed;
       }

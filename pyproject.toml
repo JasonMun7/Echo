@@ -1,0 +1,35 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [
+  ".venv",
+  "venv",
+  "__pycache__",
+  "*.egg-info",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes (unused imports, undefined names)
+  "I",   # isort
+  "UP",  # pyupgrade
+]
+ignore = [
+  "E501", # line length; prefer wrapping over time
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*.py" = [
+  "F401", # re-exports / fixtures imported for side effects
+  "F811", # pytest fixtures name reuse
+]
+"agent/main.py" = ["E402"]
+"agent/echo_prism_agent/voice/livekit/main.py" = ["E402"]
+"agent/echo_prism_agent/voice/livekit/agent.py" = ["E402"]

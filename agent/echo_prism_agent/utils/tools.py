@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import tool
+from langchain_google_genai._function_utils import convert_to_genai_function_declarations
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
-from langchain_google_genai._function_utils import convert_to_genai_function_declarations
 
 try:
     from google.genai import types
@@ -21,6 +21,7 @@ except ImportError:
     def tool_action(fn):  # type: ignore[no-redef]
         """No-op when ``muscle_mem`` is not installed (UI-TARS inference does not require it)."""
         return fn
+
 
 from echo_prism_agent.constants import VERIFICATION_CONCLUSIONS
 from echo_prism_agent.model_prompts import CHAT_SYSTEM_PROMPT
@@ -41,7 +42,12 @@ from echo_prism_agent.utils.nodes import (
     synthesis_node,
     think_llm,
 )
-from echo_prism_agent.utils.state import ChatTurnState, GuiRunState, InferenceStepState, SynthesisGraphState
+from echo_prism_agent.utils.state import (
+    ChatTurnState,
+    GuiRunState,
+    InferenceStepState,
+    SynthesisGraphState,
+)
 
 # Back-compat alias (same string as CHAT_SYSTEM_PROMPT in model_prompts)
 SYSTEM_PROMPT = CHAT_SYSTEM_PROMPT
@@ -158,9 +164,7 @@ def list_integrations() -> str:
 
 
 @tool
-def call_integration(
-    integration: str, method: str, arguments: dict[str, Any] | None = None
-) -> str:
+def call_integration(integration: str, method: str, arguments: dict[str, Any] | None = None) -> str:
     """Execute a connected app integration action (Slack, GitHub, etc.).
 
     Args:
@@ -199,7 +203,7 @@ if TYPE_CHECKING:
 class VerificationResultToolProvider:
     """Registers report_verification_plan and report_verification_result for semantic GUI verify."""
 
-    def __init__(self, manager: "VerificationAgentManager") -> None:
+    def __init__(self, manager: VerificationAgentManager) -> None:
         self.manager = manager
 
     @tool_action
@@ -209,7 +213,7 @@ class VerificationResultToolProvider:
         possible_failures: str,
         screenshot_observation: str,
         verification_plan: str,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Record the verification plan before taking other actions."""
         payload = {
             "task_understanding": (task_understanding or "").strip(),
@@ -221,7 +225,7 @@ class VerificationResultToolProvider:
         return payload
 
     @tool_action
-    def report_verification_result(self, conclusion: str, explanation: str) -> Dict[str, str]:
+    def report_verification_result(self, conclusion: str, explanation: str) -> dict[str, str]:
         """Report the final verification result."""
         normalized = (conclusion or "").strip().upper()
         if normalized not in VERIFICATION_CONCLUSIONS:
@@ -339,11 +343,7 @@ async def process_chat_turn(
         return "", None, None
 
     model_content = candidate.content
-    fn_calls = [
-        p.function_call
-        for p in (model_content.parts or [])
-        if p.function_call
-    ]
+    fn_calls = [p.function_call for p in (model_content.parts or []) if p.function_call]
 
     if fn_calls:
         return None, fn_calls, model_content

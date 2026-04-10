@@ -6,7 +6,6 @@ import asyncio
 from typing import Any
 
 import pytest
-
 from echo_prism_agent.integrations.resolver import (
     get_integration_access_token,
     integration_connect_hint,

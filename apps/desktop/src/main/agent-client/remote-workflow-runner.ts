@@ -30,10 +30,7 @@ const MAX_STEP_ATTEMPTS = 30;
 /** Initial WebSocket connect attempts (exponential backoff) — Cloud Run cold start / TLS. */
 const WS_OPEN_ATTEMPTS = 4;
 
-function runCtx(
-  opts: RunWorkflowRemoteOptions | undefined,
-  stepNum?: number,
-): string {
+function runCtx(opts: RunWorkflowRemoteOptions | undefined, stepNum?: number): string {
   const wf = opts?.workflowId?.slice(0, 12) ?? "-";
   const rn = opts?.runId?.slice(0, 12) ?? "-";
   const s = stepNum != null ? ` step=${stepNum}` : "";
@@ -45,8 +42,7 @@ function inferErrorCode(message: string, code?: string): string | undefined {
   if (code && String(code).startsWith("ECHO_")) return String(code);
   const m = (message || "").toLowerCase();
   if (m.includes("gmail_send blocked")) return "ECHO_GUARD_BLOCKED";
-  if (m.includes("not connected") || m.includes("missing_access_token"))
-    return "ECHO_INTEGRATION";
+  if (m.includes("not connected") || m.includes("missing_access_token")) return "ECHO_INTEGRATION";
   if (m.includes("verification failed") || m.includes("verify")) return "ECHO_VERIFY";
   return undefined;
 }
@@ -79,10 +75,7 @@ async function openWebSocketWithRetry(wsUrl: string): Promise<WebSocket> {
       }
       if (attempt < WS_OPEN_ATTEMPTS - 1) {
         const delay = 400 * 2 ** attempt;
-        console.warn(
-          `${runCtx(undefined)} WebSocket connect retry in ${delay}ms:`,
-          last.message,
-        );
+        console.warn(`${runCtx(undefined)} WebSocket connect retry in ${delay}ms:`, last.message);
         await new Promise((r) => setTimeout(r, delay));
       }
     }
@@ -109,21 +102,12 @@ export interface RunWorkflowRemoteOptions {
   token?: string;
   backendUrl?: string;
   agentWsUrl?: string;
-  onProgress?: (
-    message: string,
-    stepNum?: number,
-    thought?: string,
-    action?: string,
-  ) => void;
+  onProgress?: (message: string, stepNum?: number, thought?: string, action?: string) => void;
   /** Incremental VLM text (OpenRouter streaming) for Run HUD */
   onThinkingDelta?: (delta: string, stepNum: number) => void;
   onAwaitingUser?: (reason: string) => void;
   /** Human-in-the-loop: integration auth, future approval gates */
-  onHitl?: (evt: {
-    kind: string;
-    payload: Record<string, unknown>;
-    step: number;
-  }) => void;
+  onHitl?: (evt: { kind: string; payload: Record<string, unknown>; step: number }) => void;
   /** Clear HITL UI in the HUD (after wait ends or on cancel). */
   onHitlClear?: () => void;
   /** For goal-only (ad-hoc) runs: single instruction, no pre-defined steps */
@@ -260,9 +244,7 @@ function integrationConnectedFromSnapshot(
   integrationId: string,
 ): boolean {
   const want = normIntegrationId(integrationId);
-  const row = snap?.integrations?.find(
-    (i) => normIntegrationId(i.id) === want,
-  );
+  const row = snap?.integrations?.find((i) => normIntegrationId(i.id) === want);
   return Boolean(row?.connected);
 }
 
@@ -294,9 +276,7 @@ async function waitUntilIntegrationConnected(
       const data = (await res.json()) as {
         integrations?: Array<{ id: string; connected?: boolean }>;
       };
-      const row = data.integrations?.find(
-        (i) => normIntegrationId(i.id) === want,
-      );
+      const row = data.integrations?.find((i) => normIntegrationId(i.id) === want);
       if (row?.connected) return true;
     } catch (e) {
       console.warn("[remote-workflow-runner] waitUntilIntegrationConnected:", e);
@@ -340,17 +320,12 @@ async function waitUntilIntegrationReconnectsAfterDisconnect(
       const data = (await res.json()) as {
         integrations?: Array<{ id: string; connected?: boolean }>;
       };
-      const row = data.integrations?.find(
-        (i) => normIntegrationId(i.id) === want,
-      );
+      const row = data.integrations?.find((i) => normIntegrationId(i.id) === want);
       const connected = Boolean(row?.connected);
       if (!connected) sawDisconnected = true;
       if (sawDisconnected && connected) return true;
     } catch (e) {
-      console.warn(
-        "[remote-workflow-runner] waitUntilIntegrationReconnectsAfterDisconnect:",
-        e,
-      );
+      console.warn("[remote-workflow-runner] waitUntilIntegrationReconnectsAfterDisconnect:", e);
     }
     first = false;
     await new Promise((r) => setTimeout(r, INTEGRATIONS_POLL_MS));
@@ -365,22 +340,16 @@ async function patchRunStatus(
 ): Promise<void> {
   if (!opts.workflowId || !opts.runId || !opts.backendUrl) return;
   try {
-    await fetch(
-      `${opts.backendUrl}/api/workflows/${opts.workflowId}/runs/${opts.runId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
-        },
-        body: JSON.stringify({ status, ...extra }),
+    await fetch(`${opts.backendUrl}/api/workflows/${opts.workflowId}/runs/${opts.runId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
       },
-    );
+      body: JSON.stringify({ status, ...extra }),
+    });
   } catch (e) {
-    console.warn(
-      `${runCtx(opts)} [remote-workflow-runner] PATCH run status failed:`,
-      e,
-    );
+    console.warn(`${runCtx(opts)} [remote-workflow-runner] PATCH run status failed:`, e);
   }
 }
 
@@ -389,14 +358,15 @@ function stepToBackendFormat(step: Step): Record<string, unknown> {
     action: step.action,
     params: step.params ?? {},
     context: step.context ?? "",
-    expected_outcome:
-      (step as unknown as Record<string, unknown>).expected_outcome ?? "",
+    expected_outcome: (step as unknown as Record<string, unknown>).expected_outcome ?? "",
   };
 }
 
 /** Matches agent `api_call` / `apicall` normalization — used to avoid retry loops that restart LangGraph HITL. */
 function isApiCallStep(step: Step): boolean {
-  const a = String(step.action ?? "").toLowerCase().replace(/_/g, "");
+  const a = String(step.action ?? "")
+    .toLowerCase()
+    .replace(/_/g, "");
   return a === "apicall";
 }
 
@@ -409,19 +379,13 @@ export async function runWorkflowRemote(
   const workflowType = options?.workflowType ?? "desktop";
   const onProgress = options?.onProgress ?? (() => {});
 
-  if (!sourceId)
-    return { success: false, error: "sourceId required for screen capture" };
-  if (!options?.backendUrl)
-    return { success: false, error: "backendUrl required" };
-  if (!options?.token)
-    return { success: false, error: "token required for WebSocket auth" };
+  if (!sourceId) return { success: false, error: "sourceId required for screen capture" };
+  if (!options?.backendUrl) return { success: false, error: "backendUrl required" };
+  if (!options?.token) return { success: false, error: "token required for WebSocket auth" };
 
   let workingSteps = interpolateSteps(steps, options?.variableValues ?? {});
 
-  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(
-    /^http/,
-    "ws",
-  );
+  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
   const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
 
   const backendSteps = workingSteps.map((s) => stepToBackendFormat(s));
@@ -446,9 +410,7 @@ export async function runWorkflowRemote(
           ws.off("error", onError);
           ws.off("close", onClose);
           try {
-            const text = Buffer.isBuffer(data)
-              ? data.toString("utf-8")
-              : String(data);
+            const text = Buffer.isBuffer(data) ? data.toString("utf-8") : String(data);
             resolve(JSON.parse(text) as object);
           } catch {
             reject(new Error("Invalid JSON from agent"));
@@ -533,8 +495,7 @@ export async function runWorkflowRemote(
           await patchRunStatus(options, "cancelled");
           return { success: false, error: "Run cancelled by user" };
         }
-        const instruction =
-          signals.redirectInstruction ?? signals.calluserFeedback;
+        const instruction = signals.redirectInstruction ?? signals.calluserFeedback;
         if (instruction) {
           applyRedirect(i, instruction);
         }
@@ -577,8 +538,7 @@ export async function runWorkflowRemote(
               lastError = "cancelled";
               break;
             }
-            const midInstruction =
-              midSignals.redirectInstruction ?? midSignals.calluserFeedback;
+            const midInstruction = midSignals.redirectInstruction ?? midSignals.calluserFeedback;
             if (midInstruction) {
               applyRedirect(i, midInstruction);
               // Refresh local reference — applyRedirect replaces the workingSteps[i] object
@@ -588,9 +548,8 @@ export async function runWorkflowRemote(
         }
 
         const expectedOutcome =
-          ((step as unknown as Record<string, unknown>).expected_outcome as
-            | string
-            | undefined) ?? "";
+          ((step as unknown as Record<string, unknown>).expected_outcome as string | undefined) ??
+          "";
 
         const typingOverride =
           !deterministic && options?.typingOverride?.trim()
@@ -622,10 +581,7 @@ export async function runWorkflowRemote(
           } catch (e) {
             lastError = `Screenshot capture failed: ${e}`;
             if (attempt < MAX_STEP_ATTEMPTS - 1) {
-              console.warn(
-                `${runCtx(options, stepNum)} capture retry:`,
-                lastError,
-              );
+              console.warn(`${runCtx(options, stepNum)} capture retry:`, lastError);
               await new Promise((r) => setTimeout(r, 600));
               continue;
             }
@@ -671,10 +627,7 @@ export async function runWorkflowRemote(
 
           if (kind === "api_call_approval" && options) {
             onProgress(
-              String(
-                intPayload.message ??
-                  "Approve or reject this API call in the panel.",
-              ),
+              String(intPayload.message ?? "Approve or reject this API call in the panel."),
               stepNum,
               undefined,
               "interrupt",
@@ -697,20 +650,13 @@ export async function runWorkflowRemote(
             const snap = await fetchIntegrationsSnapshot(options);
             const auth0LinkedEffective =
               Boolean(snap?.auth0_linked) || Boolean(intPayload.auth0_linked);
-            const alreadyConnected = integrationConnectedFromSnapshot(
-              snap,
-              integration,
-            );
+            const alreadyConnected = integrationConnectedFromSnapshot(snap, integration);
             // GET /api/integrations "connected" can be true from vault_* flags while Token Vault
             // exchange still fails — do not poll until "connected" in that case; it returns true
             // immediately. Wait for disconnect → reconnect or user Continue.
 
             if (!oauthOpenedThisStall) {
-              await openAuth0ConnectForIntegration(
-                options,
-                integration,
-                auth0LinkedEffective,
-              );
+              await openAuth0ConnectForIntegration(options, integration, auth0LinkedEffective);
               oauthOpenedThisStall = true;
             }
             setPendingIntegrationAuth({
@@ -740,16 +686,8 @@ export async function runWorkflowRemote(
             });
             try {
               const waitPoll = alreadyConnected
-                ? waitUntilIntegrationReconnectsAfterDisconnect(
-                    options,
-                    integration,
-                    300_000,
-                  )
-                : waitUntilIntegrationConnected(
-                    options,
-                    integration,
-                    300_000,
-                  );
+                ? waitUntilIntegrationReconnectsAfterDisconnect(options, integration, 300_000)
+                : waitUntilIntegrationConnected(options, integration, 300_000);
               await Promise.race([waitPoll, waitForUserHitlResume()]);
             } finally {
               clearPendingIntegrationAuth();
@@ -877,9 +815,7 @@ export async function runWorkflowRemote(
 
             const beforeBuf = Buffer.from(screenshotB64!, "base64");
             // Action-specific settle time: doubleclick/click may trigger slow app loads (e.g. IntelliJ opening a project)
-            const settleMs = ["doubleclick", "click", "clickandtype"].includes(
-              executedAction,
-            )
+            const settleMs = ["doubleclick", "click", "clickandtype"].includes(executedAction)
               ? 5000
               : 1500;
             await new Promise((r) => setTimeout(r, settleMs));
@@ -954,8 +890,7 @@ export async function runWorkflowRemote(
     return { success: true };
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    const isCancelled =
-      err === "WebSocket closed" || err.includes("Run cancelled");
+    const isCancelled = err === "WebSocket closed" || err.includes("Run cancelled");
     await patchRunStatus(options ?? {}, isCancelled ? "cancelled" : "failed", {
       error: isCancelled ? undefined : err,
       errorCode: isCancelled ? undefined : inferErrorCode(err),
@@ -981,17 +916,11 @@ export async function runGoalOnlyRemote(
   const workflowType = options.workflowType ?? "desktop";
   const onProgress = options.onProgress ?? (() => {});
 
-  if (!sourceId)
-    return { success: false, error: "sourceId required for screen capture" };
-  if (!options.backendUrl)
-    return { success: false, error: "backendUrl required" };
-  if (!options.token)
-    return { success: false, error: "token required for WebSocket auth" };
+  if (!sourceId) return { success: false, error: "sourceId required for screen capture" };
+  if (!options.backendUrl) return { success: false, error: "backendUrl required" };
+  if (!options.token) return { success: false, error: "token required for WebSocket auth" };
 
-  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(
-    /^http/,
-    "ws",
-  );
+  const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
   const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;
   console.log("[runGoalOnlyRemote] connecting", {
     agentBase,
@@ -1017,9 +946,7 @@ export async function runGoalOnlyRemote(
           ws.off("error", onError);
           ws.off("close", onClose);
           try {
-            const text = Buffer.isBuffer(data)
-              ? data.toString("utf-8")
-              : String(data);
+            const text = Buffer.isBuffer(data) ? data.toString("utf-8") : String(data);
             resolve(JSON.parse(text) as object);
           } catch {
             reject(new Error("Invalid JSON from agent"));
@@ -1063,10 +990,7 @@ export async function runGoalOnlyRemote(
       return { success: false, error: err };
     }
     if ((msg as { type?: string }).type !== "ready") {
-      console.warn(
-        "[runGoalOnlyRemote] unexpected response",
-        (msg as { type?: string }).type,
-      );
+      console.warn("[runGoalOnlyRemote] unexpected response", (msg as { type?: string }).type);
       await patchRunStatus(options, "failed", {
         error: "Unexpected agent response",
         errorCode: inferErrorCode("Unexpected agent response"),
@@ -1168,10 +1092,7 @@ export async function runGoalOnlyRemote(
 
         if (kind === "api_call_approval") {
           onProgress(
-            String(
-              intPayload.message ??
-                "Approve or reject this API call in the panel.",
-            ),
+            String(intPayload.message ?? "Approve or reject this API call in the panel."),
             stepNumGoal,
             undefined,
             "interrupt",
@@ -1194,17 +1115,10 @@ export async function runGoalOnlyRemote(
           const snap = await fetchIntegrationsSnapshot(options);
           const auth0LinkedEffective =
             Boolean(snap?.auth0_linked) || Boolean(intPayload.auth0_linked);
-          const alreadyConnected = integrationConnectedFromSnapshot(
-            snap,
-            integration,
-          );
+          const alreadyConnected = integrationConnectedFromSnapshot(snap, integration);
 
           if (!oauthOpenedThisStall) {
-            await openAuth0ConnectForIntegration(
-              options,
-              integration,
-              auth0LinkedEffective,
-            );
+            await openAuth0ConnectForIntegration(options, integration, auth0LinkedEffective);
             oauthOpenedThisStall = true;
           }
           setPendingIntegrationAuth({
@@ -1234,16 +1148,8 @@ export async function runGoalOnlyRemote(
           });
           try {
             const waitPoll = alreadyConnected
-              ? waitUntilIntegrationReconnectsAfterDisconnect(
-                  options,
-                  integration,
-                  300_000,
-                )
-              : waitUntilIntegrationConnected(
-                  options,
-                  integration,
-                  300_000,
-                );
+              ? waitUntilIntegrationReconnectsAfterDisconnect(options, integration, 300_000)
+              : waitUntilIntegrationConnected(options, integration, 300_000);
             await Promise.race([waitPoll, waitForUserHitlResume()]);
           } finally {
             clearPendingIntegrationAuth();
@@ -1300,12 +1206,7 @@ export async function runGoalOnlyRemote(
             (typeof (m.action as { action?: string })?.action === "string"
               ? (m.action as { action: string }).action
               : "");
-          onProgress(
-            thought || "Executing…",
-            iteration + 1,
-            thought,
-            actionStr,
-          );
+          onProgress(thought || "Executing…", iteration + 1, thought, actionStr);
           const execResult: OperatorResult = await operator.execute(
             m.action as import("@echo/types").OperatorAction,
           );
@@ -1328,9 +1229,7 @@ export async function runGoalOnlyRemote(
           const executedAction = (
             ((m.action as Record<string, unknown>)?.action as string) ?? ""
           ).toLowerCase();
-          const skipVerify = ["presskey", "hotkey", "wait"].includes(
-            executedAction,
-          );
+          const skipVerify = ["presskey", "hotkey", "wait"].includes(executedAction);
           if (skipVerify) {
             lastError = "";
             iteration++;
@@ -1340,9 +1239,7 @@ export async function runGoalOnlyRemote(
           }
 
           const beforeBuf = Buffer.from(screenshotB64, "base64");
-          const settleMs = ["doubleclick", "click", "clickandtype"].includes(
-            executedAction,
-          )
+          const settleMs = ["doubleclick", "click", "clickandtype"].includes(executedAction)
             ? 5000
             : 1500;
           await new Promise((r) => setTimeout(r, settleMs));
@@ -1385,8 +1282,7 @@ export async function runGoalOnlyRemote(
     }
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    const isCancelled =
-      err === "WebSocket closed" || err.includes("Run cancelled");
+    const isCancelled = err === "WebSocket closed" || err.includes("Run cancelled");
     await patchRunStatus(options, isCancelled ? "cancelled" : "failed", {
       error: isCancelled ? undefined : err,
       errorCode: isCancelled ? undefined : inferErrorCode(err),

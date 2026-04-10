@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  doc,
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
+import { doc, collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { MAIN_API_URL, agentFetch, apiFetch } from "@/lib/api";
@@ -142,11 +136,7 @@ function RunStepScreenshot({
   return (
     // Blob URLs / arbitrary screenshot URLs: next/image needs known hosts; keep native img.
     // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={imgSrc}
-      alt={alt}
-      className={className}
-    />
+    <img src={imgSrc} alt={alt} className={className} />
   );
 }
 
@@ -168,7 +158,10 @@ export default function RunDetailPage() {
   const logsEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const u = auth?.currentUser;
-    if (u) u.getIdToken().then((t) => setToken(t)).catch(() => setToken(null));
+    if (u)
+      u.getIdToken()
+        .then((t) => setToken(t))
+        .catch(() => setToken(null));
   }, []);
 
   useEffect(() => {
@@ -217,10 +210,9 @@ export default function RunDetailPage() {
           credentials: "include",
         });
         if (cancelled || !resp.ok) return;
-        const source = new EventSource(
-          `${MAIN_API_URL}/api/run/${workflowId}/${runId}/stream`,
-          { withCredentials: true },
-        );
+        const source = new EventSource(`${MAIN_API_URL}/api/run/${workflowId}/${runId}/stream`, {
+          withCredentials: true,
+        });
         if (cancelled) {
           source.close();
           return;
@@ -300,7 +292,10 @@ export default function RunDetailPage() {
   const handleRetry = async () => {
     setRetrying(true);
     try {
-      const resp = await apiFetch(`/api/run/${workflowId}`, { method: "POST", body: JSON.stringify({}) });
+      const resp = await apiFetch(`/api/run/${workflowId}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
       router.push(`/dashboard/workflows/${workflowId}/runs/${data.run_id}`);
@@ -336,7 +331,10 @@ export default function RunDetailPage() {
               {liveThoughts.slice(-5).map((t, i) => (
                 <div key={i} className="mb-2 text-xs">
                   <span className="text-gray-400">Step {t.step_index + 1}: </span>
-                  <span className="text-[#150A35]/70">{t.thought.slice(0, 150)}{t.thought.length > 150 ? "…" : ""}</span>
+                  <span className="text-[#150A35]/70">
+                    {t.thought.slice(0, 150)}
+                    {t.thought.length > 150 ? "…" : ""}
+                  </span>
                 </div>
               ))}
             </div>
@@ -414,7 +412,9 @@ export default function RunDetailPage() {
               </div>
             )}
             <div className="w-full flex flex-col gap-2">
-              <label className="text-xs font-semibold text-[#150A35]">Send feedback &amp; resume</label>
+              <label className="text-xs font-semibold text-[#150A35]">
+                Send feedback &amp; resume
+              </label>
               <Input
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
@@ -478,10 +478,10 @@ export default function RunDetailPage() {
     status === "completed"
       ? "bg-echo-success/15 text-echo-success"
       : status === "failed"
-      ? "bg-echo-error/15 text-echo-error"
-      : status === "awaiting_user"
-      ? "bg-amber-50 text-amber-600"
-      : "bg-[#150A35]/10 text-[#150A35]/70";
+        ? "bg-echo-error/15 text-echo-error"
+        : status === "awaiting_user"
+          ? "bg-amber-50 text-amber-600"
+          : "bg-[#150A35]/10 text-[#150A35]/70";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
@@ -489,12 +489,12 @@ export default function RunDetailPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-          <Link
-            href={`/dashboard/workflows/${workflowId}`}
-            className="cursor-pointer text-[#150A35]/70 hover:text-[#A577FF]"
-          >
-            <IconArrowLeft className="h-5 w-5" />
-          </Link>
+            <Link
+              href={`/dashboard/workflows/${workflowId}`}
+              className="cursor-pointer text-[#150A35]/70 hover:text-[#A577FF]"
+            >
+              <IconArrowLeft className="h-5 w-5" />
+            </Link>
             <h1 className="text-xl font-semibold text-[#150A35]">Run Logs</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -509,22 +509,22 @@ export default function RunDetailPage() {
         {status === "failed" && (
           <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
             <div className="flex-1">
-            <p className="text-sm text-echo-error">
-              {run?.error != null ? String(run.error) : "Run failed"}
-            </p>
-            {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (
-              <p className="mt-1 text-xs font-mono text-echo-error/80">{run.errorCode}</p>
-            )}
+              <p className="text-sm text-echo-error">
+                {run?.error != null ? String(run.error) : "Run failed"}
+              </p>
+              {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (
+                <p className="mt-1 text-xs font-mono text-echo-error/80">{run.errorCode}</p>
+              )}
             </div>
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  disabled={retrying}
-                  className="echo-btn-cyan-lavender ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                >
-                  <IconRefresh className="h-3.5 w-3.5" />
-                  {retrying ? "Starting…" : "Retry Run"}
-                </button>
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retrying}
+              className="echo-btn-cyan-lavender ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+            >
+              <IconRefresh className="h-3.5 w-3.5" />
+              {retrying ? "Starting…" : "Retry Run"}
+            </button>
           </div>
         )}
 
@@ -537,7 +537,7 @@ export default function RunDetailPage() {
             <span className="ml-auto text-xs text-white/30">{logs.length} lines</span>
           </div>
           <div className="flex-1 overflow-y-auto p-4 font-mono text-sm">
-          {logs.length === 0 ? (
+            {logs.length === 0 ? (
               <p className="text-white/30">No log output.</p>
             ) : (
               logs.map((log) => (
@@ -546,7 +546,9 @@ export default function RunDetailPage() {
                   {(log.thought || log.action) && (
                     <div className="flex items-center gap-2 mb-1">
                       {formatTimestamp(log.timestamp) && (
-                        <span className="text-white/25 text-xs">{formatTimestamp(log.timestamp)}</span>
+                        <span className="text-white/25 text-xs">
+                          {formatTimestamp(log.timestamp)}
+                        </span>
                       )}
                       {log.step_index !== undefined && (
                         <span className="text-white/25 text-xs">Step {log.step_index + 1}</span>
@@ -594,8 +596,8 @@ export default function RunDetailPage() {
                           log.level === "error"
                             ? "text-echo-error"
                             : log.level === "warn"
-                            ? "text-yellow-400"
-                            : "text-white/80"
+                              ? "text-yellow-400"
+                              : "text-white/80"
                         }
                       >
                         {log.message}
@@ -605,10 +607,9 @@ export default function RunDetailPage() {
                 </div>
               ))
             )}
-              <div ref={logsEndRef} />
-            </div>
+            <div ref={logsEndRef} />
+          </div>
         </div>
-
       </div>
     </div>
   );

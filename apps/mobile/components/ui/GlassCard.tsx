@@ -31,11 +31,7 @@ export function GlassCard({
   // ── iOS 26+ Liquid Glass ──────────────────────────────
   if (supportsLiquidGlass) {
     return (
-      <GlassView
-        glassEffectStyle={glassStyle}
-        style={[styles.card, style]}
-        {...(props as object)}
-      >
+      <GlassView glassEffectStyle={glassStyle} style={[styles.card, style]} {...(props as object)}>
         {children}
       </GlassView>
     );
@@ -64,11 +60,7 @@ export function GlassCard({
   // ── Android solid fallback ────────────────────────────
   return (
     <View
-      style={[
-        styles.card,
-        variant === "light" ? styles.androidLight : styles.androidDark,
-        style,
-      ]}
+      style={[styles.card, variant === "light" ? styles.androidLight : styles.androidDark, style]}
       {...props}
     >
       {children}

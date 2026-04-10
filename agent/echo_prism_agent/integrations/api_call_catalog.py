@@ -2,6 +2,7 @@
 
 Keep in sync with echo_prism_agent.integrations.{slack,github,google} METHODS.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -13,7 +14,7 @@ _INTEGRATION_IDS: Final[tuple[str, ...]] = ("slack", "github", "google")
 def build_api_call_reference_for_llm() -> str:
     """Human-readable block listing supported api_call integrations and methods."""
     lines: list[str] = [
-        "api_call step shape: action \"api_call\", params: {",
+        'api_call step shape: action "api_call", params: {',
         '  "integration": "slack" | "github" | "google",',
         '  "method": "<exact method name from the list below>",',
         '  "args": { }  /* method-specific; see each method line */',

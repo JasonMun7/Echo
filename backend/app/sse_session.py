@@ -1,4 +1,5 @@
 """Short-lived signed cookie for SSE (EventSource cannot send Authorization)."""
+
 from __future__ import annotations
 
 import logging
@@ -25,13 +26,9 @@ def _signing_secret() -> str:
     raw = (os.getenv("ECHO_SSE_SESSION_SECRET") or "").strip()
     if not raw:
         if _is_production_env():
-            raise RuntimeError(
-                "ECHO_SSE_SESSION_SECRET must be set when ENV or ECHO_ENV indicates production"
-            )
+            raise RuntimeError("ECHO_SSE_SESSION_SECRET must be set when ENV or ECHO_ENV indicates production")
         if not _dev_default_secret_warned["done"]:
-            logger.warning(
-                "ECHO_SSE_SESSION_SECRET unset; using dev-only default. Set a strong secret in production."
-            )
+            logger.warning("ECHO_SSE_SESSION_SECRET unset; using dev-only default. Set a strong secret in production.")
             _dev_default_secret_warned["done"] = True
         raw = "dev-only-echo-sse-secret-change-in-production"
     return raw

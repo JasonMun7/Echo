@@ -12,13 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { Integration } from "../_lib/integration-types";
 
@@ -49,14 +43,14 @@ export function IntegrationCard({
         "echo-card flex flex-col overflow-hidden rounded-xl border shadow-sm transition-all",
         connected
           ? "border-emerald-200 bg-emerald-50/50 hover:border-emerald-300/80"
-          : "border-[#A577FF]/20 bg-white/90 hover:border-[#A577FF]/40 hover:shadow-md"
+          : "border-[#A577FF]/20 bg-white/90 hover:border-[#A577FF]/40 hover:shadow-md",
       )}
     >
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <div
           className={cn(
             "flex h-12 w-12 items-center justify-center rounded-xl",
-            connected ? "bg-emerald-100 text-emerald-600" : "bg-[#F5F3FF] text-[#A577FF]"
+            connected ? "bg-emerald-100 text-emerald-600" : "bg-[#F5F3FF] text-[#A577FF]",
           )}
         >
           {ICON_MAP[integration.icon] || <IconPlug className="h-6 w-6" />}

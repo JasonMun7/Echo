@@ -29,18 +29,12 @@ import {
 } from "@/hooks/use-chat-persistence";
 import { useRunStatus } from "@/hooks/use-firestore-listener";
 
-const iosVersion =
-  Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
+const iosVersion = Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
 const supportsLiquidGlass = Platform.OS === "ios" && iosVersion >= 26;
 
 /* ─── types ─── */
 
-type MessageType =
-  | "text"
-  | "tool_call"
-  | "synthesis_complete"
-  | "run_started"
-  | "error";
+type MessageType = "text" | "tool_call" | "synthesis_complete" | "run_started" | "error";
 
 interface Message {
   id: string;
@@ -95,10 +89,7 @@ const QUICK_CHIPS = [
 
 /* ─── run status helpers ─── */
 
-const RUN_STATUS_CONFIG: Record<
-  string,
-  { icon: IoniconsName; color: string; label: string }
-> = {
+const RUN_STATUS_CONFIG: Record<string, { icon: IoniconsName; color: string; label: string }> = {
   pending: { icon: "time-outline", color: "#f59e0b", label: "Queued" },
   running: {
     icon: "play-circle-outline",
@@ -119,25 +110,16 @@ const RUN_STATUS_CONFIG: Record<
   },
 };
 
-function RunCard({
-  item,
-  router,
-}: {
-  item: Message;
-  router: ReturnType<typeof useRouter>;
-}) {
+function RunCard({ item, router }: { item: Message; router: ReturnType<typeof useRouter> }) {
   const status = useRunStatus(item.workflowId ?? null, item.runId ?? null);
-  const config =
-    RUN_STATUS_CONFIG[status ?? "pending"] ?? RUN_STATUS_CONFIG.pending;
+  const config = RUN_STATUS_CONFIG[status ?? "pending"] ?? RUN_STATUS_CONFIG.pending;
 
   return (
     <Pressable
       style={styles.runCard}
       onPress={() => {
         if (item.workflowId && item.runId) {
-          router.push(
-            `/(tabs)/workflows/${item.workflowId}/runs/${item.runId}`,
-          );
+          router.push(`/(tabs)/workflows/${item.workflowId}/runs/${item.runId}`);
         }
       }}
     >
@@ -154,9 +136,7 @@ function RunCard({
           </Text>
         )}
         {(status === "pending" || !status) && (
-          <Text style={styles.runCardDesktopNote}>
-            Requires Echo Desktop to be running
-          </Text>
+          <Text style={styles.runCardDesktopNote}>Requires Echo Desktop to be running</Text>
         )}
       </View>
       <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
@@ -170,9 +150,7 @@ export default function ChatScreen() {
   const { conversationId: paramConvId } = useLocalSearchParams<{
     conversationId?: string;
   }>();
-  const [conversationId, setConversationId] = useState<string | null>(
-    paramConvId ?? null,
-  );
+  const [conversationId, setConversationId] = useState<string | null>(paramConvId ?? null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
@@ -319,10 +297,7 @@ export default function ChatScreen() {
             const name = data.name ?? "tool";
             const meta = TOOL_META[name];
             // Start synthesis loader for synthesis/adhoc tools
-            if (
-              name === "synthesize_from_description" ||
-              name === "run_adhoc"
-            ) {
+            if (name === "synthesize_from_description" || name === "run_adhoc") {
               startSynthesis();
             }
             addMsg({
@@ -536,16 +511,11 @@ export default function ChatScreen() {
         <Pressable
           style={styles.synthCard}
           onPress={() => {
-            if (item.workflowId)
-              router.push(`/(tabs)/workflows/${item.workflowId}`);
+            if (item.workflowId) router.push(`/(tabs)/workflows/${item.workflowId}`);
           }}
         >
           <View style={styles.synthCardInner}>
-            <Ionicons
-              name="sparkles-outline"
-              size={20}
-              color={colors.lavender}
-            />
+            <Ionicons name="sparkles-outline" size={20} color={colors.lavender} />
             <View style={{ flex: 1 }}>
               <Text style={styles.synthTitle}>Workflow Ready</Text>
               <Text style={styles.synthName} numberOfLines={1}>
@@ -577,9 +547,7 @@ export default function ChatScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.bubble, styles.userBubble]}
         >
-          <Text style={[styles.bubbleText, styles.userBubbleText]}>
-            {item.content}
-          </Text>
+          <Text style={[styles.bubbleText, styles.userBubbleText]}>{item.content}</Text>
           <Text style={[styles.timestamp, styles.userTimestamp]}>
             {new Date(item.timestamp).toLocaleTimeString("en-US", {
               hour: "numeric",
@@ -591,16 +559,8 @@ export default function ChatScreen() {
     }
 
     return (
-      <View
-        style={[
-          styles.bubble,
-          styles.assistantBubble,
-          isError && styles.errorBubble,
-        ]}
-      >
-        <Text style={[styles.bubbleText, isError && styles.errorText]}>
-          {item.content}
-        </Text>
+      <View style={[styles.bubble, styles.assistantBubble, isError && styles.errorBubble]}>
+        <Text style={[styles.bubbleText, isError && styles.errorText]}>{item.content}</Text>
         <Text style={styles.timestamp}>
           {new Date(item.timestamp).toLocaleTimeString("en-US", {
             hour: "numeric",
@@ -614,26 +574,18 @@ export default function ChatScreen() {
   // ─── Shared input pill contents ───
   const inputPillContents = (
     <>
-      <Pressable
-        style={styles.voiceBtn}
-        onPress={() => router.push("/(tabs)/chat/voice")}
-      >
+      <Pressable style={styles.voiceBtn} onPress={() => router.push("/(tabs)/chat/voice")}>
         <Ionicons name="mic-outline" size={20} color="#8B6CF7" />
       </Pressable>
       <TextInput
         multiline
-        style={[
-          styles.input,
-          { height: Math.min(Math.max(inputHeight, 36), 100) },
-        ]}
+        style={[styles.input, { height: Math.min(Math.max(inputHeight, 36), 100) }]}
         placeholder={connected ? "Message Echo..." : "Connecting..."}
         placeholderTextColor={colors.textLight}
         value={input}
         onChangeText={setInput}
         editable={connected}
-        onContentSizeChange={(e) =>
-          setInputHeight(e.nativeEvent.contentSize.height)
-        }
+        onContentSizeChange={(e) => setInputHeight(e.nativeEvent.contentSize.height)}
         returnKeyType="send"
         blurOnSubmit={false}
         onSubmitEditing={() => sendMessage(input)}
@@ -674,11 +626,7 @@ export default function ChatScreen() {
               onPress={() => router.push("/(tabs)/chat/conversations")}
               style={{ paddingHorizontal: 8 }}
             >
-              <Ionicons
-                name="chatbubbles-outline"
-                size={22}
-                color={colors.lavender}
-              />
+              <Ionicons name="chatbubbles-outline" size={22} color={colors.lavender} />
             </Pressable>
           ),
         }}
@@ -692,25 +640,18 @@ export default function ChatScreen() {
       {/* Connection banner */}
       {!connected && (
         <Pressable
-          style={[
-            styles.connectionBanner,
-            connectError && styles.connectionBannerError,
-          ]}
+          style={[styles.connectionBanner, connectError && styles.connectionBannerError]}
           onPress={connectError ? () => connect() : undefined}
         >
           {connectError ? (
             <>
-              <Text style={styles.connectionTextError}>
-                ⚠ Failed to connect
-              </Text>
+              <Text style={styles.connectionTextError}>⚠ Failed to connect</Text>
               <Text style={styles.connectionRetry}>Tap to retry</Text>
             </>
           ) : (
             <>
               <ActivityIndicator size="small" color={colors.lavender} />
-              <Text style={styles.connectionText}>
-                Connecting to Echo agent...
-              </Text>
+              <Text style={styles.connectionText}>Connecting to Echo agent...</Text>
             </>
           )}
         </Pressable>
@@ -720,30 +661,17 @@ export default function ChatScreen() {
       {synthesizing && (
         <View style={styles.synthOverlay}>
           {supportsLiquidGlass ? (
-            <GlassView
-              glassEffectStyle="regular"
-              style={StyleSheet.absoluteFill}
-            />
+            <GlassView glassEffectStyle="regular" style={StyleSheet.absoluteFill} />
           ) : Platform.OS === "ios" ? (
             <>
               <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: "rgba(250,249,255,0.88)" },
-                ]}
+                style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(250,249,255,0.88)" }]}
               />
-              <BlurView
-                intensity={40}
-                tint="light"
-                style={StyleSheet.absoluteFill}
-              />
+              <BlurView intensity={40} tint="light" style={StyleSheet.absoluteFill} />
             </>
           ) : (
             <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: "rgba(245,247,252,0.92)" },
-              ]}
+              style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(245,247,252,0.92)" }]}
             />
           )}
           <View style={styles.synthOverlayCard}>
@@ -759,12 +687,7 @@ export default function ChatScreen() {
                 >
                   {i < synthStep && <Text style={styles.synthCheck}>✓</Text>}
                 </View>
-                <Text
-                  style={[
-                    styles.synthStepText,
-                    i <= synthStep && styles.synthStepTextActive,
-                  ]}
-                >
+                <Text style={[styles.synthStepText, i <= synthStep && styles.synthStepTextActive]}>
                   {step}
                 </Text>
                 {i === synthStep && (
@@ -784,19 +707,13 @@ export default function ChatScreen() {
         ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.messages,
-          { paddingBottom: tabBarOffset + 80 },
-        ]}
-        onContentSizeChange={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
+        contentContainerStyle={[styles.messages, { paddingBottom: tabBarOffset + 80 }]}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         ListEmptyComponent={
           <View style={styles.emptyChat}>
             <Text style={styles.emptyChatTitle}>Echo Agent</Text>
             <Text style={styles.emptyChatSub}>
-              Ask me to create workflows, run automations, or manage your
-              integrations.
+              Ask me to create workflows, run automations, or manage your integrations.
             </Text>
           </View>
         }
@@ -821,11 +738,7 @@ export default function ChatScreen() {
             {adhocWorkflow.name}
           </Text>
           <View style={styles.adhocActions}>
-            <Pressable
-              style={styles.adhocSaveBtn}
-              onPress={handleSaveAdhoc}
-              disabled={savingAdhoc}
-            >
+            <Pressable style={styles.adhocSaveBtn} onPress={handleSaveAdhoc} disabled={savingAdhoc}>
               <Text style={styles.adhocSaveText}>Save</Text>
             </Pressable>
             <Pressable
@@ -843,11 +756,7 @@ export default function ChatScreen() {
       {messages.length === 0 && (
         <View style={styles.chips}>
           {QUICK_CHIPS.map((chip) => (
-            <Pressable
-              key={chip}
-              style={styles.chip}
-              onPress={() => sendMessage(chip)}
-            >
+            <Pressable key={chip} style={styles.chip} onPress={() => sendMessage(chip)}>
               <Text style={styles.chipText}>{chip}</Text>
             </Pressable>
           ))}
@@ -863,22 +772,13 @@ export default function ChatScreen() {
         ) : Platform.OS === "ios" ? (
           <View style={[styles.inputPill, { overflow: "hidden" }]}>
             <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: "rgba(250,249,255,0.92)" },
-              ]}
+              style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(250,249,255,0.92)" }]}
             />
-            <BlurView
-              intensity={55}
-              tint="light"
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={55} tint="light" style={StyleSheet.absoluteFill} />
             {inputPillContents}
           </View>
         ) : (
-          <View style={[styles.inputPill, styles.inputPillAndroid]}>
-            {inputPillContents}
-          </View>
+          <View style={[styles.inputPill, styles.inputPillAndroid]}>{inputPillContents}</View>
         )}
       </View>
     </KeyboardAvoidingView>

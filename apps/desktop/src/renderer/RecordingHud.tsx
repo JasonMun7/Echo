@@ -67,12 +67,7 @@ export default function RecordingHud(_props: RecordingHudProps) {
       {/* Controls */}
       <div className="echo-hud-no-drag flex flex-1 items-center gap-2 p-3 pl-2">
         {/* Recording indicator */}
-        <div
-          className={cn(
-            "echo-recording-dot shrink-0",
-            recordingPaused && "paused",
-          )}
-        />
+        <div className={cn("echo-recording-dot shrink-0", recordingPaused && "paused")} />
         <span className="text-sm font-semibold text-(--echo-text) min-w-[48px] tabular-nums">
           {formatDuration(recordingDuration)}
         </span>
@@ -84,14 +79,8 @@ export default function RecordingHud(_props: RecordingHudProps) {
             onClick={handlePause}
             className="echo-recording-hud-btn-secondary flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-all"
           >
-            {recordingPaused ? (
-              <IconPlayerPlay size={16} />
-            ) : (
-              <IconPlayerPause size={16} />
-            )}
-            <span className="hidden sm:inline">
-              {recordingPaused ? "Resume" : "Pause"}
-            </span>
+            {recordingPaused ? <IconPlayerPlay size={16} /> : <IconPlayerPause size={16} />}
+            <span className="hidden sm:inline">{recordingPaused ? "Resume" : "Pause"}</span>
           </button>
 
           {/* Stop - primary CTA, gradient button */}

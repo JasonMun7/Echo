@@ -22,7 +22,14 @@ def test_postprocess_strips_coordinate_keys():
 def test_postprocess_no_default_coords():
     """No synthetic 500 coords — only stripping."""
     steps, _ = _postprocess_steps(
-        [{"action": "click_at", "context": "", "params": {"description": "x"}, "expected_outcome": ""}]
+        [
+            {
+                "action": "click_at",
+                "context": "",
+                "params": {"description": "x"},
+                "expected_outcome": "",
+            }
+        ]
     )
     assert "x" not in steps[0]["params"]
 

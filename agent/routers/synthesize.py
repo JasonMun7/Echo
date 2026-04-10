@@ -6,24 +6,25 @@ Workflow JSON may include ``api_call`` steps; allowed integrations and methods a
 synthesis prompts from ``echo_prism_agent.integrations.api_call_catalog`` (see ``METHODS`` on each
 connector in ``echo_prism_agent.integrations.{slack,github,google}``).
 """
+
 import os
 import re
 import sys
-import time
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
+import firebase_admin.firestore
+from app.auth import get_current_uid, get_firebase_app
+from app.config import GCS_BUCKET, GEMINI_API_KEY
+from app.services.gcs import download_file as gcs_download_file
+from app.services.gcs import upload_file
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from google import genai
-from google.genai import types
-import firebase_admin.firestore
 from google.cloud.firestore import SERVER_TIMESTAMP
+from google.genai import types
 from pydantic import BaseModel as PydanticBaseModel
-
-from app.auth import get_current_uid, get_firebase_app
-from app.config import GEMINI_API_KEY, GCS_BUCKET
-from app.services.gcs import upload_file, download_file as gcs_download_file
 
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
 
@@ -42,9 +43,7 @@ def _upload_to_gemini(content: bytes, mime_type: str) -> types.Part:
         f.write(content)
         path = f.name
     try:
-        uploaded = client.files.upload(
-            file=path, config=types.UploadFileConfig(mime_type=mime_type)
-        )
+        uploaded = client.files.upload(file=path, config=types.UploadFileConfig(mime_type=mime_type))
         # Poll until active
         while getattr(uploaded.state, "name", str(uploaded.state)) == "PROCESSING":
             time.sleep(1)
@@ -92,9 +91,7 @@ async def synthesize(
         _source_recording_id = _sorted_ss[0].filename if _sorted_ss else "screenshots"
 
     if has_video and screenshots:
-        raise HTTPException(
-            status_code=400, detail="Provide either video or screenshots, not both"
-        )
+        raise HTTPException(status_code=400, detail="Provide either video or screenshots, not both")
     if not has_video and not screenshots:
         raise HTTPException(status_code=400, detail="Provide video or screenshots")
 
@@ -133,9 +130,7 @@ async def synthesize(
         elif video_gcs_path:
             match = re.match(r"gs://[^/]+/(.+)", video_gcs_path)
             if not match:
-                raise HTTPException(
-                    status_code=400, detail="Invalid video_gcs_path format"
-                )
+                raise HTTPException(status_code=400, detail="Invalid video_gcs_path format")
             blob_name = match.group(1)
             ext = blob_name.rsplit(".", 1)[-1].lower() if "." in blob_name else ""
             ct = {
@@ -250,9 +245,7 @@ async def synthesize_from_description_impl(
         "name": name,
         "status": "processing",
         "owner_uid": uid,
-        "workflow_type": workflow_type
-        if workflow_type in ("browser", "desktop")
-        else "browser",
+        "workflow_type": workflow_type if workflow_type in ("browser", "desktop") else "browser",
         "createdAt": SERVER_TIMESTAMP,
         "updatedAt": SERVER_TIMESTAMP,
     }
@@ -261,9 +254,7 @@ async def synthesize_from_description_impl(
     workflow_ref.set(payload)
 
     client = genai.Client(api_key=GEMINI_API_KEY)
-    result = await synthesize_workflow_from_description(
-        description, name, workflow_type, client
-    )
+    result = await synthesize_workflow_from_description(description, name, workflow_type, client)
     steps_data = result.get("steps", [])
     variables = result.get("variables", [])
     actual_type = result.get("workflow_type", workflow_type)
@@ -309,9 +300,7 @@ async def synthesize_from_description_endpoint(
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     try:
-        workflow_id = await synthesize_from_description_impl(
-            uid, body.name, body.description, body.workflow_type, db
-        )
+        workflow_id = await synthesize_from_description_impl(uid, body.name, body.description, body.workflow_type, db)
         return {"workflow_id": workflow_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

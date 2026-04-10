@@ -6,6 +6,7 @@ and Google Cloud consent screen; otherwise Google returns 403.
 Maximum scope groups Auth0/Google may offer for this integration: see
 ``google_scopes.GOOGLE_OAUTH_MAX_BY_PRODUCT``.
 """
+
 from __future__ import annotations
 
 import base64
@@ -13,7 +14,6 @@ from email.message import EmailMessage
 from typing import Any
 
 import httpx
-
 from echo_prism_agent.integrations.gmail_content_guard import (
     gmail_data_guard_error_message,
     gmail_send_body_likely_missing_requested_data,
@@ -78,9 +78,7 @@ def _gmail_rfc2822_raw_b64(args: dict[str, Any]) -> tuple[str | None, str | None
     guard_text = plain
     if html is not None and str(html).strip():
         guard_text = f"{plain}\n{html}"
-    if not _truthy_skip_gmail_data_guard(args) and gmail_send_body_likely_missing_requested_data(
-        guard_text, subject
-    ):
+    if not _truthy_skip_gmail_data_guard(args) and gmail_send_body_likely_missing_requested_data(guard_text, subject):
         return None, gmail_data_guard_error_message()
     msg = EmailMessage()
     msg["To"] = to
@@ -183,7 +181,11 @@ async def execute(method: str, args: dict[str, Any], access_token: str) -> dict[
         if method == "gmail_send":
             raw_b64, err = _gmail_rfc2822_raw_b64(args)
             if err or not raw_b64:
-                return {"ok": False, "error": err or "gmail_send_failed_to_build_message", "result": {}}
+                return {
+                    "ok": False,
+                    "error": err or "gmail_send_failed_to_build_message",
+                    "result": {},
+                }
             r = await client.post(
                 _GMAIL_SEND_URL,
                 headers={**headers, "Content-Type": "application/json"},

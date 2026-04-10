@@ -7,6 +7,7 @@ Resolution order: ``AUTH0_CALLBACK_URL`` (full URL), else ``BACKEND_URL`` + ``/a
 (injected by ``scripts/deploy/deploy-backend.sh``), else ``request.base_url`` (local dev).
 Do not use ``FRONTEND_ORIGIN`` — OAuth callbacks hit the API host, not the Next.js host.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -147,9 +148,7 @@ async def _verify_vault_federated_exchange(
         logger.warning("echo_prism_agent unavailable; skipping Token Vault verification on callback")
         return False, _vault_verify_hint_message("Server could not load Token Vault integration module.")
     if not token_vault_enabled():
-        return False, _vault_verify_hint_message(
-            "Token Vault exchange is disabled (set AUTH0_TOKEN_VAULT=1)."
-        )
+        return False, _vault_verify_hint_message("Token Vault exchange is disabled (set AUTH0_TOKEN_VAULT=1).")
     conn = connection_name_for_integration(integration_echo_id)
     if not conn:
         return False, _vault_verify_hint_message(f"Unknown integration: {integration_echo_id!r}")
@@ -173,9 +172,7 @@ async def _verify_vault_federated_exchange(
         if not status:
             last_err = str(desc or data.get("error") or "AUTH0_DOMAIN or config error")
         elif not tok:
-            last_err = (
-                f"HTTP {status} oauth_error={err_oauth!r} oauth_error_description={str(desc)[:300]!r}"
-            )
+            last_err = f"HTTP {status} oauth_error={err_oauth!r} oauth_error_description={str(desc)[:300]!r}"
         else:
             last_err = "exchange returned no access_token"
         logger.warning(
@@ -286,11 +283,11 @@ async def auth0_vault_url(
             detail="Provide integration (slack|github|google) or connection",
         )
     try:
-        from echo_prism_agent.auth0_token_vault import connection_name_for_integration
         from echo_prism_agent.auth0_my_account_connect import (
             start_connected_account_connect,
             upstream_scopes_for_integration,
         )
+        from echo_prism_agent.auth0_token_vault import connection_name_for_integration
     except ImportError:
         raise HTTPException(status_code=503, detail="echo_prism_agent is not available")
 
@@ -528,9 +525,7 @@ async def auth0_callback(
         if len(parts) == 3:
             try:
                 pad = "=" * (-len(parts[1]) % 4)
-                claims = json.loads(
-                    base64.urlsafe_b64decode(parts[1] + pad).decode()
-                )
+                claims = json.loads(base64.urlsafe_b64decode(parts[1] + pad).decode())
                 auth0_sub = claims.get("sub") or ""
                 em = (claims.get("email") or "").strip()
                 auth0_email = em or None

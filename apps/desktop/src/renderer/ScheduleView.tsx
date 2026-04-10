@@ -6,11 +6,7 @@ import {
   IconCalendarClock,
   IconClock,
 } from "@tabler/icons-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -78,10 +74,13 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
 
   const base = apiUrl.replace(/\/$/, "");
 
-  const headers = useCallback((): Record<string, string> => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  }), [token]);
+  const headers = useCallback(
+    (): Record<string, string> => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    }),
+    [token],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -120,7 +119,9 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
   }, [loadData]);
 
   const activeWorkflows = workflows.filter(
-    (w) => (w.status === "active" || w.status === "ready") && !schedules.some((s) => s.workflowId === w.id),
+    (w) =>
+      (w.status === "active" || w.status === "ready") &&
+      !schedules.some((s) => s.workflowId === w.id),
   );
 
   const handleCreate = async () => {
@@ -198,12 +199,22 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
           <button
             type="button"
             onClick={onBack}
-            style={{ background: "none", border: "none", color: "var(--echo-text)", opacity: 0.7, display: "flex", alignItems: "center", padding: 4 }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--echo-text)",
+              opacity: 0.7,
+              display: "flex",
+              alignItems: "center",
+              padding: 4,
+            }}
           >
             <IconArrowLeft size={20} />
           </button>
           <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--echo-text)", margin: 0 }}>
+            <h2
+              style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--echo-text)", margin: 0 }}
+            >
               Scheduled Runs
             </h2>
             <p style={{ fontSize: 13, color: "var(--echo-text-secondary)", margin: 0 }}>
@@ -238,7 +249,15 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
           <button
             type="button"
             onClick={() => setError("")}
-            style={{ float: "right", background: "none", border: "none", color: "#ef4444", fontWeight: 600, fontSize: 16, lineHeight: 1 }}
+            style={{
+              float: "right",
+              background: "none",
+              border: "none",
+              color: "#ef4444",
+              fontWeight: 600,
+              fontSize: 16,
+              lineHeight: 1,
+            }}
           >
             ×
           </button>
@@ -248,17 +267,40 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
       {/* Create form */}
       {showCreate && (
         <section className="echo-card" style={{ padding: 20, marginBottom: 20 }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--echo-text)", marginTop: 0, marginBottom: 16 }}>
+          <h3
+            style={{
+              fontSize: "1rem",
+              fontWeight: 600,
+              color: "var(--echo-text)",
+              marginTop: 0,
+              marginBottom: 16,
+            }}
+          >
             Create Schedule
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {/* Workflow picker */}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Workflow</label>
-              <select value={selectedWorkflow} onChange={(e) => setSelectedWorkflow(e.target.value)} style={selectStyle}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "var(--echo-text-secondary)",
+                  marginBottom: 4,
+                }}
+              >
+                Workflow
+              </label>
+              <select
+                value={selectedWorkflow}
+                onChange={(e) => setSelectedWorkflow(e.target.value)}
+                style={selectStyle}
+              >
                 <option value="">Select a workflow…</option>
                 {activeWorkflows.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name || w.id}</option>
+                  <option key={w.id} value={w.id}>
+                    {w.name || w.id}
+                  </option>
                 ))}
               </select>
               {activeWorkflows.length === 0 && (
@@ -270,10 +312,25 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
 
             {/* Frequency */}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Frequency</label>
-              <select value={cronPreset} onChange={(e) => setCronPreset(e.target.value)} style={selectStyle}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "var(--echo-text-secondary)",
+                  marginBottom: 4,
+                }}
+              >
+                Frequency
+              </label>
+              <select
+                value={cronPreset}
+                onChange={(e) => setCronPreset(e.target.value)}
+                style={selectStyle}
+              >
                 {CRON_PRESETS.map((p) => (
-                  <option key={p.label} value={p.value}>{p.label}</option>
+                  <option key={p.label} value={p.value}>
+                    {p.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -281,7 +338,16 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
             {/* Custom cron */}
             {cronPreset === "__custom__" && (
               <div>
-                <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Custom Cron Expression</label>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: "var(--echo-text-secondary)",
+                    marginBottom: 4,
+                  }}
+                >
+                  Custom Cron Expression
+                </label>
                 <input
                   type="text"
                   value={customCron}
@@ -297,10 +363,25 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
 
             {/* Timezone */}
             <div>
-              <label style={{ display: "block", fontSize: 12, color: "var(--echo-text-secondary)", marginBottom: 4 }}>Timezone</label>
-              <select value={timezone} onChange={(e) => setTimezone(e.target.value)} style={selectStyle}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "var(--echo-text-secondary)",
+                  marginBottom: 4,
+                }}
+              >
+                Timezone
+              </label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                style={selectStyle}
+              >
                 {TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>{tz.label}</option>
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -319,7 +400,12 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
                 type="button"
                 className="echo-btn-primary"
                 onClick={handleCreate}
-                disabled={!selectedWorkflow || (!cronPreset || (cronPreset === "__custom__" && !customCron)) || saving}
+                disabled={
+                  !selectedWorkflow ||
+                  !cronPreset ||
+                  (cronPreset === "__custom__" && !customCron) ||
+                  saving
+                }
                 style={{ fontSize: 13 }}
               >
                 {saving ? "Saving…" : "Create Schedule"}
@@ -347,8 +433,12 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
         >
           <IconCalendarClock size={48} style={{ opacity: 0.3 }} />
           <div>
-            <p style={{ fontWeight: 500, color: "var(--echo-text)", margin: 0, marginBottom: 4 }}>No schedules yet</p>
-            <p style={{ fontSize: 13, margin: 0 }}>Create a schedule to automatically run workflows.</p>
+            <p style={{ fontWeight: 500, color: "var(--echo-text)", margin: 0, marginBottom: 4 }}>
+              No schedules yet
+            </p>
+            <p style={{ fontSize: 13, margin: 0 }}>
+              Create a schedule to automatically run workflows.
+            </p>
           </div>
         </div>
       ) : (
@@ -383,7 +473,9 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
                   <IconClock size={20} />
                 </div>
                 <div>
-                  <p style={{ fontWeight: 500, color: "var(--echo-text)", margin: 0, fontSize: 14 }}>
+                  <p
+                    style={{ fontWeight: 500, color: "var(--echo-text)", margin: 0, fontSize: 14 }}
+                  >
                     {sched.workflowName}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
@@ -399,7 +491,9 @@ export default function ScheduleView({ token, apiUrl, onBack }: Props) {
                     >
                       {sched.cron}
                     </span>
-                    <span style={{ fontSize: 12, color: "#9ca3af" }}>{parseCronHuman(sched.cron)}</span>
+                    <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                      {parseCronHuman(sched.cron)}
+                    </span>
                     <span style={{ fontSize: 12, color: "#9ca3af" }}>·</span>
                     <span style={{ fontSize: 12, color: "#9ca3af" }}>{sched.timezone}</span>
                   </div>

@@ -7,11 +7,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/stores";
 
-export default function DashboardRootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardRootLayout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
   const router = useRouter();
@@ -53,9 +49,7 @@ export default function DashboardRootLayout({
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="flex min-h-0 flex-1 flex-col bg-[#F5F7FC]">
-            {children}
-          </div>
+          <div className="flex min-h-0 flex-1 flex-col bg-[#F5F7FC]">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </div>

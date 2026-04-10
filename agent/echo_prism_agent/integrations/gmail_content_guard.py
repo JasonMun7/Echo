@@ -4,6 +4,7 @@ Heuristic guard: block ``gmail_send`` when the body looks like a *task prompt* w
 Workflow ``api_call`` steps are deterministic — the VLM does not fill ``args.body`` at send time.
 Users often synthesize \"Please find the top 5 stocks…\" without prior steps that embed the list.
 """
+
 from __future__ import annotations
 
 import re

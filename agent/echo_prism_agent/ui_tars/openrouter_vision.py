@@ -10,12 +10,11 @@ import os
 from typing import Any
 
 import requests
-
 from echo_prism_agent.constants import (
     OPENROUTER_BASE_URL_DEFAULT,
-    effective_ui_tars_model_id,
     OPENROUTER_HTTP_REFERER_DEFAULT,
     OPENROUTER_TITLE_DEFAULT,
+    effective_ui_tars_model_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,9 +157,7 @@ async def chat_completions_vision(
         msg = choices[0].get("message") or {}
         text = msg.get("content")
         if isinstance(text, list):
-            text = "".join(
-                p.get("text", "") if isinstance(p, dict) else str(p) for p in text
-            )
+            text = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in text)
         if not text:
             return None, "OpenRouter: no assistant text"
         return str(text).strip(), None

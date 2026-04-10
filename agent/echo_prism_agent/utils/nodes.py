@@ -8,18 +8,14 @@ import os
 from io import BytesIO
 from typing import Any, Literal
 
-from langchain_core.runnables import RunnableConfig
-from langgraph.graph import END
-from langgraph.types import Command
-
-from echo_prism_agent.model_prompts import history_summary_text
-from echo_prism_agent.synthesis.pipeline import synthesize_workflow_from_media
 from echo_prism_agent.constants import (
     DEFAULT_GUI_RUN_MAX_LOOPS,
     MAX_CONTEXT_IMAGES,
     MAX_INFERENCE_FAILURES,
     MAX_RETRIES,
 )
+from echo_prism_agent.model_prompts import history_summary_text
+from echo_prism_agent.synthesis.pipeline import synthesize_workflow_from_media
 from echo_prism_agent.ui_tars.screenshot_pipeline import (
     build_context,
     compress_screenshot,
@@ -31,6 +27,9 @@ from echo_prism_agent.utils.state import (
     InferenceStepState,
     SynthesisGraphState,
 )
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import END
+from langgraph.types import Command
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +47,7 @@ except ImportError:
 async def chat_turn_node(state: ChatTurnState) -> dict[str, Any]:
     from echo_prism_agent.utils.tools import process_chat_turn
 
-    text_resp, fn_calls, model_content = await process_chat_turn(
-        state["history"], state["client"], state["model"]
-    )
+    text_resp, fn_calls, model_content = await process_chat_turn(state["history"], state["client"], state["model"])
     return {
         "text_resp": text_resp,
         "fn_calls": fn_calls,
@@ -124,9 +121,7 @@ def build_history_context(state: InferenceStepState) -> dict[str, Any]:
             history_text = history_summary_text(summary)
             extra_images = screenshots if screenshots else None
         except ValueError as e:
-            logger.debug(
-                "build_history_context: invalid history context; using empty fallback: %s", e
-            )
+            logger.debug("build_history_context: invalid history context; using empty fallback: %s", e)
     return {
         "history_text": history_text,
         "extra_images": extra_images,
@@ -154,9 +149,7 @@ async def think_llm(
         user_parts.append(f"Prior steps summary:\n{state['history_text']}\n")
     if state.get("extra_context"):
         user_parts.append(state["extra_context"])
-    user_parts.append(
-        "Current screenshot is attached. Output Thought: then Action: following the system contract."
-    )
+    user_parts.append("Current screenshot is attached. Output Thought: then Action: following the system contract.")
     user_text = "\n".join(user_parts)
     extra_raw = state.get("extra_images") or []
     extra_compressed = [compress_screenshot(b) for b in extra_raw] if extra_raw else None
@@ -276,7 +269,11 @@ def gui_run_prepare(state: GuiRunState) -> dict[str, Any]:
         max_loops = int(os.environ.get("ECHOPRISM_GUI_RUN_MAX_LOOPS", str(DEFAULT_GUI_RUN_MAX_LOOPS)))
     muscle_replay = bool(state.get("muscle_replay_active"))
     if not muscle_replay:
-        muscle_replay = os.environ.get("ECHOPRISM_MUSCLE_REPLAY", "").strip().lower() in ("1", "true", "yes")
+        muscle_replay = os.environ.get("ECHOPRISM_MUSCLE_REPLAY", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
     cache_clear = state.get("cache_clear_on_fail")
     if cache_clear is None:
         cache_clear = os.environ.get("ECHOPRISM_CACHE_CLEAR_ON_FAIL", "1").strip().lower() in (
@@ -315,7 +312,11 @@ async def gui_run_execute(state: GuiRunState, config: RunnableConfig) -> dict[st
     action = (parsed.get("action") or "").lower()
 
     if action == "finished":
-        return {"gui_run_terminal": "finished", "after_screenshot_bytes": state.get("screenshot_bytes"), "execute_skipped": True}
+        return {
+            "gui_run_terminal": "finished",
+            "after_screenshot_bytes": state.get("screenshot_bytes"),
+            "execute_skipped": True,
+        }
 
     if execute_fn is None:
         # Tests / dry-run: no desktop bridge — treat as no-op so verify can pass.
@@ -331,11 +332,19 @@ async def gui_run_execute(state: GuiRunState, config: RunnableConfig) -> dict[st
         return {"gui_run_terminal": "error", "gui_error": str(e), "after_screenshot_bytes": None}
 
     if not isinstance(out, dict):
-        return {"gui_run_terminal": "error", "gui_error": "gui_execute_fn must return a dict", "after_screenshot_bytes": None}
+        return {
+            "gui_run_terminal": "error",
+            "gui_error": "gui_execute_fn must return a dict",
+            "after_screenshot_bytes": None,
+        }
 
     after = out.get("after_screenshot_bytes") or out.get("screenshot_bytes")
     if after is None:
-        return {"gui_run_terminal": "error", "gui_error": "execute_fn must return after_screenshot_bytes", "after_screenshot_bytes": None}
+        return {
+            "gui_run_terminal": "error",
+            "gui_error": "execute_fn must return after_screenshot_bytes",
+            "after_screenshot_bytes": None,
+        }
 
     return {"after_screenshot_bytes": after, "execute_skipped": False}
 
@@ -355,7 +364,11 @@ async def gui_run_verify(state: GuiRunState, _config: RunnableConfig | None = No
 
     after = state.get("after_screenshot_bytes")
     if not after:
-        return {"verify_delta_ok": False, "verification_hint": "Missing after screenshot", "outcome_met": False}
+        return {
+            "verify_delta_ok": False,
+            "verification_hint": "Missing after screenshot",
+            "outcome_met": False,
+        }
 
     before = state.get("before_screenshot_bytes") or state.get("screenshot_bytes") or b""
     _hint, changed = screenshots_pixels_changed(before, after)
@@ -458,14 +471,10 @@ def gui_route_after_verify(state: GuiRunState) -> Command:
     )
     is_no_change_failure = any(m in hint_lower for m in no_change_markers)
     if is_no_change_failure:
-        recovery = (
-            "Try a clearly different action; do not repeat the same coordinates if the UI did not change."
-        )
+        recovery = "Try a clearly different action; do not repeat the same coordinates if the UI did not change."
     else:
         recovery = "Try a different approach or re-verify the target element before acting again."
-    extra_ctx = (
-        f"Verification failed: {hint} (verify retry {vf + 1}, GUI loop {loop_n}). {recovery}"
-    )
+    extra_ctx = f"Verification failed: {hint} (verify retry {vf + 1}, GUI loop {loop_n}). {recovery}"
 
     return Command(
         update={

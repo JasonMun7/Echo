@@ -67,6 +67,8 @@ def effective_ui_tars_model_id() -> str:
         or (os.environ.get("ECHOPRISM_INFERENCE_MODEL") or "").strip()
         or DEFAULT_UI_TARS_MODEL_ID
     )
+
+
 OPENROUTER_BASE_URL_DEFAULT = "https://openrouter.ai/api/v1"
 HTTPX_MAX_KEEPALIVE_CONNECTIONS = 8
 HTTPX_MAX_CONNECTIONS = 16
@@ -75,21 +77,25 @@ HTTPX_MAX_CONNECTIONS = 16
 WAIT_EXCESS_THRESHOLD_SECONDS = 10.0
 
 # --- Optional muscle-mem verification tools (``VerificationResultToolProvider``) ---
-VERIFICATION_CONCLUSIONS: frozenset[str] = frozenset({
-    "SUCCESS",
-    "FAILURE",
-    "PARTIAL",
-})
+VERIFICATION_CONCLUSIONS: frozenset[str] = frozenset(
+    {
+        "SUCCESS",
+        "FAILURE",
+        "PARTIAL",
+    }
+)
 
 # --- Grounding actions (pixel coords required) --------------------------------
-GROUNDING_ACTIONS: frozenset[str] = frozenset({
-    "click",
-    "doubleclick",
-    "rightclick",
-    "hover",
-    "drag",
-    "clickandtype",
-})
+GROUNDING_ACTIONS: frozenset[str] = frozenset(
+    {
+        "click",
+        "doubleclick",
+        "rightclick",
+        "hover",
+        "drag",
+        "clickandtype",
+    }
+)
 
 # --- Workflow synthesis --------------------------------------------------------
 FRAME_PIXEL_DIFF_SAMPLE_BYTES = 10000

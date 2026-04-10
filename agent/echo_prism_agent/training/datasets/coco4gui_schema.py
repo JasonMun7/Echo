@@ -7,6 +7,7 @@ Supports:
 - categories (click, type, select, hover, drag, right_click, double_click, scroll, swipe, long_press, focus)
 - attributes: task_description, action_type, element_info, thought, quality, etc.
 """
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,6 +15,7 @@ from typing import Any
 @dataclass
 class COCO4GUIImage:
     """Single image entry in COCO4GUI format."""
+
     id: int
     file_name: str
     width: int
@@ -53,6 +55,7 @@ class COCO4GUIImage:
 @dataclass
 class COCO4GUICategory:
     """Category for action types (click, type, etc.)."""
+
     id: int
     name: str
     supercategory: str = "interaction"
@@ -68,6 +71,7 @@ class COCO4GUICategory:
 @dataclass
 class COCO4GUIAnnotation:
     """Annotation with bbox, keypoints, and GUI-specific attributes."""
+
     id: int
     image_id: int
     bbox: list[float]  # [x, y, w, h] or [x_norm, y_norm, w_norm, h_norm] in [0,1]
@@ -100,11 +104,14 @@ class COCO4GUIAnnotation:
 @dataclass
 class COCO4GUIDataset:
     """Full COCO4GUI dataset."""
-    info: dict[str, Any] = field(default_factory=lambda: {
-        "description": "GUI Interaction Dataset",
-        "version": "1.0",
-        "year": 2024,
-    })
+
+    info: dict[str, Any] = field(
+        default_factory=lambda: {
+            "description": "GUI Interaction Dataset",
+            "version": "1.0",
+            "year": 2024,
+        }
+    )
     images: list[COCO4GUIImage] = field(default_factory=list)
     annotations: list[COCO4GUIAnnotation] = field(default_factory=list)
     categories: list[COCO4GUICategory] = field(default_factory=list)

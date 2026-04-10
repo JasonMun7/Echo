@@ -4,6 +4,7 @@ Strip workflow / synthesis artifacts that must never be sent to external APIs (e
 Steps sometimes include bracketed VLM instructions like ``[VLM: Extract ...]`` — those are
 hints for the desktop agent, not user-facing email or chat content.
 """
+
 from __future__ import annotations
 
 import re

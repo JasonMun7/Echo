@@ -17,7 +17,7 @@ export const Heading = ({
     className={cn(
       "tracking-tight text-balance text-[#150A35] md:text-4xl lg:text-5xl",
       "text-2xl md:text-4xl",
-      className
+      className,
     )}
     {...props}
   >

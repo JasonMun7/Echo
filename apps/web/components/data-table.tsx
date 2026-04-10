@@ -54,11 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const schema = z.object({
   id: z.string(),
@@ -163,9 +159,7 @@ const baseColumns: ColumnDef<Run>[] = [
     accessorKey: "createdAt",
     header: "Started",
     cell: ({ row }) => (
-      <span className="text-sm text-echo-text-muted">
-        {formatDate(row.original.createdAt)}
-      </span>
+      <span className="text-sm text-echo-text-muted">{formatDate(row.original.createdAt)}</span>
     ),
   },
   {
@@ -203,41 +197,31 @@ export interface DataTableProps {
 
 export function DataTable({ data: initialData, singleWorkflow }: DataTableProps) {
   const [cancellingId, setCancellingId] = React.useState<string | null>(null);
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>(() =>
-      singleWorkflow ? { workflowName: false } : { workflowName: true }
-    );
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() =>
+    singleWorkflow ? { workflowName: false } : { workflowName: true },
   );
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "createdAt", desc: true },
-  ]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }]);
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: 10,
   });
   const [activeTab, setActiveTab] = React.useState("all");
 
-  const handleCancelRun = React.useCallback(
-    async (workflowId: string, runId: string) => {
-      setCancellingId(runId);
-      try {
-        const res = await apiFetch(`/api/run/${workflowId}/${runId}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) throw new Error("Failed to cancel");
-        toast.success("Run cancelled");
-      } catch (e) {
-        toast.error(
-          e instanceof Error ? e.message : "Failed to cancel run"
-        );
-      } finally {
-        setCancellingId(null);
-      }
-    },
-    []
-  );
+  const handleCancelRun = React.useCallback(async (workflowId: string, runId: string) => {
+    setCancellingId(runId);
+    try {
+      const res = await apiFetch(`/api/run/${workflowId}/${runId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to cancel");
+      toast.success("Run cancelled");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to cancel run");
+    } finally {
+      setCancellingId(null);
+    }
+  }, []);
 
   const columns = React.useMemo<ColumnDef<Run>[]>(
     () => [
@@ -290,17 +274,14 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
         enableHiding: false,
       },
     ],
-    [cancellingId, handleCancelRun]
+    [cancellingId, handleCancelRun],
   );
 
   const filteredData = React.useMemo(() => {
     if (activeTab === "all") return initialData;
     if (activeTab === "in_progress")
       return initialData.filter(
-        (r) =>
-          r.status === "running" ||
-          r.status === "pending" ||
-          r.status === "awaiting_user",
+        (r) => r.status === "running" || r.status === "pending" || r.status === "awaiting_user",
       );
     return initialData.filter((r) => r.status === activeTab);
   }, [initialData, activeTab]);
@@ -331,10 +312,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
     if (tab === "all") return initialData.length;
     if (tab === "in_progress")
       return initialData.filter(
-        (r) =>
-          r.status === "running" ||
-          r.status === "pending" ||
-          r.status === "awaiting_user",
+        (r) => r.status === "running" || r.status === "pending" || r.status === "awaiting_user",
       ).length;
     return initialData.filter((r) => r.status === tab).length;
   };
@@ -392,11 +370,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
           <DropdownMenuContent align="end" className="w-48">
             {table
               .getAllColumns()
-              .filter(
-                (column) =>
-                  typeof column.accessorFn !== "undefined" &&
-                  column.getCanHide(),
-              )
+              .filter((column) => typeof column.accessorFn !== "undefined" && column.getCanHide())
               .map((column) => (
                 <DropdownMenuCheckboxItem
                   key={column.id}
@@ -421,10 +395,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                   <TableHead key={header.id} colSpan={header.colSpan}>
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
@@ -436,10 +407,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -473,9 +441,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
               onValueChange={(value) => table.setPageSize(Number(value))}
             >
               <SelectTrigger size="sm" className="w-20" id="rows-per-page">
-                <SelectValue
-                  placeholder={table.getState().pagination.pageSize}
-                />
+                <SelectValue placeholder={table.getState().pagination.pageSize} />
               </SelectTrigger>
               <SelectContent side="top">
                 {[10, 20, 30, 40, 50].map((pageSize) => (
@@ -487,8 +453,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
             </Select>
           </div>
           <div className="flex w-fit items-center justify-center text-sm font-medium">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
+            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
           </div>
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
             <Button

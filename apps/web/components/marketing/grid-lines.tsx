@@ -27,7 +27,7 @@ export const GridLineHorizontal = ({
       "[mask:linear-gradient(to_left,var(--background)_var(--fade-stop),transparent),linear-gradient(to_right,var(--background)_var(--fade-stop),transparent),linear-gradient(black,black)]",
       "mask-exclude",
       "z-30",
-      className
+      className,
     )}
   />
 );
@@ -58,7 +58,7 @@ export const GridLineVertical = ({
       "[mask:linear-gradient(to_top,var(--background)_var(--fade-stop),transparent),linear-gradient(to_bottom,var(--background)_var(--fade-stop),transparent),linear-gradient(black,black)]",
       "mask-exclude",
       "z-30",
-      className
+      className,
     )}
   />
 );

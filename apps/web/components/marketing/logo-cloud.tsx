@@ -32,8 +32,7 @@ export function LogoCloud() {
   return (
     <section className="py-10 md:py-20 lg:py-32">
       <h2 className="mx-auto max-w-xl text-center text-lg font-medium text-gray-600">
-        Trusted by teams building the future of AI.{" "}
-        <br className="hidden sm:block" />{" "}
+        Trusted by teams building the future of AI. <br className="hidden sm:block" />{" "}
         <span className="text-[#21C4DD]">From prototype to production.</span>
       </h2>
       <div className="mx-auto mt-10 grid max-w-7xl grid-cols-4 md:grid-cols-6">

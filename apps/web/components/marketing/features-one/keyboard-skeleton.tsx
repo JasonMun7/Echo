@@ -123,13 +123,7 @@ function Row({ children }: { children: React.ReactNode }) {
   return <div className="mb-px flex gap-px">{children}</div>;
 }
 
-function Key({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
+function Key({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
     <div
       className={cn(

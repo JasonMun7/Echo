@@ -7,7 +7,6 @@ Keeps parity with `apps/desktop/.../direct-executor.ts` (run desktop tests along
 from __future__ import annotations
 
 import pytest
-
 from echo_prism_agent.execution.operator import is_deterministic, step_to_action
 
 
@@ -90,9 +89,7 @@ def test_step_to_action_scroll_open_focus_select() -> None:
     f = step_to_action(_step("focus_app", {"appName": "Calc"}))
     assert f["action"] == "focusapp"
 
-    sel = step_to_action(
-        _step("select_option", {"selector": "#m", "value": "v"})
-    )
+    sel = step_to_action(_step("select_option", {"selector": "#m", "value": "v"}))
     assert sel["action"] == "selectoption"
     assert sel["selector"] == "#m"
     assert sel["value"] == "v"

@@ -22,7 +22,7 @@ export const Badge = ({
       href={href!}
       className={cn(
         "flex w-fit items-center gap-2 rounded-full border border-[#21C4DD]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#150A35] shadow-sm transition-colors hover:border-[#21C4DD]/50 hover:bg-[#21C4DD]/5",
-        className
+        className,
       )}
     >
       {text ?? children}

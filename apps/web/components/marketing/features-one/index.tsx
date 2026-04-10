@@ -18,27 +18,21 @@ import {
   MarketingCardSkeleton,
   MarketingFeatureCard,
 } from "@/components/marketing/primitives";
-import {
-  IconBolt,
-  IconChartBar,
-  IconPuzzle,
-} from "@tabler/icons-react";
+import { IconBolt, IconChartBar, IconPuzzle } from "@tabler/icons-react";
 
 export function FeaturesOne() {
   return (
     <Container as="section" id="product" className="py-10 md:py-20 lg:py-32">
       <Heading>How Echo works</Heading>
-      <SubHeading className="mt-2">
-        Show it once. Run it forever.
-      </SubHeading>
+      <SubHeading className="mt-2">Show it once. Run it forever.</SubHeading>
       <div className="mx-auto mt-8 grid grid-cols-1 gap-4 md:mt-12 md:grid-cols-3 md:grid-rows-2">
         <MarketingCard className="md:row-span-2">
           <MarketingCardContent className="flex h-full flex-col">
             <MarketingCardHeader>
               <MarketingCardTitle>Show Echo what to do</MarketingCardTitle>
               <MarketingCardDescription>
-                Record a video or take screenshots of any workflow. Gemini 2.5
-                Pro synthesizes it into a step-by-step AI plan in seconds.
+                Record a video or take screenshots of any workflow. Gemini 2.5 Pro synthesizes it
+                into a step-by-step AI plan in seconds.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center overflow-hidden pt-4">
@@ -52,8 +46,8 @@ export function FeaturesOne() {
             <MarketingCardHeader>
               <MarketingCardTitle>Live vision execution</MarketingCardTitle>
               <MarketingCardDescription>
-                EchoPrism watches your screen in real time, deciding each click
-                and keystroke using on-screen vision grounding — not blind guessing.
+                EchoPrism watches your screen in real time, deciding each click and keystroke using
+                on-screen vision grounding — not blind guessing.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center pt-4">
@@ -67,9 +61,8 @@ export function FeaturesOne() {
             <MarketingCardHeader>
               <MarketingCardTitle>Voice control, anytime</MarketingCardTitle>
               <MarketingCardDescription>
-                Say &ldquo;run my report&rdquo; to start, or interrupt
-                mid-run to redirect. EchoPrism listens via LiveKit + Gemini
-                Live and responds instantly.
+                Say &ldquo;run my report&rdquo; to start, or interrupt mid-run to redirect.
+                EchoPrism listens via LiveKit + Gemini Live and responds instantly.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 flex-col items-center justify-between gap-2 overflow-hidden pt-4">
@@ -87,8 +80,8 @@ export function FeaturesOne() {
             <MarketingCardHeader>
               <MarketingCardTitle>Browser &amp; desktop, natively</MarketingCardTitle>
               <MarketingCardDescription>
-                Works on any web app in Chrome and on native desktop apps
-                through our Electron agent. No browser extension needed.
+                Works on any web app in Chrome and on native desktop apps through our Electron
+                agent. No browser extension needed.
               </MarketingCardDescription>
             </MarketingCardHeader>
             <MarketingCardSkeleton className="mt-auto flex flex-1 items-center justify-center overflow-hidden mask-r-from-50% pt-4">

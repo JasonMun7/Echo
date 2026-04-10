@@ -1,4 +1,5 @@
 """My Account connected-accounts flow."""
+
 from echo_prism_agent.auth0_my_account_connect import (
     _pkce_pair,
     default_google_upstream_scopes,

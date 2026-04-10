@@ -4,6 +4,7 @@ Auth0 Token Vault: federated connection access token via refresh token exchange.
 See: https://auth0.com/docs/secure/tokens/token-vault/refresh-token-exchange-with-token-vault
 Auth0 AI (product) overview: https://auth0.com/ai/docs/intro/token-vault
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,7 +37,12 @@ def _client_secret() -> str:
 
 
 def token_vault_enabled() -> bool:
-    return bool(_domain() and _client_id() and _client_secret() and os.getenv("AUTH0_TOKEN_VAULT", "1") not in ("0", "false", "False"))
+    return bool(
+        _domain()
+        and _client_id()
+        and _client_secret()
+        and os.getenv("AUTH0_TOKEN_VAULT", "1") not in ("0", "false", "False")
+    )
 
 
 def normalize_integration_id(integration_id: str) -> str:

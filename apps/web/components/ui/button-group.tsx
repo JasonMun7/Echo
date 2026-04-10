@@ -19,7 +19,7 @@ function ButtonGroup({
         "inline-flex items-center",
         orientation === "horizontal" ? "flex-row gap-1" : "flex-col",
         orientation === "vertical" && "gap-1",
-        className
+        className,
       )}
       {...props}
     />
@@ -41,7 +41,7 @@ function ButtonGroupSeparator({
         "shrink-0",
         orientation === "vertical" && "h-6 w-px",
         orientation === "horizontal" && "h-px w-6",
-        className
+        className,
       )}
       {...props}
     />
@@ -61,7 +61,11 @@ function ButtonGroupText({
     });
   }
   return (
-    <span data-slot="button-group-text" className={cn("text-sm text-muted-foreground px-2", className)} {...props}>
+    <span
+      data-slot="button-group-text"
+      className={cn("text-sm text-muted-foreground px-2", className)}
+      {...props}
+    >
       {children}
     </span>
   );

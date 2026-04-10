@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 from typing import Annotated
 
+import firebase_admin
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import firebase_admin
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
 
@@ -47,18 +47,14 @@ def get_firebase_app():
             # ADC still honors GOOGLE_APPLICATION_CREDENTIALS; remove so metadata/Workload Identity is used.
             os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
             cred_path = ""
-        cred = (
-            credentials.Certificate(cred_path)
-            if cred_path
-            else credentials.ApplicationDefault()
-        )
+        cred = credentials.Certificate(cred_path) if cred_path else credentials.ApplicationDefault()
         opts = {"projectId": ECHO_GCP_PROJECT_ID} if ECHO_GCP_PROJECT_ID else {}
         firebase_admin.initialize_app(cred, opts)
     return firebase_admin.get_app()
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)]
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
 ) -> dict:
     if credentials is None:
         raise HTTPException(

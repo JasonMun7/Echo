@@ -6,6 +6,7 @@ DELETE /api/integrations/{name}       — disconnect
 POST   /api/integrations/{name}/call  — execute connector method
 GET    /api/integrations/{name}/methods — list methods
 """
+
 import asyncio
 import importlib
 import logging
@@ -74,6 +75,7 @@ async def _oauth_token_failure_detail(uid: str, name: str, db: firebase_admin.fi
         f"Auth0 federated exchange: {auth0_hint}"
     )
 
+
 AVAILABLE_INTEGRATIONS = {
     "slack": {
         "name": "Slack",
@@ -110,9 +112,7 @@ async def list_integrations(uid: str = Depends(get_current_uid)):
     udata = user_doc.to_dict() or {}
     auth0_linked = bool((udata.get("auth0_refresh_token") or "").strip())
 
-    connected_docs = (
-        db.collection("users").document(uid).collection("integrations").stream()
-    )
+    connected_docs = db.collection("users").document(uid).collection("integrations").stream()
     connected = {d.id: d.to_dict() for d in connected_docs}
 
     result = []
@@ -171,9 +171,7 @@ async def call_integration(
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
 
-    token_doc = (
-        db.collection("users").document(uid).collection("integrations").document(name).get()
-    )
+    token_doc = db.collection("users").document(uid).collection("integrations").document(name).get()
     if not token_doc.exists and AVAILABLE_INTEGRATIONS.get(name, {}).get("oauth"):
         pass
 

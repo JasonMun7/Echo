@@ -25,9 +25,9 @@ export function Auth0StatusBanner({
           Link Auth0 first
         </p>
         <p className="mt-1 text-sm text-[#150A35]/80">
-          Use <strong className="font-medium text-[#150A35]">Connect</strong> on an integration below to sign in
-          with Auth0 and store third-party tokens securely. You sign in to Echo with Firebase; Auth0 holds Slack,
-          GitHub, and Google credentials for workflows.
+          Use <strong className="font-medium text-[#150A35]">Connect</strong> on an integration
+          below to sign in with Auth0 and store third-party tokens securely. You sign in to Echo
+          with Firebase; Auth0 holds Slack, GitHub, and Google credentials for workflows.
         </p>
       </div>
     );
@@ -37,7 +37,9 @@ export function Auth0StatusBanner({
     <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/90 bg-emerald-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900/85">Auth0 linked</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900/85">
+            Auth0 linked
+          </p>
           <Badge className="border-emerald-200 bg-emerald-100/90 text-emerald-800">Ready</Badge>
         </div>
         {auth0Email || auth0Sub ? (

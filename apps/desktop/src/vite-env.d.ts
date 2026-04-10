@@ -23,8 +23,6 @@ declare module "@/components/AnimatedList" {
     interactive?: boolean;
     keyExtractor?: (item: T, index: number) => string | number;
   }
-  const AnimatedList: <T = unknown>(
-    props: AnimatedListProps<T>
-  ) => JSX.Element;
+  const AnimatedList: <T = unknown>(props: AnimatedListProps<T>) => JSX.Element;
   export default AnimatedList;
 }

@@ -1,6 +1,7 @@
 """
 Structured run context for log lines (workflow_id, run_id, step_index, uid hash).
 """
+
 from __future__ import annotations
 
 import hashlib

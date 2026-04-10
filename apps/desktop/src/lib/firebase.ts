@@ -10,8 +10,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const hasConfig =
-  typeof firebaseConfig.apiKey === "string" && firebaseConfig.apiKey.length > 0;
+const hasConfig = typeof firebaseConfig.apiKey === "string" && firebaseConfig.apiKey.length > 0;
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;

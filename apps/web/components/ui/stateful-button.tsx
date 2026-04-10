@@ -3,17 +3,12 @@ import { cn } from "@/lib/utils";
 import React from "react";
 import { motion, useAnimate } from "motion/react";
 
-interface StatefulButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface StatefulButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   children: React.ReactNode;
 }
 
-export const StatefulButton = ({
-  className,
-  children,
-  ...props
-}: StatefulButtonProps) => {
+export const StatefulButton = ({ className, children, ...props }: StatefulButtonProps) => {
   const [scope, animate] = useAnimate();
 
   const animateLoading = async () => {

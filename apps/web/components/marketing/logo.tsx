@@ -28,7 +28,7 @@ export const Logo = ({ size = "md" }: { size?: keyof typeof sizeMap }) => {
           "font-medium",
           size === "sm" && "text-lg",
           size === "md" && "text-xl",
-          size === "lg" && "text-2xl"
+          size === "lg" && "text-2xl",
         )}
       >
         <span>Echo</span>

@@ -9,7 +9,7 @@ const USE_CASES = [
   {
     emoji: "♿",
     title: "Accessibility",
-    headline: "\"EchoPrism, file my expenses.\"",
+    headline: '"EchoPrism, file my expenses."',
     story:
       "Sarah has early-stage Parkinson's. The mouse is hard. Now she says three words and watches her computer do the rest — no clicking, no keyboard, no frustration.",
     tag: "Motor impairment",
@@ -17,7 +17,7 @@ const USE_CASES = [
   {
     emoji: "👴",
     title: "Non-technical users",
-    headline: "\"Dad stopped calling me for IT help.\"",
+    headline: '"Dad stopped calling me for IT help."',
     story:
       "Marcus recorded his dad's most common computer tasks once. Now his dad runs them with a voice command. Shared in 30 seconds. Zero setup required.",
     tag: "Family & caregiving",
@@ -25,7 +25,7 @@ const USE_CASES = [
   {
     emoji: "⚡",
     title: "Power users",
-    headline: "\"12 reports. Zero minutes.\"",
+    headline: '"12 reports. Zero minutes."',
     story:
       "Emily runs a Monday digest across 12 clients. Echo does all 12 while she's in standup. It interrupted itself once to ask a question — and handled her answer mid-run.",
     tag: "Productivity",
@@ -37,16 +37,10 @@ export function Testimonials() {
     <section className="bg-[#F5F7FC] py-16 md:py-24">
       <div className="mx-auto max-w-7xl px-4 md:px-8">
         <div className="text-center">
-          <Heading as="h2">
-            Who Echo is for
-          </Heading>
-          <SubHeading
-            as="p"
-            className="mx-auto mt-4 max-w-md text-base text-gray-600 md:text-lg"
-          >
-            Echo isn&apos;t just for developers. It&apos;s for anyone who
-            has ever had to explain something that would be faster to just
-            show.
+          <Heading as="h2">Who Echo is for</Heading>
+          <SubHeading as="p" className="mx-auto mt-4 max-w-md text-base text-gray-600 md:text-lg">
+            Echo isn&apos;t just for developers. It&apos;s for anyone who has ever had to explain
+            something that would be faster to just show.
           </SubHeading>
         </div>
 
@@ -60,13 +54,7 @@ export function Testimonials() {
   );
 }
 
-function UseCaseCard({
-  item,
-  index,
-}: {
-  item: (typeof USE_CASES)[0];
-  index: number;
-}) {
+function UseCaseCard({ item, index }: { item: (typeof USE_CASES)[0]; index: number }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
 
@@ -84,12 +72,8 @@ function UseCaseCard({
           {item.tag}
         </span>
       </div>
-      <p className="text-base font-semibold leading-snug text-[#150A35]">
-        {item.headline}
-      </p>
-      <p className="mt-3 text-sm leading-relaxed text-gray-600">
-        {item.story}
-      </p>
+      <p className="text-base font-semibold leading-snug text-[#150A35]">{item.headline}</p>
+      <p className="mt-3 text-sm leading-relaxed text-gray-600">{item.story}</p>
     </motion.div>
   );
 }

@@ -22,10 +22,7 @@ import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import {
-  useLiveKitSession,
-  type VoiceState,
-} from "@/hooks/use-livekit-session";
+import { useLiveKitSession, type VoiceState } from "@/hooks/use-livekit-session";
 import { colors } from "@echo/design-tokens";
 import { randomUUID } from "expo-crypto";
 
@@ -93,16 +90,8 @@ function PulseOrb({ state }: { state: VoiceState }) {
       // Expanding ripples to show it's "absorbing" sound
       ripple1Scale.value = 0.8;
       ripple1Opacity.value = 0.5;
-      ripple1Scale.value = withRepeat(
-        withTiming(1.6, { duration: 1600 }),
-        -1,
-        false,
-      );
-      ripple1Opacity.value = withRepeat(
-        withTiming(0, { duration: 1600 }),
-        -1,
-        false,
-      );
+      ripple1Scale.value = withRepeat(withTiming(1.6, { duration: 1600 }), -1, false);
+      ripple1Opacity.value = withRepeat(withTiming(0, { duration: 1600 }), -1, false);
     } else if (state === "thinking") {
       // Tight, fast processing throb
       mainScale.value = withRepeat(
@@ -120,10 +109,7 @@ function PulseOrb({ state }: { state: VoiceState }) {
         true,
       );
       mainOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.6, { duration: 400 }),
-          withTiming(0.9, { duration: 400 }),
-        ),
+        withSequence(withTiming(0.6, { duration: 400 }), withTiming(0.9, { duration: 400 })),
         -1,
         true,
       );
@@ -280,11 +266,7 @@ function ControlBarContent({
         style={[styles.ctrlBtn, showHelp && styles.ctrlBtnActive]}
         onPress={() => setShowHelp(!showHelp)}
       >
-        <Ionicons
-          name="help-circle-outline"
-          size={22}
-          color="rgba(255,255,255,0.7)"
-        />
+        <Ionicons name="help-circle-outline" size={22} color="rgba(255,255,255,0.7)" />
       </Pressable>
     </>
   );
@@ -304,23 +286,15 @@ function TranscriptContents({
   return (
     <>
       {transcript.length === 0 ? (
-        <Text style={styles.transcriptEmpty}>
-          Start speaking to begin a conversation...
-        </Text>
+        <Text style={styles.transcriptEmpty}>Start speaking to begin a conversation...</Text>
       ) : (
         transcript.map((entry) => (
           <View
             key={entry.id}
-            style={[
-              styles.transcriptEntry,
-              entry.role === "user" && styles.transcriptUser,
-            ]}
+            style={[styles.transcriptEntry, entry.role === "user" && styles.transcriptUser]}
           >
             <Text
-              style={[
-                styles.transcriptText,
-                entry.role === "user" && styles.transcriptUserText,
-              ]}
+              style={[styles.transcriptText, entry.role === "user" && styles.transcriptUserText]}
             >
               {entry.text}
             </Text>
@@ -330,9 +304,7 @@ function TranscriptContents({
       {synthResult && (
         <Pressable
           style={styles.synthCta}
-          onPress={() =>
-            router.replace(`/(tabs)/workflows/${synthResult.workflowId}`)
-          }
+          onPress={() => router.replace(`/(tabs)/workflows/${synthResult.workflowId}`)}
         >
           <Ionicons name="sparkles-outline" size={18} color="#A577FF" />
           <View style={{ flex: 1 }}>
@@ -421,27 +393,17 @@ export default function VoiceScreen() {
           ? "#f59e0b"
           : "#6b7280";
 
-  const iosVersion =
-    Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
+  const iosVersion = Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
   const supportsLiquidGlass = Platform.OS === "ios" && iosVersion >= 26;
 
   return (
-    <LinearGradient
-      colors={["#070314", "#0f0628", "#170A40"]}
-      style={styles.container}
-    >
+    <LinearGradient colors={["#070314", "#0f0628", "#170A40"]} style={styles.container}>
       {/* Subtle ambient orbs */}
       <View style={styles.bgOrb1} pointerEvents="none">
-        <LinearGradient
-          colors={["rgba(165,119,255,0.1)", "transparent"]}
-          style={{ flex: 1 }}
-        />
+        <LinearGradient colors={["rgba(165,119,255,0.1)", "transparent"]} style={{ flex: 1 }} />
       </View>
       <View style={styles.bgOrb2} pointerEvents="none">
-        <LinearGradient
-          colors={["rgba(33,196,221,0.08)", "transparent"]}
-          style={{ flex: 1 }}
-        />
+        <LinearGradient colors={["rgba(33,196,221,0.08)", "transparent"]} style={{ flex: 1 }} />
       </View>
 
       {/* Top bar */}
@@ -457,9 +419,7 @@ export default function VoiceScreen() {
       {session.state === "disconnected" && (
         <Pressable style={styles.errorBanner} onPress={session.connect}>
           <Ionicons name="warning-outline" size={14} color="#ef4444" />
-          <Text style={styles.errorBannerText}>
-            Disconnected · Tap to reconnect
-          </Text>
+          <Text style={styles.errorBannerText}>Disconnected · Tap to reconnect</Text>
         </Pressable>
       )}
 
@@ -484,9 +444,7 @@ export default function VoiceScreen() {
       <View style={styles.agentRow}>
         <View style={[styles.agentDot, { backgroundColor: agentStateDot }]} />
         <Text style={styles.agentLabel}>
-          {activeTool
-            ? (TOOL_META[activeTool]?.label ?? "Working...")
-            : statusLabel[session.state]}
+          {activeTool ? (TOOL_META[activeTool]?.label ?? "Working...") : statusLabel[session.state]}
         </Text>
         {activeTool && (
           <View style={styles.toolPill}>
@@ -505,11 +463,7 @@ export default function VoiceScreen() {
         {/* Soft glow behind orb */}
         <View style={styles.visualizerGlow} pointerEvents="none">
           <LinearGradient
-            colors={[
-              "rgba(165,119,255,0.28)",
-              "rgba(33,196,221,0.12)",
-              "transparent",
-            ]}
+            colors={["rgba(165,119,255,0.28)", "rgba(33,196,221,0.12)", "transparent"]}
             style={{ flex: 1, borderRadius: 120 }}
           />
         </View>
@@ -519,11 +473,7 @@ export default function VoiceScreen() {
       {/* Transcript panel — liquid glass on iOS 26+, blur on older iOS, solid on Android */}
       {supportsLiquidGlass ? (
         <GlassView
-          style={[
-            styles.transcriptPanel,
-            styles.glassDarken,
-            { overflow: "hidden" },
-          ]}
+          style={[styles.transcriptPanel, styles.glassDarken, { overflow: "hidden" }]}
           glassEffectStyle="regular"
           colorScheme="dark"
         >
@@ -533,30 +483,18 @@ export default function VoiceScreen() {
             contentContainerStyle={styles.transcriptContent}
             showsVerticalScrollIndicator={false}
           >
-            <TranscriptContents
-              transcript={transcript}
-              synthResult={synthResult}
-              router={router}
-            />
+            <TranscriptContents transcript={transcript} synthResult={synthResult} router={router} />
           </ScrollView>
         </GlassView>
       ) : Platform.OS === "ios" ? (
-        <BlurView
-          intensity={25}
-          tint="dark"
-          style={[styles.transcriptPanel, styles.glassDarken]}
-        >
+        <BlurView intensity={25} tint="dark" style={[styles.transcriptPanel, styles.glassDarken]}>
           <ScrollView
             ref={scrollRef}
             style={styles.transcriptScroll}
             contentContainerStyle={styles.transcriptContent}
             showsVerticalScrollIndicator={false}
           >
-            <TranscriptContents
-              transcript={transcript}
-              synthResult={synthResult}
-              router={router}
-            />
+            <TranscriptContents transcript={transcript} synthResult={synthResult} router={router} />
           </ScrollView>
         </BlurView>
       ) : (
@@ -567,11 +505,7 @@ export default function VoiceScreen() {
             contentContainerStyle={styles.transcriptContent}
             showsVerticalScrollIndicator={false}
           >
-            <TranscriptContents
-              transcript={transcript}
-              synthResult={synthResult}
-              router={router}
-            />
+            <TranscriptContents transcript={transcript} synthResult={synthResult} router={router} />
           </ScrollView>
         </View>
       )}

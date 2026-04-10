@@ -36,9 +36,7 @@ load_dotenv(_root / ".env")
 load_dotenv()
 
 # So Cloud Run and local dev show logs; set ECHO_LOG_LEVEL=INFO or DEBUG (default INFO)
-_log_level = getattr(
-    logging, os.environ.get("ECHO_LOG_LEVEL", "INFO").upper(), logging.INFO
-)
+_log_level = getattr(logging, os.environ.get("ECHO_LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.basicConfig(
     level=_log_level,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -50,16 +48,8 @@ _logger = logging.getLogger("echoprism.livekit")
 _logger.setLevel(_log_level)
 if not _logger.handlers:
     _h = logging.StreamHandler(sys.stderr)
-    _h.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(name)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"
-        )
-    )
+    _h.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
     _logger.addHandler(_h)
-
-from livekit import agents, rtc
-from livekit.agents import AgentSession, room_io
-from livekit.plugins import google
 
 from echo_prism_agent.constants import (
     DEFAULT_AGENT_BACKEND_URL,
@@ -69,6 +59,9 @@ from echo_prism_agent.constants import (
     USER_BY_PHONE_HTTP_TIMEOUT_S,
 )
 from echo_prism_agent.models_config import VOICE_MODEL
+from livekit import agents, rtc
+from livekit.agents import AgentSession, room_io
+from livekit.plugins import google
 
 # Telephony: per-participant noise cancellation (BVCTelephony for SIP)
 try:
@@ -83,12 +76,12 @@ except ImportError:
     noise_cancellation = None
     _noise_cancellation_for_participant = None
 
+from echo_prism_agent.model_prompts import (
+    ECHOPRISM_SYSTEM_PROMPT,
+    INTERRUPTION_SYSTEM_PROMPT_PREFIX,
+)
 from echo_prism_agent.voice.livekit import phone_lookup
 from echo_prism_agent.voice.livekit.agent import LiveKitEchoPrismAgent
-from echo_prism_agent.model_prompts import (
-    INTERRUPTION_SYSTEM_PROMPT_PREFIX,
-    ECHOPRISM_SYSTEM_PROMPT,
-)
 
 server = agents.AgentServer()
 
@@ -140,9 +133,7 @@ def _parse_job_metadata(metadata_str: str) -> dict:
 
 def _get_backend_url() -> str:
     return (
-        os.environ.get("VITE_ECHO_AGENT_URL")
-        or os.environ.get("ECHOPRISM_AGENT_URL")
-        or DEFAULT_AGENT_BACKEND_URL
+        os.environ.get("VITE_ECHO_AGENT_URL") or os.environ.get("ECHOPRISM_AGENT_URL") or DEFAULT_AGENT_BACKEND_URL
     ).rstrip("/")
 
 
@@ -258,10 +249,8 @@ async def entrypoint(ctx: agents.JobContext):
     job_metadata = _parse_job_metadata(getattr(ctx.job, "metadata", "") or "")
     sip_phone = sip_ctx.get("sip_phone_number", "")
     sip_phone_log = _phone_log_token(sip_phone) if sip_phone else "(empty)"
-    sip_msg = "[EchoPrism] SIP context: sip_call_id=%s caller_phone=%s" % (
-        sip_ctx.get("sip_call_id") or "(none)",
-        sip_phone_log,
-    )
+    sip_call = sip_ctx.get("sip_call_id") or "(none)"
+    sip_msg = f"[EchoPrism] SIP context: sip_call_id={sip_call} caller_phone={sip_phone_log}"
     print(sip_msg, flush=True, file=sys.stderr)
     _logger.info(
         "[EchoPrism] SIP context: sip_call_id=%s caller_phone=%s (match Firestore users/{uid}.phone to this caller)",
@@ -309,9 +298,7 @@ async def entrypoint(ctx: agents.JobContext):
 
         @ctx.room.on("sip_dtmf_received")
         def _on_dtmf(dtmf):
-            participant_identity = getattr(
-                getattr(dtmf, "participant", None), "identity", ""
-            )
+            participant_identity = getattr(getattr(dtmf, "participant", None), "identity", "")
             code = getattr(dtmf, "code", "")
             _logger.info(
                 "[EchoPrism] DTMF from %s: code=%s digit=<redacted>",
@@ -332,9 +319,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     if interruption_attrs:
         recent_context = interruption_attrs.get("recent_context", "")
-        interruption_instructions = (
-            INTERRUPTION_SYSTEM_PROMPT_PREFIX + ECHOPRISM_SYSTEM_PROMPT
-        )
+        interruption_instructions = INTERRUPTION_SYSTEM_PROMPT_PREFIX + ECHOPRISM_SYSTEM_PROMPT
         try:
             await session.update_instructions(interruption_instructions)
         except Exception:
@@ -349,9 +334,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Server-side barge-in for telephony: when a remote participant (SIP caller) is active speaker, interrupt agent
     # so the caller can talk over the agent without needing a desktop client to send the RPC.
     _barge_in_cooldown_until = [0.0]
-    _greeting_playout_until = [
-        0.0
-    ]  # no barge-in before this time (so greeting isn't cut off at the start)
+    _greeting_playout_until = [0.0]  # no barge-in before this time (so greeting isn't cut off at the start)
 
     def _on_active_speakers_changed(speakers: list) -> None:
         try:
@@ -363,9 +346,7 @@ async def entrypoint(ctx: agents.JobContext):
                 if p in remote:
                     session.interrupt()
                     _barge_in_cooldown_until[0] = now + 1.5
-                    _logger.debug(
-                        "[EchoPrism] Barge-in: remote participant speaking, interrupted"
-                    )
+                    _logger.debug("[EchoPrism] Barge-in: remote participant speaking, interrupted")
                     break
         except Exception as e:
             _logger.debug("[EchoPrism] Barge-in handler error: %s", e)
@@ -379,9 +360,7 @@ async def entrypoint(ctx: agents.JobContext):
         room_name = getattr(ctx.room, "name", None)
         if room_name:
             phone_lookup.clear_resolved_user(room_name)
-            _logger.debug(
-                "[EchoPrism] Cleared resolved user for room %s on disconnect", room_name
-            )
+            _logger.debug("[EchoPrism] Cleared resolved user for room %s on disconnect", room_name)
 
     try:
         ctx.room.on("disconnected", _on_room_disconnected)
@@ -394,11 +373,7 @@ async def entrypoint(ctx: agents.JobContext):
         recent_context = interruption_attrs.get("recent_context", "")
         greeting_instructions = (
             "Greet the user very briefly. Acknowledge that the workflow is paused. "
-            + (
-                f"The most recent activity was: {recent_context}. "
-                if recent_context
-                else ""
-            )
+            + (f"The most recent activity was: {recent_context}. " if recent_context else "")
             + "Ask what guidance they'd like to give or if they just want to resume."
         )
     elif sip_ctx:
@@ -427,13 +402,10 @@ async def entrypoint(ctx: agents.JobContext):
             )
         else:
             greeting_instructions = (
-                "Say briefly: Thanks for calling Echo. I'm EchoPrism. "
-                "How can I help you with workflows today?"
+                "Say briefly: Thanks for calling Echo. I'm EchoPrism. How can I help you with workflows today?"
             )
     else:
-        greeting_instructions = (
-            "Greet the user and offer your assistance with workflows and Echo."
-        )
+        greeting_instructions = "Greet the user and offer your assistance with workflows and Echo."
 
     # Don't barge-in during the first few seconds of greeting so the full sentence plays
     _greeting_playout_until[0] = time.monotonic() + 4.0
