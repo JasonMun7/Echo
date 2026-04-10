@@ -15,9 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Omit `version` so the action uses `packageManager` from package.json (avoids mismatch with pnpm@9.0.0).
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
