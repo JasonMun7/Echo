@@ -7,6 +7,8 @@ import {
   screen,
   session,
   shell,
+  systemPreferences,
+  type DesktopCapturerSource,
 } from "electron";
 import { createServer } from "http";
 import type { Step, WorkflowType } from "@echo/types";
@@ -382,20 +384,106 @@ function createWindow(): void {
   mainWindow.setMovable(false);
 }
 
-async function checkScreenPermission(): Promise<boolean> {
-  if (process.platform !== "darwin") return true;
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function screenSourceThumbnailUsable(src: DesktopCapturerSource): boolean {
+  if (!src.thumbnail) return false;
+  if (typeof src.thumbnail.isEmpty === "function" && src.thumbnail.isEmpty()) return false;
   try {
-    const sources = await desktopCapturer.getSources({
-      types: ["screen"],
-      thumbnailSize: { width: 100, height: 100 },
-    });
-    const src = sources[0];
-    if (!src?.thumbnail) return false;
-    const buf = Buffer.from(src.thumbnail.toPNG());
-    return buf.length > 1000;
+    return Buffer.from(src.thumbnail.toPNG()).length > 0;
   } catch {
     return false;
   }
+}
+
+/**
+ * Permission / capture probe: only sources with a usable thumbnail (never a loose screen fallback
+ * without a good thumb — avoids false "granted" when the primary display thumb is stale).
+ */
+function pickScreenSourceForPermission(
+  sources: DesktopCapturerSource[],
+): DesktopCapturerSource | undefined {
+  if (sources.length === 0) return undefined;
+  const primaryIdStr = String(screen.getPrimaryDisplay().id);
+  const byDisplayId = sources.find((s) => {
+    const did = (s as { display_id?: string }).display_id;
+    if (did == null || did === "" || String(did) !== primaryIdStr) return false;
+    return screenSourceThumbnailUsable(s);
+  });
+  if (byDisplayId) return byDisplayId;
+  return sources.find((s) => s.id.startsWith("screen:") && screenSourceThumbnailUsable(s));
+}
+
+/**
+ * Source id for desktopCapturer: prefer primary by display_id even if the thumbnail is stale,
+ * then any screen: with a usable thumb, then any screen:, then first source.
+ */
+function pickScreenSourceForPrimaryId(
+  sources: DesktopCapturerSource[],
+): DesktopCapturerSource | undefined {
+  if (sources.length === 0) return undefined;
+  const primaryIdStr = String(screen.getPrimaryDisplay().id);
+  const primaryMatch = sources.find((s) => {
+    const did = (s as { display_id?: string }).display_id;
+    return did != null && did !== "" && String(did) === primaryIdStr && Boolean(s.id);
+  });
+  if (primaryMatch) return primaryMatch;
+  const withThumb = sources.find(
+    (s) => s.id.startsWith("screen:") && screenSourceThumbnailUsable(s),
+  );
+  if (withThumb) return withThumb;
+  return sources.find((s) => s.id.startsWith("screen:")) ?? sources[0];
+}
+
+async function fetchScreenSourceWithRetry(
+  pick: (sources: DesktopCapturerSource[]) => DesktopCapturerSource | undefined,
+  isAcceptable: (src: DesktopCapturerSource) => boolean,
+): Promise<DesktopCapturerSource | null> {
+  const primary = screen.getPrimaryDisplay();
+  const tw = Math.min(Math.max(primary.size.width, 1), 1920);
+  const th = Math.min(Math.max(primary.size.height, 1), 1080);
+  const thumbnailSize = { width: tw, height: th };
+
+  const delaysMs = [0, 150, 400];
+  for (const wait of delaysMs) {
+    if (wait > 0) await sleepMs(wait);
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ["screen"],
+        thumbnailSize,
+      });
+      const src = pick(sources);
+      if (src?.id && isAcceptable(src)) {
+        return src;
+      }
+    } catch {
+      /* try next attempt */
+    }
+  }
+  return null;
+}
+
+async function checkScreenPermission(): Promise<boolean> {
+  if (process.platform !== "darwin") return true;
+
+  let mediaStatus: string;
+  try {
+    mediaStatus = systemPreferences.getMediaAccessStatus("screen");
+  } catch {
+    mediaStatus = "unknown";
+  }
+
+  if (mediaStatus === "denied" || mediaStatus === "restricted") {
+    return false;
+  }
+
+  const src = await fetchScreenSourceWithRetry(
+    pickScreenSourceForPermission,
+    screenSourceThumbnailUsable,
+  );
+  return !!(src && src.id);
 }
 
 // ── Mode switching IPC (Main Process as source of truth) ─────────────────────
@@ -856,8 +944,8 @@ ipcMain.handle("get-sources", async () => {
 });
 
 ipcMain.handle("get-primary-source-id", async (): Promise<string | null> => {
-  const sources = await desktopCapturer.getSources({ types: ["screen"] });
-  return sources[0]?.id ?? null;
+  const src = await fetchScreenSourceWithRetry(pickScreenSourceForPrimaryId, (s) => Boolean(s.id));
+  return src?.id ?? null;
 });
 
 ipcMain.handle("create-run", async (_, args: { workflowId: string; token: string }) => {

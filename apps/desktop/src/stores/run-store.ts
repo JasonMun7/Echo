@@ -1,6 +1,18 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import { useAuthStore } from "./auth-store";
 import { useWorkflowsStore } from "./workflows-store";
+
+function toastScreenPermissionNeeded() {
+  toast.message("Screen recording is off", {
+    description:
+      "Echo needs Screen Recording access to run workflows. Enable it in System Settings, then try again.",
+    action: {
+      label: "Open Settings",
+      onClick: () => void window.electronAPI?.openSystemSettings?.(),
+    },
+  });
+}
 
 export interface LiveProgressEntry {
   thought: string;
@@ -122,7 +134,7 @@ export const useRunStore = create<RunState>((set, get) => ({
 
     const hasPermission = await window.electronAPI?.checkScreenPermission?.();
     if (!hasPermission) {
-      useAuthStore.getState().setScreenPermissionRequired(true);
+      toastScreenPermissionNeeded();
       return;
     }
 
@@ -207,7 +219,7 @@ export const useRunStore = create<RunState>((set, get) => ({
 
     const hasPermission = await window.electronAPI?.checkScreenPermission?.();
     if (!hasPermission) {
-      useAuthStore.getState().setScreenPermissionRequired(true);
+      toastScreenPermissionNeeded();
       return;
     }
 
@@ -294,7 +306,7 @@ export const useRunStore = create<RunState>((set, get) => ({
 
     const hasPermission = await window.electronAPI?.checkScreenPermission?.();
     if (!hasPermission) {
-      useAuthStore.getState().setScreenPermissionRequired(true);
+      toastScreenPermissionNeeded();
       return;
     }
 

@@ -30,6 +30,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/api";
+import { getRunStatusBadgeLabel, isCancellationLikeError } from "@/lib/run-terminal-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -110,17 +111,9 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-slate-100 text-slate-700",
   completed: "bg-green-100 text-green-700",
   failed: "bg-red-100 text-red-700",
-  cancelled: "bg-gray-100 text-gray-600",
+  cancelled: "border border-[#A577FF]/25 bg-[rgba(165,119,255,0.12)] text-[#A577FF]",
+  stopped: "border border-[#A577FF]/25 bg-[rgba(165,119,255,0.12)] text-[#A577FF]",
   awaiting_user: "bg-amber-100 text-amber-700",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  running: "Running",
-  pending: "Pending",
-  completed: "Completed",
-  failed: "Failed",
-  cancelled: "Cancelled",
-  awaiting_user: "Paused",
 };
 
 const IN_PROGRESS_STATUSES = new Set(["running", "pending", "awaiting_user"]);
@@ -145,12 +138,16 @@ const baseColumns: ColumnDef<Run>[] = [
     header: "Status",
     cell: ({ row }) => {
       const s = row.original.status;
+      const err = row.original.error;
+      const stopped = s === "cancelled" || isCancellationLikeError(s, err);
+      const styleKey = stopped ? "stopped" : s;
+      const label = getRunStatusBadgeLabel(s, err);
       return (
         <Badge
           variant="outline"
-          className={`px-2.5 py-0.5 text-xs font-medium border-0 ${STATUS_STYLES[s] ?? "bg-gray-100 text-gray-600"}`}
+          className={`px-2.5 py-0.5 text-xs font-medium border-0 ${STATUS_STYLES[styleKey] ?? STATUS_STYLES[s] ?? "bg-gray-100 text-gray-600"}`}
         >
-          {STATUS_LABELS[s] ?? s}
+          {label}
         </Badge>
       );
     },
@@ -215,7 +212,14 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to cancel");
-      toast.success("Run cancelled");
+      toast.success("Run stopped", {
+        description: "EchoPrism is ending this run.",
+        classNames: {
+          toast: "border-[#A577FF]/25 bg-[#F5F7FC]",
+          title: "text-[#150A35]",
+          description: "text-gray-600",
+        },
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to cancel run");
     } finally {
@@ -283,6 +287,11 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       return initialData.filter(
         (r) => r.status === "running" || r.status === "pending" || r.status === "awaiting_user",
       );
+    if (activeTab === "failed") {
+      return initialData.filter(
+        (r) => r.status === "failed" && !isCancellationLikeError(r.status, r.error),
+      );
+    }
     return initialData.filter((r) => r.status === activeTab);
   }, [initialData, activeTab]);
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useAuthStore } from "@/stores/auth-store";
+import { toast } from "sonner";
 import { useRecordingStore } from "@/stores/recording-store";
 
 export function useRecording() {
@@ -14,7 +14,13 @@ export function useRecording() {
 
     const hasPermission = await window.electronAPI?.checkScreenPermission?.();
     if (!hasPermission) {
-      useAuthStore.getState().setScreenPermissionRequired(true);
+      toast.message("Screen recording is off", {
+        description: "Enable Screen Recording for Echo in System Settings to capture your screen.",
+        action: {
+          label: "Open Settings",
+          onClick: () => void window.electronAPI?.openSystemSettings?.(),
+        },
+      });
       return;
     }
 
