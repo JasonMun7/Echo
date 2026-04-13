@@ -166,9 +166,30 @@ function MainWindowApp() {
     let cancelled = false;
     void (async () => {
       try {
-        const granted = await window.electronAPI?.checkScreenPermission?.();
+        const check = window.electronAPI?.checkScreenPermission;
+        if (typeof check !== "function") {
+          if (!cancelled) setScreenPermissionRequired(false);
+          return;
+        }
+
+        let granted: boolean | undefined;
+        try {
+          granted = await check();
+        } catch {
+          // IPC / bridge failure — do not block the shell.
+          if (!cancelled) setScreenPermissionRequired(false);
+          return;
+        }
+
         if (cancelled) return;
-        setScreenPermissionRequired(!granted);
+
+        // Only show the full-screen gate on an explicit denial. `undefined` is a bridge
+        // failure (missing handler, etc.), not "not granted".
+        if (granted === false) {
+          setScreenPermissionRequired(true);
+        } else {
+          setScreenPermissionRequired(false);
+        }
       } finally {
         if (!cancelled) setScreenPermissionCheckPending(false);
       }
