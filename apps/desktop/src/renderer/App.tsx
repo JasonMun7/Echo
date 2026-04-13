@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
   IconPlayerPlayFilled,
   IconUpload,
@@ -81,6 +81,7 @@ const API_URL =
 function MainWindowApp() {
   const { theme, toggleTheme } = useTheme();
   const workflowSearchRef = useRef<HTMLDivElement>(null);
+  const [screenPermissionCheckPending, setScreenPermissionCheckPending] = useState(false);
 
   const token = useAuthStore((s) => s.token);
   const screenPermissionRequired = useAuthStore((s) => s.screenPermissionRequired);
@@ -153,6 +154,50 @@ function MainWindowApp() {
   useEffect(() => {
     loadToken();
   }, [loadToken]);
+
+  // After sign-in: check screen permission once before showing the shell (avoids a flash of main UI).
+  useLayoutEffect(() => {
+    if (!token) {
+      setScreenPermissionCheckPending(false);
+      setScreenPermissionRequired(false);
+      return;
+    }
+    setScreenPermissionCheckPending(true);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const check = window.electronAPI?.checkScreenPermission;
+        if (typeof check !== "function") {
+          if (!cancelled) setScreenPermissionRequired(false);
+          return;
+        }
+
+        let granted: boolean | undefined;
+        try {
+          granted = await check();
+        } catch {
+          // IPC / bridge failure — do not block the shell.
+          if (!cancelled) setScreenPermissionRequired(false);
+          return;
+        }
+
+        if (cancelled) return;
+
+        // Only show the full-screen gate on an explicit denial. `undefined` is a bridge
+        // failure (missing handler, etc.), not "not granted".
+        if (granted === false) {
+          setScreenPermissionRequired(true);
+        } else {
+          setScreenPermissionRequired(false);
+        }
+      } finally {
+        if (!cancelled) setScreenPermissionCheckPending(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, setScreenPermissionRequired]);
 
   useEffect(() => {
     const handler = () => refreshAuth.current();
@@ -308,20 +353,68 @@ function MainWindowApp() {
 
   const handleRunFromList = async (w: { id: string; workflow_type?: string }) => {
     const t = token ?? (await loadToken());
-    if (!t) return;
-    const result = await window.electronAPI?.fetchWorkflow?.({
-      workflowId: w.id,
-      token: t,
-    });
-    if (!result || "error" in result) return;
+    if (!t) {
+      toast.error("Sign in to run workflows");
+      return;
+    }
+    const loadWorkflowErrorMessage = (result: unknown) =>
+      result && typeof result === "object" && "error" in result
+        ? String((result as { error: string }).error)
+        : "Could not load workflow. Try again.";
+
+    let result:
+      | Awaited<ReturnType<NonNullable<typeof window.electronAPI>["fetchWorkflow"]>>
+      | undefined;
+    try {
+      result = await window.electronAPI?.fetchWorkflow?.({
+        workflowId: w.id,
+        token: t,
+      });
+    } catch {
+      toast.error(loadWorkflowErrorMessage(null));
+      return;
+    }
+    if (!result || "error" in result) {
+      toast.error(loadWorkflowErrorMessage(result));
+      return;
+    }
     const { workflow, steps: fetchedSteps } = result;
-    if (!fetchedSteps?.length) return;
+    if (!fetchedSteps?.length) {
+      toast.error("This workflow has no steps to run yet.");
+      return;
+    }
     await handleRunWorkflow({
       workflowId: w.id,
       steps: fetchedSteps,
-      workflowType: (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+      workflowType:
+        (workflow as { workflow_type?: string }).workflow_type ?? w.workflow_type ?? "desktop",
     });
   };
+
+  if (token && screenPermissionCheckPending) {
+    const isDark = theme === "dark";
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: isDark ? "linear-gradient(to right, #150a35, #2d1b69)" : "#F5F7FC",
+        }}
+      >
+        <p
+          style={{
+            fontSize: 14,
+            color: isDark ? "rgba(245,247,252,0.85)" : "#150A35",
+            fontWeight: 500,
+          }}
+        >
+          Checking screen recording access…
+        </p>
+      </div>
+    );
+  }
 
   if (screenPermissionRequired) {
     const isDark = theme === "dark";
@@ -1090,26 +1183,23 @@ function MainWindowApp() {
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleRunFromList(w);
-                                        }}
-                                        className="workflow-play-icon inline-flex shrink-0 items-center justify-center rounded-md p-1.5 pr-2 transition-all hover:bg-accent hover:shadow-[0_0_16px_var(--echo-glow)]"
-                                        style={{
-                                          border: "none",
-                                          cursor: "pointer",
-                                          color: "var(--echo-text-secondary)",
-                                        }}
-                                      >
-                                        <IconPlayerPlayFilled size={14} color="currentColor" />
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Run workflow</TooltipContent>
-                                  </Tooltip>
+                                  <button
+                                    type="button"
+                                    title="Run workflow"
+                                    aria-label="Run workflow"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleRunFromList(w);
+                                    }}
+                                    className="workflow-play-icon inline-flex shrink-0 items-center justify-center rounded-md p-1.5 pr-2 transition-all hover:bg-accent hover:shadow-[0_0_16px_var(--echo-glow)]"
+                                    style={{
+                                      border: "none",
+                                      cursor: "pointer",
+                                      color: "var(--echo-text-secondary)",
+                                    }}
+                                  >
+                                    <IconPlayerPlayFilled size={14} color="currentColor" />
+                                  </button>
                                   <span
                                     style={{
                                       flex: 1,

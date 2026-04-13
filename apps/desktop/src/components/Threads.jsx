@@ -159,12 +159,16 @@ const Threads = ({
 
     function resize() {
       const { clientWidth, clientHeight } = container;
-      renderer.setSize(clientWidth, clientHeight);
-      program.uniforms.iResolution.value.r = clientWidth;
-      program.uniforms.iResolution.value.g = clientHeight;
-      program.uniforms.iResolution.value.b = clientWidth / clientHeight;
+      const w = Math.max(1, clientWidth);
+      const h = Math.max(1, clientHeight);
+      renderer.setSize(w, h);
+      program.uniforms.iResolution.value.r = w;
+      program.uniforms.iResolution.value.g = h;
+      program.uniforms.iResolution.value.b = w / h;
     }
     window.addEventListener("resize", resize);
+    const resizeObserver = new ResizeObserver(() => resize());
+    resizeObserver.observe(container);
     resize();
 
     let currentMouse = [0.5, 0.5];
@@ -185,6 +189,8 @@ const Threads = ({
     }
 
     function update(t) {
+      if (gl.isContextLost?.()) return;
+      if (container.clientWidth === 0 && container.clientHeight === 0) return;
       if (enableMouseInteraction) {
         const smoothing = 0.05;
         currentMouse[0] += smoothing * (targetMouse[0] - currentMouse[0]);
@@ -204,6 +210,7 @@ const Threads = ({
 
     return () => {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+      resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
 
       if (enableMouseInteraction) {

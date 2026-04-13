@@ -107,6 +107,8 @@ export function EchoPrismVoiceModal({
 
   // Audio refs — own WS, own AudioContext for mic (16kHz) and playback (24kHz)
   const wsRef = useRef<WebSocket | null>(null);
+  /** Avoid treating our own `ws.close()` (modal dismiss / reconnect) as an unexpected disconnect. */
+  const intentionalWsCloseRef = useRef(false);
   const micCtxRef = useRef<AudioContext | null>(null);
   const playbackCtxRef = useRef<AudioContext | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
@@ -276,18 +278,21 @@ export function EchoPrismVoiceModal({
     ws.onmessage = handleMessage;
     ws.onerror = () => {
       console.error("EchoPrismVoice WS error");
-      if (!didOpen) {
+      if (!didOpen && !intentionalWsCloseRef.current) {
         toast.error("Couldn't connect to EchoPrism — check your connection");
       }
     };
     ws.onclose = () => {
       setVoiceState("idle");
-      if (didOpen) {
+      const intentional = intentionalWsCloseRef.current;
+      intentionalWsCloseRef.current = false;
+      if (didOpen && !intentional) {
         setIsDisconnected(true);
       }
     };
 
     return () => {
+      intentionalWsCloseRef.current = true;
       stopAudioCheck();
       if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
       stopMic();
@@ -315,6 +320,7 @@ export function EchoPrismVoiceModal({
     if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
     playbackCtxRef.current?.close().catch(() => {});
     playbackCtxRef.current = null;
+    intentionalWsCloseRef.current = true;
     wsRef.current?.close();
     wsRef.current = null;
     setIsDisconnected(false);
@@ -336,11 +342,15 @@ export function EchoPrismVoiceModal({
     };
     ws.onmessage = handleMessage;
     ws.onerror = () => {
-      if (!didOpen) toast.error("Couldn't reconnect to EchoPrism");
+      if (!didOpen && !intentionalWsCloseRef.current) {
+        toast.error("Couldn't reconnect to EchoPrism");
+      }
     };
     ws.onclose = () => {
       setVoiceState("idle");
-      if (didOpen) setIsDisconnected(true);
+      const intentional = intentionalWsCloseRef.current;
+      intentionalWsCloseRef.current = false;
+      if (didOpen && !intentional) setIsDisconnected(true);
     };
   }
 

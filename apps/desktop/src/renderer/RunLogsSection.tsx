@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   IconCircleCheck,
   IconAlertCircle,
+  IconBan,
   IconX,
   IconExternalLink,
   IconBrain,
@@ -11,6 +12,7 @@ import SpotlightCard from "./reactbits/SpotlightCard";
 import Threads from "@/components/Threads";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { getDesktopRunOutcome, getRunStoppedDescription } from "@/lib/run-result-presentation";
 
 export interface RunResultEntry {
   thought: string;
@@ -68,6 +70,9 @@ export default function RunLogsSection({
     {} as Record<number, { thoughts: string[]; actions: string[] }>,
   );
   const stepNumbers = [...new Set(entries.map((e) => e.step || 1))].sort((a, b) => a - b);
+
+  const outcome =
+    runResult != null ? getDesktopRunOutcome(runResult.success, runResult.error) : "success";
 
   return (
     <SpotlightCard
@@ -213,14 +218,31 @@ export default function RunLogsSection({
                   borderRadius: 99,
                   fontSize: 12,
                   fontWeight: 600,
-                  background: runResult.success
-                    ? "rgba(34, 197, 94, 0.15)"
-                    : "rgba(239, 68, 68, 0.15)",
-                  color: runResult.success ? "var(--echo-success)" : "var(--echo-error)",
+                  ...(outcome === "success"
+                    ? {
+                        background: "rgba(34, 197, 94, 0.15)",
+                        color: "var(--echo-success)",
+                      }
+                    : outcome === "stopped"
+                      ? {
+                          background: "rgba(165, 119, 255, 0.12)",
+                          color: "#A577FF",
+                          border: "1px solid rgba(165, 119, 255, 0.25)",
+                        }
+                      : {
+                          background: "rgba(239, 68, 68, 0.15)",
+                          color: "var(--echo-error)",
+                        }),
                 }}
               >
-                {runResult.success ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
-                {runResult.success ? "Success" : "Failed"}
+                {outcome === "success" ? (
+                  <IconCircleCheck size={14} />
+                ) : outcome === "stopped" ? (
+                  <IconBan size={14} />
+                ) : (
+                  <IconAlertCircle size={14} />
+                )}
+                {outcome === "success" ? "Success" : outcome === "stopped" ? "Stopped" : "Failed"}
               </span>
               {runResult.runId && runResult.workflowId && onOpenWebUI && (
                 <Button
@@ -249,7 +271,43 @@ export default function RunLogsSection({
             </div>
           </div>
 
-          {!runResult.success && runResult.error && (
+          {outcome === "stopped" && (
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(165, 119, 255, 0.15)",
+                background: "rgba(21, 10, 53, 0.06)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#150A35",
+                  margin: 0,
+                  marginBottom: 6,
+                  lineHeight: 1.4,
+                }}
+              >
+                Run stopped
+              </p>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--echo-text-secondary)",
+                  margin: 0,
+                  lineHeight: 1.5,
+                }}
+              >
+                {getRunStoppedDescription(runResult.error)}
+              </p>
+            </div>
+          )}
+
+          {outcome === "failed" && runResult.error && (
             <div
               style={{
                 padding: "10px 14px",
