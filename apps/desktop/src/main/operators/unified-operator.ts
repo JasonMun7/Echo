@@ -250,10 +250,11 @@ async function resizeCaptureToMaxDimensionJpeg(
  * than Playwright's `page.screenshot()` GPU readback path. Falls back to `page.screenshot`.
  */
 async function capturePlaywrightViewportPng(p: Page): Promise<Buffer> {
-  await settleBeforePlaywrightCapture(p);
   const vp = p.viewportSize() ?? { width: 1280, height: 900 };
-  const session = await p.context().newCDPSession(p);
+  let session;
   try {
+    await settleBeforePlaywrightCapture(p);
+    session = await p.context().newCDPSession(p);
     const { data } = await session.send("Page.captureScreenshot", {
       format: "png",
       clip: { x: 0, y: 0, width: vp.width, height: vp.height, scale: 1 },
@@ -268,10 +269,12 @@ async function capturePlaywrightViewportPng(p: Page): Promise<Buffer> {
     });
     return Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
   } finally {
-    try {
-      await session.detach();
-    } catch {
-      /* ignore */
+    if (session) {
+      try {
+        await session.detach();
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
@@ -284,18 +287,21 @@ export async function captureScreen(
   if (hasBrowserContext() && page && !page.isClosed()) {
     try {
       const p = page;
-      let buffer = await capturePlaywrightViewportPng(p);
-      let vp = p.viewportSize() ?? { width: 1280, height: 900 };
+      const buffer = await capturePlaywrightViewportPng(p);
+      const vp = p.viewportSize() ?? { width: 1280, height: 900 };
       if (options?.maxDimension != null) {
-        const out = await resizeCaptureToMaxDimensionJpeg(
-          buffer,
-          vp.width,
-          vp.height,
-          options.maxDimension,
-        );
-        buffer = out.buffer;
-        vp = { width: out.width, height: out.height };
-        return { buffer, width: vp.width, height: vp.height, mimeType: "image/jpeg" };
+        try {
+          const out = await resizeCaptureToMaxDimensionJpeg(
+            buffer,
+            vp.width,
+            vp.height,
+            options.maxDimension,
+          );
+          return { buffer: out.buffer, width: out.width, height: out.height, mimeType: "image/jpeg" };
+        } catch (resizeErr) {
+          console.warn("[unified-operator] Resize to JPEG failed, returning original PNG:", resizeErr);
+          return { buffer, width: vp.width, height: vp.height, mimeType: "image/png" };
+        }
       }
       return { buffer, width: vp.width, height: vp.height, mimeType: "image/png" };
     } catch (e) {
