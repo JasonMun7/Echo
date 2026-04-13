@@ -297,9 +297,17 @@ export async function captureScreen(
             vp.height,
             options.maxDimension,
           );
-          return { buffer: out.buffer, width: out.width, height: out.height, mimeType: "image/jpeg" };
+          return {
+            buffer: out.buffer,
+            width: out.width,
+            height: out.height,
+            mimeType: "image/jpeg",
+          };
         } catch (resizeErr) {
-          console.warn("[unified-operator] Resize to JPEG failed, returning original PNG:", resizeErr);
+          console.warn(
+            "[unified-operator] Resize to JPEG failed, returning original PNG:",
+            resizeErr,
+          );
           return { buffer, width: vp.width, height: vp.height, mimeType: "image/png" };
         }
       }
