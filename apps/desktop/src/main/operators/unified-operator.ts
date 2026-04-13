@@ -27,6 +27,18 @@ function hasBrowserContext(): boolean {
   return page != null && !page.isClosed();
 }
 
+/**
+ * Default is a visible Chromium window (`headless: false`). Set `ECHO_PLAYWRIGHT_HEADLESS=1`
+ * only if you need no browser window (e.g. CI). Screenshots use CDP capture first to reduce
+ * headed-mode flicker vs `page.screenshot()` on macOS.
+ */
+function isEchoPlaywrightHeadless(): boolean {
+  const raw = (process.env.ECHO_PLAYWRIGHT_HEADLESS ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+const CHROMIUM_LAUNCH_ARGS = ["--disable-blink-features=AutomationControlled"];
+
 /** Launch browser and create a page if not already running. */
 async function ensureBrowserPage(): Promise<Page> {
   if (page && !page.isClosed()) return page;
@@ -34,10 +46,11 @@ async function ensureBrowserPage(): Promise<Page> {
     page = await browser.newPage();
     return page;
   }
-  browser = await chromium.launch({
-    headless: false,
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  browser = await chromium.launch(
+    isEchoPlaywrightHeadless()
+      ? { args: CHROMIUM_LAUNCH_ARGS }
+      : { headless: false, args: CHROMIUM_LAUNCH_ARGS },
+  );
   page = await browser.newPage();
   await page.setViewportSize({ width: 1280, height: 900 });
   return page;
@@ -197,6 +210,51 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
   }
 }
 
+/** Wait one frame + next paint before capture to avoid grabbing a mid-composite frame. */
+async function settleBeforePlaywrightCapture(p: Page): Promise<void> {
+  await p.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+  );
+  await new Promise((r) => setTimeout(r, 16));
+}
+
+/**
+ * Prefer CDP `Page.captureScreenshot` in headed mode — often less black-frame flicker on macOS
+ * than Playwright's `page.screenshot()` GPU readback path. Falls back to `page.screenshot`.
+ */
+async function capturePlaywrightViewportPng(p: Page): Promise<Buffer> {
+  await settleBeforePlaywrightCapture(p);
+  const vp = p.viewportSize() ?? { width: 1280, height: 900 };
+  const session = await p.context().newCDPSession(p);
+  try {
+    await session.send("Page.enable");
+    const { data } = await session.send("Page.captureScreenshot", {
+      format: "png",
+      clip: { x: 0, y: 0, width: vp.width, height: vp.height, scale: 1 },
+    });
+    return Buffer.from(data, "base64");
+  } catch (cdpErr) {
+    console.warn("[unified-operator] CDP captureScreenshot failed, using page.screenshot:", cdpErr);
+    const buf = await p.screenshot({
+      type: "png",
+      animations: "disabled",
+      caret: "hide",
+    });
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
+  } finally {
+    try {
+      await session.detach();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /** Capture screenshot. Uses Playwright page if in browser context; else desktop capture. */
 export async function captureScreen(
   sourceId: string,
@@ -204,8 +262,8 @@ export async function captureScreen(
 ): Promise<CaptureScreenResult> {
   if (hasBrowserContext() && page && !page.isClosed()) {
     try {
-      const buf = await page.screenshot({ type: "png" });
-      const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
+      const p = page;
+      const buffer = await capturePlaywrightViewportPng(p);
       const vp = page.viewportSize() ?? { width: 1280, height: 900 };
       return { buffer, width: vp.width, height: vp.height };
     } catch (e) {
