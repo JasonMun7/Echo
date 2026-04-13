@@ -47,11 +47,10 @@ async function ensureBrowserPage(): Promise<Page> {
     page = await browser.newPage();
     return page;
   }
-  browser = await chromium.launch(
-    isEchoPlaywrightHeadless()
-      ? { headless: true, args: CHROMIUM_LAUNCH_ARGS }
-      : { headless: false, args: CHROMIUM_LAUNCH_ARGS },
-  );
+  browser = await chromium.launch({
+    headless: isEchoPlaywrightHeadless(),
+    args: CHROMIUM_LAUNCH_ARGS,
+  });
   page = await browser.newPage();
   await page.setViewportSize({ width: 1280, height: 900 });
   return page;
