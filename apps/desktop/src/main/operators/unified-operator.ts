@@ -48,7 +48,7 @@ async function ensureBrowserPage(): Promise<Page> {
   }
   browser = await chromium.launch(
     isEchoPlaywrightHeadless()
-      ? { args: CHROMIUM_LAUNCH_ARGS }
+      ? { headless: true, args: CHROMIUM_LAUNCH_ARGS }
       : { headless: false, args: CHROMIUM_LAUNCH_ARGS },
   );
   page = await browser.newPage();
@@ -232,7 +232,6 @@ async function capturePlaywrightViewportPng(p: Page): Promise<Buffer> {
   const vp = p.viewportSize() ?? { width: 1280, height: 900 };
   const session = await p.context().newCDPSession(p);
   try {
-    await session.send("Page.enable");
     const { data } = await session.send("Page.captureScreenshot", {
       format: "png",
       clip: { x: 0, y: 0, width: vp.width, height: vp.height, scale: 1 },
