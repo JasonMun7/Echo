@@ -212,13 +212,15 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
 
 /** Wait one frame + next paint before capture to avoid grabbing a mid-composite frame. */
 async function settleBeforePlaywrightCapture(p: Page): Promise<void> {
-  await p.evaluate(
-    () =>
+  await p.evaluate(() =>
+    Promise.race([
       new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => resolve());
         });
       }),
+      new Promise<void>((resolve) => setTimeout(resolve, 100)),
+    ]),
   );
   await new Promise((r) => setTimeout(r, 16));
 }
@@ -263,7 +265,7 @@ export async function captureScreen(
     try {
       const p = page;
       const buffer = await capturePlaywrightViewportPng(p);
-      const vp = page.viewportSize() ?? { width: 1280, height: 900 };
+      const vp = p.viewportSize() ?? { width: 1280, height: 900 };
       return { buffer, width: vp.width, height: vp.height };
     } catch (e) {
       console.warn("[unified-operator] Playwright screenshot failed, falling back to desktop:", e);
