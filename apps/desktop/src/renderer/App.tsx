@@ -335,14 +335,25 @@ function MainWindowApp() {
       toast.error("Sign in to run workflows");
       return;
     }
-    const result = await window.electronAPI?.fetchWorkflow?.({
-      workflowId: w.id,
-      token: t,
-    });
+    const loadWorkflowErrorMessage = (result: unknown) =>
+      result && typeof result === "object" && "error" in result
+        ? String((result as { error: string }).error)
+        : "Could not load workflow. Try again.";
+
+    let result:
+      | Awaited<ReturnType<NonNullable<typeof window.electronAPI>["fetchWorkflow"]>>
+      | undefined;
+    try {
+      result = await window.electronAPI?.fetchWorkflow?.({
+        workflowId: w.id,
+        token: t,
+      });
+    } catch {
+      toast.error(loadWorkflowErrorMessage(null));
+      return;
+    }
     if (!result || "error" in result) {
-      toast.error(
-        result && "error" in result ? result.error : "Could not load workflow. Try again.",
-      );
+      toast.error(loadWorkflowErrorMessage(result));
       return;
     }
     const { workflow, steps: fetchedSteps } = result;
@@ -353,7 +364,8 @@ function MainWindowApp() {
     await handleRunWorkflow({
       workflowId: w.id,
       steps: fetchedSteps,
-      workflowType: (workflow as { workflow_type?: string }).workflow_type ?? "desktop",
+      workflowType:
+        (workflow as { workflow_type?: string }).workflow_type ?? w.workflow_type ?? "desktop",
     });
   };
 

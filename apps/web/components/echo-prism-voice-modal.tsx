@@ -278,7 +278,7 @@ export function EchoPrismVoiceModal({
     ws.onmessage = handleMessage;
     ws.onerror = () => {
       console.error("EchoPrismVoice WS error");
-      if (!didOpen) {
+      if (!didOpen && !intentionalWsCloseRef.current) {
         toast.error("Couldn't connect to EchoPrism — check your connection");
       }
     };
@@ -342,7 +342,9 @@ export function EchoPrismVoiceModal({
     };
     ws.onmessage = handleMessage;
     ws.onerror = () => {
-      if (!didOpen) toast.error("Couldn't reconnect to EchoPrism");
+      if (!didOpen && !intentionalWsCloseRef.current) {
+        toast.error("Couldn't reconnect to EchoPrism");
+      }
     };
     ws.onclose = () => {
       setVoiceState("idle");

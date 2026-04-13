@@ -246,7 +246,12 @@ export default function RunDetailPage() {
     if (!run || !status || TERMINAL_STATUSES.has(status)) return;
     setCancelling(true);
     try {
-      await apiFetch(`/api/run/${workflowId}/${runId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/run/${workflowId}/${runId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const text = (await res.text().catch(() => "")).trim();
+        toast.error(text || "Failed to cancel run");
+        return;
+      }
       toast.success("Run stopped", {
         description: "EchoPrism is ending this run. Logs will appear in a moment.",
         classNames: {
@@ -268,7 +273,13 @@ export default function RunDetailPage() {
   const handleDismiss = async () => {
     setDismissing(true);
     try {
-      await apiFetch(`/api/run/${workflowId}/${runId}/dismiss`, { method: "POST" });
+      const res = await apiFetch(`/api/run/${workflowId}/${runId}/dismiss`, { method: "POST" });
+      if (!res.ok) {
+        const text = (await res.text().catch(() => "")).trim();
+        toast.error(text || "Failed to dismiss — try again");
+        return;
+      }
+      toast.success("Marked as done");
     } catch (e) {
       console.error("Dismiss failed:", e);
       toast.error("Failed to dismiss — try again");

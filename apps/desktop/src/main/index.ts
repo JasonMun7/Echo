@@ -388,6 +388,35 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function screenSourceThumbnailUsable(src: DesktopCapturerSource): boolean {
+  if (!src.thumbnail) return false;
+  if (typeof src.thumbnail.isEmpty === "function" && src.thumbnail.isEmpty()) return false;
+  try {
+    return Buffer.from(src.thumbnail.toPNG()).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Prefer the display that matches `screen.getPrimaryDisplay()` (multi-monitor macOS). */
+function pickPreferredScreenSource(
+  sources: DesktopCapturerSource[],
+): DesktopCapturerSource | undefined {
+  if (sources.length === 0) return undefined;
+  const primaryIdStr = String(screen.getPrimaryDisplay().id);
+  const byDisplayId = sources.find((s) => {
+    const did = (s as { display_id?: string }).display_id;
+    if (did == null || did === "" || String(did) !== primaryIdStr) return false;
+    return screenSourceThumbnailUsable(s);
+  });
+  if (byDisplayId) return byDisplayId;
+  return (
+    sources.find((s) => s.id.startsWith("screen:") && screenSourceThumbnailUsable(s)) ??
+    sources.find((s) => s.id.startsWith("screen:")) ??
+    sources[0]
+  );
+}
+
 /**
  * desktopCapturer can return empty or stale thumbnails on the first call after launch
  * on macOS; retries mirror captureScreen / run-store expectations for single-click run.
@@ -406,7 +435,7 @@ async function fetchFirstScreenSourceWithRetry(): Promise<DesktopCapturerSource 
         types: ["screen"],
         thumbnailSize,
       });
-      const src = sources.find((s) => s.id.startsWith("screen:")) ?? sources[0];
+      const src = pickPreferredScreenSource(sources);
       if (src?.id && src.thumbnail && !src.thumbnail.isEmpty()) {
         return src;
       }

@@ -148,6 +148,11 @@ function SplashCursor({
         }
       }
 
+      if (!halfFloatTexType || !formatRGBA || !formatRG || !formatR) {
+        gl.getExtension("WEBGL_lose_context")?.loseContext();
+        return { gl: null, ext: null };
+      }
+
       return {
         gl,
         ext: {
