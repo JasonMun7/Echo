@@ -159,6 +159,7 @@ function MainWindowApp() {
   useLayoutEffect(() => {
     if (!token) {
       setScreenPermissionCheckPending(false);
+      setScreenPermissionRequired(false);
       return;
     }
     setScreenPermissionCheckPending(true);
@@ -167,7 +168,7 @@ function MainWindowApp() {
       try {
         const granted = await window.electronAPI?.checkScreenPermission?.();
         if (cancelled) return;
-        if (!granted) setScreenPermissionRequired(true);
+        setScreenPermissionRequired(!granted);
       } finally {
         if (!cancelled) setScreenPermissionCheckPending(false);
       }

@@ -148,8 +148,12 @@ function SplashCursor({
         }
       }
 
-      if (!halfFloatTexType) {
-        gl.getExtension("WEBGL_lose_context")?.loseContext();
+      // Normalized byte targets corrupt fluid sim (clamp signed / >1 values) — fail closed.
+      if (usedUnconditionalByteFallback || formatRGBA.internalFormat === gl.RGBA8) {
+        return { gl: null, ext: null };
+      }
+
+      if (!halfFloatTexType || !formatRGBA || !formatRG || !formatR) {
         return { gl: null, ext: null };
       }
 

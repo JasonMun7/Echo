@@ -25,6 +25,27 @@ import { getRunStatusBadgeLabel, getTerminalRunPresentation } from "@/lib/run-te
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
+/** Prefer JSON fields over raw response bodies (avoid leaking stack traces / HTML in toasts). */
+async function userFacingMessageFromApiError(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json().catch(() => null);
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const o = data as Record<string, unknown>;
+      for (const key of ["detail", "message", "error"] as const) {
+        const v = o[key];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      const code = o.errorCode ?? o.error_code;
+      if (typeof code === "string" && code.trim()) return code.trim();
+    }
+  } catch {
+    /* ignore */
+  }
+  const st = res.statusText?.trim();
+  if (st && st.length > 0 && !/^unknown error$/i.test(st)) return st;
+  return fallback;
+}
+
 interface ThoughtEntry {
   thought: string;
   action: string;
@@ -248,8 +269,7 @@ export default function RunDetailPage() {
     try {
       const res = await apiFetch(`/api/run/${workflowId}/${runId}`, { method: "DELETE" });
       if (!res.ok) {
-        const text = (await res.text().catch(() => "")).trim();
-        toast.error(text || "Failed to cancel run");
+        toast.error(await userFacingMessageFromApiError(res, "Failed to cancel run"));
         return;
       }
       toast.success("Run stopped", {
@@ -275,8 +295,7 @@ export default function RunDetailPage() {
     try {
       const res = await apiFetch(`/api/run/${workflowId}/${runId}/dismiss`, { method: "POST" });
       if (!res.ok) {
-        const text = (await res.text().catch(() => "")).trim();
-        toast.error(text || "Failed to dismiss — try again");
+        toast.error(await userFacingMessageFromApiError(res, "Failed to dismiss — try again"));
         return;
       }
       toast.success("Marked as done");
@@ -488,28 +507,24 @@ export default function RunDetailPage() {
   const terminalPresentation = getTerminalRunPresentation(status, run?.error);
 
   const statusIcon: ReactNode =
-    status === "completed" ? (
+    terminalPresentation.kind === "success" ? (
       <IconCircleCheck className="h-5 w-5 text-echo-success" />
     ) : terminalPresentation.kind === "stopped" ? (
       <IconBan className="h-5 w-5 text-[#A577FF]" />
-    ) : status === "failed" ? (
+    ) : terminalPresentation.kind === "failed" ? (
       <IconAlertCircle className="h-5 w-5 text-echo-error" />
-    ) : status === "awaiting_user" ? (
-      <IconUserQuestion className="h-5 w-5 text-amber-500" />
     ) : (
       <IconBan className="h-5 w-5 text-echo-text-muted" />
     );
 
   const statusColor =
-    status === "completed"
+    terminalPresentation.kind === "success"
       ? "bg-echo-success/15 text-echo-success"
       : terminalPresentation.kind === "stopped"
         ? "border border-[#A577FF]/20 bg-[rgba(165,119,255,0.12)] text-[#A577FF]"
-        : status === "failed"
+        : terminalPresentation.kind === "failed"
           ? "bg-echo-error/15 text-echo-error"
-          : status === "awaiting_user"
-            ? "bg-amber-50 text-amber-600"
-            : "bg-[#150A35]/10 text-[#150A35]/70";
+          : "bg-[#150A35]/10 text-[#150A35]/70";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">

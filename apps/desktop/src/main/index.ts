@@ -398,8 +398,11 @@ function screenSourceThumbnailUsable(src: DesktopCapturerSource): boolean {
   }
 }
 
-/** Prefer the display that matches `screen.getPrimaryDisplay()` (multi-monitor macOS). */
-function pickPreferredScreenSource(
+/**
+ * Permission / capture probe: only sources with a usable thumbnail (never a loose screen fallback
+ * without a good thumb — avoids false "granted" when the primary display thumb is stale).
+ */
+function pickScreenSourceForPermission(
   sources: DesktopCapturerSource[],
 ): DesktopCapturerSource | undefined {
   if (sources.length === 0) return undefined;
@@ -410,18 +413,34 @@ function pickPreferredScreenSource(
     return screenSourceThumbnailUsable(s);
   });
   if (byDisplayId) return byDisplayId;
-  return (
-    sources.find((s) => s.id.startsWith("screen:") && screenSourceThumbnailUsable(s)) ??
-    sources.find((s) => s.id.startsWith("screen:")) ??
-    sources[0]
-  );
+  return sources.find((s) => s.id.startsWith("screen:") && screenSourceThumbnailUsable(s));
 }
 
 /**
- * desktopCapturer can return empty or stale thumbnails on the first call after launch
- * on macOS; retries mirror captureScreen / run-store expectations for single-click run.
+ * Source id for desktopCapturer: prefer primary by display_id even if the thumbnail is stale,
+ * then any screen: with a usable thumb, then any screen:, then first source.
  */
-async function fetchFirstScreenSourceWithRetry(): Promise<DesktopCapturerSource | null> {
+function pickScreenSourceForPrimaryId(
+  sources: DesktopCapturerSource[],
+): DesktopCapturerSource | undefined {
+  if (sources.length === 0) return undefined;
+  const primaryIdStr = String(screen.getPrimaryDisplay().id);
+  const primaryMatch = sources.find((s) => {
+    const did = (s as { display_id?: string }).display_id;
+    return did != null && did !== "" && String(did) === primaryIdStr && Boolean(s.id);
+  });
+  if (primaryMatch) return primaryMatch;
+  const withThumb = sources.find(
+    (s) => s.id.startsWith("screen:") && screenSourceThumbnailUsable(s),
+  );
+  if (withThumb) return withThumb;
+  return sources.find((s) => s.id.startsWith("screen:")) ?? sources[0];
+}
+
+async function fetchScreenSourceWithRetry(
+  pick: (sources: DesktopCapturerSource[]) => DesktopCapturerSource | undefined,
+  isAcceptable: (src: DesktopCapturerSource) => boolean,
+): Promise<DesktopCapturerSource | null> {
   const primary = screen.getPrimaryDisplay();
   const tw = Math.min(Math.max(primary.size.width, 1), 1920);
   const th = Math.min(Math.max(primary.size.height, 1), 1080);
@@ -435,8 +454,8 @@ async function fetchFirstScreenSourceWithRetry(): Promise<DesktopCapturerSource 
         types: ["screen"],
         thumbnailSize,
       });
-      const src = pickPreferredScreenSource(sources);
-      if (src?.id && src.thumbnail && !src.thumbnail.isEmpty()) {
+      const src = pick(sources);
+      if (src?.id && isAcceptable(src)) {
         return src;
       }
     } catch {
@@ -460,7 +479,10 @@ async function checkScreenPermission(): Promise<boolean> {
     return false;
   }
 
-  const src = await fetchFirstScreenSourceWithRetry();
+  const src = await fetchScreenSourceWithRetry(
+    pickScreenSourceForPermission,
+    screenSourceThumbnailUsable,
+  );
   return !!(src && src.id);
 }
 
@@ -922,7 +944,7 @@ ipcMain.handle("get-sources", async () => {
 });
 
 ipcMain.handle("get-primary-source-id", async (): Promise<string | null> => {
-  const src = await fetchFirstScreenSourceWithRetry();
+  const src = await fetchScreenSourceWithRetry(pickScreenSourceForPrimaryId, (s) => Boolean(s.id));
   return src?.id ?? null;
 });
 
