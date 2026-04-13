@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable react-hooks/unsupported-syntax -- WebGL Material/Program classes close over gl inside the effect */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** @param palette Optional array of [r,g,b] in 0-255; splat colors will use these (primary/secondary) instead of random HSV */
 function SplashCursor({
@@ -21,6 +21,8 @@ function SplashCursor({
   palette = null,
 }) {
   const canvasRef = useRef(null);
+  /** Hide full-screen canvas if WebGL fails or init throws — avoids covering the marketing page. */
+  const [showFluid, setShowFluid] = useState(true);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -60,6 +62,10 @@ function SplashCursor({
     let pointers = [new pointerPrototype()];
 
     const { gl, ext } = getWebGLContext(canvas);
+    if (!gl || !ext) {
+      setShowFluid(false);
+      return;
+    }
     if (!ext.supportLinearFiltering) {
       config.DYE_RESOLUTION = 256;
       config.SHADING = false;
@@ -80,6 +86,7 @@ function SplashCursor({
       const isWebGL2 = !!gl;
       if (!isWebGL2)
         gl = canvas.getContext("webgl", params) || canvas.getContext("experimental-webgl", params);
+      if (!gl) return { gl: null, ext: null };
       let halfFloat;
       let supportLinearFiltering;
       if (isWebGL2) {
@@ -100,9 +107,45 @@ function SplashCursor({
         formatRG = getSupportedFormat(gl, gl.RG16F, gl.RG, halfFloatTexType);
         formatR = getSupportedFormat(gl, gl.R16F, gl.RED, halfFloatTexType);
       } else {
-        formatRGBA = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
-        formatRG = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
-        formatR = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
+        const webgl1TexType = halfFloatTexType || gl.UNSIGNED_BYTE;
+        formatRGBA = getSupportedFormat(gl, gl.RGBA, gl.RGBA, webgl1TexType);
+        formatRG = getSupportedFormat(gl, gl.RGBA, gl.RGBA, webgl1TexType);
+        formatR = getSupportedFormat(gl, gl.RGBA, gl.RGBA, webgl1TexType);
+      }
+
+      let halfFloatTexTypeEffective = halfFloatTexType;
+      let usedUnconditionalByteFallback = false;
+      if (!formatRGBA || !formatRG || !formatR) {
+        const byteType = gl.UNSIGNED_BYTE;
+        const internal = typeof gl.RGBA8 === "number" ? gl.RGBA8 : gl.RGBA;
+        if (supportRenderTextureFormat(gl, internal, gl.RGBA, byteType)) {
+          const fallback = { internalFormat: internal, format: gl.RGBA };
+          formatRGBA = formatRGBA || fallback;
+          formatRG = formatRG || fallback;
+          formatR = formatR || fallback;
+          halfFloatTexTypeEffective = byteType;
+          usedUnconditionalByteFallback = true;
+        }
+      }
+
+      if (!formatRGBA || !formatRG || !formatR) {
+        return { gl: null, ext: null };
+      }
+
+      // Match texImage2D type to internal format (HALF_FLOAT is invalid for RGBA8 / normalized RGBA FBOs).
+      if (!usedUnconditionalByteFallback) {
+        if (formatRGBA.internalFormat === gl.RGBA8) {
+          halfFloatTexTypeEffective = gl.UNSIGNED_BYTE;
+        } else if (isWebGL2) {
+          const f = formatRGBA.internalFormat;
+          if (f === gl.R16F || f === gl.RG16F || f === gl.RGBA16F) {
+            halfFloatTexTypeEffective = halfFloatTexType;
+          } else {
+            halfFloatTexTypeEffective = halfFloatTexType || gl.UNSIGNED_BYTE;
+          }
+        } else {
+          halfFloatTexTypeEffective = halfFloatTexType || gl.UNSIGNED_BYTE;
+        }
       }
 
       return {
@@ -111,19 +154,36 @@ function SplashCursor({
           formatRGBA,
           formatRG,
           formatR,
-          halfFloatTexType,
+          halfFloatTexType: halfFloatTexTypeEffective,
           supportLinearFiltering,
         },
       };
     }
 
     function getSupportedFormat(gl, internalFormat, format, type) {
+      if (!type) return null;
       if (!supportRenderTextureFormat(gl, internalFormat, format, type)) {
         switch (internalFormat) {
           case gl.R16F:
             return getSupportedFormat(gl, gl.RG16F, gl.RG, type);
           case gl.RG16F:
             return getSupportedFormat(gl, gl.RGBA16F, gl.RGBA, type);
+          case gl.RGBA16F:
+            if (supportRenderTextureFormat(gl, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE)) {
+              return { internalFormat: gl.RGBA8, format: gl.RGBA };
+            }
+            if (supportRenderTextureFormat(gl, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)) {
+              return { internalFormat: gl.RGBA, format: gl.RGBA };
+            }
+            return null;
+          case gl.RGBA:
+            if (
+              type !== gl.UNSIGNED_BYTE &&
+              supportRenderTextureFormat(gl, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
+            ) {
+              return { internalFormat: gl.RGBA, format: gl.RGBA };
+            }
+            return null;
           default:
             return null;
         }
@@ -1022,12 +1082,18 @@ function SplashCursor({
     }
 
     function getResolution(resolution) {
+      const MAX_EDGE = 1024;
       let aspectRatio = gl.drawingBufferWidth / gl.drawingBufferHeight;
+      if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) aspectRatio = 1;
       if (aspectRatio < 1) aspectRatio = 1.0 / aspectRatio;
       const min = Math.round(resolution);
       const max = Math.round(resolution * aspectRatio);
-      if (gl.drawingBufferWidth > gl.drawingBufferHeight) return { width: max, height: min };
-      else return { width: min, height: max };
+      let width = gl.drawingBufferWidth > gl.drawingBufferHeight ? max : min;
+      let height = gl.drawingBufferWidth > gl.drawingBufferHeight ? min : max;
+      const scale = Math.min(1, MAX_EDGE / Math.max(width, height, 1));
+      width = Math.max(1, Math.floor(width * scale));
+      height = Math.max(1, Math.floor(height * scale));
+      return { width, height };
     }
 
     function scaleByPixelRatio(input) {
@@ -1129,7 +1195,8 @@ function SplashCursor({
       window.removeEventListener("touchstart", onSplashTouchStart);
       window.removeEventListener("touchmove", onSplashTouchMove);
       window.removeEventListener("touchend", onSplashTouchEnd);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      // Do not call WEBGL_lose_context here: React Strict Mode remounts the effect on the same
+      // canvas; losing the context breaks the second init and can GPU-crash the tab (sad face).
     };
   }, [
     SIM_RESOLUTION,
@@ -1148,6 +1215,8 @@ function SplashCursor({
     TRANSPARENT,
     palette,
   ]);
+
+  if (!showFluid) return null;
 
   return (
     <div className="fixed top-0 left-0 z-50 pointer-events-none w-full h-full">

@@ -21,6 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
 import { toast } from "sonner";
+import { getRunStatusBadgeLabel, getTerminalRunPresentation } from "@/lib/run-terminal-ui";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
@@ -246,9 +247,19 @@ export default function RunDetailPage() {
     setCancelling(true);
     try {
       await apiFetch(`/api/run/${workflowId}/${runId}`, { method: "DELETE" });
+      toast.success("Run stopped", {
+        description: "EchoPrism is ending this run. Logs will appear in a moment.",
+        classNames: {
+          toast: "border-[#A577FF]/25 bg-[#F5F7FC]",
+          title: "text-[#150A35]",
+          description: "text-gray-600",
+        },
+      });
     } catch (e) {
       console.error("Cancel failed:", e);
-      toast.error("Failed to cancel run");
+      toast.error("Could not stop run", {
+        description: e instanceof Error ? e.message : "Try again in a moment.",
+      });
     } finally {
       setCancelling(false);
     }
@@ -463,9 +474,13 @@ export default function RunDetailPage() {
   }
 
   // ── Completed / failed / cancelled: show logs ────────────────────────────
+  const terminalPresentation = getTerminalRunPresentation(status, run?.error);
+
   const statusIcon: ReactNode =
     status === "completed" ? (
       <IconCircleCheck className="h-5 w-5 text-echo-success" />
+    ) : terminalPresentation.kind === "stopped" ? (
+      <IconBan className="h-5 w-5 text-[#A577FF]" />
     ) : status === "failed" ? (
       <IconAlertCircle className="h-5 w-5 text-echo-error" />
     ) : status === "awaiting_user" ? (
@@ -477,11 +492,13 @@ export default function RunDetailPage() {
   const statusColor =
     status === "completed"
       ? "bg-echo-success/15 text-echo-success"
-      : status === "failed"
-        ? "bg-echo-error/15 text-echo-error"
-        : status === "awaiting_user"
-          ? "bg-amber-50 text-amber-600"
-          : "bg-[#150A35]/10 text-[#150A35]/70";
+      : terminalPresentation.kind === "stopped"
+        ? "border border-[#A577FF]/20 bg-[rgba(165,119,255,0.12)] text-[#A577FF]"
+        : status === "failed"
+          ? "bg-echo-error/15 text-echo-error"
+          : status === "awaiting_user"
+            ? "bg-amber-50 text-amber-600"
+            : "bg-[#150A35]/10 text-[#150A35]/70";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
@@ -500,16 +517,38 @@ export default function RunDetailPage() {
           <div className="flex items-center gap-2">
             {statusIcon}
             <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor}`}>
-              {status ?? "unknown"}
+              {getRunStatusBadgeLabel(status ?? "", run?.error)}
             </span>
           </div>
         </div>
 
-        {/* Error message + retry if failed */}
-        {status === "failed" && (
+        {/* Stopped (cancel / benign disconnect) — glass card, not error red */}
+        {terminalPresentation.kind === "stopped" && (
+          <div className="echo-glass-card rounded-lg border border-[#A577FF]/15 bg-[#150A35]/8 px-4 py-4 backdrop-blur-md">
+            <div className="flex gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(165,119,255,0.15)]">
+                <IconBan className="h-5 w-5 text-[#A577FF]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-[#150A35]">
+                  {terminalPresentation.headline}
+                </p>
+                {terminalPresentation.description && (
+                  <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                    {terminalPresentation.description}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Real failure + retry */}
+        {terminalPresentation.kind === "failed" && (
           <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
             <div className="flex-1">
-              <p className="text-sm text-echo-error">
+              <p className="text-sm font-medium text-[#150A35]">This run hit an error</p>
+              <p className="mt-1 text-sm text-echo-error">
                 {run?.error != null ? String(run.error) : "Run failed"}
               </p>
               {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (

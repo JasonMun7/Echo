@@ -22,7 +22,8 @@ export function SplashCursorProvider() {
     <SplashCursor
       TRANSPARENT={true}
       BACK_COLOR={BACK_COLOR}
-      palette={PALETTE as unknown as null}
+      palette={PALETTE}
+      DYE_RESOLUTION={512}
       SPLAT_RADIUS={0.08}
       SPLAT_FORCE={2200}
       CURL={1.5}

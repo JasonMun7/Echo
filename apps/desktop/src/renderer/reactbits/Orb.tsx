@@ -223,18 +223,19 @@ export default function Orb({
     function resize() {
       if (!container) return;
       const dpr = window.devicePixelRatio || 1;
-      const width = container.clientWidth;
-      const height = container.clientHeight;
+      // 0×0 backing store breaks OGL/WebGL (e.g. main window hidden during run mode).
+      const width = Math.max(1, container.clientWidth);
+      const height = Math.max(1, container.clientHeight);
       renderer.setSize(width * dpr, height * dpr);
-      gl.canvas.style.width = width + "px";
-      gl.canvas.style.height = height + "px";
-      program.uniforms.iResolution.value.set(
-        gl.canvas.width,
-        gl.canvas.height,
-        gl.canvas.width / gl.canvas.height,
-      );
+      gl.canvas.style.width = container.clientWidth + "px";
+      gl.canvas.style.height = container.clientHeight + "px";
+      const bw = gl.canvas.width;
+      const bh = Math.max(1, gl.canvas.height);
+      program.uniforms.iResolution.value.set(bw, bh, bw / bh);
     }
     window.addEventListener("resize", resize);
+    const resizeObserver = new ResizeObserver(() => resize());
+    resizeObserver.observe(container);
     resize();
 
     let targetHover = 0;
@@ -271,6 +272,8 @@ export default function Orb({
     let rafId: number;
     const update = (t: number) => {
       rafId = requestAnimationFrame(update);
+      if (gl.isContextLost?.()) return;
+      if (container.clientWidth === 0 && container.clientHeight === 0) return;
       const dt = (t - lastTime) * 0.001;
       lastTime = t;
       program.uniforms.iTime.value = t * 0.001;
@@ -292,6 +295,7 @@ export default function Orb({
 
     return () => {
       cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
       container.removeEventListener("mousemove", handleMouseMove);
       container.removeEventListener("mouseleave", handleMouseLeave);
