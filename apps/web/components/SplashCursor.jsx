@@ -148,7 +148,7 @@ function SplashCursor({
         }
       }
 
-      if (!halfFloatTexType || !formatRGBA || !formatRG || !formatR) {
+      if (!halfFloatTexType) {
         gl.getExtension("WEBGL_lose_context")?.loseContext();
         return { gl: null, ext: null };
       }
