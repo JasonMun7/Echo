@@ -420,7 +420,7 @@ async function fetchFirstScreenSourceWithRetry(): Promise<DesktopCapturerSource 
 async function checkScreenPermission(): Promise<boolean> {
   if (process.platform !== "darwin") return true;
 
-  let mediaStatus: string = "unknown";
+  let mediaStatus: string;
   try {
     mediaStatus = systemPreferences.getMediaAccessStatus("screen");
   } catch {
