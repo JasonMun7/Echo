@@ -85,7 +85,6 @@ def composio_raw_toolkit_slugs_accepted() -> frozenset[str]:
     slugs: set[str] = set(composio_toolkits_for_session())
     for k in AVAILABLE_INTEGRATIONS:
         slugs.add(echo_catalog_id_to_composio_toolkit(k))
-    slugs.add("googledrive")
     return frozenset(slugs)
 
 
@@ -208,9 +207,17 @@ async def list_integrations(uid: str = Depends(get_current_uid)):
             entry["composio_account_active"] = None
         result.append(entry)
 
+    configured = bool((os.getenv("COMPOSIO_API_KEY") or "").strip())
+    any_composio_active: bool | None = None
+    if active_slugs is not None:
+        any_composio_active = any(
+            composio_slug_activates_catalog_entry(k, active_slugs) for k in AVAILABLE_INTEGRATIONS
+        )
+
     return {
         "integrations": result,
-        "composio_configured": bool((os.getenv("COMPOSIO_API_KEY") or "").strip()),
+        "composio_configured": configured,
+        "composio_account_active": any_composio_active,
     }
 
 

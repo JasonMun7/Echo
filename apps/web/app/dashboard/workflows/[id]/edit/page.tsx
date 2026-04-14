@@ -26,6 +26,35 @@ function formatAction(action: string): string {
     .join(" ");
 }
 
+/** Reset params when the step action changes so stale keys are not saved. */
+function getDefaultParamsForAction(action: string): Record<string, unknown> {
+  switch (action) {
+    case "navigate":
+      return { url: "" };
+    case "click_at":
+    case "type_text_at":
+      return { description: "", text: "" };
+    case "wait_for_element":
+      return { description: "" };
+    case "scroll":
+      return { direction: "down", amount: 500 };
+    case "wait":
+      return { seconds: 2 };
+    case "select_option":
+      return { description: "", value: "" };
+    case "press_key":
+    case "hotkey":
+      return { key: "" };
+    case "open_app":
+    case "focus_app":
+      return { app: "" };
+    case "api_call":
+      return {};
+    default:
+      return {};
+  }
+}
+
 const BROWSER_ACTIONS = [
   "navigate",
   "click_at",
@@ -523,7 +552,13 @@ export default function WorkflowEditPage() {
                       <label className="block text-xs text-[#150A35]/70">Action</label>
                       <select
                         value={step.action}
-                        onChange={(e) => handleStepUpdate(step.id, { action: e.target.value })}
+                        onChange={(e) => {
+                          const newAction = e.target.value;
+                          handleStepUpdate(step.id, {
+                            action: newAction,
+                            params: getDefaultParamsForAction(newAction),
+                          });
+                        }}
                         className="mt-1 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
                       >
                         {availableActions.map((a) => (

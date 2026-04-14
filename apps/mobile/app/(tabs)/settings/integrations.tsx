@@ -22,6 +22,7 @@ interface Integration {
   display_name: string;
   description?: string;
   connected: boolean;
+  composio_account_active?: boolean | null;
   auto_connected?: boolean;
   account_name?: string;
   team_name?: string;
@@ -94,13 +95,23 @@ export default function IntegrationsScreen() {
     try {
       const res = await apiFetch("/api/integrations");
       if (res.ok) {
-        const data = await res.json();
-        setIntegrations(data.integrations ?? data);
-        if (typeof data === "object" && data !== null && "composio_configured" in data) {
-          setComposioConfigured(Boolean(data.composio_configured));
-        } else {
-          setComposioConfigured(true);
-        }
+        const data = (await res.json()) as {
+          integrations?: Integration[];
+          composio_configured?: boolean;
+          composio_account_active?: boolean | null;
+        };
+        const rawList = (data.integrations ?? (Array.isArray(data) ? data : [])) as Integration[];
+        const list = rawList.map((row) => ({
+          ...row,
+          connected:
+            typeof row.composio_account_active === "boolean"
+              ? row.composio_account_active
+              : row.connected,
+        }));
+        setIntegrations(list);
+        setComposioConfigured(
+          Boolean(data.composio_account_active ?? data.composio_configured ?? true),
+        );
       }
     } catch {}
   }, []);

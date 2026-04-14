@@ -24,8 +24,19 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _session_lock = threading.Lock()
+_key_locks_guard = threading.Lock()
+# Per (uid, connection_id) lock so two connections don't serialize on c.create(), and we never
+# hold _session_lock during network I/O.
+_key_locks: dict[tuple[str, str], threading.Lock] = {}
 # (uid, connection_id) -> (session object, wrapped LC tools list)
 _session_cache: dict[tuple[str, str], tuple[Any, list[Any]]] = {}
+
+
+def _lock_for_cache_key(key: tuple[str, str]) -> threading.Lock:
+    with _key_locks_guard:
+        if key not in _key_locks:
+            _key_locks[key] = threading.Lock()
+        return _key_locks[key]
 
 
 def _toolkits_from_env() -> list[str]:
@@ -94,17 +105,28 @@ def get_or_create_chat_router_session(uid: str, connection_id: str) -> tuple[Any
 
     cid = (connection_id or "").strip() or "default"
     key = (uid, cid)
+
     with _session_lock:
         if key in _session_cache:
             return _session_cache[key]
+
+    key_lock = _lock_for_cache_key(key)
+    with key_lock:
+        with _session_lock:
+            if key in _session_cache:
+                return _session_cache[key]
         try:
             sess = c.create(user_id=uid, toolkits=_toolkits_from_env())
             tools = sess.tools()
-            _session_cache[key] = (sess, tools)
-            return sess, tools
         except Exception as e:
             logger.warning("Composio tool router session create failed uid=%s: %s", uid[:8], e)
             return None, []
+
+        with _session_lock:
+            if key in _session_cache:
+                return _session_cache[key]
+            _session_cache[key] = (sess, tools)
+            return sess, tools
 
 
 async def invoke_composio_meta_tool(

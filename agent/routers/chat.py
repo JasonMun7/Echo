@@ -29,7 +29,22 @@ router = APIRouter(tags=["chat"])
 
 ACTIVE_RUN_STATUSES = ("running", "pending", "awaiting_user")
 
-_COMPOSIO_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{2,}$")
+
+def _is_composio_tool_router_slug(name: str) -> bool:
+    """
+    True when ``name`` looks like a Composio tool slug (not Echo chat tools).
+
+    Avoids the old ``^[A-Z][A-Z0-9_]{2,}$`` pattern, which matched any UPPER_SNAKE string
+    (e.g. internal names) and routed them into ``execute_composio_tool``.
+    """
+    n = (name or "").strip()
+    if not n or n.startswith("COMPOSIO_"):
+        return False
+    if "_" not in n or not re.match(r"^[A-Z][A-Z0-9_]*_[A-Z0-9_]+$", n):
+        return False
+    from echo_prism_agent.composio_integration.slugs import toolkit_hint_from_slug
+
+    return toolkit_hint_from_slug(n) != "integration"
 
 
 def _cancel_other_active_runs_for_user(uid: str, db) -> None:
@@ -75,8 +90,8 @@ async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> li
         # Signal frontend to show tool indicator
         try:
             await websocket.send_text(json.dumps({"type": "tool_call", "name": name}))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Failed to send tool_call for %s: %s", name, e, exc_info=True)
 
         try:
             result = await _execute_tool(name, args, uid, db, websocket, connection_id=connection_id)
@@ -155,6 +170,10 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
         clear_chat_session_cache,
         invalidate_chat_session_if_auth_hint,
     )
+    from echo_prism_agent.composio_integration.langfuse_tracing import (
+        chat_turn_span,
+        maybe_score_tool_result,
+    )
 
     connection_id = str(uuid.uuid4())
 
@@ -183,11 +202,6 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
                 continue
 
             history.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
-
-            from echo_prism_agent.composio_integration.langfuse_tracing import (
-                chat_turn_span,
-                maybe_score_tool_result,
-            )
 
             # Agentic loop: delegate to chat_agent until no more tool calls
             with chat_turn_span(uid=uid, model=CHAT_MODEL):
@@ -630,7 +644,7 @@ async def _execute_tool(
         out = await invoke_composio_meta_tool(uid, name, dict(args or {}), connection_id=connection_id)
         return merge_composio_execute_result(out)
 
-    if _COMPOSIO_NAME_PATTERN.match(name or ""):
+    if _is_composio_tool_router_slug(name or ""):
         from echo_prism_agent.composio_integration.client import composio_configured as cc_ok
         from echo_prism_agent.composio_integration.client import execute_composio_tool
         from echo_prism_agent.composio_integration.danger import is_dangerous_composio_slug

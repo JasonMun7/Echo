@@ -5,6 +5,18 @@ import type { ReadonlyURLSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+/** Echo catalog ids from ``GET /api/integrations`` — safe to echo in OAuth return query param. */
+const OAUTH_CONNECTED_ALLOWLIST = new Set(["slack", "github", "google", "gmail"]);
+
+function validatedOAuthDisplayName(connected: string | null): string | null {
+  if (!connected) return null;
+  const t = connected.trim();
+  if (!t || t.length > 64) return null;
+  if (!/^[\w\- ]+$/i.test(t)) return null;
+  if (!OAUTH_CONNECTED_ALLOWLIST.has(t.toLowerCase())) return null;
+  return t;
+}
+
 /**
  * After Composio OAuth, the redirect URL may include query params (or none). Refetch integrations,
  * toast, and strip query params so the UI shows updated connection state.
@@ -44,11 +56,16 @@ export function useIntegrationsOAuthParams(
     }
 
     void (async () => {
-      await loadIntegrations({ forceIdTokenRefresh: true, silent: true });
-      if (connected) {
-        toast.success(`${connected} connected successfully!`);
-      } else {
-        toast.success("Connection updated.");
+      const refreshed = await loadIntegrations({ forceIdTokenRefresh: true, silent: true });
+      if (refreshed != null) {
+        const display = connected ? validatedOAuthDisplayName(connected) : null;
+        if (connected) {
+          toast.success(
+            display ? `${display} connected successfully!` : "Integration connected successfully",
+          );
+        } else {
+          toast.success("Connection updated.");
+        }
       }
       router.replace(pathname, { scroll: false });
     })();

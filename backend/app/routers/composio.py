@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -39,6 +40,30 @@ def _normalize_toolkit(toolkit: str) -> str:
     return toolkit.strip().lower().replace(" ", "")
 
 
+def _validated_client_callback_url(raw: str | None) -> str | None:
+    """
+    Optional redirect URL from the client: must match ``FRONTEND_ORIGIN`` host (scheme may be http or https).
+    """
+    if not raw:
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    try:
+        p = urlparse(s)
+    except Exception:
+        return None
+    if p.scheme not in ("https", "http"):
+        return None
+    front = (os.getenv("FRONTEND_ORIGIN") or "").strip()
+    if not front:
+        return None
+    fp = urlparse(front if "://" in front else f"https://{front}")
+    if p.netloc.lower() != fp.netloc.lower():
+        return None
+    return s
+
+
 def _toolkit_row_from_state(item: object) -> dict:
     """Map Composio ``ToolkitConnectionState`` to JSON (session.toolkits)."""
     conn = getattr(item, "connection", None)
@@ -61,6 +86,10 @@ async def composio_connect_link(
     toolkit: str = Query(
         ...,
         description="Composio toolkit id (slack, github, google, gmail, googledrive, googlecalendar, …)",
+    ),
+    callback_url: str | None = Query(
+        None,
+        description="Optional OAuth redirect URL; must match FRONTEND_ORIGIN host. Falls back to server default.",
     ),
     uid: str = Depends(get_current_uid),
 ):
@@ -91,11 +120,11 @@ async def composio_connect_link(
 
         c = Composio(api_key=key)
         session = c.create(user_id=uid, toolkits=[composio_t])
-        req = session.authorize(composio_t, callback_url=_oauth_callback_url())
+        cb = _validated_client_callback_url(callback_url) or _oauth_callback_url()
+        req = session.authorize(composio_t, callback_url=cb)
         url = getattr(req, "redirect_url", None) or getattr(req, "redirectUrl", None)
         if not url:
             raise HTTPException(status_code=502, detail="Composio did not return a redirect URL")
-        cb = _oauth_callback_url()
         return {
             "url": url,
             "toolkit": t,

@@ -142,18 +142,26 @@ export function IntegrationCard({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#150A35]/6 pt-2.5">
-        <span
-          className={cn(
-            "inline-flex max-w-[72%] items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-            integration.note
-              ? "bg-[#f5f3ff] text-[#A577FF]"
-              : on
+        <div className="flex min-w-0 max-w-[72%] flex-col gap-0.5">
+          <span
+            className={cn(
+              "inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+              on
                 ? "echo-gradient-cyan-lavender text-white shadow-sm"
                 : "bg-[#f3f4f6] text-[#6b7280]",
-          )}
-        >
-          {integration.note ? "Via Google sign-in" : on ? "Connected" : "Not connected"}
-        </span>
+            )}
+          >
+            {on ? "Connected" : "Not connected"}
+          </span>
+          {integration.note ? (
+            <span
+              className="truncate text-[10px] font-medium text-[#A577FF]/90"
+              title={integration.note}
+            >
+              {integration.note}
+            </span>
+          ) : null}
+        </div>
 
         <DropdownMenu>
           <Tooltip>
