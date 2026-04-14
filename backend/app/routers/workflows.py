@@ -13,13 +13,32 @@ import firebase_admin.firestore
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from google.api_core import exceptions as gcp_exceptions
-from google.cloud.firestore import SERVER_TIMESTAMP, ArrayRemove, ArrayUnion, FieldFilter
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayRemove, ArrayUnion, FieldFilter
 from pydantic import BaseModel
 
 from app.auth import get_current_uid, get_firebase_app
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 _log = logging.getLogger(__name__)
+
+
+def _validate_flow_graph_step_ids(wf_ref: Any, flow_graph: dict[str, Any]) -> None:
+    """Ensure each graph node id references an existing step (Echo Flow M1)."""
+    nodes = flow_graph.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        return
+    step_ids = {d.id for d in wf_ref.collection("steps").stream()}
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        nid = n.get("id")
+        if not isinstance(nid, str) or not nid:
+            continue
+        if nid not in step_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"flow_graph node id does not match a step: {nid}",
+            )
 
 
 def _get_workflow(uid: str, workflow_id: str, require_owner: bool = True) -> tuple[Any, Any]:
@@ -39,6 +58,25 @@ def _get_workflow(uid: str, workflow_id: str, require_owner: bool = True) -> tup
     return wf_ref, data
 
 
+def _collaborator_role(data: dict[str, Any], collaborator_uid: str) -> str:
+    roles = data.get("collaborator_roles")
+    if isinstance(roles, dict):
+        raw = roles.get(collaborator_uid)
+        if raw in ("viewer", "editor"):
+            return raw
+    return "editor"
+
+
+def _assert_can_edit_workflow(uid: str, data: dict[str, Any]) -> None:
+    """Owner or shared user with editor role may mutate workflow content."""
+    if data.get("owner_uid") == uid:
+        return
+    if uid not in (data.get("shared_with") or []):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _collaborator_role(data, uid) == "viewer":
+        raise HTTPException(status_code=403, detail="View-only access")
+
+
 # --- Workflow schemas ---
 class WorkflowCreate(BaseModel):
     name: str | None = None
@@ -50,11 +88,25 @@ class WorkflowUpdate(BaseModel):
     ephemeral: bool | None = None
 
 
+class WorkflowFlowUpdate(BaseModel):
+    """React Flow graph JSON: nodes, edges, optional viewport (see Echo Flow editor)."""
+
+    flow_graph: dict[str, Any]
+
+
 class StepCreate(BaseModel):
     action: str = "wait"
     context: str = ""
     params: dict[str, Any] = {}
     expected_outcome: str = ""
+    # Optional Scribe-style frame from synthesis (URL to screenshot).
+    frame_image_url: str | None = None
+    # Normalized or pixel bbox / click point for overlay in Echo Flow inspector.
+    click_overlay: dict[str, Any] | None = None
+    # Optional images/videos/files for step context (Echo Flow inspector).
+    context_attachments: list[dict[str, Any]] | None = None
+    # If set, new step is ordered immediately before this step (no client reorder round-trip).
+    insert_before_step_id: str | None = None
 
 
 class StepUpdate(BaseModel):
@@ -63,10 +115,18 @@ class StepUpdate(BaseModel):
     params: dict[str, Any] | None = None
     expected_outcome: str | None = None
     order: int | None = None
+    frame_image_url: str | None = None
+    click_overlay: dict[str, Any] | None = None
+    context_attachments: list[dict[str, Any]] | None = None
 
 
 class ShareWorkflow(BaseModel):
     email: str
+    role: str = "editor"
+
+
+class ShareRoleUpdate(BaseModel):
+    role: str
 
 
 # --- Workflow endpoints ---
@@ -151,7 +211,8 @@ async def update_workflow(
     body: WorkflowUpdate,
     uid: str = Depends(get_current_uid),
 ):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, data = _get_workflow(uid, workflow_id, require_owner=False)
+    _assert_can_edit_workflow(uid, data)
     update: dict[str, Any] = {"updatedAt": SERVER_TIMESTAMP}
     if body.name is not None:
         update["name"] = body.name
@@ -160,6 +221,25 @@ async def update_workflow(
     if body.ephemeral is not None:
         update["ephemeral"] = body.ephemeral
     wf_ref.update(update)
+    return {"ok": True}
+
+
+@router.put("/{workflow_id}/flow")
+async def update_workflow_flow(
+    workflow_id: str,
+    body: WorkflowFlowUpdate,
+    uid: str = Depends(get_current_uid),
+):
+    """Persist Echo Flow canvas state (nodes/edges) on the workflow document."""
+    wf_ref, data = _get_workflow(uid, workflow_id, require_owner=False)
+    _assert_can_edit_workflow(uid, data)
+    _validate_flow_graph_step_ids(wf_ref, body.flow_graph)
+    wf_ref.update(
+        {
+            "flow_graph": body.flow_graph,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -235,6 +315,8 @@ async def share_workflow(
         target_user = firebase_admin.auth.get_user_by_email(body.email)
     except firebase_admin.auth.UserNotFoundError:
         raise HTTPException(status_code=404, detail="No Echo account found for that email")
+    if body.role not in ("viewer", "editor"):
+        raise HTTPException(status_code=400, detail="role must be viewer or editor")
     if target_user.uid == uid:
         raise HTTPException(status_code=400, detail="Cannot share with yourself")
     if target_user.uid in (wf_data.get("shared_with") or []):
@@ -293,6 +375,7 @@ async def share_workflow(
     wf_ref.update(
         {
             "shared_with": ArrayUnion([target_user.uid]),
+            f"collaborator_roles.{target_user.uid}": body.role,
             "updatedAt": SERVER_TIMESTAMP,
         }
     )
@@ -326,19 +409,20 @@ async def accept_invite(
     wf_data = wf_doc.to_dict() or {}
     new_id = str(uuid.uuid4())
     new_ref = db.collection("workflows").document(new_id)
-    new_ref.set(
-        {
-            "owner_uid": uid,
-            "name": wf_data.get("name", "Untitled"),
-            "status": wf_data.get("status", "draft"),
-            "workflow_type": wf_data.get("workflow_type", "desktop"),
-            "shared_with": [],
-            "forked_from": workflow_id,
-            "thumbnail_gcs_path": wf_data.get("thumbnail_gcs_path"),
-            "createdAt": SERVER_TIMESTAMP,
-            "updatedAt": SERVER_TIMESTAMP,
-        }
-    )
+    fork_payload: dict[str, Any] = {
+        "owner_uid": uid,
+        "name": wf_data.get("name", "Untitled"),
+        "status": wf_data.get("status", "draft"),
+        "workflow_type": wf_data.get("workflow_type", "desktop"),
+        "shared_with": [],
+        "forked_from": workflow_id,
+        "thumbnail_gcs_path": wf_data.get("thumbnail_gcs_path"),
+        "createdAt": SERVER_TIMESTAMP,
+        "updatedAt": SERVER_TIMESTAMP,
+    }
+    if wf_data.get("flow_graph") is not None:
+        fork_payload["flow_graph"] = wf_data.get("flow_graph")
+    new_ref.set(fork_payload)
     for step_doc in wf_ref.collection("steps").order_by("order").stream():
         step_data = step_doc.to_dict() or {}
         new_ref.collection("steps").document(str(uuid.uuid4())).set(step_data)
@@ -368,7 +452,36 @@ async def decline_invite(
     invite.reference.update({"status": "declined"})
     # If the inviter granted immediate visibility/access, remove it on decline.
     wf_ref = db.collection("workflows").document(workflow_id)
-    wf_ref.update({"shared_with": ArrayRemove([uid]), "updatedAt": SERVER_TIMESTAMP})
+    wf_ref.update(
+        {
+            "shared_with": ArrayRemove([uid]),
+            f"collaborator_roles.{uid}": DELETE_FIELD,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
+    return {"ok": True}
+
+
+@router.patch("/{workflow_id}/share/{target_uid}")
+async def update_share_role(
+    workflow_id: str,
+    target_uid: str,
+    body: ShareRoleUpdate,
+    uid: str = Depends(get_current_uid),
+):
+    """Change a collaborator's role (owner only)."""
+    if body.role not in ("viewer", "editor"):
+        raise HTTPException(status_code=400, detail="role must be viewer or editor")
+    wf_ref, wf_data = _get_workflow(uid, workflow_id)
+    shared = wf_data.get("shared_with") or []
+    if target_uid not in shared:
+        raise HTTPException(status_code=404, detail="User is not a collaborator on this workflow")
+    wf_ref.update(
+        {
+            f"collaborator_roles.{target_uid}": body.role,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     return {"ok": True}
 
 
@@ -382,7 +495,13 @@ async def unshare_workflow(
     wf_ref, _ = _get_workflow(uid, workflow_id)
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
-    wf_ref.update({"shared_with": ArrayRemove([target_uid]), "updatedAt": SERVER_TIMESTAMP})
+    wf_ref.update(
+        {
+            "shared_with": ArrayRemove([target_uid]),
+            f"collaborator_roles.{target_uid}": DELETE_FIELD,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
     # Also remove pending invites so the collaborator cannot reappear as "pending".
     pending_invites = (
         db.collection("workflow_invites")
@@ -433,6 +552,7 @@ async def get_collaborators(
                     "email": user.email or "",
                     "display_name": user.display_name or user.email or shared_uid,
                     "status": status,
+                    "role": _collaborator_role(data, shared_uid),
                 }
             )
         except Exception:
@@ -442,6 +562,7 @@ async def get_collaborators(
                     "email": "",
                     "display_name": shared_uid,
                     "status": status,
+                    "role": _collaborator_role(data, shared_uid),
                 }
             )
     return {"collaborators": collaborators}
@@ -459,18 +580,19 @@ async def fork_workflow(
     db = firebase_admin.firestore.client(app)
     new_id = str(uuid.uuid4())
     new_ref = db.collection("workflows").document(new_id)
-    new_ref.set(
-        {
-            "owner_uid": uid,
-            "name": f"{data.get('name', 'Untitled')} (copy)",
-            "status": "draft",
-            "workflow_type": data.get("workflow_type", "browser"),
-            "shared_with": [],
-            "forked_from": workflow_id,
-            "createdAt": SERVER_TIMESTAMP,
-            "updatedAt": SERVER_TIMESTAMP,
-        }
-    )
+    fork_payload: dict[str, Any] = {
+        "owner_uid": uid,
+        "name": f"{data.get('name', 'Untitled')} (copy)",
+        "status": "draft",
+        "workflow_type": data.get("workflow_type", "browser"),
+        "shared_with": [],
+        "forked_from": workflow_id,
+        "createdAt": SERVER_TIMESTAMP,
+        "updatedAt": SERVER_TIMESTAMP,
+    }
+    if data.get("flow_graph") is not None:
+        fork_payload["flow_graph"] = data.get("flow_graph")
+    new_ref.set(fork_payload)
     # Copy all steps
     old_ref = db.collection("workflows").document(workflow_id)
     for step_doc in old_ref.collection("steps").order_by("order").stream():
@@ -511,21 +633,48 @@ async def create_step(
     body: StepCreate,
     uid: str = Depends(get_current_uid),
 ):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
-    # Get max order
-    existing = list(wf_ref.collection("steps").order_by("order", direction="DESCENDING").limit(1).stream())
-    next_order = (existing[0].to_dict().get("order", -1) + 1) if existing else 0
+    wf_ref, data = _get_workflow(uid, workflow_id, require_owner=False)
+    _assert_can_edit_workflow(uid, data)
+    steps_col = wf_ref.collection("steps")
     step_id = str(uuid.uuid4())
-    wf_ref.collection("steps").document(step_id).set(
-        {
-            "order": next_order,
-            "action": body.action,
-            "context": body.context,
-            "params": body.params,
-            "expected_outcome": body.expected_outcome,
-        }
-    )
-    wf_ref.update({"updatedAt": SERVER_TIMESTAMP})
+    step_payload: dict[str, Any] = {
+        "action": body.action,
+        "context": body.context,
+        "params": body.params,
+        "expected_outcome": body.expected_outcome,
+    }
+    if body.frame_image_url is not None:
+        step_payload["frame_image_url"] = body.frame_image_url
+    if body.click_overlay is not None:
+        step_payload["click_overlay"] = body.click_overlay
+    if body.context_attachments is not None:
+        step_payload["context_attachments"] = body.context_attachments
+
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    batch = db.batch()
+
+    insert_before = (body.insert_before_step_id or "").strip()
+    placed = False
+    if insert_before:
+        ordered_docs = list(steps_col.order_by("order").stream())
+        sorted_ids = [d.id for d in ordered_docs]
+        if insert_before in sorted_ids:
+            i = sorted_ids.index(insert_before)
+            for j in range(i, len(sorted_ids)):
+                batch.update(steps_col.document(sorted_ids[j]), {"order": j + 1})
+            step_payload["order"] = i
+            batch.set(steps_col.document(step_id), step_payload)
+            placed = True
+
+    if not placed:
+        existing = list(steps_col.order_by("order", direction="DESCENDING").limit(1).stream())
+        next_order = (existing[0].to_dict().get("order", -1) + 1) if existing else 0
+        step_payload["order"] = next_order
+        batch.set(steps_col.document(step_id), step_payload)
+
+    batch.update(wf_ref, {"updatedAt": SERVER_TIMESTAMP})
+    batch.commit()
     return {"id": step_id}
 
 
@@ -536,7 +685,8 @@ async def update_step(
     body: StepUpdate,
     uid: str = Depends(get_current_uid),
 ):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, data = _get_workflow(uid, workflow_id, require_owner=False)
+    _assert_can_edit_workflow(uid, data)
     step_ref = wf_ref.collection("steps").document(step_id)
     doc = step_ref.get()
     if not doc.exists:
@@ -552,6 +702,12 @@ async def update_step(
         update["expected_outcome"] = body.expected_outcome
     if body.order is not None:
         update["order"] = body.order
+    if body.frame_image_url is not None:
+        update["frame_image_url"] = body.frame_image_url
+    if body.click_overlay is not None:
+        update["click_overlay"] = body.click_overlay
+    if body.context_attachments is not None:
+        update["context_attachments"] = body.context_attachments
     if update:
         step_ref.update(update)
         wf_ref.update({"updatedAt": SERVER_TIMESTAMP})
@@ -564,7 +720,8 @@ async def delete_step(
     step_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
+    wf_ref, data = _get_workflow(uid, workflow_id, require_owner=False)
+    _assert_can_edit_workflow(uid, data)
     step_ref = wf_ref.collection("steps").document(step_id)
     doc = step_ref.get()
     if not doc.exists:

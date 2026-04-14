@@ -2,10 +2,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconCircleCheck, IconPlug, IconSearch } from "@tabler/icons-react";
+import { EchoSearchWithSuggestions } from "@/components/ui/echo-search-with-suggestions";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { apiFetch, apiErrorMessage } from "@/lib/api";
 import type { Integration } from "./_lib/integration-types";
@@ -196,6 +196,16 @@ export default function IntegrationsPage() {
     [integrations, loadIntegrations],
   );
 
+  const searchItems = useMemo(
+    () =>
+      integrations.map((i) => ({
+        id: i.id,
+        label: i.name,
+        subtitle: i.tagline || i.description?.slice(0, 80) || i.id,
+      })),
+    [integrations],
+  );
+
   const filtered = useMemo(
     () => integrations.filter((i) => matchesQuery(i, query)),
     [integrations, query],
@@ -226,17 +236,21 @@ export default function IntegrationsPage() {
               </p>
             </div>
             <div className="relative w-full max-w-md shrink-0">
-              <IconSearch
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]"
-                aria-hidden
-              />
-              <Input
-                type="search"
+              <EchoSearchWithSuggestions
+                items={searchItems}
                 placeholder="Search integrations…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="h-10 rounded-lg border-[#A577FF]/20 bg-white pl-9 pr-3 text-sm text-[#150A35] placeholder:text-[#9ca3af] focus-visible:ring-[#A577FF]/30"
                 aria-label="Search integrations"
+                onQueryChange={setQuery}
+                onSelect={(item) => {
+                  setQuery(item.label);
+                  requestAnimationFrame(() => {
+                    document.getElementById(`integration-card-${item.id}`)?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                    });
+                  });
+                }}
+                className="w-full"
               />
             </div>
           </div>

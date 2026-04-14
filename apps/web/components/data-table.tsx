@@ -56,6 +56,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export const schema = z.object({
   id: z.string(),
@@ -326,10 +327,14 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
     return initialData.filter((r) => r.status === tab).length;
   };
 
+  const fillRunsPane = Boolean(singleWorkflow);
+
   return (
-    <div className="w-full flex flex-col gap-4">
+    <div className={cn("w-full flex flex-col gap-4", fillRunsPane && "min-h-0 flex-1 basis-0")}>
       {/* Tab bar + column toggle */}
-      <div className="flex items-center justify-between px-4 lg:px-6">
+      <div
+        className={cn("flex items-center justify-between px-4 lg:px-6", fillRunsPane && "shrink-0")}
+      >
         <div className="flex gap-1 rounded-lg bg-[#150A35]/5 p-1">
           {TABS.map((tab) => {
             const count = countFor(tab.value);
@@ -394,49 +399,98 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
         </DropdownMenu>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-[#A577FF]/20 bg-white shadow-sm mx-4 lg:mx-6">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-[#F5F7FC]">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+      {/* Table — workflow detail: plain <table> so one scroll container scrolls (Table wraps in extra div). */}
+      <div
+        className={cn(
+          "rounded-lg border border-[#A577FF]/20 bg-white shadow-sm mx-4 lg:mx-6",
+          fillRunsPane
+            ? "echo-runs-table-scroll min-h-0 flex-1 overflow-auto"
+            : "overflow-hidden overflow-x-auto",
+        )}
+      >
+        {fillRunsPane ? (
+          <table className="w-full caption-bottom text-sm">
+            <TableHeader className="sticky top-0 z-10 border-b border-[#150A35]/8 bg-[#F5F7FC] shadow-[0_1px_0_0_rgba(21,10,53,0.06)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} colSpan={header.colSpan}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-echo-text-muted"
-                >
-                  No runs yet.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center text-echo-text-muted"
+                  >
+                    No runs yet.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </table>
+        ) : (
+          <Table>
+            <TableHeader className="sticky top-0 z-10 border-b border-[#150A35]/8 bg-[#F5F7FC] shadow-[0_1px_0_0_rgba(21,10,53,0.06)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} colSpan={header.colSpan}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center text-echo-text-muted"
+                  >
+                    No runs yet.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-4 lg:px-6">
+      <div
+        className={cn("flex items-center justify-between px-4 lg:px-6", fillRunsPane && "shrink-0")}
+      >
         <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
           {table.getFilteredRowModel().rows.length} run(s)
         </div>

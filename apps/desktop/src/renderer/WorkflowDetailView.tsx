@@ -62,6 +62,7 @@ interface Props {
     workflowId: string;
     steps: Array<Record<string, unknown>>;
     workflowType: string;
+    flowGraph?: Record<string, unknown> | null;
   }) => void;
   onDeleted: () => void;
   onOpenWebUI: (path: string) => void;
@@ -140,6 +141,10 @@ export default function WorkflowDetailView({
       workflowId,
       steps: steps as unknown as Array<Record<string, unknown>>,
       workflowType: workflow.workflow_type ?? "desktop",
+      flowGraph:
+        workflow && typeof workflow === "object" && "flow_graph" in workflow
+          ? (workflow as { flow_graph?: Record<string, unknown> | null }).flow_graph
+          : null,
     });
   };
 

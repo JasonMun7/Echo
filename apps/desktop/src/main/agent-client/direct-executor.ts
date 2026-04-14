@@ -96,6 +96,8 @@ export function stepToOperatorAction(step: Step): OperatorAction {
     base.distance = Number(params.distance ?? params.amount ?? 300);
   if ("url" in params) base.url = params.url;
   if ("appName" in params) base.appName = params.appName;
+  else if ("app" in params && params.app != null && String(params.app).trim() !== "")
+    base.appName = String(params.app);
   if ("value" in params) base.value = params.value;
   if ("selector" in params && params.selector != null) base.selector = String(params.selector);
   if ("slug" in params && params.slug != null) base.slug = String(params.slug);

@@ -71,6 +71,7 @@ export function IntegrationCard({
 
   return (
     <div
+      id={`integration-card-${integration.id}`}
       className={cn(
         "echo-card flex flex-col rounded-xl border bg-white p-3 shadow-sm transition-colors",
         on
@@ -121,11 +122,7 @@ export function IntegrationCard({
                   on ? "Connected — toggle to disconnect" : "Not connected — toggle to connect"
                 }
               />
-            ) : (
-              <span className="text-[10px] font-medium uppercase tracking-wide text-[#9ca3af]">
-                Auto
-              </span>
-            )}
+            ) : null}
           </div>
           {descriptionLine ? (
             <p
@@ -143,24 +140,17 @@ export function IntegrationCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#150A35]/6 pt-2.5">
-        <div className="flex min-w-0 max-w-[72%] flex-col gap-0.5">
-          <span
-            className={cn(
-              "inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-              on
-                ? "echo-gradient-cyan-lavender text-white shadow-sm"
-                : "bg-[#f3f4f6] text-[#6b7280]",
-            )}
+      <div className="mt-3 flex items-start justify-between gap-2 border-t border-[#150A35]/6 pt-2.5">
+        {!canOAuth ? (
+          <p
+            className="min-w-0 flex-1 truncate text-[10px] font-medium leading-snug text-[#A577FF]/90"
+            title={noteText}
           >
-            {on ? "Connected" : "Not connected"}
-          </span>
-          {!canOAuth ? (
-            <span className="truncate text-[10px] font-medium text-[#A577FF]/90" title={noteText}>
-              {noteText}
-            </span>
-          ) : null}
-        </div>
+            {noteText}
+          </p>
+        ) : (
+          <span className="min-w-0 flex-1" aria-hidden />
+        )}
 
         <DropdownMenu>
           <Tooltip>

@@ -16,10 +16,10 @@ import {
   IconPlayerStop,
   IconExternalLink,
   IconWaveSine,
-  IconPlayerPlay,
   IconDeviceFloppy,
   IconTrash,
 } from "@tabler/icons-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiFetch, agentFetch, AGENT_URL } from "@/lib/api";
@@ -103,7 +103,11 @@ function AdhocRunCta({
           disabled={saving || discarding}
           className="rounded-lg bg-[#A577FF] px-4 py-2 text-white hover:opacity-90"
         >
-          <IconDeviceFloppy className="h-3.5 w-3.5 mr-1.5" />
+          {saving ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <IconDeviceFloppy className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          )}
           Save as workflow
         </Button>
         <Button
@@ -113,7 +117,11 @@ function AdhocRunCta({
           disabled={saving || discarding}
           className="rounded-lg border-[#A577FF]/40 text-[#150A35] hover:bg-[#A577FF]/10"
         >
-          <IconTrash className="h-3.5 w-3.5 mr-1.5" />
+          {discarding ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <IconTrash className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          )}
           Discard
         </Button>
       </div>
@@ -494,18 +502,25 @@ export default function ChatPage() {
 
         {/* Synthesized workflow CTA — shown after synthesis completes */}
         {synthesizedWorkflow && !isSynthesizing && (
-          <div className="border-t border-[#A577FF]/20 px-6 py-3 flex items-center justify-between gap-4">
+          <div className="border-t border-[#A577FF]/20 px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-600">
               Workflow ready:{" "}
               <span className="font-medium text-[#1A1A2E]">{synthesizedWorkflow.name}</span>
             </p>
-            <a
-              href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
-              className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#A577FF] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity"
-            >
-              <IconPlayerPlay className="h-3.5 w-3.5" />
-              Run it
-            </a>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <a
+                href={`/dashboard/workflows/${synthesizedWorkflow.id}/edit`}
+                className="flex items-center gap-1.5 rounded-full bg-[#A577FF] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+              >
+                Open in Echo Flow
+              </a>
+              <a
+                href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
+                className="text-xs font-medium text-[#A577FF] underline-offset-2 hover:underline"
+              >
+                View workflow
+              </a>
+            </div>
           </div>
         )}
 

@@ -15,6 +15,7 @@ import {
   IconX,
   IconRocket,
   IconMessageCircle,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { DataTable } from "@/components/data-table";
@@ -22,14 +23,12 @@ import { SectionCards } from "@/components/section-cards";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Setting Up",
-  processing: "Synthesizing",
-  ready: "Ready",
-  active: "Live",
-  failed: "Failed",
-  cancelled: "Cancelled",
-};
+import {
+  workflowListCardClass,
+  workflowStatusBadgeClass,
+  workflowStatusLabel,
+} from "@/lib/workflow-status";
+import { cn } from "@/lib/utils";
 
 interface Workflow {
   id: string;
@@ -393,7 +392,11 @@ function WorkflowCard({ workflow: w, isLatest }: { workflow: Workflow; isLatest:
   return (
     <Link
       href={href}
-      className={`group echo-card relative flex cursor-pointer flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isLatest ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
+      className={cn(
+        workflowListCardClass,
+        "cursor-pointer overflow-visible",
+        isLatest && "border-[#A577FF]/40 ring-1 ring-[#A577FF]/18",
+      )}
     >
       {isLatest && (
         <Tooltip>
@@ -420,26 +423,18 @@ function WorkflowCard({ workflow: w, isLatest }: { workflow: Workflow; isLatest:
         </div>
       )}
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <span className="min-w-0 truncate font-medium text-[#150A35] transition-colors group-hover:text-[#A577FF]">
+      <div className="flex flex-1 flex-col px-4 pt-4">
+        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-[#150A35] transition-colors group-hover:text-[#7c3aed]">
           {w.name ?? "Untitled workflow"}
         </span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span
-            className={[
-              "rounded-full px-2.5 py-0.5 text-xs font-medium",
-              w.status === "ready" || w.status === "active"
-                ? "bg-echo-success/15 text-echo-success"
-                : w.status === "processing"
-                  ? "bg-[#A577FF]/20 text-[#A577FF]"
-                  : w.status === "failed"
-                    ? "bg-echo-error/15 text-echo-error"
-                    : "bg-[#150A35]/10 text-[#150A35]/70",
-            ].join(" ")}
-          >
-            {STATUS_LABELS[w.status] ?? w.status}
-          </span>
-        </div>
+      </div>
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#150A35]/6 px-4 py-3">
+        <span className={workflowStatusBadgeClass(w.status)}>{workflowStatusLabel(w.status)}</span>
+        <IconChevronRight
+          className="h-4 w-4 shrink-0 text-[#A577FF]/45 transition-transform group-hover:translate-x-0.5 group-hover:text-[#A577FF]/80"
+          stroke={1.5}
+          aria-hidden
+        />
       </div>
     </Link>
   );

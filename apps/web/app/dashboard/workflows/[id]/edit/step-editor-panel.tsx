@@ -1,8 +1,20 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import { IconTrash, IconX } from "@tabler/icons-react";
+import { IconTrash } from "@tabler/icons-react";
+import { ChevronDown } from "lucide-react";
 import { WorkflowApiCallFields } from "@/components/workflow-api-call-fields";
+import { OpenAppBrandSearchFields } from "@/components/echo-flow/open-app-brand-search-fields";
+import { StepContextEnrichment } from "@/components/echo-flow/step-context-enrichment";
+import { StepVisualContext } from "@/components/echo-flow/step-visual-context";
+import { auth } from "@/lib/firebase";
+import { formatAction } from "@/lib/workflow-action-labels";
+import {
+  normalizeContextAttachments,
+  type ContextAttachment,
+} from "@/lib/workflow-step-context-attachments";
+import { publishIssuesForStep } from "@/lib/workflow-step-publish-validation";
+import { displayNameFromBrandHit } from "@/app/dashboard/integrations/_lib/brandfetch-search";
 
 export interface WorkflowStepEditorStep {
   id: string;
@@ -11,14 +23,15 @@ export interface WorkflowStepEditorStep {
   context: string;
   params: Record<string, unknown>;
   expected_outcome?: string;
+  /** Scribe-style screenshot URL from synthesis (optional). */
+  frame_image_url?: string;
+  /** Normalized or pixel bbox for highlight overlay in Echo Flow. */
+  click_overlay?: Record<string, unknown>;
+  /** Extra images, videos, or files for collaborators (Firebase Storage URLs). */
+  context_attachments?: ContextAttachment[] | unknown;
 }
 
-export function formatAction(action: string): string {
-  return action
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
+export { formatAction };
 
 function clampNonNegativeInt(raw: string, fallbackWhenInvalid: number): number {
   const n = parseInt(raw, 10);
@@ -32,11 +45,14 @@ export function getDefaultParamsForAction(action: string): Record<string, unknow
     case "navigate":
       return { url: "" };
     case "click_at":
+      return { description: "" };
     case "type_text_at":
       return { description: "", text: "" };
     case "hover":
     case "right_click":
     case "double_click":
+      return { description: "" };
+    case "drag_drop":
       return { description: "" };
     case "drag":
       return { description: "", x1: 0, y1: 0, x2: 0, y2: 0 };
@@ -53,7 +69,7 @@ export function getDefaultParamsForAction(action: string): Record<string, unknow
       return { key: "" };
     case "open_app":
     case "focus_app":
-      return { app: "" };
+      return { app: "", brand_domain: "" };
     case "api_call":
       return {};
     default:
@@ -76,7 +92,7 @@ function ParamFields({
   if (action === "navigate") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">URL</label>
+        <label className="block text-xs font-medium text-[#150A35]/80">URL</label>
         <input
           type="text"
           value={(params.url as string) || ""}
@@ -87,49 +103,77 @@ function ParamFields({
       </div>
     );
   }
-  if (
-    action === "click_at" ||
-    action === "type_text_at" ||
-    action === "hover" ||
-    action === "right_click" ||
-    action === "double_click"
-  ) {
+  if (action === "click_at") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Description
-          <span className="ml-1 text-[#150A35]/40">
-            (e.g. blue &apos;Submit&apos; button in the bottom-center of the form)
-          </span>
-        </label>
+        <label className="block text-xs font-medium text-[#150A35]/80">What to click</label>
         <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
-          placeholder="blue 'Submit' button in the bottom-center of the form"
+          placeholder="e.g. blue “Submit” button at the bottom of the form"
+          rows={3}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
+        />
+      </div>
+    );
+  }
+  if (action === "type_text_at") {
+    return (
+      <div className="space-y-2">
+        <label className="block text-xs font-medium text-[#150A35]/80">Where to type</label>
+        <textarea
+          value={(params.description as string) || ""}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="e.g. email field in the login form"
           rows={2}
           className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
-        {action === "type_text_at" && (
-          <>
-            <label className="block text-xs text-[#150A35]/70">Text</label>
-            <input
-              type="text"
-              value={(params.text as string) || ""}
-              onChange={(e) => update("text", e.target.value)}
-              placeholder="{{variable}}"
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
-            />
-          </>
-        )}
+        <label className="block text-xs font-medium text-[#150A35]/80">Text to type</label>
+        <input
+          type="text"
+          value={(params.text as string) || ""}
+          onChange={(e) => update("text", e.target.value)}
+          placeholder="Literal text or {{variable}}"
+          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+        />
+      </div>
+    );
+  }
+  if (action === "hover" || action === "right_click" || action === "double_click") {
+    const verb =
+      action === "hover" ? "hover" : action === "right_click" ? "right-click" : "double-click";
+    return (
+      <div className="space-y-2">
+        <label className="block text-xs font-medium text-[#150A35]/80">What to {verb}</label>
+        <textarea
+          value={(params.description as string) || ""}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="Describe the control or region clearly"
+          rows={3}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
+        />
+      </div>
+    );
+  }
+  if (action === "drag_drop") {
+    return (
+      <div className="space-y-2">
+        <label className="block text-xs font-medium text-[#150A35]/80">Drag</label>
+        <textarea
+          value={(params.description as string) || ""}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="What to drag and where it should land (no pixel coordinates needed)"
+          rows={3}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
+        />
       </div>
     );
   }
   if (action === "drag") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Description
-          <span className="ml-1 text-[#150A35]/40">(what to drag from → to)</span>
+        <label className="block text-xs font-medium text-[#150A35]/80">
+          Drag <span className="font-normal text-[#150A35]/50">(from → to)</span>
         </label>
         <textarea
           value={(params.description as string) || ""}
@@ -186,10 +230,7 @@ function ParamFields({
   if (action === "wait_for_element") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Element Description
-          <span className="ml-1 text-[#150A35]/40">(describe what to wait for visually)</span>
-        </label>
+        <label className="block text-xs font-medium text-[#150A35]/80">Wait until you see</label>
         <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
@@ -202,9 +243,9 @@ function ParamFields({
   }
   if (action === "scroll") {
     return (
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <div>
-          <label className="block text-xs text-[#150A35]/70">Direction</label>
+          <label className="block text-xs font-medium text-[#150A35]/80">Direction</label>
           <select
             value={(params.direction as string) || "down"}
             onChange={(e) => update("direction", e.target.value)}
@@ -215,7 +256,7 @@ function ParamFields({
           </select>
         </div>
         <div>
-          <label className="block text-xs text-[#150A35]/70">Amount</label>
+          <label className="block text-xs font-medium text-[#150A35]/80">Amount (px)</label>
           <input
             type="number"
             min={0}
@@ -230,7 +271,7 @@ function ParamFields({
   if (action === "wait") {
     return (
       <div>
-        <label className="block text-xs text-[#150A35]/70">Seconds</label>
+        <label className="block text-xs font-medium text-[#150A35]/80">Seconds</label>
         <input
           type="number"
           min={0}
@@ -244,25 +285,20 @@ function ParamFields({
   if (action === "select_option") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Description
-          <span className="ml-1 text-[#150A35]/40">
-            (e.g. country dropdown in the billing section)
-          </span>
-        </label>
+        <label className="block text-xs font-medium text-[#150A35]/80">Dropdown or control</label>
         <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
-          placeholder="country dropdown in the billing section"
+          placeholder="e.g. Country in the billing section"
           rows={2}
           className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
         />
-        <label className="block text-xs text-[#150A35]/70">Value</label>
+        <label className="block text-xs font-medium text-[#150A35]/80">Option value</label>
         <input
           type="text"
           value={(params.value as string) || ""}
           onChange={(e) => update("value", e.target.value)}
-          placeholder="US"
+          placeholder="e.g. US"
           className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
         />
       </div>
@@ -271,27 +307,15 @@ function ParamFields({
   if (action === "press_key" || action === "hotkey") {
     return (
       <div>
-        <label className="block text-xs text-[#150A35]/70">Key</label>
+        <label className="block text-xs font-medium text-[#150A35]/80">
+          {action === "hotkey" ? "Shortcut" : "Key"}
+        </label>
         <input
           type="text"
           value={(params.key as string) || ""}
           onChange={(e) => update("key", e.target.value)}
           placeholder={action === "hotkey" ? "ctrl+c" : "Enter"}
           className="w-32 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
-        />
-      </div>
-    );
-  }
-  if (action === "open_app" || action === "focus_app") {
-    return (
-      <div>
-        <label className="block text-xs text-[#150A35]/70">App Name</label>
-        <input
-          type="text"
-          value={(params.app as string) || ""}
-          onChange={(e) => update("app", e.target.value)}
-          placeholder="Google Chrome"
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
         />
       </div>
     );
@@ -303,99 +327,182 @@ function ParamFields({
 }
 
 export type StepEditorPanelProps = {
+  workflowId: string;
   step: WorkflowStepEditorStep;
-  stepIndex: number;
-  availableActions: readonly string[];
   dirtyStepIds: Set<string>;
   invalidStepIds: Set<string>;
-  onClose: () => void;
   handleStepUpdate: (stepId: string, data: Partial<WorkflowStepEditorStep>) => void;
   handleDeleteStep: (stepId: string) => void;
   setInvalidStepIds: Dispatch<SetStateAction<Set<string>>>;
+  /** Opens the same action picker as Add step; choose a type to replace this step’s action. */
+  onOpenStepTypePicker?: () => void;
+  /** Another collaborator holds the edit lock on this step (§7b). */
+  readOnly?: boolean;
+  lockOwnerLabel?: string | null;
 };
 
+/** Browser steps with no structured params — optional notes stored in `context`. */
+const OPTIONAL_NOTES_ONLY_ACTIONS = new Set([
+  "take_screenshot",
+  "open_web_browser",
+  "close_web_browser",
+]);
+
 export function StepEditorPanel({
+  workflowId,
   step,
-  stepIndex,
-  availableActions,
   dirtyStepIds,
   invalidStepIds,
-  onClose,
   handleStepUpdate,
   handleDeleteStep,
   setInvalidStepIds,
+  onOpenStepTypePicker,
+  readOnly = false,
+  lockOwnerLabel,
 }: StepEditorPanelProps) {
+  const applyParams = (nextParams: Record<string, unknown>) => {
+    handleStepUpdate(step.id, { params: nextParams });
+    if (publishIssuesForStep({ ...step, params: nextParams }).length === 0) {
+      setInvalidStepIds((prev) => {
+        const next = new Set(prev);
+        next.delete(step.id);
+        return next;
+      });
+    }
+  };
+
+  const applyOptionalNotes = (context: string) => {
+    handleStepUpdate(step.id, { context });
+    if (publishIssuesForStep({ ...step, context }).length === 0) {
+      setInvalidStepIds((prev) => {
+        const next = new Set(prev);
+        next.delete(step.id);
+        return next;
+      });
+    }
+  };
+
   return (
-    <div className="rounded-xl border border-[#A577FF]/40 bg-white p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-[#150A35]">Step {stepIndex + 1} — Edit</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded p-1 text-[#150A35]/40 hover:text-[#150A35]"
-          aria-label="Close step editor"
-        >
-          <IconX className="h-4 w-4" aria-hidden />
-        </button>
-      </div>
+    <div className="space-y-4">
+      {readOnly && lockOwnerLabel ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          <span className="font-medium">{lockOwnerLabel}</span> is editing this step. You can review
+          fields but not save changes until they finish.
+        </p>
+      ) : null}
       {dirtyStepIds.has(step.id) && (
         <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
       )}
-      {invalidStepIds.has(step.id) && (
-        <p className="text-xs font-medium text-echo-error">Context is required before saving</p>
-      )}
-      <div>
-        <label className="block text-xs text-[#150A35]/70">Action</label>
-        <select
-          value={step.action}
-          onChange={(e) => {
-            const newAction = e.target.value;
-            handleStepUpdate(step.id, {
-              action: newAction,
-              params: getDefaultParamsForAction(newAction),
-            });
-          }}
-          className="mt-1 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
+      {invalidStepIds.has(step.id) ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50/90 px-3 py-2 text-xs text-red-900"
         >
-          {availableActions.map((a) => (
-            <option key={a} value={a}>
-              {formatAction(a)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs text-[#150A35]/70">Context</label>
-        <textarea
-          value={step.context}
-          onChange={(e) => {
-            handleStepUpdate(step.id, { context: e.target.value });
-            if (e.target.value.trim()) {
-              setInvalidStepIds((prev) => {
-                const next = new Set(prev);
-                next.delete(step.id);
-                return next;
-              });
-            }
-          }}
-          placeholder="Description of this step"
-          rows={2}
-          className="mt-1 w-full resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          <p className="font-semibold text-red-950">Complete this step before publishing</p>
+          <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-red-900/95">
+            {publishIssuesForStep(step).map((msg) => (
+              <li key={msg}>{msg}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <StepVisualContext step={step} />
+      {auth?.currentUser?.uid ? (
+        <StepContextEnrichment
+          workflowId={workflowId}
+          stepId={step.id}
+          uid={auth.currentUser.uid}
+          attachments={normalizeContextAttachments(step.context_attachments)}
+          disabled={readOnly}
+          onChange={(next) => handleStepUpdate(step.id, { context_attachments: next })}
         />
-      </div>
-      <ParamFields
-        action={step.action}
-        params={step.params}
-        onChange={(p) => handleStepUpdate(step.id, { params: p })}
-      />
-      <button
-        type="button"
-        onClick={() => handleDeleteStep(step.id)}
-        className="flex items-center gap-1.5 text-xs text-echo-text-muted hover:text-echo-error"
-      >
-        <IconTrash className="h-3.5 w-3.5" />
-        Delete step
-      </button>
+      ) : (
+        <p className="text-[11px] text-[#6b7280]">
+          Sign in to attach images, videos, or files to this step.
+        </p>
+      )}
+      <fieldset disabled={readOnly} className="min-w-0 space-y-4 border-0 p-0 disabled:opacity-80">
+        <div>
+          <label
+            className="block text-xs font-medium text-[#150A35]/80"
+            htmlFor="step-type-trigger"
+          >
+            Step type
+          </label>
+          {readOnly ? (
+            <p
+              id="step-type-trigger"
+              className="mt-1.5 rounded-lg border border-[#150A35]/8 bg-[#F5F7FC] px-3 py-2 text-sm text-[#150A35]/90"
+            >
+              {formatAction(step.action)}
+            </p>
+          ) : (
+            <button
+              id="step-type-trigger"
+              type="button"
+              onClick={() => onOpenStepTypePicker?.()}
+              className="mt-1.5 flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#150A35]/12 bg-white px-3 py-2 text-left text-sm text-[#150A35] shadow-sm transition hover:border-[#A577FF]/40 hover:bg-[#F5F7FC]/80 focus:outline-none focus:ring-2 focus:ring-[#A577FF]/30"
+            >
+              <span className="min-w-0 truncate font-medium">{formatAction(step.action)}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-[#150A35]/45" aria-hidden />
+            </button>
+          )}
+        </div>
+        {step.action === "open_app" || step.action === "focus_app" ? (
+          <OpenAppBrandSearchFields
+            action={step.action}
+            app={String(step.params?.app ?? "").trim()}
+            brandDomain={String(step.params?.brand_domain ?? "").trim()}
+            onPickBrand={(hit) => {
+              const name = displayNameFromBrandHit(hit);
+              const context = step.action === "open_app" ? `Open ${name}` : `Focus ${name}`;
+              handleStepUpdate(step.id, {
+                params: { ...step.params, app: name, brand_domain: hit.domain },
+                context,
+              });
+              if (name.trim()) {
+                setInvalidStepIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(step.id);
+                  return next;
+                });
+              }
+            }}
+            onClearSelection={() => {
+              handleStepUpdate(step.id, {
+                params: { ...step.params, app: "", brand_domain: "" },
+                context: "",
+              });
+            }}
+          />
+        ) : (
+          <>
+            <ParamFields action={step.action} params={step.params} onChange={applyParams} />
+            {OPTIONAL_NOTES_ONLY_ACTIONS.has(step.action) ? (
+              <div>
+                <label className="block text-xs font-medium text-[#150A35]/80">
+                  Notes <span className="font-normal text-[#150A35]/45">(optional)</span>
+                </label>
+                <textarea
+                  value={step.context}
+                  onChange={(e) => applyOptionalNotes(e.target.value)}
+                  placeholder="Anything your team should know about this step"
+                  rows={2}
+                  className="mt-1.5 w-full resize-y rounded-lg border border-[#150A35]/12 bg-white px-3 py-2 text-sm leading-relaxed text-[#150A35] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/30"
+                />
+              </div>
+            ) : null}
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => handleDeleteStep(step.id)}
+          className="flex items-center gap-1.5 text-xs text-echo-text-muted hover:text-echo-error"
+        >
+          <IconTrash className="h-3.5 w-3.5" />
+          Delete step
+        </button>
+      </fieldset>
     </div>
   );
 }

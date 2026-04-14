@@ -17,7 +17,8 @@ import {
   IconDots,
   IconPlayerPlay,
   IconPencil,
-  IconShare3,
+  IconList,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +32,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
+import {
+  workflowListCardClass,
+  workflowStatusBadgeClass,
+  workflowStatusLabel,
+} from "@/lib/workflow-status";
+import { cn } from "@/lib/utils";
 
 interface WorkflowInvite {
   id: string;
@@ -389,7 +396,12 @@ export default function WorkflowsPage() {
                   className={`relative rounded-xl transition-all ${isRunning ? "bg-linear-to-r from-echo-cyan to-[#A577FF] p-[2px] shadow-lg shadow-[#A577FF]/20" : ""}`}
                 >
                   <div
-                    className={`group relative echo-card flex h-full flex-col overflow-visible transition-all hover:border-[#A577FF]/50 hover:shadow-md ${isRunning ? "border-0" : ""} ${isLatest && !isRunning ? "border-[#A577FF]/40 ring-1 ring-[#A577FF]/20" : ""}`}
+                    className={cn(
+                      workflowListCardClass,
+                      "overflow-visible",
+                      isRunning && "border-0",
+                      isLatest && !isRunning && "border-[#A577FF]/40 ring-1 ring-[#A577FF]/18",
+                    )}
                   >
                     {isLatest && (
                       <Tooltip>
@@ -445,8 +457,8 @@ export default function WorkflowsPage() {
                           {w.owner_uid === auth?.currentUser?.uid && (
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/workflows/${w.id}`}>
-                                <IconShare3 className="h-4 w-4" />
-                                Share
+                                <IconList className="h-4 w-4" />
+                                Details and share
                               </Link>
                             </DropdownMenuItem>
                           )}
@@ -473,7 +485,6 @@ export default function WorkflowsPage() {
                       }
                       className="flex flex-1 cursor-pointer flex-col"
                     >
-                      {/* Thumbnail */}
                       {w.thumbnail_gcs_path ? (
                         <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
                       ) : (
@@ -484,34 +495,21 @@ export default function WorkflowsPage() {
                         </div>
                       )}
 
-                      {/* Card body */}
-                      <div className="flex flex-1 flex-col gap-2 p-4">
-                        <span className="min-w-0 flex-1 font-medium leading-snug text-[#150A35] transition-colors group-hover:text-[#A577FF]">
+                      <div className="flex flex-1 flex-col px-4 pt-4">
+                        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-[#150A35] transition-colors group-hover:text-[#7c3aed]">
                           {w.name ?? "Untitled workflow"}
                         </span>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              w.status === "ready" || w.status === "active"
-                                ? "bg-echo-success/15 text-echo-success"
-                                : w.status === "processing"
-                                  ? "bg-[#A577FF]/20 text-[#A577FF]"
-                                  : w.status === "failed"
-                                    ? "bg-echo-error/15 text-echo-error"
-                                    : "bg-[#150A35]/10 text-[#150A35]/70"
-                            }`}
-                          >
-                            {(
-                              {
-                                draft: "Setting Up",
-                                processing: "Synthesizing",
-                                ready: "Ready",
-                                active: "Live",
-                                failed: "Failed",
-                              } as Record<string, string>
-                            )[w.status] ?? w.status}
-                          </span>
-                        </div>
+                      </div>
+
+                      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#150A35]/6 px-4 py-3">
+                        <span className={workflowStatusBadgeClass(w.status)}>
+                          {workflowStatusLabel(w.status)}
+                        </span>
+                        <IconChevronRight
+                          className="h-4 w-4 shrink-0 text-[#A577FF]/45 transition-transform group-hover:translate-x-0.5 group-hover:text-[#A577FF]/80"
+                          stroke={1.5}
+                          aria-hidden
+                        />
                       </div>
                     </Link>
                   </div>

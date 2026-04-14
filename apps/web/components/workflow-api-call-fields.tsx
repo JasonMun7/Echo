@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Plug } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { Integration } from "@/app/dashboard/integrations/_lib/integration-types";
+import { brandfetchLogoUrlForIntegrationId } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
+import { apiFetch } from "@/lib/api";
+import {
+  COMPOSIO_APP_GROUPS,
+  catalogEntriesForAppGroup,
+  inferAppGroupKeyFromSlug,
+  type ComposioAppGroupKey,
+} from "@/lib/composio-app-groups";
 import { cn } from "@/lib/utils";
 import {
   COMPOSIO_TOOL_CATEGORIES,
@@ -120,6 +131,34 @@ function hasStructuredForm(method: string): boolean {
   return Boolean(method) && argsFormKind(method) !== "json";
 }
 
+function IntegrationLogoChip({ integrationId, title }: { integrationId: string; title: string }) {
+  const url = brandfetchLogoUrlForIntegrationId(integrationId);
+  const [failed, setFailed] = useState(false);
+  if (url && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- Brandfetch Logo API: browser hotlink only
+      <img
+        src={url}
+        alt=""
+        width={20}
+        height={20}
+        className="h-5 w-5 shrink-0 rounded object-contain"
+        title={title}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#A577FF]/10"
+      title={title}
+      aria-hidden
+    >
+      <Plug className="h-3 w-3 text-[#A577FF]" />
+    </span>
+  );
+}
+
 export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallFieldsProps) {
   const patchParams = useCallback(
     (patch: Record<string, unknown>) => {
@@ -173,6 +212,54 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
       setPreferRawJson(false);
     },
     [patchParams, setActionSearch, setPreferRawJson],
+  );
+
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [integrationsLoaded, setIntegrationsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/integrations", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { integrations?: Integration[] } | null) => {
+        if (cancelled || !d?.integrations) return;
+        setIntegrations(d.integrations);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIntegrationsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const appGroupKey = useMemo(() => inferAppGroupKeyFromSlug(slugVal), [slugVal]);
+  const toolsInGroup = useMemo(() => catalogEntriesForAppGroup(appGroupKey), [appGroupKey]);
+
+  const groupDefinition = useMemo(
+    () => COMPOSIO_APP_GROUPS.find((g) => g.key === appGroupKey),
+    [appGroupKey],
+  );
+
+  const integrationMeta = useMemo(
+    () => integrations.find((i) => i.id === groupDefinition?.integrationId),
+    [integrations, groupDefinition?.integrationId],
+  );
+
+  const isEffectivelyConnected = Boolean(
+    integrationMeta &&
+    (integrationMeta.connected || integrationMeta.composio_account_active === true),
+  );
+
+  const handleAppGroupChange = useCallback(
+    (val: string) => {
+      const key = val as ComposioAppGroupKey;
+      const tools = catalogEntriesForAppGroup(key);
+      if (tools.some((t) => t.slug === slugVal)) return;
+      if (tools[0]) pickAction(tools[0]);
+    },
+    [slugVal, pickAction],
   );
 
   const formKind = methodHint ? argsFormKind(methodHint) : "none";
@@ -733,150 +820,215 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
   const jsonEditorValue = argsJsonDraft ?? argumentsText;
 
   return (
-    <div className="space-y-4 rounded-lg border border-[#A577FF]/15 bg-[#F5F7FC]/50 p-3">
-      <div className="space-y-2 rounded-md border border-[#21C4DD]/25 bg-white/70 px-3 py-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-[#21C4DD]">Composio</p>
-
-        <div className="space-y-2 rounded-md border border-[#A577FF]/12 bg-white/80 px-2 py-2">
-          <Label className="text-xs text-[#150A35]">Find an action</Label>
-          <p className="text-[10px] leading-relaxed text-echo-text-muted">
-            Search by what you want to do (like Zapier). Picking an action fills the tool slug
-            below; you can still paste any slug from the Composio dashboard.
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {COMPOSIO_TOOL_CATEGORIES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setActionCategory(c)}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
-                  actionCategory === c
-                    ? "border-[#21C4DD] bg-[#21C4DD]/10 text-[#0d6f7d]"
-                    : "border-[#A577FF]/20 bg-white text-echo-text-muted hover:border-[#A577FF]/40",
-                )}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          <Input
-            value={actionSearch}
-            onChange={(e) => setActionSearch(e.target.value)}
-            placeholder="e.g. send slack message, list repos, calendar…"
-            className={cn("h-9 text-sm", fieldClass)}
-          />
-          <div
-            className="max-h-40 overflow-y-auto rounded-md border border-[#A577FF]/15 bg-[#F5F7FC]/40"
-            role="listbox"
-            aria-label="Composio actions"
+    <div className="space-y-4">
+      {integrationsLoaded && integrationMeta && !isEffectivelyConnected && integrationMeta.oauth ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          Connect <span className="font-semibold text-[#150A35]">{integrationMeta.name}</span> in{" "}
+          <Link
+            href="/dashboard/integrations"
+            className="font-medium text-[#A577FF] underline-offset-2 hover:underline"
           >
-            {filteredActions.length === 0 ? (
-              <p className="px-2 py-3 text-center text-[11px] text-echo-text-muted">
-                No matches. Try another search or type a slug manually.
-              </p>
-            ) : (
-              filteredActions.map((entry) => (
+            Integrations
+          </Link>{" "}
+          so Echo can run this step with your account.
+        </p>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-[#150A35]">App</Label>
+          <Select value={appGroupKey} onValueChange={handleAppGroupChange}>
+            <SelectTrigger className={cn("h-10 w-full", fieldClass)}>
+              <SelectValue placeholder="Choose app" />
+            </SelectTrigger>
+            <SelectContent>
+              {COMPOSIO_APP_GROUPS.map((g) => (
+                <SelectItem key={g.key} value={g.key}>
+                  <span className="flex items-center gap-2">
+                    <IntegrationLogoChip integrationId={g.integrationId} title={g.label} />
+                    <span>{g.label}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-[#150A35]">Action</Label>
+          <Select
+            value={slugVal || undefined}
+            onValueChange={(s) => {
+              const entry = toolsInGroup.find((t) => t.slug === s);
+              if (entry) pickAction(entry);
+            }}
+          >
+            <SelectTrigger className={cn("h-10 w-full", fieldClass)}>
+              <SelectValue placeholder="Choose what this step does" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[min(60vh,20rem)]">
+              {toolsInGroup.map((entry) => (
+                <SelectItem key={entry.slug} value={entry.slug} textValue={entry.title}>
+                  <span className="flex max-w-[min(90vw,22rem)] flex-col gap-0.5 text-left">
+                    <span className="text-sm font-medium leading-tight">{entry.title}</span>
+                    <span className="text-[11px] leading-snug text-[#6b7280]">
+                      {entry.description}
+                    </span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-[#6b7280]">
+        Choose the app (with logo) and the action—similar to the Integrations catalog. Fields below
+        match the action when we support them.
+      </p>
+      {integrationMeta?.account_name && isEffectivelyConnected ? (
+        <p className="text-[11px] text-[#6b7280]">
+          Signed in as{" "}
+          <span className="font-medium text-[#150A35]">{integrationMeta.account_name}</span>
+        </p>
+      ) : null}
+
+      <details className="rounded-lg border border-[#150A35]/10 bg-white px-3 py-2 shadow-sm">
+        <summary className="cursor-pointer text-xs font-medium text-[#150A35]">
+          Search all actions and advanced
+        </summary>
+        <div className="mt-3 space-y-3 border-t border-[#150A35]/8 pt-3">
+          <div className="space-y-2">
+            <Label className="text-xs text-[#150A35]">Search catalog</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {COMPOSIO_TOOL_CATEGORIES.map((c) => (
                 <button
-                  key={entry.slug}
+                  key={c}
                   type="button"
-                  role="option"
-                  aria-selected={slugVal === entry.slug}
-                  onClick={() => pickAction(entry)}
+                  onClick={() => setActionCategory(c)}
                   className={cn(
-                    "flex w-full flex-col gap-0.5 border-b border-[#A577FF]/10 px-2.5 py-2 text-left last:border-b-0",
-                    "hover:bg-[#A577FF]/8",
-                    slugVal === entry.slug && "bg-[#21C4DD]/10",
+                    "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
+                    actionCategory === c
+                      ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]"
+                      : "border-[#150A35]/15 bg-white text-[#6b7280] hover:border-[#A577FF]/35",
                   )}
                 >
-                  <span className="text-xs font-medium text-[#150A35]">{entry.title}</span>
-                  <span className="text-[10px] text-echo-text-muted">{entry.description}</span>
-                  <span className="font-mono text-[10px] text-[#21C4DD]/90">{entry.slug}</span>
+                  {c}
                 </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="wf-api-composio-slug" className="text-xs text-[#150A35]">
-            Tool slug
-          </Label>
-          <Input
-            id="wf-api-composio-slug"
-            value={slugVal}
-            onChange={(e) => patchParams({ slug: e.target.value.trim(), arguments: {} })}
-            placeholder="e.g. SLACK_SEND_MESSAGE"
-            className={cn("h-9 font-mono text-xs", fieldClass)}
-          />
-          <p className="text-[10px] leading-relaxed text-echo-text-muted">
-            Required. Echo runs this Composio tool with your Firebase uid. Connect the right app
-            under Integrations first. Structured argument fields appear when we recognize the slug.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label className="text-xs font-medium text-[#150A35]">
-              Arguments
-              {showForm ? (
-                <span className="ml-1 font-normal text-echo-text-muted">(form)</span>
-              ) : (
-                <span className="ml-1 font-normal text-echo-text-muted">(JSON)</span>
-              )}
-            </Label>
-            {structuredAvailable && (
-              <button
-                type="button"
-                onClick={() => setPreferRawJson((v) => !v)}
-                className="text-[11px] font-medium text-[#A577FF] underline-offset-2 hover:underline"
-              >
-                {useRawJson ? "Use form fields" : "Edit as JSON"}
-              </button>
-            )}
-          </div>
-
-          {showForm ? (
-            renderStructuredArgs()
-          ) : (
-            <Textarea
-              id="wf-api-args-json"
-              value={jsonEditorValue}
-              onChange={(e) => {
-                const full = e.target.value;
-                setArgsJsonDraft(full);
-                const trimmed = full.trim();
-                if (!trimmed) {
-                  setArgsJsonError(null);
-                  setArgsJsonDraft(null);
-                  patchParams({ arguments: {} });
-                  return;
-                }
-                try {
-                  patchParams({ arguments: JSON.parse(trimmed) as Record<string, unknown> });
-                  setArgsJsonError(null);
-                  setArgsJsonDraft(null);
-                } catch {
-                  setArgsJsonError("Invalid JSON — fix to save.");
-                }
-              }}
-              placeholder='{"channel": "C…", "text": "Hello"}'
-              rows={8}
-              className={cn("min-h-[120px] font-mono text-xs", fieldClass)}
+              ))}
+            </div>
+            <Input
+              value={actionSearch}
+              onChange={(e) => setActionSearch(e.target.value)}
+              placeholder="e.g. send message, list calendars…"
+              className={cn("h-9 text-sm", fieldClass)}
             />
-          )}
-          {argsJsonError ? (
-            <p className="text-[11px] font-medium text-[#ef4444]" role="alert">
-              {argsJsonError}
+            <div
+              className="max-h-36 overflow-y-auto rounded-md border border-[#150A35]/10 bg-[#F9FAFB]"
+              role="listbox"
+              aria-label="All Composio actions"
+            >
+              {filteredActions.length === 0 ? (
+                <p className="px-2 py-3 text-center text-[11px] text-[#6b7280]">No matches.</p>
+              ) : (
+                filteredActions.map((entry) => (
+                  <button
+                    key={entry.slug}
+                    type="button"
+                    role="option"
+                    aria-selected={slugVal === entry.slug}
+                    onClick={() => pickAction(entry)}
+                    className={cn(
+                      "flex w-full flex-col gap-0.5 border-b border-[#150A35]/6 px-2.5 py-2 text-left last:border-b-0",
+                      "hover:bg-[#A577FF]/8",
+                      slugVal === entry.slug && "bg-[#A577FF]/10",
+                    )}
+                  >
+                    <span className="text-xs font-medium text-[#150A35]">{entry.title}</span>
+                    <span className="text-[10px] text-[#6b7280]">{entry.description}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="wf-api-composio-slug" className="text-xs text-[#150A35]">
+              Tool slug (manual)
+            </Label>
+            <Input
+              id="wf-api-composio-slug"
+              value={slugVal}
+              onChange={(e) => patchParams({ slug: e.target.value.trim(), arguments: {} })}
+              placeholder="e.g. SLACK_SEND_MESSAGE"
+              className={cn("h-9 font-mono text-xs", fieldClass)}
+            />
+            <p className="text-[10px] leading-relaxed text-[#6b7280]">
+              Only if you need a Composio tool that is not in the catalog yet.
             </p>
-          ) : null}
-
-          <p className="text-[11px] leading-snug text-echo-text-muted">
-            {useRawJson || !structuredAvailable
-              ? "Pass the JSON payload the Composio tool expects. For Google generic REST tools, use verb, url, and optional params, json, timeout_seconds."
-              : "Values are stored under arguments. Use Edit as JSON for uncommon keys."}
-          </p>
+          </div>
         </div>
+      </details>
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label className="text-xs font-medium text-[#150A35]">
+            Arguments
+            {showForm ? (
+              <span className="ml-1 font-normal text-echo-text-muted">(form)</span>
+            ) : (
+              <span className="ml-1 font-normal text-echo-text-muted">(JSON)</span>
+            )}
+          </Label>
+          {structuredAvailable && (
+            <button
+              type="button"
+              onClick={() => setPreferRawJson((v) => !v)}
+              className="text-[11px] font-medium text-[#A577FF] underline-offset-2 hover:underline"
+            >
+              {useRawJson ? "Use form fields" : "Edit as JSON"}
+            </button>
+          )}
+        </div>
+
+        {showForm ? (
+          renderStructuredArgs()
+        ) : (
+          <Textarea
+            id="wf-api-args-json"
+            value={jsonEditorValue}
+            onChange={(e) => {
+              const full = e.target.value;
+              setArgsJsonDraft(full);
+              const trimmed = full.trim();
+              if (!trimmed) {
+                setArgsJsonError(null);
+                setArgsJsonDraft(null);
+                patchParams({ arguments: {} });
+                return;
+              }
+              try {
+                patchParams({ arguments: JSON.parse(trimmed) as Record<string, unknown> });
+                setArgsJsonError(null);
+                setArgsJsonDraft(null);
+              } catch {
+                setArgsJsonError("Invalid JSON — fix to save.");
+              }
+            }}
+            placeholder='{"channel": "C…", "text": "Hello"}'
+            rows={8}
+            className={cn("min-h-[120px] font-mono text-xs", fieldClass)}
+          />
+        )}
+        {argsJsonError ? (
+          <p className="text-[11px] font-medium text-[#ef4444]" role="alert">
+            {argsJsonError}
+          </p>
+        ) : null}
+
+        <p className="text-[11px] leading-snug text-echo-text-muted">
+          {useRawJson || !structuredAvailable
+            ? "Pass the JSON payload the Composio tool expects. For Google generic REST tools, use verb, url, and optional params, json, timeout_seconds."
+            : "Values are stored under arguments. Use Edit as JSON for uncommon keys."}
+        </p>
       </div>
     </div>
   );

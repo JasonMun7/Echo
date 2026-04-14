@@ -2,6 +2,16 @@
 
 A clean, modern design system using Cetacean Blue, Lavender, Ghost White, and Cyan secondary. Glassmorphism is the primary visual language. Use this document as the standard for all UI development in the Echo application.
 
+## Document map
+
+- **Foundations** — Color, type, spacing, elevation (`globals.css`, `.echo-*` utilities, tables in this file).
+- **Components** — shadcn primitives; Echo wrappers (`EchoSearchWithSuggestions`, `FloatingDock`, `WorkflowShareDialog`, `StepVisualContext`).
+- **Patterns** — Echo Flow (canvas, dock, inspector, share); async actions (loading spinners, Sonner toasts; marketing may use Aceternity `StatefulButton` demo).
+- **Motion** — Aceternity for heavy shells (modals, dock, pointer demos); Framer Motion elsewhere.
+- **Accessibility** — Combobox keyboard navigation; visible focus rings on controls; meaningful labels on icon-only buttons.
+
+**Async actions:** Primary buttons that wait on the network should show **loading** (e.g. `Loader2` with `animate-spin`) and **success/error** feedback (Sonner). Reserve Aceternity `StatefulButton` for hero/marketing surfaces where the full success animation is desired.
+
 ## Tech Stack
 
 - **Components**: **shadcn/ui** — You must use shadcn components at all times. Build on top of shadcn primitives; do not create custom components from scratch when a shadcn equivalent exists.
@@ -366,3 +376,29 @@ Design tokens are defined in `@theme inline`:
 | `.echo-gradient-dramatic`      | Dramatic gradient background               |
 | `.echo-gradient-secondary`     | Secondary gradient (Cetacean Blue → Cyan)  |
 | `.echo-gradient-cyan-lavender` | Dual-accent gradient (Cyan → Lavender)     |
+
+---
+
+## Echo Flow (workflow editor)
+
+- **Canvas**: React Flow on Ghost White with dotted `Background` (`#A577FF` at low opacity). Custom nodes use human-readable titles via `formatAction` / `apps/web/lib/workflow-action-labels.ts` — never show raw `snake_case` in the UI.
+- **Top bar**: `EchoSearchWithSuggestions` (left) for step search; **⌘K / Ctrl+K** focuses the search field. Right: collaborator avatars (when shared), **Share** (opens `WorkflowShareDialog`), **Publish**.
+- **Floating dock**: `FloatingDock` from `@/components/ui/floating-dock` (Aceternity-style); supports both `href` and `onClick` items. Bottom-center; tooltips should describe icon-only actions.
+- **Add step**: `AddActionModal` — large modal with category rail + `EchoSearchWithSuggestions` + browse grid; POSTs a new step on pick.
+- **Inspector**: `EchoNodeInspector` — docked right sheet; **Expand** toggles a larger centered layout. `StepEditorPanel` + optional **Screen context** (`StepVisualContext`) when `frame_image_url` / `click_overlay` exist on the step.
+- **Persistence**: Canvas layout is saved with `PUT /api/workflows/{id}/flow` as `flow_graph` (nodes, edges). Collaborators with `shared_with` may edit (API + Firestore rules).
+- **Share**: Use `WorkflowShareDialog` for invite + roster; avoid duplicate one-off share modals on list views (prefer **Details and share** → workflow detail).
+
+### Search (`EchoSearchWithSuggestions`)
+
+- Popover-style list under the input; combobox ARIA; optional `onQueryChange` to sync parent filters (e.g. integrations grid).
+- Styling: Lavender border, Ghost White / glass panel — match existing search fields.
+
+### Motion / Aceternity
+
+- Use Aceternity demos for **motion-heavy** shells (modals, dock). Use **shadcn** for forms and a11y primitives.
+- **StatefulButton**: `Button` + `StatefulButton` re-export from `@/components/ui/stateful-button` for async actions (loading/success animation).
+
+### Icons note
+
+Prefer Tabler where listed above; some Echo Flow controls use **Lucide** where Tabler names differ across versions — keep sizes `h-4`–`h-5` and colors aligned with tokens.

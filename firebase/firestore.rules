@@ -61,6 +61,25 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/workflows/$(workflowId)).data.owner_uid == request.auth.uid;
       }
 
+      // Echo Flow §7b — soft locks (owner + collaborators); one lease per step id
+      match /stepLocks/{stepId} {
+        function wfForLock() {
+          return get(/databases/$(database)/documents/workflows/$(workflowId)).data;
+        }
+        function canAccessWorkflowLock() {
+          return request.auth != null
+            && exists(/databases/$(database)/documents/workflows/$(workflowId))
+            && (wfForLock().owner_uid == request.auth.uid
+                || (wfForLock().shared_with is list
+                    && request.auth.uid in wfForLock().shared_with));
+        }
+        allow read: if canAccessWorkflowLock();
+        allow create, update: if canAccessWorkflowLock()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.until is int;
+        allow delete: if canAccessWorkflowLock() && resource.data.uid == request.auth.uid;
+      }
+
       match /runs/{runId} {
         allow read: if request.auth != null
           && exists(/databases/$(database)/documents/workflows/$(workflowId))

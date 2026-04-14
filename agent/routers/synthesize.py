@@ -28,6 +28,24 @@ from pydantic import BaseModel as PydanticBaseModel
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
 
 
+def _step_firestore_payload(order: int, s: dict) -> dict:
+    """Build Firestore step document; pass through optional Scribe-style fields when synthesis emits them."""
+    payload: dict = {
+        "order": order,
+        "action": s.get("action", "wait"),
+        "context": s.get("context", ""),
+        "params": s.get("params", {}),
+        "expected_outcome": s.get("expected_outcome", ""),
+    }
+    fiu = s.get("frame_image_url")
+    if fiu:
+        payload["frame_image_url"] = str(fiu).strip()
+    co = s.get("click_overlay")
+    if co is not None and isinstance(co, dict):
+        payload["click_overlay"] = co
+    return payload
+
+
 def _ensure_agent_path() -> None:
     """Ensure agent service root is on sys.path so `echo_prism_agent` imports resolve."""
     root = Path(__file__).resolve().parent.parent
@@ -187,15 +205,7 @@ async def synthesize(
 
         for i, s in enumerate(steps_data):
             step_id = str(uuid.uuid4())
-            workflow_ref.collection("steps").document(step_id).set(
-                {
-                    "order": i,
-                    "action": s.get("action", "wait"),
-                    "context": s.get("context", ""),
-                    "params": s.get("params", {}),
-                    "expected_outcome": s.get("expected_outcome", ""),
-                }
-            )
+            workflow_ref.collection("steps").document(step_id).set(_step_firestore_payload(i, s))
 
         title = workflow_name or result.get("title") or "Untitled workflow"
         workflow_type = result.get("workflow_type", "browser")
@@ -272,15 +282,7 @@ async def synthesize_from_description_impl(
 
     for i, s in enumerate(steps_data):
         step_id = str(uuid.uuid4())
-        workflow_ref.collection("steps").document(step_id).set(
-            {
-                "order": i,
-                "action": s.get("action", "wait"),
-                "context": s.get("context", ""),
-                "params": s.get("params", {}),
-                "expected_outcome": s.get("expected_outcome", ""),
-            }
-        )
+        workflow_ref.collection("steps").document(step_id).set(_step_firestore_payload(i, s))
 
     workflow_ref.update(
         {

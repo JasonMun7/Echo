@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     token?: string;
     variableValues?: Record<string, string>;
     typingOverride?: string;
+    flowGraph?: Record<string, unknown> | null;
   }) => ipcRenderer.invoke("run-workflow-local", args),
   runGoalOnlyLocal: (args: {
     goal: string;

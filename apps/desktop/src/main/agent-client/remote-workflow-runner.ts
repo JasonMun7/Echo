@@ -2,7 +2,8 @@
  * Remote workflow runner — main-process **client** for the Echo Prism agent service (Python app in repo `agent/`, route `GET /api/agent/run` WebSocket).
  * Sends screenshots and step payloads; receives actions; executes locally via NutJS/Playwright. Inference runs on the server, not in Electron.
  */
-import type { Step, WorkflowType } from "@echo/types";
+import type { FlowGraph, Step, WorkflowType } from "@echo/types";
+import { orderStepsByFlowGraph } from "@echo/types";
 import { shell } from "electron";
 import WebSocket from "ws";
 /** Determinism rules mirror Python `is_deterministic` in `echo_prism_agent/execution/operator.py`. */
@@ -115,6 +116,8 @@ export interface RunWorkflowRemoteOptions {
   variableValues?: Record<string, string>;
   /** Overrides synthesised placeholder text in the agent instruction (ambiguous steps only) */
   typingOverride?: string;
+  /** When set, execution order follows Echo Flow DAG (M1); otherwise step `order` field. */
+  flowGraph?: FlowGraph | null;
 }
 
 async function pollRunSignals(opts: RunWorkflowRemoteOptions): Promise<{
@@ -479,7 +482,8 @@ export async function runWorkflowRemote(
   if (!options?.backendUrl) return { success: false, error: "backendUrl required" };
   if (!options?.token) return { success: false, error: "token required for WebSocket auth" };
 
-  let workingSteps = interpolateSteps(steps, options?.variableValues ?? {});
+  const ordered = orderStepsByFlowGraph(steps, options?.flowGraph ?? null);
+  let workingSteps = interpolateSteps(ordered, options?.variableValues ?? {});
 
   const agentBase = (options.agentWsUrl ?? options.backendUrl).replace(/^http/, "ws");
   const wsUrl = `${agentBase}/api/agent/run?token=${encodeURIComponent(options.token)}`;

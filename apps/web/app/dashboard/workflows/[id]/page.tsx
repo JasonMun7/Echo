@@ -8,20 +8,31 @@ import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
+import {
+  workflowShellClass,
+  workflowStatusBadgeClass,
+  workflowStatusLabel,
+} from "@/lib/workflow-status";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
+import { WorkflowShareDialog, type WorkflowShareRole } from "@/components/workflow-share-dialog";
 import {
   IconArrowLeft,
   IconPlayerPlay,
-  IconList,
   IconTrash,
-  IconShare3,
   IconBinaryTree2,
-  IconX,
   IconUser,
+  IconDots,
+  IconPencil,
 } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DataTable } from "@/components/data-table";
 
 interface Run {
@@ -37,6 +48,7 @@ interface Collaborator {
   email: string;
   display_name: string;
   status?: "pending" | "accepted";
+  role?: WorkflowShareRole;
 }
 
 interface WorkflowDetail {
@@ -61,12 +73,14 @@ export default function WorkflowDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
+  const [shareInviteRole, setShareInviteRole] = useState<WorkflowShareRole>("editor");
   const [sharing, setSharing] = useState(false);
+  const [roleChangePendingUid, setRoleChangePendingUid] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [forking, setForking] = useState(false);
   const [authUid, setAuthUid] = useState<string | null>(auth?.currentUser?.uid ?? null);
-  const getCollaboratorStatusLabel = (status?: Collaborator["status"]) =>
-    status === "pending" ? "Pending invite" : "Accepted";
+  const getCollaboratorStatusLabel = (c: Collaborator) =>
+    c.status === "pending" ? "Pending" : c.role === "viewer" ? "Can view" : "Can edit";
 
   // Track auth state so snapshot effect re-runs once Firebase auth is ready
   useEffect(() => {
@@ -133,23 +147,6 @@ export default function WorkflowDetailPage() {
     return unsub;
   }, [id, authUid]);
 
-  // Load collaborators when workflow is loaded (so we can show "Shared with" on the page)
-  useEffect(() => {
-    if (!workflow || !id) return;
-    let cancelled = false;
-    apiFetch(`/api/workflows/${id}/collaborators`)
-      .then((res) => (res.ok ? res.json() : Promise.resolve({ collaborators: [] })))
-      .then((data) => {
-        if (!cancelled && Array.isArray(data.collaborators)) {
-          setCollaborators(data.collaborators);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [id, workflow]);
-
   const tableRuns = useMemo(
     () =>
       workflow
@@ -185,17 +182,38 @@ export default function WorkflowDetailPage() {
       const res = await apiFetch(`/api/workflows/${id}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: shareEmail.trim() }),
+        body: JSON.stringify({ email: shareEmail.trim(), role: shareInviteRole }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "Failed to share");
       setShareEmail("");
-      toast.success("Workflow shared");
+      toast.success("Workflow shared", {
+        description: "They’ll appear under collaborators once they accept the invite.",
+      });
       await loadCollaborators();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to share workflow");
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleCollaboratorRoleChange = async (targetUid: string, role: WorkflowShareRole) => {
+    setRoleChangePendingUid(targetUid);
+    try {
+      const res = await apiFetch(`/api/workflows/${id}/share/${targetUid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok)
+        throw new Error(typeof data.detail === "string" ? data.detail : "Could not update access");
+      setCollaborators((prev) => prev.map((c) => (c.uid === targetUid ? { ...c, role } : c)));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update access");
+    } finally {
+      setRoleChangePendingUid(null);
     }
   };
 
@@ -206,7 +224,9 @@ export default function WorkflowDetailPage() {
       });
       if (!res.ok) throw new Error("Failed to remove collaborator");
       setCollaborators((prev) => prev.filter((c) => c.uid !== targetUid));
-      toast.success("Access removed");
+      toast.success("Access removed", {
+        description: "That person no longer sees this workflow.",
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to remove access");
     }
@@ -218,7 +238,9 @@ export default function WorkflowDetailPage() {
       const res = await apiFetch(`/api/workflows/${id}/fork`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "Failed to fork");
-      toast.success("Workflow forked — opening your copy");
+      toast.success("Workflow forked", {
+        description: "Opening your copy—you can edit and publish it independently.",
+      });
       router.push(`/dashboard/workflows/${data.id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to fork workflow");
@@ -239,6 +261,9 @@ export default function WorkflowDetailPage() {
       }
       const data = await res.json();
       if (data.run_id) {
+        toast.success("Run started", {
+          description: "Opening Echo desktop with this run. Track it on the run page.",
+        });
         window.location.href = `echo-desktop://run?workflow_id=${id}&run_id=${data.run_id}`;
         router.push(`/dashboard/workflows/${id}/runs/${data.run_id}`);
       }
@@ -251,16 +276,13 @@ export default function WorkflowDetailPage() {
 
   if (loading || !workflow) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
-        <div className="flex min-h-0 flex-1 flex-col gap-6 p-6 md:p-10">
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-            <Skeleton className="h-24 w-full rounded-xl" />
-          </div>
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-7 w-24 rounded-md" />
-            <Skeleton className="h-4 w-64 rounded-md" />
-            <Skeleton className="h-48 w-full rounded-lg" />
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#F5F7FC]">
+        <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6 p-6 md:p-10">
+          <Skeleton className="h-32 w-full shrink-0 rounded-xl" />
+          <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-xl border border-[#A577FF]/20 bg-white p-4">
+            <Skeleton className="h-6 w-24 shrink-0 rounded-md" />
+            <Skeleton className="h-4 w-2/3 max-w-md shrink-0 rounded-md" />
+            <Skeleton className="min-h-0 flex-1 rounded-lg" />
           </div>
         </div>
       </div>
@@ -269,16 +291,6 @@ export default function WorkflowDetailPage() {
 
   const isOwner = workflow.owner_uid === auth?.currentUser?.uid;
   const status = workflow.status ?? "unknown";
-  const statusLabel =
-    (
-      {
-        draft: "Setting Up",
-        processing: "Synthesizing",
-        ready: "Ready",
-        active: "Live",
-        failed: "Failed",
-      } as Record<string, string>
-    )[status] ?? String(status);
   const failureReason = typeof workflow.error === "string" ? workflow.error.trim() : "";
 
   return (
@@ -294,59 +306,125 @@ export default function WorkflowDetailPage() {
           </div>
         </>
       )}
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
-        <div className="flex min-h-0 flex-1 flex-col gap-6 p-6 md:p-10">
-          <div className="flex flex-col gap-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/dashboard/workflows"
-                  className="echo-btn-secondary-accent flex w-fit shrink-0 items-center justify-center rounded-lg p-1.5"
-                  aria-label="Back"
-                >
-                  <IconArrowLeft className="h-5 w-5 text-echo-cyan" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Back to workflows</TooltipContent>
-            </Tooltip>
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#F5F7FC]">
+        <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6 p-6 md:p-10">
+          <div className={cn(workflowShellClass, "shrink-0 p-5 sm:p-6")}>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/dashboard/workflows"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#150A35]/10 bg-[#fafafa]/80 text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#150A35] sm:mt-0.5"
+                      aria-label="Back to workflows"
+                    >
+                      <IconArrowLeft className="h-5 w-5" stroke={1.5} />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Back to workflows</TooltipContent>
+                </Tooltip>
 
-            <div className="echo-card rounded-xl border border-[#A577FF]/20 bg-white/80 shadow-sm backdrop-blur-sm p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <h1 className="min-w-0 truncate text-2xl font-semibold text-[#150A35]">
-                    {String(workflow.name || id)}
-                  </h1>
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-[#150A35] sm:text-2xl">
+                      {String(workflow.name || id)}
+                    </h1>
+                    <div className="flex shrink-0 items-center justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#150A35]/10 bg-white text-[#150A35] shadow-sm transition-colors hover:border-[#A577FF]/30 hover:bg-[#A577FF]/5 hover:text-[#A577FF]"
+                            aria-label="Workflow actions"
+                          >
+                            <IconDots className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-44">
+                          <DropdownMenuItem
+                            onClick={() => void handleRun()}
+                            disabled={
+                              running ||
+                              (workflow.status !== "active" && workflow.status !== "ready")
+                            }
+                          >
+                            <IconPlayerPlay className="h-4 w-4" />
+                            {running ? "Starting…" : "Run workflow"}
+                          </DropdownMenuItem>
+                          {isOwner && (
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/workflows/${id}/edit`}>
+                                <IconPencil className="h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          {isOwner && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setShareModalOpen(true);
+                                void loadCollaborators();
+                              }}
+                            >
+                              <IconUser className="h-4 w-4" />
+                              Share
+                            </DropdownMenuItem>
+                          )}
+                          {!isOwner && (
+                            <DropdownMenuItem onClick={() => void handleFork()} disabled={forking}>
+                              <IconBinaryTree2 className="h-4 w-4" />
+                              {forking ? "Forking…" : "Fork"}
+                            </DropdownMenuItem>
+                          )}
+                          {isOwner && (
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => void handleDelete()}
+                              disabled={deleting}
+                            >
+                              <IconTrash className="h-4 w-4" />
+                              {deleting ? "Deleting…" : "Delete"}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
                   {!isOwner && (
-                    <p className="mt-1 text-sm text-echo-text-muted">
-                      Shared with you by{" "}
+                    <p className="text-sm leading-relaxed text-[#6b7280]">
+                      Shared by{" "}
                       <span className="font-medium text-[#150A35]">
                         {typeof workflow.owner_name === "string" && workflow.owner_name
                           ? workflow.owner_name
                           : "another user"}
-                      </span>{" "}
-                      · Fork to edit your own copy.
+                      </span>
+                      . Fork to edit your own copy.
                     </p>
                   )}
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-                    <span className="text-echo-text-muted">Status:</span>
-                    <span className="rounded-full bg-[#A577FF]/15 px-2.5 py-0.5 font-medium text-[#150A35]">
-                      {statusLabel}
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                    <span
+                      className={workflowStatusBadgeClass(status)}
+                      title="Workflow lifecycle status"
+                    >
+                      {workflowStatusLabel(status)}
                     </span>
                     {typeof workflow.source_recording_id === "string" &&
                       workflow.source_recording_id && (
                         <span
-                          className="text-echo-text-muted"
+                          className="text-[#6b7280]"
                           title="Recording used to create this workflow"
                         >
-                          Source:{" "}
-                          <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-xs text-[#150A35]">
+                          <span className="text-[#9ca3af]">Recording </span>
+                          <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-[11px] text-[#150A35]">
                             {String(workflow.source_recording_id)}
                           </code>
                         </span>
                       )}
                   </div>
                   {status === "failed" && failureReason && (
-                    <div className="mt-3 rounded-lg border border-echo-error/30 bg-echo-error/10 px-3 py-2">
+                    <div className="rounded-lg border border-echo-error/30 bg-echo-error/10 px-3 py-2">
                       <p className="text-sm font-medium text-echo-error">
                         Workflow synthesis failed
                       </p>
@@ -357,244 +435,50 @@ export default function WorkflowDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="echo-btn-danger flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
-                    >
-                      <IconTrash className="h-4 w-4" />
-                      {deleting ? "Deleting..." : "Delete"}
-                    </button>
-                  )}
-                  {isOwner && (
-                    <Link
-                      href={`/dashboard/workflows/${id}/edit`}
-                      className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
-                    >
-                      <IconList className="h-4 w-4 text-echo-cyan" />
-                      Edit
-                    </Link>
-                  )}
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShareModalOpen(true);
-                        loadCollaborators();
-                      }}
-                      className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
-                    >
-                      <IconUser className="h-4 w-4 text-echo-cyan" />
-                      Share
-                    </button>
-                  )}
-                  {!isOwner && (
-                    <button
-                      type="button"
-                      onClick={handleFork}
-                      disabled={forking}
-                      className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
-                    >
-                      <IconBinaryTree2 className="h-4 w-4 text-echo-cyan" />
-                      {forking ? "Forking..." : "Fork"}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleRun}
-                    disabled={
-                      running || (workflow.status !== "active" && workflow.status !== "ready")
-                    }
-                    className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    <IconPlayerPlay className="h-4 w-4 text-white" />
-                    {running ? "Starting..." : "Run"}
-                  </button>
-                </div>
               </div>
             </div>
           </div>
 
-          {isOwner && (
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-semibold text-[#150A35]">Shared with</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShareModalOpen(true);
-                    loadCollaborators();
-                  }}
-                  className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm"
-                >
-                  <IconShare3 className="h-4 w-4 text-white" />
-                  Add people
-                </button>
-              </div>
-              <p className="text-sm text-echo-text-muted">
-                People you share with can view and run this workflow. They can fork it to edit their
-                own copy. Later: share via LiveKit voice or telephony.
+          <section
+            className={cn(
+              workflowShellClass,
+              "flex min-h-0 flex-1 basis-0 flex-col overflow-hidden p-0",
+            )}
+          >
+            <div className="shrink-0 border-b border-[#150A35]/6 px-5 py-4 sm:px-6">
+              <h2 className="text-base font-semibold tracking-tight text-[#150A35]">Runs</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#6b7280]">
+                Execution history for this workflow. Start a run from the button above; EchoPrism
+                drives the desktop session.
               </p>
-              {collaborators.length === 0 ? (
-                <div className="echo-card rounded-xl border border-[#A577FF]/20 bg-white/80 p-6 text-center">
-                  <IconUser className="mx-auto h-10 w-10 text-[#150A35]/30" />
-                  <p className="mt-2 text-sm font-medium text-[#150A35]">Not shared yet</p>
-                  <p className="mt-1 text-sm text-echo-text-muted">
-                    Share with teammates by email to let them run this workflow.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShareModalOpen(true)}
-                    className="echo-btn-cyan-lavender mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
-                  >
-                    <IconShare3 className="h-4 w-4 text-white" />
-                    Share workflow
-                  </button>
-                </div>
-              ) : (
-                <div className="echo-card rounded-xl border border-[#A577FF]/20 bg-white/80 p-4">
-                  <ul className="flex flex-col gap-2">
-                    {collaborators.map((c) => (
-                      <li
-                        key={c.uid}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-[#150A35]/5 px-3 py-2"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[#150A35]">
-                            {c.display_name}
-                          </p>
-                          <div className="mt-0.5 flex items-center gap-2">
-                            <p className="truncate text-xs text-echo-text-muted">
-                              {c.email || "No email"}
-                            </p>
-                            <span
-                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                c.status === "pending"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-emerald-100 text-emerald-700"
-                              }`}
-                            >
-                              {getCollaboratorStatusLabel(c.status)}
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleUnshare(c.uid)}
-                          className="shrink-0 rounded p-1.5 text-[#150A35]/40 hover:bg-echo-error/10 hover:text-echo-error"
-                          title="Remove access"
-                        >
-                          <IconX className="h-4 w-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
-          )}
-
-          <section className="flex flex-col gap-4">
-            <h2 className="text-2xl font-semibold text-[#150A35]">Runs</h2>
-            <p className="text-sm text-echo-text-muted">
-              All runs for this workflow. Click Run above to start a new run; EchoPrism will take
-              control and navigate automatically.
-            </p>
-            <DataTable
-              data={tableRuns}
-              singleWorkflow={{ workflowId: id, workflowName: String(workflow.name ?? "") }}
-            />
+            </div>
+            <div className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
+              <DataTable
+                data={tableRuns}
+                singleWorkflow={{ workflowId: id, workflowName: String(workflow.name ?? "") }}
+              />
+            </div>
           </section>
         </div>
       </div>
 
-      {/* Share modal */}
-      {shareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="echo-card flex w-full max-w-md flex-col gap-4 p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#150A35]">
-                <IconShare3 className="mb-0.5 mr-1.5 inline h-4 w-4 text-echo-cyan" />
-                Share workflow
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShareModalOpen(false)}
-                className="rounded p-1 hover:bg-[#150A35]/5"
-              >
-                <IconX className="h-4 w-4 text-[#150A35]/60" />
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="colleague@example.com"
-                value={shareEmail}
-                onChange={(e) => setShareEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleShare()}
-                className="flex-1 text-sm"
-              />
-              <button
-                type="button"
-                onClick={handleShare}
-                disabled={sharing || !shareEmail.trim()}
-                className="echo-btn-cyan-lavender rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
-              >
-                {sharing ? "Sharing…" : "Share"}
-              </button>
-            </div>
-
-            {collaborators.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-[#150A35]/60">
-                  <IconUser className="mb-0.5 mr-1 inline h-3.5 w-3.5" />
-                  Shared with
-                </p>
-                {collaborators.map((c) => (
-                  <div
-                    key={c.uid}
-                    className="flex items-center justify-between rounded-lg bg-[#150A35]/5 px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-[#150A35]">{c.display_name}</p>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        <p className="text-xs text-[#150A35]/60">{c.email || "No email"}</p>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            c.status === "pending"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {getCollaboratorStatusLabel(c.status)}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleUnshare(c.uid)}
-                      className="rounded p-1 text-[#150A35]/40 hover:text-echo-error"
-                      title="Remove access"
-                    >
-                      <IconX className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {collaborators.length === 0 && (
-              <p className="text-sm text-[#150A35]/50">
-                No collaborators yet. Enter an email to share.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      <WorkflowShareDialog
+        open={shareModalOpen}
+        onOpenChange={setShareModalOpen}
+        shareEmail={shareEmail}
+        onShareEmailChange={setShareEmail}
+        inviteRole={shareInviteRole}
+        onInviteRoleChange={setShareInviteRole}
+        onShare={handleShare}
+        sharing={sharing}
+        collaborators={collaborators}
+        onUnshare={handleUnshare}
+        onCollaboratorRoleChange={handleCollaboratorRoleChange}
+        roleChangePendingUid={roleChangePendingUid}
+        getCollaboratorStatusLabel={getCollaboratorStatusLabel}
+        workflowId={id}
+        directLinkVariant="detail"
+      />
     </>
   );
 }

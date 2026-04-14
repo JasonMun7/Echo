@@ -476,13 +476,20 @@ export function EchoPrismVoiceModal({
                   Workflow ready:{" "}
                   <span className="text-white font-medium">{synthesizedWorkflow.name}</span>
                 </p>
-                <a
-                  href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
-                  className="flex items-center gap-2 rounded-full bg-[#A577FF] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
-                >
-                  <IconPlayerPlay className="h-4 w-4" />
-                  Run it
-                </a>
+                <div className="flex flex-col items-center gap-2 sm:flex-row">
+                  <a
+                    href={`/dashboard/workflows/${synthesizedWorkflow.id}/edit`}
+                    className="flex items-center gap-2 rounded-full bg-[#A577FF] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                  >
+                    Open in Echo Flow
+                  </a>
+                  <a
+                    href={`/dashboard/workflows/${synthesizedWorkflow.id}`}
+                    className="text-sm font-medium text-white/80 underline-offset-2 hover:underline"
+                  >
+                    View workflow
+                  </a>
+                </div>
               </div>
             )}
           </div>
