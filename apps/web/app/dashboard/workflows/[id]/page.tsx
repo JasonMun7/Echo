@@ -21,7 +21,7 @@ import {
   IconPlayerPlay,
   IconTrash,
   IconBinaryTree2,
-  IconUser,
+  IconShare,
   IconDots,
   IconPencil,
 } from "@tabler/icons-react";
@@ -47,6 +47,7 @@ interface Collaborator {
   uid: string;
   email: string;
   display_name: string;
+  photo_url?: string;
   status?: "pending" | "accepted";
   role?: WorkflowShareRole;
 }
@@ -366,7 +367,7 @@ export default function WorkflowDetailPage() {
                                 void loadCollaborators();
                               }}
                             >
-                              <IconUser className="h-4 w-4" />
+                              <IconShare className="h-4 w-4" />
                               Share
                             </DropdownMenuItem>
                           )}

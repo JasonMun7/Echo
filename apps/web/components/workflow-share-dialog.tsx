@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconChevronRight, IconCopy, IconShare3, IconX } from "@tabler/icons-react";
+import { IconChevronRight, IconCopy, IconShare, IconX } from "@tabler/icons-react";
 import { Code2, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -21,6 +22,8 @@ export type WorkflowShareCollaborator = {
   uid: string;
   email: string;
   display_name: string;
+  /** Firebase Auth profile photo when available. */
+  photo_url?: string;
   status?: "pending" | "accepted";
   role?: WorkflowShareRole;
 };
@@ -54,6 +57,8 @@ type WorkflowShareDialogProps = {
   /** Owner updates access level for an existing collaborator. */
   onCollaboratorRoleChange?: (uid: string, role: WorkflowShareRole) => void | Promise<void>;
   roleChangePendingUid?: string | null;
+  /** When set (e.g. from step-lock presence), highlights people actively on this workflow. */
+  liveCollaboratorUids?: ReadonlySet<string> | null;
   getCollaboratorStatusLabel?: (c: WorkflowShareCollaborator) => string;
   /** When set, shows a read-only URL + copy for this workflow. */
   workflowId?: string;
@@ -74,6 +79,7 @@ export function WorkflowShareDialog({
   onUnshare,
   onCollaboratorRoleChange,
   roleChangePendingUid,
+  liveCollaboratorUids,
   getCollaboratorStatusLabel = (c) =>
     c.status === "pending" ? "Pending" : ROLE_LABEL[c.role ?? "editor"],
   workflowId,
@@ -91,6 +97,22 @@ export function WorkflowShareDialog({
     workflowId && origin
       ? `${origin}/dashboard/workflows/${workflowId}${directLinkVariant === "edit" ? "/edit" : ""}`
       : "";
+
+  const inviteRoleSelect = (
+    <Select value={inviteRole} onValueChange={(v) => onInviteRoleChange(v as WorkflowShareRole)}>
+      <SelectTrigger
+        size="sm"
+        className="h-9 w-full min-w-[7.5rem] shrink-0 rounded-lg border border-[#e5e7eb] bg-white px-2.5 text-xs font-medium text-[#111827] shadow-sm sm:w-[132px]"
+        aria-label="Access for new invite"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="editor">{ROLE_LABEL.editor}</SelectItem>
+        <SelectItem value="viewer">{ROLE_LABEL.viewer}</SelectItem>
+      </SelectContent>
+    </Select>
+  );
 
   const copyDirectLink = async () => {
     if (!directUrl) return;
@@ -129,7 +151,7 @@ export function WorkflowShareDialog({
 
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#0a0a0a] text-white shadow-sm">
-            <IconShare3 className="h-5 w-5" stroke={1.75} aria-hidden />
+            <IconShare className="h-5 w-5" stroke={1.75} aria-hidden />
           </div>
           <h2
             id="workflow-share-title"
@@ -144,21 +166,35 @@ export function WorkflowShareDialog({
 
         <div className="flex flex-col gap-6">
           {directUrl ? (
-            <section className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-[#111827]">Direct link</span>
-                <span className="text-xs text-[#6b7280]">Sign-in required</span>
+            <section
+              aria-labelledby="direct-link-heading"
+              className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 id="direct-link-heading" className="text-sm font-semibold text-[#111827]">
+                    Direct link
+                  </h3>
+                  <p className="mt-0.5 text-xs leading-relaxed text-[#6b7280]">
+                    Anyone with the link can access
+                  </p>
+                </div>
+                {inviteRoleSelect}
               </div>
-              <div className="flex items-center gap-2 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2.5">
-                <span className="min-w-0 flex-1 truncate font-mono text-[11px] leading-snug text-[#374151] sm:text-xs">
+              <div className="mt-3 flex items-center gap-0 overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+                <span className="min-w-0 flex-1 truncate px-3 py-2.5 font-mono text-[11px] leading-snug text-[#374151] sm:text-xs">
                   {directUrl}
                 </span>
                 <button
                   type="button"
                   onClick={() => void copyDirectLink()}
-                  className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-[#A577FF] transition-colors hover:text-[#8b5cf6]"
+                  className="inline-flex shrink-0 items-center gap-1.5 border-l border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 text-xs font-medium text-[#111827] transition-colors hover:bg-[#f3f4f6] sm:text-sm"
                 >
-                  <Link2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                  <Link2
+                    className="h-3.5 w-3.5 text-[#6b7280] sm:h-4 sm:w-4"
+                    strokeWidth={1.5}
+                    aria-hidden
+                  />
                   Copy link
                 </button>
               </div>
@@ -166,33 +202,24 @@ export function WorkflowShareDialog({
           ) : null}
 
           <section className="flex flex-col gap-2">
+            {!directUrl ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-[#6b7280]">Access for new invite</span>
+                {inviteRoleSelect}
+              </div>
+            ) : null}
+            <h3 className="text-sm font-semibold text-[#111827]">Invite</h3>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
               <div className="flex min-h-12 min-w-0 flex-1 overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white shadow-sm">
                 <input
                   type="email"
-                  placeholder="Invite by email"
+                  placeholder="Invite others by name or email"
                   value={shareEmail}
                   onChange={(e) => onShareEmailChange(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && onShare()}
                   className="min-h-12 min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-sm text-[#111827] outline-none placeholder:text-[#9ca3af] focus-visible:ring-0"
                 />
               </div>
-              <Select
-                value={inviteRole}
-                onValueChange={(v) => onInviteRoleChange(v as WorkflowShareRole)}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-12 w-full shrink-0 rounded-2xl border-[#e5e7eb] bg-white px-3 sm:w-[132px]"
-                  aria-label="Access for new invite"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="editor">{ROLE_LABEL.editor}</SelectItem>
-                  <SelectItem value="viewer">{ROLE_LABEL.viewer}</SelectItem>
-                </SelectContent>
-              </Select>
               <button
                 type="button"
                 onClick={onShare}
@@ -217,68 +244,89 @@ export function WorkflowShareDialog({
               <p className="text-sm text-[#6b7280]">Only you have access right now.</p>
             ) : (
               <ul className="flex flex-col gap-0 divide-y divide-[#f3f4f6]">
-                {collaborators.map((c) => (
-                  <li key={c.uid} className="flex items-center gap-3 py-3 first:pt-0">
-                    <div
-                      className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-[#374151]",
-                        c.status === "pending"
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-[#ede9fe] text-[#5b21b6]",
-                      )}
-                      aria-hidden
-                    >
-                      {initialsFromName(c.display_name || c.email || "?")}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[#111827]">
-                        {c.display_name}
-                      </p>
-                      {c.email ? (
-                        <p className="truncate text-xs text-[#6b7280]">{c.email}</p>
-                      ) : null}
-                      {c.status === "pending" ? (
-                        <p className="text-[10px] font-medium text-amber-800">Invite pending</p>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {onCollaboratorRoleChange ? (
-                        <Select
-                          value={c.role ?? "editor"}
-                          disabled={roleChangePendingUid === c.uid}
-                          onValueChange={(v) =>
-                            void onCollaboratorRoleChange(c.uid, v as WorkflowShareRole)
-                          }
-                        >
-                          <SelectTrigger
-                            size="sm"
-                            className="h-8 w-[min(100%,7.5rem)] rounded-lg border-[#e5e7eb] text-xs"
-                            aria-label={`Access for ${c.display_name}`}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="editor">{ROLE_LABEL.editor}</SelectItem>
-                            <SelectItem value="viewer">{ROLE_LABEL.viewer}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 text-sm text-[#6b7280]">
-                          {getCollaboratorStatusLabel(c)}
-                          <IconChevronRight className="h-4 w-4 text-[#d1d5db]" stroke={1.5} />
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onUnshare(c.uid)}
-                        className="ml-1 rounded-lg p-1.5 text-[#9ca3af] transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Remove access"
+                {collaborators.map((c) => {
+                  const isLive = liveCollaboratorUids?.has(c.uid) ?? false;
+                  return (
+                    <li key={c.uid} className="flex items-center gap-3 py-3 first:pt-0">
+                      <Avatar
+                        className={cn(
+                          "h-9 w-9 shrink-0 border-2 border-white shadow-sm",
+                          isLive
+                            ? "ring-2 ring-[#A577FF] ring-offset-2 ring-offset-white shadow-[0_0_14px_rgba(165,119,255,0.35)]"
+                            : "ring-1 ring-[#150A35]/8",
+                        )}
+                        title={isLive ? "On this workflow now" : undefined}
                       >
-                        <IconX className="h-4 w-4" stroke={1.5} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                        {c.photo_url ? (
+                          <AvatarImage
+                            src={c.photo_url}
+                            alt=""
+                            className={cn(
+                              isLive && "brightness-[1.08] saturate-125 contrast-[1.02]",
+                            )}
+                          />
+                        ) : null}
+                        <AvatarFallback
+                          className={cn(
+                            "text-xs font-semibold",
+                            c.status === "pending"
+                              ? "bg-amber-100 text-amber-900"
+                              : "bg-[#ede9fe] text-[#5b21b6]",
+                          )}
+                        >
+                          {initialsFromName(c.display_name || c.email || "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[#111827]">
+                          {c.display_name}
+                        </p>
+                        {c.email ? (
+                          <p className="truncate text-xs text-[#6b7280]">{c.email}</p>
+                        ) : null}
+                        {c.status === "pending" ? (
+                          <p className="text-[10px] font-medium text-amber-800">Invite pending</p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {onCollaboratorRoleChange ? (
+                          <Select
+                            value={c.role ?? "editor"}
+                            disabled={roleChangePendingUid === c.uid}
+                            onValueChange={(v) =>
+                              void onCollaboratorRoleChange(c.uid, v as WorkflowShareRole)
+                            }
+                          >
+                            <SelectTrigger
+                              size="sm"
+                              className="h-8 w-[min(100%,7.5rem)] rounded-lg border-[#e5e7eb] text-xs"
+                              aria-label={`Access for ${c.display_name}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="editor">{ROLE_LABEL.editor}</SelectItem>
+                              <SelectItem value="viewer">{ROLE_LABEL.viewer}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-sm text-[#6b7280]">
+                            {getCollaboratorStatusLabel(c)}
+                            <IconChevronRight className="h-4 w-4 text-[#d1d5db]" stroke={1.5} />
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onUnshare(c.uid)}
+                          className="ml-1 rounded-lg p-1.5 text-[#9ca3af] transition-colors hover:bg-red-50 hover:text-red-600"
+                          title="Remove access"
+                        >
+                          <IconX className="h-4 w-4" stroke={1.5} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

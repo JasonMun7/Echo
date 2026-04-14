@@ -16,11 +16,10 @@ import {
   IconList,
   IconPlayerPlay,
   IconPlus,
-  IconShare3,
+  IconShare,
   IconTrash,
-  IconUser,
 } from "@tabler/icons-react";
-import { ZoomIn, ZoomOut, Maximize2, Users, Loader2 } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -36,7 +35,7 @@ import {
   type EchoSearchSuggestion,
 } from "@/components/ui/echo-search-with-suggestions";
 import { FloatingDock } from "@/components/ui/floating-dock";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   EchoWorkflowCanvas,
   type EchoWorkflowCanvasHandle,
@@ -171,6 +170,7 @@ export default function WorkflowEditPage() {
       uid: string;
       email: string;
       display_name: string;
+      photo_url?: string;
       status?: "pending" | "accepted";
       role?: WorkflowShareRole;
     }[]
@@ -186,11 +186,8 @@ export default function WorkflowEditPage() {
 
   const canEdit = canEditWorkflow(workflow, auth?.currentUser?.uid);
 
-  const { inspectorReadOnly, lockOwnerLabel, peerLocks } = useStepEditLock(
-    id,
-    auth?.currentUser ?? null,
-    canEdit ? selectedStepId : null,
-  );
+  const { inspectorReadOnly, lockOwnerLabel, peerLocks, activeEditorUids, peerDisplayNameByUid } =
+    useStepEditLock(id, auth?.currentUser ?? null, canEdit ? selectedStepId : null);
 
   const availableActions: readonly AnyAction[] = [
     ...new Set([...BROWSER_ACTIONS, ...DESKTOP_ACTIONS]),
@@ -759,7 +756,32 @@ export default function WorkflowEditPage() {
   const activePeerEditorLabel = showRemotePointerForActivePeer
     ? ([...peerLocks.values()][0] ?? "Collaborator")
     : "Collaborator";
-  const facepile = collaborators.slice(0, 5);
+
+  /** Top bar: only people with an active step lock on this workflow (same page, editing now). */
+  const topBarLivePeers = useMemo(() => {
+    if (activeEditorUids.size === 0) return [];
+    const byUid = new Map(collaborators.map((c) => [c.uid, c]));
+    const rows: {
+      uid: string;
+      email: string;
+      display_name: string;
+      photo_url?: string;
+    }[] = [];
+    for (const peerUid of activeEditorUids) {
+      const row = byUid.get(peerUid);
+      if (row) {
+        rows.push(row);
+      } else {
+        rows.push({
+          uid: peerUid,
+          email: "",
+          display_name: peerDisplayNameByUid.get(peerUid) ?? "Collaborator",
+        });
+      }
+    }
+    return rows.slice(0, 5);
+  }, [activeEditorUids, collaborators, peerDisplayNameByUid]);
+
   const status = workflow?.status ?? "unknown";
   const failureReason = workflow && typeof workflow.error === "string" ? workflow.error.trim() : "";
 
@@ -887,7 +909,7 @@ export default function WorkflowEditPage() {
                       void loadCollaborators();
                     }}
                   >
-                    <IconUser className="h-4 w-4" />
+                    <IconShare className="h-4 w-4" />
                     Share
                   </DropdownMenuItem>
                 )}
@@ -955,14 +977,24 @@ export default function WorkflowEditPage() {
               />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {facepile.length > 0 && (
-                <div className="flex -space-x-2">
-                  {facepile.map((c) => (
+              {topBarLivePeers.length > 0 && (
+                <div className="flex -space-x-2" title="Editors active on this workflow now">
+                  {topBarLivePeers.map((c) => (
                     <Avatar
                       key={c.uid}
-                      className="h-7 w-7 border-2 border-white ring-1 ring-[#A577FF]/20"
-                      title={c.display_name}
+                      className={cn(
+                        "h-7 w-7 border-2 border-white",
+                        "z-[1] ring-2 ring-[#A577FF] ring-offset-2 ring-offset-[#F5F7FC] shadow-[0_0_12px_rgba(165,119,255,0.45)]",
+                      )}
+                      title={`${c.display_name} — editing here now`}
                     >
+                      {c.photo_url ? (
+                        <AvatarImage
+                          src={c.photo_url}
+                          alt=""
+                          className="brightness-110 saturate-125 contrast-[1.02]"
+                        />
+                      ) : null}
                       <AvatarFallback className="bg-[#A577FF]/20 text-[10px] font-medium text-[#150A35]">
                         {(c.display_name || "?")
                           .split(/\s+/)
@@ -981,7 +1013,7 @@ export default function WorkflowEditPage() {
                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#150A35]/10 bg-white px-2.5 text-xs font-medium text-[#150A35] shadow-sm transition-colors hover:bg-[#150A35]/5"
                   onClick={() => setShareOpen(true)}
                 >
-                  <IconShare3 className="h-3.5 w-3.5" />
+                  <IconShare className="h-3.5 w-3.5" />
                   Share
                 </button>
               ) : null}
@@ -1053,8 +1085,8 @@ export default function WorkflowEditPage() {
                     },
                   },
                   {
-                    title: "People",
-                    icon: <Users className="h-5 w-5 text-[#150A35]" aria-hidden />,
+                    title: "Share",
+                    icon: <IconShare className="h-5 w-5 text-[#150A35]" stroke={1.5} aria-hidden />,
                     onClick: () => setShareOpen(true),
                   },
                   {
@@ -1117,6 +1149,7 @@ export default function WorkflowEditPage() {
         onUnshare={handleUnshare}
         onCollaboratorRoleChange={handleCollaboratorRoleChange}
         roleChangePendingUid={roleChangePendingUid}
+        liveCollaboratorUids={activeEditorUids}
         workflowId={id}
         directLinkVariant="edit"
       />

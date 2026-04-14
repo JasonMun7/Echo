@@ -28,6 +28,12 @@ export function useStepEditLock(
     currentUser?.displayName?.trim() || currentUser?.email?.split("@")[0] || "Editor";
 
   const [peerLocks, setPeerLocks] = useState<Map<string, string>>(() => new Map());
+  /** UIDs of other users with a non-expired step lock (actively editing this workflow). */
+  const [activeEditorUids, setActiveEditorUids] = useState<Set<string>>(() => new Set());
+  /** Display name from each peer's lock doc (for avatars when they're not in the collaborators API list). */
+  const [peerDisplayNameByUid, setPeerDisplayNameByUid] = useState<Map<string, string>>(
+    () => new Map(),
+  );
   const peerLocksRef = useRef<Map<string, string>>(new Map());
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -35,20 +41,29 @@ export function useStepEditLock(
     if (!workflowId || !db) {
       peerLocksRef.current = new Map();
       setPeerLocks(new Map());
+      setActiveEditorUids(new Set());
+      setPeerDisplayNameByUid(new Map());
       return;
     }
     const col = collection(db, "workflows", workflowId, "stepLocks");
     const unsub = onSnapshot(col, (snap) => {
       const now = Date.now();
       const next = new Map<string, string>();
+      const uids = new Set<string>();
+      const namesByUid = new Map<string, string>();
       for (const d of snap.docs) {
         const data = d.data() as { uid?: string; until?: number; display_name?: string };
         if (!data.uid || data.uid === myUid) continue;
         if (typeof data.until !== "number" || data.until < now) continue;
-        next.set(d.id, (data.display_name as string)?.trim() || "Collaborator");
+        const label = (data.display_name as string)?.trim() || "Collaborator";
+        next.set(d.id, label);
+        uids.add(data.uid);
+        namesByUid.set(data.uid, label);
       }
       peerLocksRef.current = next;
       setPeerLocks(next);
+      setActiveEditorUids(uids);
+      setPeerDisplayNameByUid(namesByUid);
     });
     return () => unsub();
   }, [workflowId, myUid]);
@@ -101,6 +116,8 @@ export function useStepEditLock(
 
   return {
     peerLocks,
+    activeEditorUids,
+    peerDisplayNameByUid,
     lockOwnerLabel: lockInfo.ownerLabel,
     inspectorReadOnly: lockInfo.readOnly,
   };

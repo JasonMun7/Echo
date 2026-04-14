@@ -96,6 +96,7 @@ declare module "@tabler/icons-react" {
   export const IconSearch: TablerIcon;
   export const IconSend: TablerIcon;
   export const IconSettings: TablerIcon;
+  export const IconShare: TablerIcon;
   export const IconShare3: TablerIcon;
   export const IconSparkles: TablerIcon;
   export const IconSparkles2: TablerIcon;

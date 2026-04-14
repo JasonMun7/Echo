@@ -546,11 +546,13 @@ async def get_collaborators(
         status = "pending" if shared_uid in pending_uids else "accepted"
         try:
             user = firebase_admin.auth.get_user(shared_uid)
+            photo = getattr(user, "photo_url", None)
             collaborators.append(
                 {
                     "uid": shared_uid,
                     "email": user.email or "",
                     "display_name": user.display_name or user.email or shared_uid,
+                    "photo_url": photo if isinstance(photo, str) and photo else "",
                     "status": status,
                     "role": _collaborator_role(data, shared_uid),
                 }
@@ -561,6 +563,7 @@ async def get_collaborators(
                     "uid": shared_uid,
                     "email": "",
                     "display_name": shared_uid,
+                    "photo_url": "",
                     "status": status,
                     "role": _collaborator_role(data, shared_uid),
                 }
