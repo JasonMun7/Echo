@@ -1,6 +1,5 @@
 """Composio slug resolution (slug required; toolkit hints for connect flows)."""
 
-import pytest
 from echo_prism_agent.composio_integration.slugs import resolve_composio_slug, toolkit_hint_from_slug
 
 
