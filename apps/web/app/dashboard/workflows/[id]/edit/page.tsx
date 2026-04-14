@@ -206,6 +206,11 @@ export default function WorkflowEditPage() {
     }
   };
 
+  const selectedStep =
+    selectedStepId != null ? steps.find((s) => s.id === selectedStepId) : undefined;
+  const selectedStepIndex =
+    selectedStepId != null ? steps.findIndex((s) => s.id === selectedStepId) : -1;
+
   if (loading || !workflow) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
@@ -303,25 +308,19 @@ export default function WorkflowEditPage() {
 
           <div className="flex flex-1 flex-col gap-4">
             <WorkflowStepGraph steps={steps} onNodeSelect={setSelectedStepId} />
-            {selectedStepId &&
-              (() => {
-                const step = steps.find((s) => s.id === selectedStepId);
-                if (!step) return null;
-                const stepIndex = steps.findIndex((s) => s.id === selectedStepId);
-                return (
-                  <StepEditorPanel
-                    step={step}
-                    stepIndex={stepIndex}
-                    availableActions={availableActions}
-                    dirtyStepIds={dirtyStepIds}
-                    invalidStepIds={invalidStepIds}
-                    onClose={() => setSelectedStepId(null)}
-                    handleStepUpdate={handleStepUpdate}
-                    handleDeleteStep={handleDeleteStep}
-                    setInvalidStepIds={setInvalidStepIds}
-                  />
-                );
-              })()}
+            {selectedStepId && selectedStep && selectedStepIndex >= 0 ? (
+              <StepEditorPanel
+                step={selectedStep}
+                stepIndex={selectedStepIndex}
+                availableActions={availableActions}
+                dirtyStepIds={dirtyStepIds}
+                invalidStepIds={invalidStepIds}
+                onClose={() => setSelectedStepId(null)}
+                handleStepUpdate={handleStepUpdate}
+                handleDeleteStep={handleDeleteStep}
+                setInvalidStepIds={setInvalidStepIds}
+              />
+            ) : null}
           </div>
 
           {steps.length === 0 && (

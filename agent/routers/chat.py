@@ -639,8 +639,14 @@ async def _execute_tool(
     if (name or "").startswith("COMPOSIO_"):
         from echo_prism_agent.composio_integration.chat_session import invoke_composio_meta_tool
         from echo_prism_agent.composio_integration.chat_tool_payloads import merge_composio_execute_result
+        from echo_prism_agent.composio_integration.client import composio_configured as cc_ok
         from echo_prism_agent.composio_integration.langfuse_tracing import trace_composio_meta_path
 
+        if not cc_ok():
+            return {
+                "ok": False,
+                "error": "Composio integration not configured; enable Composio to use this tool.",
+            }
         trace_composio_meta_path(uid=uid, tool_name=name)
         out = await invoke_composio_meta_tool(uid, name, dict(args or {}), connection_id=connection_id)
         return merge_composio_execute_result(out)

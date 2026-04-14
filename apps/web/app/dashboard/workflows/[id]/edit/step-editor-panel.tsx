@@ -20,6 +20,12 @@ export function formatAction(action: string): string {
     .join(" ");
 }
 
+function clampNonNegativeInt(raw: string, fallbackWhenInvalid: number): number {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return Math.max(0, fallbackWhenInvalid);
+  return Math.max(0, n);
+}
+
 /** Reset params when the step action changes so stale keys are not saved. */
 export function getDefaultParamsForAction(action: string): Record<string, unknown> {
   switch (action) {
@@ -28,6 +34,12 @@ export function getDefaultParamsForAction(action: string): Record<string, unknow
     case "click_at":
     case "type_text_at":
       return { description: "", text: "" };
+    case "hover":
+    case "right_click":
+    case "double_click":
+      return { description: "" };
+    case "drag":
+      return { description: "", x1: 0, y1: 0, x2: 0, y2: 0 };
     case "wait_for_element":
       return { description: "" };
     case "scroll":
@@ -75,7 +87,13 @@ function ParamFields({
       </div>
     );
   }
-  if (action === "click_at" || action === "type_text_at") {
+  if (
+    action === "click_at" ||
+    action === "type_text_at" ||
+    action === "hover" ||
+    action === "right_click" ||
+    action === "double_click"
+  ) {
     return (
       <div className="space-y-2">
         <label className="block text-xs text-[#150A35]/70">
@@ -103,6 +121,65 @@ function ParamFields({
             />
           </>
         )}
+      </div>
+    );
+  }
+  if (action === "drag") {
+    return (
+      <div className="space-y-2">
+        <label className="block text-xs text-[#150A35]/70">
+          Description
+          <span className="ml-1 text-[#150A35]/40">(what to drag from → to)</span>
+        </label>
+        <textarea
+          value={(params.description as string) || ""}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="Drag the handle from the left panel to the canvas"
+          rows={2}
+          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-[#150A35]/70">Start X</label>
+            <input
+              type="number"
+              min={0}
+              value={(params.x1 as number) ?? 0}
+              onChange={(e) => update("x1", clampNonNegativeInt(e.target.value, 0))}
+              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[#150A35]/70">Start Y</label>
+            <input
+              type="number"
+              min={0}
+              value={(params.y1 as number) ?? 0}
+              onChange={(e) => update("y1", clampNonNegativeInt(e.target.value, 0))}
+              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[#150A35]/70">End X</label>
+            <input
+              type="number"
+              min={0}
+              value={(params.x2 as number) ?? 0}
+              onChange={(e) => update("x2", clampNonNegativeInt(e.target.value, 0))}
+              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[#150A35]/70">End Y</label>
+            <input
+              type="number"
+              min={0}
+              value={(params.y2 as number) ?? 0}
+              onChange={(e) => update("y2", clampNonNegativeInt(e.target.value, 0))}
+              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -141,8 +218,9 @@ function ParamFields({
           <label className="block text-xs text-[#150A35]/70">Amount</label>
           <input
             type="number"
+            min={0}
             value={(params.amount as number) ?? 500}
-            onChange={(e) => update("amount", parseInt(e.target.value, 10) || 0)}
+            onChange={(e) => update("amount", clampNonNegativeInt(e.target.value, 500))}
             className="w-24 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
           />
         </div>
@@ -155,8 +233,9 @@ function ParamFields({
         <label className="block text-xs text-[#150A35]/70">Seconds</label>
         <input
           type="number"
+          min={0}
           value={(params.seconds as number) ?? 2}
-          onChange={(e) => update("seconds", parseInt(e.target.value, 10) || 0)}
+          onChange={(e) => update("seconds", clampNonNegativeInt(e.target.value, 2))}
           className="w-24 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
         />
       </div>

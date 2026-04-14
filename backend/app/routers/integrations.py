@@ -82,10 +82,7 @@ def composio_toolkits_for_session() -> list[str]:
 
 def composio_raw_toolkit_slugs_accepted() -> frozenset[str]:
     """Composio toolkit slugs allowed when ``toolkit`` is already a raw slug (not only Echo catalog ids)."""
-    slugs: set[str] = set(composio_toolkits_for_session())
-    for k in AVAILABLE_INTEGRATIONS:
-        slugs.add(echo_catalog_id_to_composio_toolkit(k))
-    return frozenset(slugs)
+    return frozenset(composio_toolkits_for_session())
 
 
 def composio_slug_activates_catalog_entry(catalog_id: str, composio_slugs: set[str]) -> bool:
