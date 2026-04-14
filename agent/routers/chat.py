@@ -610,7 +610,8 @@ async def _execute_tool(
         if not isinstance(call_args, dict):
             call_args = {}
 
-        slug_in = (args.get("slug") or "").strip()
+        raw_slug = args.get("slug")
+        slug_in = raw_slug.strip() if isinstance(raw_slug, str) else ""
         if not slug_in:
             return {
                 "ok": False,
@@ -701,6 +702,8 @@ async def _voice_live_session(
         tools=get_genai_tools(uid, composio_connection_id=voice_connection_id),
     )
 
+    from echo_prism_agent.composio_integration.chat_session import clear_chat_session_cache
+
     try:
         await run_voice_session(
             client,
@@ -719,3 +722,5 @@ async def _voice_live_session(
             await websocket.send_text(json.dumps({"type": "error", "text": str(e)}))
         except Exception:
             pass
+    finally:
+        clear_chat_session_cache(uid, voice_connection_id)

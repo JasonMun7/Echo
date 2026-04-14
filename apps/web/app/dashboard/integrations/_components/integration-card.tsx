@@ -67,6 +67,8 @@ export function IntegrationCard({
 
   const switchChecked = on || connecting;
 
+  const noteText = integration.note?.trim() || "Uses your Google sign-in — no separate OAuth.";
+
   return (
     <div
       className={cn(
@@ -153,12 +155,9 @@ export function IntegrationCard({
           >
             {on ? "Connected" : "Not connected"}
           </span>
-          {integration.note ? (
-            <span
-              className="truncate text-[10px] font-medium text-[#A577FF]/90"
-              title={integration.note}
-            >
-              {integration.note}
+          {!canOAuth ? (
+            <span className="truncate text-[10px] font-medium text-[#A577FF]/90" title={noteText}>
+              {noteText}
             </span>
           ) : null}
         </div>
@@ -201,11 +200,7 @@ export function IntegrationCard({
                 Disconnect
               </DropdownMenuItem>
             ) : null}
-            {!canOAuth ? (
-              <p className="px-2 py-2 text-xs text-[#6b7280]">
-                Uses your Google sign-in — no separate OAuth.
-              </p>
-            ) : null}
+            {!canOAuth ? <p className="px-2 py-2 text-xs text-[#6b7280]">{noteText}</p> : null}
             {canOAuth && !on ? (
               <p className="px-2 py-2 text-xs text-[#6b7280]">
                 Turn on the switch to connect with Composio (OAuth).

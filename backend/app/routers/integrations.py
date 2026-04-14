@@ -194,17 +194,23 @@ async def list_integrations(uid: str = Depends(get_current_uid)):
     result = []
     for key, meta in AVAILABLE_INTEGRATIONS.items():
         entry = {**meta, "id": key}
-        if key in connected:
-            conn = connected[key]
-            entry["connected"] = True
-            entry["connected_at"] = conn.get("connected_at")
-            entry["account_name"] = conn.get("team_name") or conn.get("account_name")
-        else:
-            entry["connected"] = False
+        composio_active: bool | None = None
         if active_slugs is not None:
-            entry["composio_account_active"] = composio_slug_activates_catalog_entry(key, active_slugs)
+            composio_active = composio_slug_activates_catalog_entry(key, active_slugs)
+            entry["composio_account_active"] = composio_active
         else:
             entry["composio_account_active"] = None
+
+        if key in connected:
+            conn = connected[key]
+            entry["connected_at"] = conn.get("connected_at")
+            entry["account_name"] = conn.get("team_name") or conn.get("account_name")
+            if composio_active is None:
+                entry["connected"] = True
+            else:
+                entry["connected"] = composio_active
+        else:
+            entry["connected"] = False
         result.append(entry)
 
     configured = bool((os.getenv("COMPOSIO_API_KEY") or "").strip())

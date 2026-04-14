@@ -59,22 +59,38 @@ def _composio_langgraph_client() -> Any | None:
         return None
 
 
+def _pop_key_locks_for_keys(keys: list[tuple[str, str]]) -> None:
+    """Remove per-key locks when cache entries are evicted (avoid unbounded _key_locks growth)."""
+    if not keys:
+        return
+    with _key_locks_guard:
+        for k in keys:
+            _key_locks.pop(k, None)
+
+
 def clear_chat_session_cache(uid: str | None = None, connection_id: str | None = None) -> None:
     """Drop cached Tool Router sessions so the next ``create()`` sees latest Composio connection state."""
     global _session_cache
+    removed_keys: list[tuple[str, str]] = []
     with _session_lock:
         if uid is None and connection_id is None:
+            removed_keys = list(_session_cache.keys())
             _session_cache.clear()
         elif uid is not None and connection_id is not None:
-            _session_cache.pop((uid, connection_id), None)
+            k = (uid, connection_id)
+            if _session_cache.pop(k, None) is not None:
+                removed_keys = [k]
         elif uid is not None:
             drop = [k for k in _session_cache if k[0] == uid]
             for k in drop:
                 _session_cache.pop(k, None)
+            removed_keys = drop
         else:
             drop = [k for k in _session_cache if k[1] == connection_id]
             for k in drop:
                 _session_cache.pop(k, None)
+            removed_keys = drop
+    _pop_key_locks_for_keys(removed_keys)
 
 
 def invalidate_chat_session_if_auth_hint(uid: str, connection_id: str, tool_payload: dict[str, Any]) -> None:

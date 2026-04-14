@@ -40,9 +40,18 @@ def _normalize_toolkit(toolkit: str) -> str:
     return toolkit.strip().lower().replace(" ", "")
 
 
+def _allowed_callback_scheme(scheme: str) -> bool:
+    extra = (os.getenv("COMPOSIO_OAUTH_ALLOWED_CALLBACK_SCHEMES") or "exp").strip()
+    allowed = {x.strip().lower() for x in extra.split(",") if x.strip()}
+    return scheme.lower() in allowed
+
+
 def _validated_client_callback_url(raw: str | None) -> str | None:
     """
-    Optional redirect URL from the client: must match ``FRONTEND_ORIGIN`` host (scheme may be http or https).
+    Optional redirect URL from the client.
+
+    - ``https``/``http``: must match ``FRONTEND_ORIGIN`` host, except ``localhost`` / ``127.0.0.1`` (dev).
+    - Native schemes (e.g. ``exp``): allowed when listed in ``COMPOSIO_OAUTH_ALLOWED_CALLBACK_SCHEMES``.
     """
     if not raw:
         return None
@@ -53,15 +62,24 @@ def _validated_client_callback_url(raw: str | None) -> str | None:
         p = urlparse(s)
     except Exception:
         return None
-    if p.scheme not in ("https", "http"):
-        return None
-    front = (os.getenv("FRONTEND_ORIGIN") or "").strip()
-    if not front:
-        return None
-    fp = urlparse(front if "://" in front else f"https://{front}")
-    if p.netloc.lower() != fp.netloc.lower():
-        return None
-    return s
+    scheme = (p.scheme or "").lower()
+    host = (p.hostname or "").lower()
+
+    if scheme in ("https", "http"):
+        if host in ("localhost", "127.0.0.1"):
+            return s
+        front = (os.getenv("FRONTEND_ORIGIN") or "").strip()
+        if not front:
+            return None
+        fp = urlparse(front if "://" in front else f"https://{front}")
+        if p.netloc.lower() != fp.netloc.lower():
+            return None
+        return s
+
+    if _allowed_callback_scheme(scheme):
+        return s
+
+    return None
 
 
 def _toolkit_row_from_state(item: object) -> dict:

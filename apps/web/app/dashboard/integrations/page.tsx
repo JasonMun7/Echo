@@ -64,7 +64,7 @@ export default function IntegrationsPage() {
           const data = await intResp.json();
           const list = (data.integrations || []) as Integration[];
           setIntegrations(list);
-          setComposioConfigured(Boolean(data.composio_account_active ?? data.composio_configured));
+          setComposioConfigured(Boolean(data.composio_configured));
           return list;
         }
         return null;
