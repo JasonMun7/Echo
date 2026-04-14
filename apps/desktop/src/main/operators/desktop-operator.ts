@@ -104,6 +104,8 @@ export interface CaptureScreenResult {
   buffer: Buffer;
   width: number;
   height: number;
+  /** Set when the buffer is not raw PNG from Playwright (e.g. JPEG after maxDimension). */
+  mimeType?: string;
 }
 
 /**
@@ -149,7 +151,7 @@ export async function captureScreen(
     const dim = resized.getSize();
     const buf = Buffer.from(resized.toJPEG(75));
     if (buf.length < 5000) return null;
-    return { buffer: buf, width: dim.width, height: dim.height };
+    return { buffer: buf, width: dim.width, height: dim.height, mimeType: "image/jpeg" };
   };
 
   let shot = await attempt();

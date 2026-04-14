@@ -8,13 +8,14 @@
  * - click, type, scroll, wait, etc. → Playwright if we have an active browser page; else NutJS
  */
 import { chromium, type Browser, type Page } from "playwright";
+import sharp from "sharp";
 import * as desktop from "./desktop-operator";
-import type { CaptureScreenResult } from "./desktop-operator";
+import type { CaptureScreenOptions, CaptureScreenResult } from "./desktop-operator";
 import type { OperatorAction } from "@echo/types";
 import { BROWSER_ONLY_ACTIONS, DESKTOP_ONLY_ACTIONS } from "./execute-route";
 import { parseUiTarsTypeContent } from "./type-content";
 
-export type { CaptureScreenResult };
+export type { CaptureScreenOptions, CaptureScreenResult };
 
 export type OperatorResult = boolean | "finished" | "calluser";
 
@@ -27,6 +28,18 @@ function hasBrowserContext(): boolean {
   return page != null && !page.isClosed();
 }
 
+/**
+ * Default is a visible Chromium window (`headless: false`). Set `ECHO_PLAYWRIGHT_HEADLESS=1`
+ * only if you need no browser window (e.g. CI). Screenshots use CDP capture first to reduce
+ * headed-mode flicker vs `page.screenshot()` on macOS.
+ */
+function isEchoPlaywrightHeadless(): boolean {
+  const raw = (process.env.ECHO_PLAYWRIGHT_HEADLESS ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+const CHROMIUM_LAUNCH_ARGS = ["--disable-blink-features=AutomationControlled"];
+
 /** Launch browser and create a page if not already running. */
 async function ensureBrowserPage(): Promise<Page> {
   if (page && !page.isClosed()) return page;
@@ -35,8 +48,8 @@ async function ensureBrowserPage(): Promise<Page> {
     return page;
   }
   browser = await chromium.launch({
-    headless: false,
-    args: ["--disable-blink-features=AutomationControlled"],
+    headless: isEchoPlaywrightHeadless(),
+    args: CHROMIUM_LAUNCH_ARGS,
   });
   page = await browser.newPage();
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -197,17 +210,108 @@ async function executePlaywright(action: OperatorAction): Promise<OperatorResult
   }
 }
 
+/** Wait one frame + next paint before capture to avoid grabbing a mid-composite frame. */
+async function settleBeforePlaywrightCapture(p: Page): Promise<void> {
+  await p.evaluate(() =>
+    Promise.race([
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+      new Promise<void>((resolve) => setTimeout(resolve, 100)),
+    ]),
+  );
+  await new Promise((r) => setTimeout(r, 16));
+}
+
+/**
+ * Match desktop-operator: cap longest side to `maxDimension`, JPEG quality 75 (same as NativeImage.toJPEG(75)).
+ */
+async function resizeCaptureToMaxDimensionJpeg(
+  imageBuffer: Buffer,
+  width: number,
+  height: number,
+  maxDimension: number,
+): Promise<{ buffer: Buffer; width: number; height: number }> {
+  const { data, info } = await sharp(imageBuffer)
+    .resize(maxDimension, maxDimension, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 75 })
+    .toBuffer({ resolveWithObject: true });
+  return {
+    buffer: data,
+    width: info.width ?? width,
+    height: info.height ?? height,
+  };
+}
+
+/**
+ * Prefer CDP `Page.captureScreenshot` in headed mode — often less black-frame flicker on macOS
+ * than Playwright's `page.screenshot()` GPU readback path. Falls back to `page.screenshot`.
+ */
+async function capturePlaywrightViewportPng(p: Page): Promise<Buffer> {
+  const vp = p.viewportSize() ?? { width: 1280, height: 900 };
+  let session;
+  try {
+    await settleBeforePlaywrightCapture(p);
+    session = await p.context().newCDPSession(p);
+    const { data } = await session.send("Page.captureScreenshot", {
+      format: "png",
+      clip: { x: 0, y: 0, width: vp.width, height: vp.height, scale: 1 },
+    });
+    return Buffer.from(data, "base64");
+  } catch (cdpErr) {
+    console.warn("[unified-operator] CDP captureScreenshot failed, using page.screenshot:", cdpErr);
+    const buf = await p.screenshot({
+      type: "png",
+      animations: "disabled",
+      caret: "hide",
+    });
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
+  } finally {
+    if (session) {
+      try {
+        await session.detach();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
 /** Capture screenshot. Uses Playwright page if in browser context; else desktop capture. */
 export async function captureScreen(
   sourceId: string,
-  options?: { maxDimension?: number },
+  options?: CaptureScreenOptions,
 ): Promise<CaptureScreenResult> {
   if (hasBrowserContext() && page && !page.isClosed()) {
     try {
-      const buf = await page.screenshot({ type: "png" });
-      const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf as ArrayBuffer);
-      const vp = page.viewportSize() ?? { width: 1280, height: 900 };
-      return { buffer, width: vp.width, height: vp.height };
+      const p = page;
+      const buffer = await capturePlaywrightViewportPng(p);
+      const vp = p.viewportSize() ?? { width: 1280, height: 900 };
+      if (options?.maxDimension != null) {
+        try {
+          const out = await resizeCaptureToMaxDimensionJpeg(
+            buffer,
+            vp.width,
+            vp.height,
+            options.maxDimension,
+          );
+          return {
+            buffer: out.buffer,
+            width: out.width,
+            height: out.height,
+            mimeType: "image/jpeg",
+          };
+        } catch (resizeErr) {
+          console.warn(
+            "[unified-operator] Resize to JPEG failed, returning original PNG:",
+            resizeErr,
+          );
+          return { buffer, width: vp.width, height: vp.height, mimeType: "image/png" };
+        }
+      }
+      return { buffer, width: vp.width, height: vp.height, mimeType: "image/png" };
     } catch (e) {
       console.warn("[unified-operator] Playwright screenshot failed, falling back to desktop:", e);
     }
