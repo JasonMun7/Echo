@@ -202,8 +202,9 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
                         for fc in fn_calls:
                             try:
                                 await websocket.send_text(json.dumps({"type": "tool_call", "name": fc.name}))
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                # Best-effort progress update; failure should not interrupt the tool execution flow.
+                                logger.warning("Failed to send tool_call update for %s: %s", fc.name, e)
 
                         tool_parts: list[types.Part] = []
                         for fc in fn_calls:
