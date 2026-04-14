@@ -9,7 +9,9 @@ EchoPrism WebSocket endpoint: /ws/chat
 import json
 import logging
 import os
+import re
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -26,6 +28,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
 ACTIVE_RUN_STATUSES = ("running", "pending", "awaiting_user")
+
+
+def _is_composio_tool_router_slug(name: str) -> bool:
+    """
+    True when ``name`` looks like a Composio tool slug (not Echo chat tools).
+
+    Avoids the old ``^[A-Z][A-Z0-9_]{2,}$`` pattern, which matched any UPPER_SNAKE string
+    (e.g. internal names) and routed them into ``execute_composio_tool``.
+    """
+    n = (name or "").strip()
+    if not n or n.startswith("COMPOSIO_"):
+        return False
+    if "_" not in n or not re.match(r"^[A-Z][A-Z0-9_]*_[A-Z0-9_]+$", n):
+        return False
+    from echo_prism_agent.composio_integration.slugs import toolkit_hint_from_slug
+
+    return toolkit_hint_from_slug(n) != "integration"
 
 
 def _cancel_other_active_runs_for_user(uid: str, db) -> None:
@@ -63,6 +82,7 @@ def _ensure_agent_path() -> None:
 async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> list[types.LiveClientToolResponse]:
     """Route Live API tool calls for the voice session. Delegates to _execute_tool."""
     responses = []
+    connection_id = str(id(websocket))
     for fc in tool_call.function_calls:
         name = fc.name
         args = dict(fc.args) if fc.args else {}
@@ -70,11 +90,11 @@ async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> li
         # Signal frontend to show tool indicator
         try:
             await websocket.send_text(json.dumps({"type": "tool_call", "name": name}))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Failed to send tool_call for %s: %s", name, e, exc_info=True)
 
         try:
-            result = await _execute_tool(name, args, uid, db, websocket)
+            result = await _execute_tool(name, args, uid, db, websocket, connection_id=connection_id)
         except Exception as e:
             logger.error("Tool call %s failed: %s", name, e)
             result = {"ok": False, "error": str(e)}
@@ -146,6 +166,17 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
     Delegates generate_content to EchoPrism chat_agent; router handles WebSocket and tool execution.
     """
     _ensure_agent_path()
+    from echo_prism_agent.composio_integration.chat_session import (
+        clear_chat_session_cache,
+        invalidate_chat_session_if_auth_hint,
+    )
+    from echo_prism_agent.composio_integration.langfuse_tracing import (
+        chat_turn_span,
+        maybe_score_tool_result,
+    )
+
+    connection_id = str(uuid.uuid4())
+
     from echo_prism_agent.agent import run_chat_turn_via_langgraph
 
     history: list[types.Content] = []
@@ -173,42 +204,61 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
             history.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
 
             # Agentic loop: delegate to chat_agent until no more tool calls
-            while True:
-                text_resp, fn_calls, model_content = await run_chat_turn_via_langgraph(history, client, CHAT_MODEL)
-                if model_content:
-                    history.append(model_content)
+            with chat_turn_span(uid=uid, model=CHAT_MODEL):
+                while True:
+                    text_resp, fn_calls, model_content = await run_chat_turn_via_langgraph(
+                        history,
+                        client,
+                        CHAT_MODEL,
+                        uid,
+                        composio_connection_id=connection_id,
+                    )
+                    if model_content:
+                        history.append(model_content)
 
-                if fn_calls:
-                    for fc in fn_calls:
-                        try:
-                            await websocket.send_text(json.dumps({"type": "tool_call", "name": fc.name}))
-                        except Exception:
-                            pass
+                    if fn_calls:
+                        for fc in fn_calls:
+                            try:
+                                await websocket.send_text(json.dumps({"type": "tool_call", "name": fc.name}))
+                            except Exception as e:
+                                # Best-effort progress update; failure should not interrupt the tool execution flow.
+                                logger.warning("Failed to send tool_call update for %s: %s", fc.name, e)
 
-                    tool_parts: list[types.Part] = []
-                    for fc in fn_calls:
-                        args = dict(fc.args) if fc.args else {}
-                        result: dict = {}
-                        try:
-                            result = await _execute_tool(fc.name, args, uid, db, websocket)
-                        except Exception as e:
-                            logger.error("Tool %s failed: %s", fc.name, e)
-                            result = {"ok": False, "error": str(e)}
-                        tool_parts.append(
-                            types.Part(
-                                function_response=types.FunctionResponse(
-                                    name=fc.name,
-                                    id=getattr(fc, "id", None),
-                                    response=result,
+                        tool_parts: list[types.Part] = []
+                        for fc in fn_calls:
+                            args = dict(fc.args) if fc.args else {}
+                            result: dict = {}
+                            t0 = time.perf_counter()
+                            try:
+                                result = await _execute_tool(
+                                    fc.name, args, uid, db, websocket, connection_id=connection_id
+                                )
+                            except Exception as e:
+                                logger.error("Tool %s failed: %s", fc.name, e)
+                                result = {"ok": False, "error": str(e)}
+                            finally:
+                                maybe_score_tool_result(
+                                    tool_name=fc.name,
+                                    ok=bool(result.get("ok")),
+                                    latency_ms=(time.perf_counter() - t0) * 1000.0,
+                                )
+                            if isinstance(result, dict):
+                                invalidate_chat_session_if_auth_hint(uid, connection_id, result)
+                            tool_parts.append(
+                                types.Part(
+                                    function_response=types.FunctionResponse(
+                                        name=fc.name,
+                                        id=getattr(fc, "id", None),
+                                        response=result,
+                                    )
                                 )
                             )
-                        )
-                    history.append(types.Content(role="tool", parts=tool_parts))
-                    continue
+                        history.append(types.Content(role="tool", parts=tool_parts))
+                        continue
 
-                if text_resp:
-                    await websocket.send_text(json.dumps({"type": "text", "text": text_resp}))
-                break
+                    if text_resp:
+                        await websocket.send_text(json.dumps({"type": "text", "text": text_resp}))
+                    break
 
     except WebSocketDisconnect:
         logger.info("EchoPrism text chat disconnected uid=%s", uid)
@@ -218,6 +268,8 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
             await websocket.send_text(json.dumps({"type": "error", "text": str(e)}))
         except Exception:
             pass
+    finally:
+        clear_chat_session_cache(uid, connection_id)
 
 
 def _sanitize(value):
@@ -232,7 +284,15 @@ def _sanitize(value):
     return value
 
 
-async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocket | None = None) -> dict:
+async def _execute_tool(
+    name: str,
+    args: dict,
+    uid: str,
+    db,
+    websocket: WebSocket | None = None,
+    *,
+    connection_id: str,
+) -> dict:
     """Execute a single named tool and return its result dict.
     When websocket is None (e.g. /api/agent/tool), side-channel notifications are skipped.
     """
@@ -538,25 +598,10 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         return {"integrations": integrations}
 
     elif name == "call_integration":
-        from echo_prism_agent.auth0_token_vault import normalize_integration_id
-        from echo_prism_agent.integrations.api_call_catalog import _INTEGRATION_IDS
+        from echo_prism_agent.composio_integration.client import composio_configured, execute_composio_tool
+        from echo_prism_agent.composio_integration.danger import is_dangerous_composio_slug
+        from echo_prism_agent.composio_integration.slugs import resolve_composio_slug
 
-        integration_raw = args.get("integration")
-        if integration_raw is None:
-            return {"ok": False, "error": "integration is required."}
-        if not isinstance(integration_raw, str):
-            integration_raw = str(integration_raw)
-        if not integration_raw.strip():
-            return {"ok": False, "error": "integration is required."}
-        integration = normalize_integration_id(integration_raw)
-
-        if integration not in _INTEGRATION_IDS:
-            return {
-                "ok": False,
-                "error": (f"Unsupported integration '{integration}'. Supported: {', '.join(_INTEGRATION_IDS)}."),
-            }
-
-        method = args.get("method", "")
         raw_args = args.get("arguments")
         if raw_args is None:
             call_args = args.get("args", {})
@@ -564,22 +609,68 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
             call_args = raw_args
         if not isinstance(call_args, dict):
             call_args = {}
-        try:
-            from echo_prism_agent.integrations.resolver import get_integration_access_token
 
-            if not integration:
-                return {"ok": False, "error": "integration is required."}
-            access_token = await get_integration_access_token(uid, integration, db)
-            if not access_token:
-                return {
-                    "ok": False,
-                    "error": f"Integration '{integration}' not connected — link Auth0 and connect via Token Vault.",
-                }
-            mod = __import__(f"echo_prism_agent.integrations.{integration}", fromlist=["execute"])
-            result = await mod.execute(method, call_args, access_token)
-            return {"ok": True, "result": result}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        raw_slug = args.get("slug")
+        slug_in = raw_slug.strip() if isinstance(raw_slug, str) else ""
+        if not slug_in:
+            return {
+                "ok": False,
+                "error": "slug is required (Composio tool slug, e.g. GMAIL_SEND_EMAIL).",
+            }
+        params = {"slug": slug_in, "arguments": call_args}
+        if not composio_configured():
+            return {"ok": False, "error": "Composio is not configured (set COMPOSIO_API_KEY on the agent)."}
+        slug, _, rerr = resolve_composio_slug(params)
+        if rerr or not slug:
+            return {"ok": False, "error": rerr or "Could not resolve Composio tool"}
+        if is_dangerous_composio_slug(slug):
+            return {
+                "ok": False,
+                "error": (
+                    "This action is sensitive. Use a workflow with an api_call step so you can approve it in the Run HUD."
+                ),
+                "requires_workflow": True,
+            }
+        from echo_prism_agent.composio_integration.chat_tool_payloads import merge_composio_execute_result
+
+        out = await execute_composio_tool(uid, slug, call_args)
+        return merge_composio_execute_result(out)
+
+    if (name or "").startswith("COMPOSIO_"):
+        from echo_prism_agent.composio_integration.chat_session import invoke_composio_meta_tool
+        from echo_prism_agent.composio_integration.chat_tool_payloads import merge_composio_execute_result
+        from echo_prism_agent.composio_integration.client import composio_configured as cc_ok
+        from echo_prism_agent.composio_integration.langfuse_tracing import trace_composio_meta_path
+
+        if not cc_ok():
+            return {
+                "ok": False,
+                "error": "Composio integration not configured; enable Composio to use this tool.",
+            }
+        trace_composio_meta_path(uid=uid, tool_name=name)
+        out = await invoke_composio_meta_tool(uid, name, dict(args or {}), connection_id=connection_id)
+        return merge_composio_execute_result(out)
+
+    if _is_composio_tool_router_slug(name or ""):
+        from echo_prism_agent.composio_integration.client import composio_configured as cc_ok
+        from echo_prism_agent.composio_integration.client import execute_composio_tool
+        from echo_prism_agent.composio_integration.danger import is_dangerous_composio_slug
+
+        if not cc_ok():
+            return {
+                "ok": False,
+                "error": "Composio integration not configured; enable Composio to use this tool.",
+            }
+        if is_dangerous_composio_slug(name):
+            return {
+                "ok": False,
+                "error": ("Sensitive Composio tools must run from a workflow api_call step with Run HUD approval."),
+                "requires_workflow": True,
+            }
+        from echo_prism_agent.composio_integration.chat_tool_payloads import merge_composio_execute_result
+
+        out = await execute_composio_tool(uid, name, dict(args or {}))
+        return merge_composio_execute_result(out)
 
     return {"ok": False, "error": f"Unknown tool: {name}"}
 
@@ -604,16 +695,20 @@ async def _voice_live_session(
 ) -> None:
     """EchoPrismVoice: Gemini Live API with AUDIO modality. Delegates to `voice.live_session`."""
     _ensure_agent_path()
-    from echo_prism_agent.utils.tools import get_tools
     from echo_prism_agent.voice import LIVE_MODEL_VOICE, run_voice_session
 
     system_prompt = _voice_system_prompt(workflow_id, run_id)
+    from echo_prism_agent.utils.tools import get_tools as get_genai_tools
+
+    voice_connection_id = str(id(websocket))
     config = types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         output_audio_transcription={},
         system_instruction=system_prompt,
-        tools=get_tools(),
+        tools=get_genai_tools(uid, composio_connection_id=voice_connection_id),
     )
+
+    from echo_prism_agent.composio_integration.chat_session import clear_chat_session_cache
 
     try:
         await run_voice_session(
@@ -633,3 +728,5 @@ async def _voice_live_session(
             await websocket.send_text(json.dumps({"type": "error", "text": str(e)}))
         except Exception:
             pass
+    finally:
+        clear_chat_session_cache(uid, voice_connection_id)

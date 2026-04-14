@@ -2,8 +2,8 @@
 """
 Emit a YAML file for `gcloud run deploy --env-vars-file` for echo-backend.
 
-Using a file avoids comma/equals ambiguity in `--set-env-vars` (Auth0 secrets, URLs with commas).
-Run under `doppler run --config prd` so AUTH0_* and other secrets are in the environment.
+Using a file avoids comma/equals ambiguity in `--set-env-vars` (secrets, URLs with commas).
+Run under `doppler run --config prd` so secrets are in the environment.
 """
 from __future__ import annotations
 
@@ -41,22 +41,8 @@ def main() -> None:
         "ECHO_GCS_BUCKET",
         "GEMINI_API_KEY",
         "GOOGLE_API_KEY",
-        "AUTH0_DOMAIN",
-        "AUTH0_CLIENT_ID",
-        "AUTH0_CLIENT_SECRET",
-        "AUTH0_AUDIENCE",
-        "AUTH0_CALLBACK_URL",
-        "AUTH0_LINK_CONNECTION",
-        "AUTH0_CONNECTION_GOOGLE",
-        "AUTH0_CONNECTION_GITHUB",
-        "AUTH0_CONNECTION_SLACK",
-        "AUTH0_VAULT_CALLBACK_URL",
-        "AUTH0_VAULT_USE_MY_ACCOUNT_CONNECT",
-        "AUTH0_VAULT_VERIFY_ATTEMPTS",
-        "AUTH0_MY_ACCOUNT_GOOGLE_SCOPES",
-        "AUTH0_TOKEN_VAULT",
-        "AUTH0_MGMT_CLIENT_ID",
-        "AUTH0_MGMT_CLIENT_SECRET",
+        "COMPOSIO_API_KEY",
+        "COMPOSIO_OAUTH_CALLBACK_URL",
         "LIVEKIT_URL",
         "LIVEKIT_API_KEY",
         "LIVEKIT_API_SECRET",

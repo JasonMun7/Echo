@@ -2,9 +2,8 @@
 POST /api/synthesize: create workflow from video or screenshots.
 
 Delegates synthesis logic to synthesis.pipeline; handles HTTP, auth, GCS, Firestore.
-Workflow JSON may include ``api_call`` steps; allowed integrations and methods are injected into
-synthesis prompts from ``echo_prism_agent.integrations.api_call_catalog`` (see ``METHODS`` on each
-connector in ``echo_prism_agent.integrations.{slack,github,google}``).
+Workflow JSON may include ``api_call`` steps; Composio slug + arguments reference text is injected from
+``echo_prism_agent.integrations.api_call_catalog``.
 """
 
 import asyncio

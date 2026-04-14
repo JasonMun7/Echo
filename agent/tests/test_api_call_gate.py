@@ -32,8 +32,7 @@ async def test_api_call_gate_approval_then_oauth_then_succeeds(
                 {
                     "integration_auth_required": True,
                     "integration": "slack",
-                    "auth0_linked": True,
-                    "connect_kind": "connect_integration",
+                    "connect_kind": "composio_oauth",
                 },
             )
         return True, "", None
@@ -51,11 +50,11 @@ async def test_api_call_gate_approval_then_oauth_then_succeeds(
             "db": object(),
         }
     }
-    step = {"params": {"integration": "slack", "method": "post_message", "args": {}}}
+    step = {"params": {"slug": "SLACK_SEND_MESSAGE", "arguments": {}}}
 
     r1 = await g.ainvoke({"step": step}, config=cfg)
     assert r1.get("__interrupt__")
-    assert calls == []
+    assert calls == []  # approval interrupt before execute
 
     r2 = await g.ainvoke(Command(resume=True), config=cfg)
     assert r2.get("__interrupt__")
@@ -93,7 +92,7 @@ async def test_api_call_gate_rejects_on_approval_false(
             "db": object(),
         }
     }
-    step = {"params": {"integration": "slack", "method": "post_message", "args": {}}}
+    step = {"params": {"slug": "SLACK_SEND_MESSAGE", "arguments": {}}}
 
     r1 = await g.ainvoke({"step": step}, config=cfg)
     assert r1.get("__interrupt__")

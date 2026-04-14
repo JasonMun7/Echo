@@ -7,7 +7,6 @@ Consolidates former `action_operators`, `deterministic_steps`, `step_bridge`, an
 from __future__ import annotations
 
 import asyncio
-import importlib
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -214,36 +213,6 @@ class PlaywrightOperator(BaseOperator):
         return await self._page.screenshot(type="png", full_page=False)
 
 
-class ApiCallOperator(BaseOperator):
-    """Executes api_call steps via integration connectors."""
-
-    def __init__(self, uid: str, db: Any):
-        self._uid = uid
-        self._db = db
-
-    async def execute(self, action: dict[str, Any]) -> OperatorResult:
-        integration = action.get("integration") or action.get("params", {}).get("integration", "")
-        method = action.get("method") or action.get("params", {}).get("method", "")
-        args = action.get("args") or action.get("params", {}).get("args", {}) or {}
-
-        if not integration or not method:
-            return False
-
-        try:
-            from echo_prism_agent.integrations.resolver import get_integration_access_token
-
-            access_token = await get_integration_access_token(self._uid, integration, self._db)
-
-            connector = importlib.import_module(f"echo_prism_agent.integrations.{integration}")
-            result = await connector.execute(method, args, access_token)
-            return True if result.get("ok") else False
-        except Exception:
-            return False
-
-    async def screenshot(self) -> bytes:
-        return b""
-
-
 # --- Deterministic steps ---------------------------------------------------------
 
 
@@ -369,6 +338,10 @@ def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
         result["method"] = str(params["method"])
     if "args" in params:
         result["args"] = params["args"]
+    if "slug" in params:
+        result["slug"] = str(params["slug"])
+    if "arguments" in params:
+        result["arguments"] = params["arguments"]
 
     return result
 
@@ -678,74 +651,72 @@ async def execute_api_call(
     workflow_id: str | None = None,
     run_id: str | None = None,
 ) -> tuple[bool, str, dict[str, Any] | None]:
-    params = step.get("params", {})
-    from echo_prism_agent.auth0_token_vault import (
-        connection_name_for_integration,
-        normalize_integration_id,
-    )
+    """Execute ``api_call`` via Composio ``tools.execute`` (direct path; Firebase uid = Composio user_id).
 
-    integration = normalize_integration_id(params.get("integration") or "")
-    method = (params.get("method") or "").strip()
-    args = params.get("args", {}) or {}
-
-    if not integration or not method:
-        return False, "api_call requires integration and method", None
-
+    Chat uses the Tool Router **session** + meta tools instead; workflows keep this deterministic
+    ``tools.execute`` path for HITL and pinned steps (see repository README Composio section).
+    """
+    params = step.get("params", {}) or {}
+    from echo_prism_agent.composio_integration.client import composio_configured, execute_composio_tool
+    from echo_prism_agent.composio_integration.slugs import args_from_params, resolve_composio_slug
+    from echo_prism_agent.integrations.resolver import integration_connect_hint
+    from echo_prism_agent.integrations.user_text_sanitize import sanitize_api_call_string_args
     from echo_prism_agent.run_logging import run_log_prefix
 
     _prefix = run_log_prefix(workflow_id, run_id, uid=uid)
 
-    from echo_prism_agent.integrations.resolver import (
-        get_integration_access_token,
-        integration_connect_hint,
-    )
-
-    if not connection_name_for_integration(integration):
-        return False, f"Unknown integration: {integration}", None
-
-    try:
-        importlib.import_module(f"echo_prism_agent.integrations.{integration}")
-    except ImportError as e:
-        return False, f"Unknown integration module: {integration} ({e})", None
-
-    access_token = (await get_integration_access_token(uid, integration, db)).strip()
-    if not access_token:
-        hint = await integration_connect_hint(uid, integration, db)
+    if not composio_configured():
         return (
             False,
-            "Integration not connected — a browser window should open for sign-in. "
-            "After you connect, run this workflow again.",
+            "Composio is not configured (set COMPOSIO_API_KEY on the agent service).",
+            None,
+        )
+
+    slug, _toolkit_hint, rerr = resolve_composio_slug(params)
+    if rerr or not slug:
+        return False, rerr or "Could not resolve Composio tool slug", None
+
+    raw_args = args_from_params(params)
+    try:
+        args = sanitize_api_call_string_args(dict(raw_args) if isinstance(raw_args, dict) else {})
+    except Exception:
+        args = dict(raw_args) if isinstance(raw_args, dict) else {}
+
+    result = await execute_composio_tool(uid, slug, args)
+    if result.get("composio_auth_hint") or (
+        not result.get("successful") and _composio_needs_connect(result.get("error") or "")
+    ):
+        tk = (_toolkit_hint or "integration").strip()
+        hint = await integration_connect_hint(tk, slug=slug)
+        return (
+            False,
+            f"No Composio connected account for toolkit '{tk}'. Open Integrations, connect **{tk}**, then run again.",
             {"integration_auth_required": True, **hint},
         )
 
-    try:
-        from echo_prism_agent.integrations.user_text_sanitize import (
-            sanitize_api_call_string_args,
-        )
+    if not result.get("successful"):
+        err = result.get("error") or "Composio tool execution failed"
+        logger.warning("%s [composio] api_call failed %s err=%s", _prefix, slug, err)
+        return False, str(err), None
 
-        args = sanitize_api_call_string_args(dict(args) if isinstance(args, dict) else {})
-        connector = importlib.import_module(f"echo_prism_agent.integrations.{integration}")
-        result = await connector.execute(method, args, access_token)
-        ok = result.get("ok", False)
-        if not ok:
-            err = result.get("error", "Integration returned ok=False")
-            logger.warning(
-                "%s [echo_integration] api_call failed %s.%s err=%s",
-                _prefix,
-                integration,
-                method,
-                err,
-            )
-            return False, str(err), None
-        return True, "", None
-    except Exception as e:
-        logger.exception(
-            "%s [echo_integration] api_call exception %s.%s",
-            _prefix,
-            integration,
-            method,
+    return True, "", None
+
+
+def _composio_needs_connect(err: str) -> bool:
+    low = (err or "").lower()
+    return any(
+        x in low
+        for x in (
+            "connect",
+            "not connected",
+            "authentication",
+            "unauthorized",
+            "forbidden",
+            "credential",
+            "oauth",
+            "account",
         )
-        return False, str(e), None
+    )
 
 
 async def execute_deterministic_step(

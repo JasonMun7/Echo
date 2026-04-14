@@ -8,6 +8,22 @@ async function getToken(): Promise<string | null> {
   return auth?.currentUser ? await auth.currentUser.getIdToken() : null;
 }
 
+/** Parse FastAPI `{"detail": "..."}` for alerts and toasts. */
+export async function apiErrorMessage(resp: Response, fallback?: string): Promise<string> {
+  const raw = await resp.clone().text();
+  try {
+    const j = JSON.parse(raw) as { detail?: unknown };
+    if (j.detail != null) {
+      if (typeof j.detail === "string") return j.detail;
+      return JSON.stringify(j.detail);
+    }
+  } catch {
+    /* not JSON */
+  }
+  if (raw.trim()) return raw.trim();
+  return fallback ?? resp.statusText ?? `HTTP ${resp.status}`;
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
   const headers: Record<string, string> = {

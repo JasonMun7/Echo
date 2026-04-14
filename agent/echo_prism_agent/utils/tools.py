@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import traceback
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import tool
@@ -23,6 +25,7 @@ except ImportError:
         return fn
 
 
+from echo_prism_agent.composio_integration.langfuse_tracing import get_chat_system_instruction
 from echo_prism_agent.constants import VERIFICATION_CONCLUSIONS
 from echo_prism_agent.model_prompts import CHAT_SYSTEM_PROMPT
 from echo_prism_agent.models_config import CHAT_MODEL
@@ -164,13 +167,16 @@ def list_integrations() -> str:
 
 
 @tool
-def call_integration(integration: str, method: str, arguments: dict[str, Any] | None = None) -> str:
-    """Execute a connected app integration action (Slack, GitHub, etc.).
+def call_integration(slug: str, arguments: dict[str, Any] | None = None) -> str:
+    """Execute a Composio action by tool slug (direct ``tools.execute`` path).
+
+    Prefer Composio Tool Router meta tools (``COMPOSIO_*``) when available — they search and run
+    tools against the user’s connected **toolkits**. The user must complete OAuth for that toolkit
+    in Integrations (Composio **auth config** + **connected account**).
 
     Args:
-        integration: Integration id (e.g. slack).
-        method: API method name.
-        arguments: Optional JSON object of arguments.
+        slug: Composio tool slug (e.g. GMAIL_SEND_EMAIL, SLACK_LIST_ALL_CHANNELS).
+        arguments: JSON object of arguments for that tool.
     """
     return ""
 
@@ -299,17 +305,37 @@ def get_tool_declarations() -> list[Any]:
     return fds
 
 
-def get_tools() -> list[Any]:
+def get_tools(uid: str | None = None, *, composio_connection_id: str | None = None) -> list[Any]:
     """Return `google.genai.types.Tool` list for Gemini Live API config."""
     if not types:
         return []
-    return convert_to_genai_function_declarations(ECHO_PRISM_CHAT_TOOLS)
+    base = convert_to_genai_function_declarations(ECHO_PRISM_CHAT_TOOLS)
+    if not uid:
+        return base
+    cid = composio_connection_id if composio_connection_id is not None else "default"
+    try:
+        from echo_prism_agent.composio_integration.genai_tools import merge_chat_tools
+
+        return merge_chat_tools(base, uid, cid)
+    except Exception as err:
+        logging.getLogger(__name__).exception(
+            "get_tools: merge_chat_tools failed uid=%s connection_id=%s (merge_chat_tools / "
+            "convert_to_genai_function_declarations / ECHO_PRISM_CHAT_TOOLS): %s\n%s",
+            (uid or "")[:8],
+            cid,
+            err,
+            traceback.format_exc(),
+        )
+        return base
 
 
 async def process_chat_turn(
     history: list[Any],
     client: Any,
     model: str | None = None,
+    *,
+    uid: str | None = None,
+    composio_connection_id: str | None = None,
 ) -> tuple[str | None, list[Any] | None, Any]:
     """
     Run one generate_content turn.
@@ -324,8 +350,8 @@ async def process_chat_turn(
 
     mid = model or CHAT_MODEL
     gen_config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        tools=convert_to_genai_function_declarations(ECHO_PRISM_CHAT_TOOLS),
+        system_instruction=get_chat_system_instruction(),
+        tools=get_tools(uid, composio_connection_id=composio_connection_id),
         temperature=0.4,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(
             maximum_remote_calls=100,

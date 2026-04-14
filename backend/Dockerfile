@@ -7,7 +7,7 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
-# Shared EchoPrism integration connectors + Token Vault helpers (see README Auth0 section)
+# Shared EchoPrism integration connectors (see README Composio section)
 COPY agent/echo_prism_agent /app/agent/echo_prism_agent
 
 ENV PYTHONPATH=/app/agent

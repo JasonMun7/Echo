@@ -9,9 +9,6 @@ const envDefine = {
   "process.env.VITE_APP_URL": JSON.stringify(process.env.VITE_APP_URL ?? ""),
   "process.env.VITE_API_URL": JSON.stringify(process.env.VITE_API_URL ?? ""),
   "process.env.VITE_ECHO_AGENT_URL": JSON.stringify(process.env.VITE_ECHO_AGENT_URL ?? ""),
-  "process.env.VITE_AUTH0_LINK_CONNECTION": JSON.stringify(
-    process.env.VITE_AUTH0_LINK_CONNECTION ?? "",
-  ),
   "process.env.NEXT_PUBLIC_FIREBASE_API_KEY": JSON.stringify(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
   ),

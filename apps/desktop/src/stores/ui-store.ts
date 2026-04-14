@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Page = "home" | "detail" | "edit" | "schedule";
+export type Page = "home" | "detail" | "schedule";
 
 interface UIState {
   page: Page;

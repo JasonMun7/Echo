@@ -1,7 +1,6 @@
 """
 Workflow and step CRUD: GET/POST /api/workflows, GET/PUT/DELETE /api/workflows/{id},
-GET/POST /api/workflows/{id}/steps, PUT/DELETE /api/workflows/{id}/steps/{step_id},
-PUT /api/workflows/{id}/steps/reorder
+GET/POST /api/workflows/{id}/steps, PUT/DELETE /api/workflows/{id}/steps/{step_id}
 """
 
 import logging
@@ -64,10 +63,6 @@ class StepUpdate(BaseModel):
     params: dict[str, Any] | None = None
     expected_outcome: str | None = None
     order: int | None = None
-
-
-class ReorderSteps(BaseModel):
-    step_ids: list[str]
 
 
 class ShareWorkflow(BaseModel):
@@ -532,21 +527,6 @@ async def create_step(
     )
     wf_ref.update({"updatedAt": SERVER_TIMESTAMP})
     return {"id": step_id}
-
-
-@router.put("/{workflow_id}/steps/reorder")
-async def reorder_steps(
-    workflow_id: str,
-    body: ReorderSteps,
-    uid: str = Depends(get_current_uid),
-):
-    wf_ref, _ = _get_workflow(uid, workflow_id)
-    for i, step_id in enumerate(body.step_ids):
-        step_ref = wf_ref.collection("steps").document(step_id)
-        if step_ref.get().exists:
-            step_ref.update({"order": i})
-    wf_ref.update({"updatedAt": SERVER_TIMESTAMP})
-    return {"ok": True}
 
 
 @router.put("/{workflow_id}/steps/{step_id}")

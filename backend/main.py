@@ -1,6 +1,6 @@
 from app.config import CORS_ORIGINS
 from app.routers import (
-    auth0_link,
+    composio,
     datasets,
     health,
     integrations,
@@ -47,6 +47,6 @@ app.include_router(session_sse.router, prefix="/api")
 app.include_router(stream.router, prefix="/api")
 app.include_router(mcp_tools.router, prefix="/api")
 app.include_router(integrations.router, prefix="/api")
-app.include_router(auth0_link.router, prefix="/api")
+app.include_router(composio.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")

@@ -186,7 +186,7 @@ async def agent_run_ws(
     Message types:
       Client -> Server: start, step, verify, resume (after interrupt), cancel_interrupt
       Server -> Client: thinking_delta, thinking, action, done, error, verify_result
-      action.signal interrupt: LangGraph HITL pause (e.g. integration_auth) — client opens Auth0 then sends resume.
+      action.signal interrupt: LangGraph HITL pause (e.g. integration_auth) — client opens Composio connect then sends resume.
     """
     uid = _verify_token(token)
     if not uid:

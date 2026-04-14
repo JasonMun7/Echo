@@ -98,11 +98,13 @@ export function stepToOperatorAction(step: Step): OperatorAction {
   if ("appName" in params) base.appName = params.appName;
   if ("value" in params) base.value = params.value;
   if ("selector" in params && params.selector != null) base.selector = String(params.selector);
+  if ("slug" in params && params.slug != null) base.slug = String(params.slug);
+  if ("arguments" in params && params.arguments != null) base.arguments = params.arguments;
   if ("integration" in params && params.integration != null)
     base.integration = String(params.integration);
   if ("method" in params && params.method != null) base.method = String(params.method);
   if ("args" in params && params.args != null) base.args = params.args as Record<string, unknown>;
-  return base as OperatorAction;
+  return base;
 }
 
 /**

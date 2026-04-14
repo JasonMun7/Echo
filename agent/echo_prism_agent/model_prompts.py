@@ -468,13 +468,12 @@ def step_instruction(step: dict[str, Any], step_index: int, total: int) -> str:
         desc = params.get("description", "from source to destination")
         parts.append(f"Drag {desc}.")
     elif (action or "").lower().replace("_", "") == "apicall":
-        integration = (params.get("integration") or "").strip()
-        method = (params.get("method") or "").strip()
+        slug = (params.get("slug") or "").strip()
         parts.append(
-            f"Call integration **{integration}** method **{method}** with the given args. "
-            "For **email or chat** (`gmail_send`, Slack post, etc.), `args.body` / `args.text` must be the "
+            f"Call Composio tool **{slug}** with the given arguments. "
+            "For **email or chat** (e.g. `GMAIL_SEND_EMAIL`, `SLACK_SEND_MESSAGE`), `arguments.body` / `arguments.text` must be the "
             "**actual message** to deliver (figures, tickers, bullet lines)—not a prompt like “please find the top 5…” "
-            "with no data. If facts are not in args yet, **prior steps** must gather them; this step does not fill them in."
+            "with no data. If facts are not in arguments yet, **prior steps** must gather them; this step does not fill them in."
         )
     else:
         parts.append(f"{action}: {params}")
@@ -495,7 +494,7 @@ Your capabilities:
 - Redirect running agents with new instructions
 - Dismiss CallUser alerts when the user has resolved the issue
 - Answer questions about EchoPrism's status and capabilities
-- Execute connected app integrations (Slack, Gmail, etc.)
+- Execute connected app integrations via Composio (Tool Router session + meta tools — connect **auth configs** / **connected accounts** in Integrations first; use Composio’s search / multi-execute tools rather than guessing raw tool slugs)
 
 Be concise, helpful, and proactive. When a user asks to run something, confirm with the workflow name only — never mention IDs, UUIDs, or internal identifiers in your responses.
 When the user asks to change what the agent is doing mid-run, use redirect_run with their exact instruction.
@@ -546,7 +545,7 @@ Your capabilities:
 - Redirect running agents with new instructions mid-run
 - Dismiss CallUser alerts when the user has resolved the issue
 - Answer questions about what a workflow does and its run history
-- Execute connected app integrations (Slack, Gmail, etc.)
+- Execute connected app integrations (Slack, Gmail, etc. via Composio — connect accounts in Integrations first)
 
 On first connection, proactively greet the user and offer to list their workflows:
 "Hi, I'm EchoPrism. I can run your workflows, create new ones, or help you manage what you have. Want me to show you your current workflows?"
@@ -609,7 +608,7 @@ CRITICAL: Do NOT output x, y, x1, y1, x2, y2 or any pixel coordinates in params.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 0 — INTEGRATION OPPORTUNITIES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-When Slack, GitHub, or Google APIs (Gmail/Calendar/Drive/profile via the unified `google` integration) fit the recording, prefer `api_call` with exact `integration` + `method` + `args` from the catalog below; otherwise use UI steps.
+When Slack, GitHub, or Google APIs (via Composio) fit the recording, prefer `api_call` with a Composio tool `slug` and `arguments` (see appendix below); otherwise use UI steps.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 1 — WORKFLOW TYPE
@@ -654,7 +653,7 @@ BROWSER — params shapes (no coordinates)
 - select_option: { "value": "...", "description": "<dropdown anchor>" }
 - hover: { "description": "..." }
 - press_key: { "key": "Enter", "description": "..." }
-- api_call: { "integration": "slack"|"github"|"google", "method": "<exact name>", "args": {} }
+- api_call: { "slug": "<COMPOSIO_TOOL_SLUG>", "arguments": {} }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DESKTOP — params shapes (no coordinates)
@@ -677,7 +676,7 @@ RULES
 7. **Text entry**: If the user types into a field (name, search, message body), include a `type_text_at` step with `params.text` (literal or {{var}}), typically after a `click_at` that focuses the field and before `press_key` if they submit. Do not represent typing as only `click_at` + `press_key` — the runtime VLM cannot infer hidden strings from pixels alone.
 8. OUTPUT: valid JSON only."""
     )
-    + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call (Composio)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     + API_CALL_SYNTHESIS_APPENDIX
 )
 
@@ -688,7 +687,7 @@ FROM_DESCRIPTION_PROMPT = (
 
 Produce steps with the SAME schema as media synthesis: NO x/y in params. Rich anchored descriptions (BAD: "Click the button." GOOD: "Click the blue 'Submit' in the bottom-right of the login modal.").
 
-STEP 0 — If Slack, GitHub, or Google APIs (see `google` methods below: Gmail labels, Calendar list, Drive files, profile) fit the task, prefer `api_call` with exact `integration` + `method` + `args`; otherwise use UI steps.
+STEP 0 — If Slack, GitHub, or Google APIs fit the task, prefer `api_call` with Composio `slug` + `arguments` (see appendix); otherwise use UI steps.
 
 For UI steps use: navigate | click_at | type_text_at | scroll | wait | wait_for_element | press_key | select_option | hover | right_click | double_click | drag | hotkey | open_app | focus_app | api_call
 
@@ -705,9 +704,9 @@ Output ONLY valid JSON:
 
 Include expected_outcome on steps where checking success matters; omit or keep minimal for trivial steps.
 
-9. **Data before send (api_call / Gmail / Slack):** If a step sends email or chat with *dynamic* content (figures, rankings, extracted text), you MUST place UI or api_call steps **before** that send so the message body contains concrete data (numbers, tickers, pasted text). Never output a `gmail_send` or Slack post whose body is only an instruction to the assistant (e.g. "find the top 5 stocks") — gather data in prior steps first."""
+9. **Data before send (api_call / Gmail / Slack):** If a step sends email or chat with *dynamic* content (figures, rankings, extracted text), you MUST place UI or api_call steps **before** that send so the message body contains concrete data (numbers, tickers, pasted text). Never output a `GMAIL_SEND_EMAIL` or `SLACK_SEND_MESSAGE` whose body is only an instruction to the assistant (e.g. "find the top 5 stocks") — gather data in prior steps first."""
     )
-    + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call INTEGRATIONS & METHODS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call (Composio)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     + API_CALL_SYNTHESIS_APPENDIX
 )
 
