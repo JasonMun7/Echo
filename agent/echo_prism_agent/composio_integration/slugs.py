@@ -18,12 +18,10 @@ def toolkit_hint_from_slug(slug: str) -> str:
         return "github"
     if u.startswith("GMAIL"):
         return "gmail"
-    if u.startswith("GOOGLECALENDAR"):
+    if u.startswith("GOOGLECALENDAR") or u.startswith("GOOGLE_CALENDAR"):
         return "googlecalendar"
     if u.startswith("GOOGLEDRIVE"):
         return "googledrive"
-    if u.startswith("GOOGLE"):
-        return "googlecalendar"
     return "integration"
 
 
@@ -33,7 +31,14 @@ def resolve_composio_slug(params: dict) -> tuple[str | None, str | None, str | N
 
     Requires ``params.slug`` (Composio tool slug). Optional ``params.arguments`` or ``params.args``.
     """
-    raw_slug = (params.get("slug") or "").strip()
+    raw_slug = params.get("slug")
+    if not isinstance(raw_slug, str):
+        return (
+            None,
+            None,
+            'api_call requires params.slug (Composio tool slug, e.g. "GMAIL_SEND_EMAIL").',
+        )
+    raw_slug = raw_slug.strip()
     if not raw_slug:
         return (
             None,

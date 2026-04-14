@@ -7,7 +7,7 @@ alwaysApply: true
 
 CodeRabbit is available in the terminal—use it to review code before or alongside human review.
 
-- **Help:** `cr -h` (or the equivalent `coderabbit` help) for available commands.
+- **Help:** `cr -h` (alias: `coderabbit -h`) — use either `cr` or `coderabbit` interchangeably for available commands.
 - **Default:** Prefer the **`--agent`** flag so output fits agent workflows.
 
 ## Uncommitted changes (most common)
@@ -21,3 +21,5 @@ Use this to review what’s staged/uncommitted in the working tree.
 ## Limit
 
 **Do not run CodeRabbit more than 3 times for a single coherent set of changes** (same branch / same PR-sized edit). If follow-up edits are substantial, treat as a new set and stay within the limit again.
+
+Reason: to avoid review fatigue and maintain efficiency.

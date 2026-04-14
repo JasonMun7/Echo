@@ -13,6 +13,6 @@ def test_fetch_composio_genai_tool_returns_none_when_session_disabled(monkeypatc
 
 
 def test_merge_chat_tools_passes_through_when_fetch_returns_none(monkeypatch) -> None:
-    monkeypatch.setattr(genai_tools, "fetch_composio_genai_tool", lambda _uid: None)
+    monkeypatch.setattr(genai_tools, "fetch_composio_genai_tool", lambda _uid, _cid=None: None)
     base = [MagicMock()]
     assert genai_tools.merge_chat_tools(base, "u1") is base

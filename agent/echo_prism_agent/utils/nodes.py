@@ -52,6 +52,7 @@ async def chat_turn_node(state: ChatTurnState) -> dict[str, Any]:
         state["client"],
         state["model"],
         uid=state.get("uid"),
+        composio_connection_id=state.get("composio_connection_id"),
     )
     return {
         "text_resp": text_resp,

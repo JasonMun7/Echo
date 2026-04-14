@@ -73,11 +73,18 @@ async def composio_connect_link(
     if not t:
         raise HTTPException(status_code=400, detail="toolkit is required")
 
-    from app.routers.integrations import AVAILABLE_INTEGRATIONS, echo_catalog_id_to_composio_toolkit
+    from app.routers.integrations import (
+        AVAILABLE_INTEGRATIONS,
+        composio_raw_toolkit_slugs_accepted,
+        echo_catalog_id_to_composio_toolkit,
+    )
 
-    if t not in AVAILABLE_INTEGRATIONS:
-        raise HTTPException(status_code=400, detail=f"Unknown integration: {t}")
-    composio_t = echo_catalog_id_to_composio_toolkit(t)
+    if t in AVAILABLE_INTEGRATIONS:
+        composio_t = echo_catalog_id_to_composio_toolkit(t)
+    elif t in composio_raw_toolkit_slugs_accepted():
+        composio_t = t
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown integration or toolkit: {t}")
 
     try:
         from composio import Composio
@@ -99,7 +106,7 @@ async def composio_connect_link(
         raise
     except Exception as e:
         logger.exception("composio link failed: %s", e)
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        raise HTTPException(status_code=502, detail="Upstream service error") from e
 
 
 @router.get("/toolkits")
@@ -127,7 +134,7 @@ async def composio_toolkits_dashboard(uid: str = Depends(get_current_uid)):
         }
     except Exception as e:
         logger.exception("composio toolkits dashboard failed: %s", e)
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        raise HTTPException(status_code=502, detail="Upstream service error") from e
 
 
 @router.get("/toolkit-status")
@@ -179,7 +186,7 @@ async def composio_single_toolkit_status(
         }
     except Exception as e:
         logger.exception("composio toolkit-status failed: %s", e)
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        raise HTTPException(status_code=502, detail="Upstream service error") from e
 
 
 @router.get("/connection-status")
@@ -205,4 +212,4 @@ async def composio_connection_status(uid: str = Depends(get_current_uid)):
         return {"accounts": items, "composio_configured": True}
     except Exception as e:
         logger.exception("composio connection-status failed: %s", e)
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        raise HTTPException(status_code=502, detail="Upstream service error") from e

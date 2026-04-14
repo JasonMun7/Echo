@@ -14,5 +14,7 @@ def test_infer_toolkit_from_slug() -> None:
 
 def test_enrich_auth_failure_adds_toolkit() -> None:
     p = {"successful": False, "composio_auth_hint": True, "error": "x"}
+    original = dict(p)
     out = enrich_auth_failure("u1", "GITHUB_LIST_REPOS", p)
+    assert p == original
     assert out.get("toolkit") == "github"

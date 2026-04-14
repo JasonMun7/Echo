@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -265,6 +265,8 @@ export default function WorkflowEditPage() {
   const [saving, setSaving] = useState(false);
   const [invalidStepIds, setInvalidStepIds] = useState<Set<string>>(new Set());
   const [dirtyStepIds, setDirtyStepIds] = useState<Set<string>>(new Set());
+  const dirtyStepIdsRef = useRef(dirtyStepIds);
+  dirtyStepIdsRef.current = dirtyStepIds;
 
   const availableActions: readonly AnyAction[] = [
     ...new Set([...BROWSER_ACTIONS, ...DESKTOP_ACTIONS]),
@@ -293,7 +295,17 @@ export default function WorkflowEditPage() {
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }) as Step)
         .sort((a, b) => a.order - b.order);
-      setSteps(list);
+      setSteps((prev) => {
+        const dirty = dirtyStepIdsRef.current;
+        const prevById = new Map(prev.map((s) => [s.id, s]));
+        return list.map((remote) => {
+          if (dirty.has(remote.id)) {
+            const draft = prevById.get(remote.id);
+            return draft ?? remote;
+          }
+          return remote;
+        });
+      });
       setLoading(false);
     });
     return () => {

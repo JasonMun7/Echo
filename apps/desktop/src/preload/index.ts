@@ -140,7 +140,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     >,
   hitlIntegrationStatus: () =>
     ipcRenderer.invoke("hitl-integration-status") as Promise<
-      { ok: true; ready: boolean } | { ok: false; error: string }
+      | {
+          ok: true;
+          ready: boolean;
+          connected_account_id?: string | null;
+          oauth_callback_url?: string | null;
+        }
+      | { ok: false; error: string }
     >,
 
   // Voice interruption

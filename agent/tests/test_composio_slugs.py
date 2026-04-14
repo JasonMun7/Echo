@@ -14,6 +14,12 @@ def test_resolve_requires_slug() -> None:
     assert err and "slug" in err.lower()
 
 
+def test_resolve_rejects_non_string_slug() -> None:
+    slug, tk, err = resolve_composio_slug({"slug": 123})
+    assert slug is None
+    assert err and "slug" in err.lower()
+
+
 def test_resolve_slug_returns_toolkit() -> None:
     slug, tk, err = resolve_composio_slug({"slug": "GMAIL_SEND_EMAIL", "arguments": {}})
     assert err is None
@@ -21,8 +27,8 @@ def test_resolve_slug_returns_toolkit() -> None:
     assert tk == "gmail"
 
 
-def test_google_userinfo_maps_to_googlecalendar_toolkit() -> None:
-    assert toolkit_hint_from_slug("GOOGLEGET_USER_INFO") == "googlecalendar"
+def test_unknown_google_prefix_maps_neutral() -> None:
+    assert toolkit_hint_from_slug("GOOGLEGET_USER_INFO") == "integration"
 
 
 def test_googlecalendar_prefix() -> None:

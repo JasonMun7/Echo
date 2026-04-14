@@ -98,7 +98,7 @@ def get_chat_system_instruction() -> str:
 @contextmanager
 def chat_turn_span(*, uid: str, model: str) -> Iterator[Any]:
     """Parent span for one user-message / tool loop (nests Composio child observations when active)."""
-    from echo_prism_agent.model_prompts import CHAT_SYSTEM_PROMPT
+    resolved_prompt = get_chat_system_instruction()
 
     lf = _get_langfuse()
     if not lf or not _env_flag("LANGFUSE_TRACE_CHAT", "1"):
@@ -114,7 +114,7 @@ def chat_turn_span(*, uid: str, model: str) -> Iterator[Any]:
             input={
                 "model": model,
                 "uid_prefix": (uid or "")[:8],
-                "prompt_summary": _prompt_debug_payload(CHAT_SYSTEM_PROMPT),
+                "prompt_summary": _prompt_debug_payload(resolved_prompt),
             },
         ) as obs:
             yield obs

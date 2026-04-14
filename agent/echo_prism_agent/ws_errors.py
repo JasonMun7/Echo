@@ -28,9 +28,5 @@ def ws_error(message: str, code: str | None = None) -> dict:
 
 def classify_api_call_error(message: str) -> str:
     """Map connector / execute_api_call strings to ECHO_* codes."""
-    m = (message or "").lower()
-    if "not connected" in m or "missing_access_token" in m:
-        return INTEGRATION
-    if "reject" in m and "user" in m:
-        return INTEGRATION
+    _ = message  # reserved for future finer-grained mapping
     return INTEGRATION

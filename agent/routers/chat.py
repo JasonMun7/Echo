@@ -67,6 +67,7 @@ def _ensure_agent_path() -> None:
 async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> list[types.LiveClientToolResponse]:
     """Route Live API tool calls for the voice session. Delegates to _execute_tool."""
     responses = []
+    connection_id = str(id(websocket))
     for fc in tool_call.function_calls:
         name = fc.name
         args = dict(fc.args) if fc.args else {}
@@ -78,7 +79,7 @@ async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> li
             pass
 
         try:
-            result = await _execute_tool(name, args, uid, db, websocket)
+            result = await _execute_tool(name, args, uid, db, websocket, connection_id=connection_id)
         except Exception as e:
             logger.error("Tool call %s failed: %s", name, e)
             result = {"ok": False, "error": str(e)}
@@ -155,8 +156,7 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
         invalidate_chat_session_if_auth_hint,
     )
 
-    # Fresh Composio Tool Router session for this WS connection (per uid); avoids stale toolkit auth.
-    clear_chat_session_cache(uid)
+    connection_id = str(uuid.uuid4())
 
     from echo_prism_agent.agent import run_chat_turn_via_langgraph
 
@@ -193,7 +193,11 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
             with chat_turn_span(uid=uid, model=CHAT_MODEL):
                 while True:
                     text_resp, fn_calls, model_content = await run_chat_turn_via_langgraph(
-                        history, client, CHAT_MODEL, uid
+                        history,
+                        client,
+                        CHAT_MODEL,
+                        uid,
+                        composio_connection_id=connection_id,
                     )
                     if model_content:
                         history.append(model_content)
@@ -212,7 +216,9 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
                             result: dict = {}
                             t0 = time.perf_counter()
                             try:
-                                result = await _execute_tool(fc.name, args, uid, db, websocket)
+                                result = await _execute_tool(
+                                    fc.name, args, uid, db, websocket, connection_id=connection_id
+                                )
                             except Exception as e:
                                 logger.error("Tool %s failed: %s", fc.name, e)
                                 result = {"ok": False, "error": str(e)}
@@ -223,7 +229,7 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
                                     latency_ms=(time.perf_counter() - t0) * 1000.0,
                                 )
                             if isinstance(result, dict):
-                                invalidate_chat_session_if_auth_hint(uid, result)
+                                invalidate_chat_session_if_auth_hint(uid, connection_id, result)
                             tool_parts.append(
                                 types.Part(
                                     function_response=types.FunctionResponse(
@@ -248,6 +254,8 @@ async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.C
             await websocket.send_text(json.dumps({"type": "error", "text": str(e)}))
         except Exception:
             pass
+    finally:
+        clear_chat_session_cache(uid, connection_id)
 
 
 def _sanitize(value):
@@ -262,7 +270,15 @@ def _sanitize(value):
     return value
 
 
-async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocket | None = None) -> dict:
+async def _execute_tool(
+    name: str,
+    args: dict,
+    uid: str,
+    db,
+    websocket: WebSocket | None = None,
+    *,
+    connection_id: str,
+) -> dict:
     """Execute a single named tool and return its result dict.
     When websocket is None (e.g. /api/agent/tool), side-channel notifications are skipped.
     """
@@ -611,7 +627,7 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         from echo_prism_agent.composio_integration.langfuse_tracing import trace_composio_meta_path
 
         trace_composio_meta_path(uid=uid, tool_name=name)
-        out = await invoke_composio_meta_tool(uid, name, dict(args or {}))
+        out = await invoke_composio_meta_tool(uid, name, dict(args or {}), connection_id=connection_id)
         return merge_composio_execute_result(out)
 
     if _COMPOSIO_NAME_PATTERN.match(name or ""):
@@ -619,17 +635,21 @@ async def _execute_tool(name: str, args: dict, uid: str, db, websocket: WebSocke
         from echo_prism_agent.composio_integration.client import execute_composio_tool
         from echo_prism_agent.composio_integration.danger import is_dangerous_composio_slug
 
-        if cc_ok():
-            if is_dangerous_composio_slug(name):
-                return {
-                    "ok": False,
-                    "error": ("Sensitive Composio tools must run from a workflow api_call step with Run HUD approval."),
-                    "requires_workflow": True,
-                }
-            from echo_prism_agent.composio_integration.chat_tool_payloads import merge_composio_execute_result
+        if not cc_ok():
+            return {
+                "ok": False,
+                "error": "Composio integration not configured; enable Composio to use this tool.",
+            }
+        if is_dangerous_composio_slug(name):
+            return {
+                "ok": False,
+                "error": ("Sensitive Composio tools must run from a workflow api_call step with Run HUD approval."),
+                "requires_workflow": True,
+            }
+        from echo_prism_agent.composio_integration.chat_tool_payloads import merge_composio_execute_result
 
-            out = await execute_composio_tool(uid, name, dict(args or {}))
-            return merge_composio_execute_result(out)
+        out = await execute_composio_tool(uid, name, dict(args or {}))
+        return merge_composio_execute_result(out)
 
     return {"ok": False, "error": f"Unknown tool: {name}"}
 
@@ -659,11 +679,12 @@ async def _voice_live_session(
     system_prompt = _voice_system_prompt(workflow_id, run_id)
     from echo_prism_agent.utils.tools import get_tools as get_genai_tools
 
+    voice_connection_id = str(id(websocket))
     config = types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         output_audio_transcription={},
         system_instruction=system_prompt,
-        tools=get_genai_tools(uid),
+        tools=get_genai_tools(uid, composio_connection_id=voice_connection_id),
     )
 
     try:

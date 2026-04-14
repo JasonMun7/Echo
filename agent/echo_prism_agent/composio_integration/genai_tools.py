@@ -12,7 +12,7 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 
-def fetch_composio_genai_tool(uid: str) -> types.Tool | None:
+def fetch_composio_genai_tool(uid: str, connection_id: str = "default") -> types.Tool | None:
     """
     Return ``types.Tool`` objects whose function_declarations are Composio **meta tools**
     (Tool Router session: ``COMPOSIO_SEARCH_TOOLS``, ``COMPOSIO_MULTI_EXECUTE_TOOL``, …),
@@ -22,12 +22,15 @@ def fetch_composio_genai_tool(uid: str) -> types.Tool | None:
     """
     _ = os  # reserved for future feature flags
     try:
-        from langchain_google_genai._function_utils import convert_to_genai_function_declarations
-    except Exception as e:
-        logger.debug("langchain_google_genai not available for Composio meta tools: %s", e)
-        return None
+        from langchain_google_genai.utils import convert_to_genai_function_declarations
+    except Exception:
+        try:
+            from langchain_google_genai._function_utils import convert_to_genai_function_declarations
+        except Exception as e:
+            logger.debug("langchain_google_genai not available for Composio meta tools: %s", e)
+            return None
 
-    _, lc_tools = get_or_create_chat_router_session(uid)
+    _, lc_tools = get_or_create_chat_router_session(uid, connection_id)
     if not lc_tools:
         return None
     try:
@@ -49,9 +52,9 @@ def fetch_composio_genai_tool(uid: str) -> types.Tool | None:
     return types.Tool(function_declarations=merged)
 
 
-def merge_chat_tools(base_tools: list[types.Tool], uid: str) -> list[types.Tool]:
+def merge_chat_tools(base_tools: list[types.Tool], uid: str, connection_id: str = "default") -> list[types.Tool]:
     """Append Composio Tool Router (meta tool) declarations to existing genai tools."""
-    extra = fetch_composio_genai_tool(uid)
+    extra = fetch_composio_genai_tool(uid, connection_id)
     if extra is None:
         return base_tools
     return list(base_tools) + [extra]

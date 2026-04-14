@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -132,10 +132,11 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
   const methodHint = slugToMethodHint(slugVal);
 
   const argsObj = useMemo(() => {
-    const primary = parseArgsObject(params.arguments);
-    if (Object.keys(primary).length > 0) return primary;
+    if ("arguments" in params && params.arguments !== undefined && params.arguments !== null) {
+      return parseArgsObject(params.arguments);
+    }
     return parseArgsObject(params.args);
-  }, [params.arguments, params.args]);
+  }, [params]);
 
   const setArgs = useCallback(
     (next: Record<string, unknown>) => {
@@ -151,7 +152,8 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
     [argsObj, setArgs],
   );
 
-  const [useRawJson, setUseRawJson] = useState(false);
+  /** When structured args exist, user can toggle JSON; when not, we must use JSON (derived). */
+  const [preferRawJson, setPreferRawJson] = useState(false);
   /** Draft JSON text while invalid; avoids persisting a string into `arguments`. */
   const [argsJsonDraft, setArgsJsonDraft] = useState<string | null>(null);
   const [argsJsonError, setArgsJsonError] = useState<string | null>(null);
@@ -166,24 +168,28 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
 
   const pickAction = useCallback(
     (entry: ComposioToolCatalogEntry) => {
-      patchParams({ slug: entry.slug });
+      patchParams({ slug: entry.slug, arguments: {} });
       setActionSearch("");
+      setPreferRawJson(false);
     },
-    [patchParams],
+    [patchParams, setActionSearch, setPreferRawJson],
   );
 
   const formKind = methodHint ? argsFormKind(methodHint) : "none";
   const structuredAvailable = Boolean(methodHint) && hasStructuredForm(methodHint);
 
-  useEffect(() => {
-    if (!structuredAvailable) setUseRawJson(true);
-    else setUseRawJson(false);
-  }, [methodHint, structuredAvailable]);
+  const useRawJson = !structuredAvailable || preferRawJson;
 
-  useEffect(() => {
+  const argsFingerprint = useMemo(
+    () => JSON.stringify([params.arguments, params.args]),
+    [params.arguments, params.args],
+  );
+  const [prevArgsFingerprint, setPrevArgsFingerprint] = useState(argsFingerprint);
+  if (argsFingerprint !== prevArgsFingerprint) {
+    setPrevArgsFingerprint(argsFingerprint);
     setArgsJsonDraft(null);
     setArgsJsonError(null);
-  }, [params.arguments, params.args]);
+  }
 
   const argsString = useMemo(() => stringifyJson(argsObj), [argsObj]);
 
@@ -775,6 +781,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
                   key={entry.slug}
                   type="button"
                   role="option"
+                  aria-selected={slugVal === entry.slug}
                   onClick={() => pickAction(entry)}
                   className={cn(
                     "flex w-full flex-col gap-0.5 border-b border-[#A577FF]/10 px-2.5 py-2 text-left last:border-b-0",
@@ -798,7 +805,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
           <Input
             id="wf-api-composio-slug"
             value={slugVal}
-            onChange={(e) => patchParams({ slug: e.target.value.trim() })}
+            onChange={(e) => patchParams({ slug: e.target.value.trim(), arguments: {} })}
             placeholder="e.g. SLACK_SEND_MESSAGE"
             className={cn("h-9 font-mono text-xs", fieldClass)}
           />
@@ -821,7 +828,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
             {structuredAvailable && (
               <button
                 type="button"
-                onClick={() => setUseRawJson((v) => !v)}
+                onClick={() => setPreferRawJson((v) => !v)}
                 className="text-[11px] font-medium text-[#A577FF] underline-offset-2 hover:underline"
               >
                 {useRawJson ? "Use form fields" : "Edit as JSON"}

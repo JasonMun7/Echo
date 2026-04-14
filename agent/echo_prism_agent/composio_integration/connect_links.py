@@ -54,10 +54,11 @@ def enrich_auth_failure(uid: str, slug: str, payload: dict[str, Any]) -> dict[st
     """Attach ``toolkit`` and ``connect_url`` when ``composio_auth_hint`` is set."""
     if not payload.get("composio_auth_hint"):
         return payload
+    out = dict(payload)
     tk = infer_toolkit_from_composio_slug(slug)
     if tk:
-        payload["toolkit"] = tk
+        out["toolkit"] = tk
         url = fetch_composio_connect_url_sync(uid, tk)
         if url:
-            payload["connect_url"] = url
-    return payload
+            out["connect_url"] = url
+    return out

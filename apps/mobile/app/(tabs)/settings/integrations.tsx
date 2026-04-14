@@ -96,7 +96,11 @@ export default function IntegrationsScreen() {
       if (res.ok) {
         const data = await res.json();
         setIntegrations(data.integrations ?? data);
-        setComposioConfigured(Boolean(data.composio_configured));
+        if (typeof data === "object" && data !== null && "composio_configured" in data) {
+          setComposioConfigured(Boolean(data.composio_configured));
+        } else {
+          setComposioConfigured(true);
+        }
       }
     } catch {}
   }, []);

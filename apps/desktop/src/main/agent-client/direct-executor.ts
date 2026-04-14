@@ -104,7 +104,7 @@ export function stepToOperatorAction(step: Step): OperatorAction {
     base.integration = String(params.integration);
   if ("method" in params && params.method != null) base.method = String(params.method);
   if ("args" in params && params.args != null) base.args = params.args as Record<string, unknown>;
-  return base as OperatorAction;
+  return base;
 }
 
 /**

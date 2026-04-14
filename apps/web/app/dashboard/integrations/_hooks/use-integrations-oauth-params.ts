@@ -50,7 +50,6 @@ export function useIntegrationsOAuthParams(
       } else {
         toast.success("Connection updated.");
       }
-      await loadIntegrations({ forceIdTokenRefresh: true, silent: true });
       router.replace(pathname, { scroll: false });
     })();
   }, [searchParams, loadIntegrations, router, pathname]);

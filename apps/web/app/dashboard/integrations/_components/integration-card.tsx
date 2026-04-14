@@ -65,7 +65,7 @@ export function IntegrationCard({
     if (!checked && on) void onDisconnect();
   };
 
-  const switchChecked = (on || connecting) && !disconnecting;
+  const switchChecked = on || connecting;
 
   return (
     <div
@@ -187,7 +187,6 @@ export function IntegrationCard({
                 className="text-[#ef4444] focus:text-[#ef4444]"
                 disabled={connecting || disconnecting}
                 onClick={() => {
-                  if (connecting || disconnecting) return;
                   void onDisconnect();
                 }}
               >

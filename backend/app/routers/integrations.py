@@ -80,6 +80,15 @@ def composio_toolkits_for_session() -> list[str]:
     return ordered
 
 
+def composio_raw_toolkit_slugs_accepted() -> frozenset[str]:
+    """Composio toolkit slugs allowed when ``toolkit`` is already a raw slug (not only Echo catalog ids)."""
+    slugs: set[str] = set(composio_toolkits_for_session())
+    for k in AVAILABLE_INTEGRATIONS:
+        slugs.add(echo_catalog_id_to_composio_toolkit(k))
+    slugs.add("googledrive")
+    return frozenset(slugs)
+
+
 def composio_slug_activates_catalog_entry(catalog_id: str, composio_slugs: set[str]) -> bool:
     """Whether ``composio_account_active`` should be true for this catalog row."""
     return echo_catalog_id_to_composio_toolkit(catalog_id) in composio_slugs

@@ -39,10 +39,10 @@ def is_dangerous_composio_slug(slug: str) -> bool:
     # Tool Router meta tools (v3 session) are governed by Composio — not Echo HITL heuristics here.
     if u.startswith("COMPOSIO_"):
         return False
-    if u in SAFE_OVERRIDES:
-        return False
     if u in DANGEROUS_OVERRIDES:
         return True
+    if u in SAFE_OVERRIDES:
+        return False
     if _DANGEROUS_RE.search(u):
         return True
     # Reads / lists / gets (Composio slugs often use LIST_ALL, GET_, FETCH_, etc.)

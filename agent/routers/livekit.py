@@ -222,6 +222,7 @@ async def agent_tool(
             body.uid,
             db,
             websocket=None,
+            connection_id=f"livekit-agent:{body.uid}",
         )
         extra = ""
         if body.name == "run_workflow":

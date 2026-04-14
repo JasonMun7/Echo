@@ -998,11 +998,21 @@ ipcMain.handle("hitl-submit-resume", (_, resume: unknown) => {
 
 ipcMain.handle("hitl-reopen-oauth", async () => {
   const pending = getPendingIntegrationAuth();
-  if (!pending) return { ok: false as const, error: "no_pending" };
-  return openComposioConnectForIntegration(
-    { backendUrl: pending.backendUrl, token: pending.token },
-    pending.integration,
-  );
+  if (!pending?.integration) {
+    return { ok: false as const, error: "no_pending" };
+  }
+  if (!pending.backendUrl || !pending.token) {
+    return { ok: false as const, error: "missing_context" };
+  }
+  try {
+    return await openComposioConnectForIntegration(
+      { backendUrl: pending.backendUrl, token: pending.token },
+      pending.integration,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false as const, error: msg };
+  }
 });
 
 ipcMain.handle("hitl-integration-status", async () => {
@@ -1010,10 +1020,18 @@ ipcMain.handle("hitl-integration-status", async () => {
   if (!pending?.integration) {
     return { ok: false as const, error: "no_pending" };
   }
-  return getIntegrationConnectionReady(
-    { backendUrl: pending.backendUrl, token: pending.token },
-    pending.integration,
-  );
+  if (!pending.backendUrl || !pending.token) {
+    return { ok: false as const, error: "missing_context" };
+  }
+  try {
+    return await getIntegrationConnectionReady(
+      { backendUrl: pending.backendUrl, token: pending.token },
+      pending.integration,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false as const, error: msg };
+  }
 });
 
 ipcMain.handle(

@@ -1,10 +1,3 @@
-"""Ensure ``agent/`` root is on ``sys.path`` so ``routers.*`` imports resolve in tests."""
+"""Pytest configuration: import paths come from ``pytest.ini`` (``pythonpath = .``)."""
 
 from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-_ROOT = Path(__file__).resolve().parents[1]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))

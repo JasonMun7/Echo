@@ -10,7 +10,7 @@ async function getToken(): Promise<string | null> {
 
 /** Parse FastAPI `{"detail": "..."}` for alerts and toasts. */
 export async function apiErrorMessage(resp: Response, fallback?: string): Promise<string> {
-  const raw = await resp.text();
+  const raw = await resp.clone().text();
   try {
     const j = JSON.parse(raw) as { detail?: unknown };
     if (j.detail != null) {

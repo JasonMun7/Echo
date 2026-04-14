@@ -365,8 +365,10 @@ class LiveKitEchoPrismAgent(Agent):
         arguments: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a Composio tool (slug + arguments)."""
-        await _publish_tool_event("tool_call", name="call_integration")
+        if slug is None or not str(slug).strip():
+            return {"ok": False, "error": "Invalid slug: must be a non-empty string"}
         uid = _get_participant_uid(context)
+        await _publish_tool_event("tool_call", name="call_integration")
         return await _call_tool(
             uid,
             "call_integration",
