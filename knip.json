@@ -20,7 +20,7 @@
     "@react-navigation/native",
     "shadcn"
   ],
-  "ignoreFiles": ["apps/mobile/metro.config.js"],
+  "ignoreFiles": ["apps/mobile/metro.config.js", "apps/mobile/stubs/livekit-react-native.ts"],
   "workspaces": {
     "apps/mobile": {
       "metro": false
