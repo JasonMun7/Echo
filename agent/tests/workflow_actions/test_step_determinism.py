@@ -18,7 +18,7 @@ def _step(action: str, params: dict | None = None) -> dict:
     ("action", "params", "expect_deterministic"),
     [
         # Deterministic when params satisfy operator rules
-        ("api_call", {"integration": "x", "method": "m", "args": {}}, True),
+        ("api_call", {"slug": "SLACK_SEND_MESSAGE", "arguments": {}}, True),
         ("navigate", {"url": "https://example.com"}, True),
         ("navigate", {}, False),
         ("wait", {}, True),
@@ -99,13 +99,12 @@ def test_step_to_action_api_call() -> None:
     a = step_to_action(
         _step(
             "api_call",
-            {"integration": "slack", "method": "post", "args": {"c": 1}},
+            {"slug": "SLACK_SEND_MESSAGE", "arguments": {"channel": "C", "text": "hi"}},
         )
     )
     assert a["action"] == "apicall"
-    assert a["integration"] == "slack"
-    assert a["method"] == "post"
-    assert a["args"] == {"c": 1}
+    assert a["slug"] == "SLACK_SEND_MESSAGE"
+    assert a["arguments"] == {"channel": "C", "text": "hi"}
 
 
 def test_step_to_action_unknown_action_passes_through_normalized_name() -> None:

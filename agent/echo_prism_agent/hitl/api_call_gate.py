@@ -1,8 +1,7 @@
 """
-LangGraph gate for api_call: human approval, then Auth0 Token Vault / OAuth if needed.
+LangGraph gate for api_call: human approval for sensitive Composio tools, then execute.
 
-Uses ``interrupt()`` so the host can confirm the API call, open Universal Login when
-necessary, then ``Command(resume=...)`` to continue. See LangGraph interrupt docs:
+Uses ``interrupt()`` so the host can confirm dangerous calls; safe reads execute without approval.
 https://docs.langchain.com/oss/python/langgraph/interrupts
 """
 
@@ -12,7 +11,9 @@ import json
 import logging
 from typing import Any, TypedDict
 
-from echo_prism_agent.auth0_token_vault import normalize_integration_id
+from echo_prism_agent.composio_integration.danger import is_dangerous_composio_slug
+from echo_prism_agent.composio_integration.langfuse_tracing import trace_hitl_decision
+from echo_prism_agent.composio_integration.slugs import resolve_composio_slug
 from echo_prism_agent.execution.operator import execute_api_call
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.config import get_config
@@ -34,7 +35,9 @@ class ApiCallGateState(TypedDict, total=False):
 
 
 def _args_preview(params: dict[str, Any], max_len: int = 500) -> str:
-    raw = params.get("args", {}) or {}
+    raw = params.get("arguments")
+    if raw is None:
+        raw = params.get("args", {}) or {}
     try:
         s = json.dumps(raw, indent=None, default=str, ensure_ascii=False)
     except Exception:
@@ -56,11 +59,15 @@ def _approval_accepted(approval: Any) -> bool:
     return True
 
 
+def _short_description_for_slug(slug: str) -> str:
+    s = (slug or "").replace("_", " ").strip()
+    return f"Composio tool {s}"[:200]
+
+
 async def api_call_gate_node(state: ApiCallGateState) -> dict[str, Any]:
     """
-    Ask the user to approve the api_call, then run ``execute_api_call``.
+    Optionally ask the user to approve the api_call (dangerous Composio tools only), then run ``execute_api_call``.
     If integration OAuth is missing, ``interrupt`` again with integration_auth payload.
-    After each resume, this node runs from the beginning again (LangGraph semantics).
     """
     try:
         raw = get_config()
@@ -80,21 +87,37 @@ async def api_call_gate_node(state: ApiCallGateState) -> dict[str, Any]:
         return {"ok": False, "error": "missing db in config.configurable"}
 
     params = step.get("params", {}) or {}
-    integration = normalize_integration_id(params.get("integration") or "")
-    method = (params.get("method") or "").strip()
-    preview = _args_preview(params)
+    slug, toolkit, rerr = resolve_composio_slug(params)
+    if rerr or not slug:
+        return {"ok": False, "error": rerr or "could not resolve Composio slug"}
 
-    approval = interrupt(
-        {
-            "kind": "api_call_approval",
-            "integration": integration or (params.get("integration") or ""),
-            "method": method,
-            "args_preview": preview,
-            "message": f"Approve API call: {integration}.{method}" if integration and method else "Approve API call",
-        }
-    )
-    if not _approval_accepted(approval):
-        return {"ok": False, "error": "API call rejected by user"}
+    preview = _args_preview(params)
+    tk = toolkit or ""
+    integration = (params.get("integration") or "").strip() or tk
+    method = (params.get("method") or "").strip() or slug
+
+    dangerous = is_dangerous_composio_slug(slug)
+    if dangerous:
+        trace_hitl_decision(slug=slug, branch="dangerous_gate", uid=uid)
+        approval = interrupt(
+            {
+                "kind": "api_call_approval",
+                "composio_slug": slug,
+                "toolkit": tk,
+                "integration": integration,
+                "method": method,
+                "args_preview": preview,
+                "short_description": _short_description_for_slug(slug),
+                "requires_approval_reason": "sensitive_action",
+                "message": f"Confirm sensitive action: {slug}",
+            }
+        )
+        if not _approval_accepted(approval):
+            trace_hitl_decision(slug=slug, branch="rejected", uid=uid)
+            return {"ok": False, "error": "API call rejected by user"}
+        trace_hitl_decision(slug=slug, branch="approved", uid=uid)
+    else:
+        trace_hitl_decision(slug=slug, branch="safe_skip_gate", uid=uid)
 
     ok, err, meta = await execute_api_call(
         step,
@@ -110,9 +133,11 @@ async def api_call_gate_node(state: ApiCallGateState) -> dict[str, Any]:
         interrupt(
             {
                 "kind": "integration_auth",
-                "integration": meta.get("integration"),
-                "auth0_linked": meta.get("auth0_linked"),
-                "connect_kind": meta.get("connect_kind"),
+                "integration": meta.get("integration") or toolkit or "",
+                "toolkit": meta.get("toolkit") or toolkit or "",
+                "composio_slug": meta.get("composio_slug") or slug,
+                "composio_connect_url": meta.get("composio_connect_url"),
+                "connect_kind": meta.get("connect_kind") or "composio_oauth",
                 "message": err or "",
             }
         )

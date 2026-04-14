@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  IconArrowLeft,
-  IconPlayerPlay,
-  IconEdit,
-  IconTrash,
-  IconExternalLink,
-} from "@tabler/icons-react";
+import { IconArrowLeft, IconPlayerPlay, IconTrash, IconExternalLink } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface StepData {
@@ -64,7 +58,6 @@ interface Props {
   token: string;
   apiUrl: string;
   onBack: () => void;
-  onEdit: () => void;
   onRun: (args: {
     workflowId: string;
     steps: Array<Record<string, unknown>>;
@@ -79,7 +72,6 @@ export default function WorkflowDetailView({
   token,
   apiUrl,
   onBack,
-  onEdit,
   onRun,
   onDeleted,
   onOpenWebUI,
@@ -227,14 +219,6 @@ export default function WorkflowDetailView({
           >
             <IconTrash size={14} />
             {deleting ? "Deleting…" : "Delete"}
-          </button>
-          <button
-            type="button"
-            className="echo-btn-secondary-accent flex items-center gap-1.5 rounded-md px-2 py-1 text-sm"
-            onClick={onEdit}
-          >
-            <IconEdit size={14} />
-            Edit
           </button>
           <button
             type="button"

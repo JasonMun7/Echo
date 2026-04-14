@@ -1,7 +1,6 @@
 """Execution layer: single `operator` module (Playwright, deterministic steps, GCS, API bridge)."""
 
 from echo_prism_agent.execution.operator import (
-    ApiCallOperator,
     BaseOperator,
     OperatorResult,
     PlaywrightOperator,
@@ -19,7 +18,6 @@ from echo_prism_agent.execution.operator import (
 )
 
 __all__ = [
-    "ApiCallOperator",
     "BaseOperator",
     "OperatorResult",
     "PlaywrightOperator",

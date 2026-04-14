@@ -58,24 +58,48 @@ function withBearer(token: string | null, headers: HeadersInit | undefined): Hea
   return h;
 }
 
-export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const token = await getToken();
-  const headers = withBearer(token, options.headers ?? {});
+export type ApiFetchOptions = RequestInit & {
+  /** Force Firebase ID token refresh before the request (e.g. after OAuth redirect). */
+  forceIdTokenRefresh?: boolean;
+};
+
+export async function apiFetch(path: string, options: ApiFetchOptions = {}): Promise<Response> {
+  const { forceIdTokenRefresh, ...fetchOpts } = options;
+  const token = await getToken(Boolean(forceIdTokenRefresh));
+  const headers = withBearer(token, fetchOpts.headers ?? {});
   const url = `${API_URL}${path}`;
-  let resp = await fetch(url, { ...options, headers });
+  let resp = await fetch(url, { ...fetchOpts, headers });
 
   // One retry with a forced ID token refresh (expired tokens, tab idle).
   if (resp.status === 401 && auth && "currentUser" in auth && auth.currentUser) {
     const fresh = await getToken(true);
     if (fresh) {
       resp = await fetch(url, {
-        ...options,
-        headers: withBearer(fresh, options.headers ?? {}),
+        ...fetchOpts,
+        headers: withBearer(fresh, fetchOpts.headers ?? {}),
       });
     }
   }
 
   return resp;
+}
+
+/**
+ * Parse FastAPI-style error bodies (`{"detail": "..."}` or validation errors) for user-facing toasts.
+ */
+export async function apiErrorMessage(resp: Response, fallback?: string): Promise<string> {
+  const raw = await resp.text();
+  try {
+    const j = JSON.parse(raw) as { detail?: unknown };
+    if (j.detail != null) {
+      if (typeof j.detail === "string") return j.detail;
+      return JSON.stringify(j.detail);
+    }
+  } catch {
+    /* not JSON */
+  }
+  if (raw.trim()) return raw.trim();
+  return fallback ?? resp.statusText ?? `HTTP ${resp.status}`;
 }
 
 /** Fetch from agent service (chat, voice, synthesis). Uses Bearer auth. */

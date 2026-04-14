@@ -20,4 +20,19 @@ config.resolver.nodeModulesPaths = [
 config.resolver.unstable_enableSymlinks = true;
 config.resolver.unstable_enablePackageExports = true;
 
-module.exports = withNativeWind(config, { input: "./global.css" });
+const livekitRnStub = path.resolve(projectRoot, "stubs/livekit-react-native.ts");
+
+const finalConfig = withNativeWind(config, { input: "./global.css" });
+
+const previousResolveRequest = finalConfig.resolver.resolveRequest;
+finalConfig.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === "web" && moduleName === "@livekit/react-native") {
+    return { type: "sourceFile", filePath: livekitRnStub };
+  }
+  if (previousResolveRequest) {
+    return previousResolveRequest(context, moduleName, platform);
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
+module.exports = finalConfig;

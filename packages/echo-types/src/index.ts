@@ -140,5 +140,8 @@ export interface OperatorAction {
   direction?: string;
   appName?: string;
   seconds?: number;
+  /** Composio / api_call step */
+  slug?: string;
+  arguments?: unknown;
   [key: string]: unknown;
 }

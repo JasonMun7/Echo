@@ -3,12 +3,11 @@
  * Bridges the workflow runner wait state with renderer actions and LangGraph resume values.
  */
 
-/** Minimal fields needed to reopen the Auth0 / vault URL (see openAuth0ConnectForIntegration). */
+/** Minimal fields needed to reopen the Composio connect URL (see openComposioConnectForIntegration). */
 export type IntegrationAuthPending = {
   backendUrl?: string;
   token?: string;
   integration: string;
-  auth0Linked: boolean;
 };
 
 let pendingIntegrationAuth: IntegrationAuthPending | null = null;

@@ -358,12 +358,28 @@ def _compiled_chat_turn():
 
 
 async def run_chat_turn_via_langgraph(
-    history: list[Any], client: Any, model: str
+    history: list[Any],
+    client: Any,
+    model: str,
+    uid: str | None = None,
+    *,
+    composio_connection_id: str | None = None,
 ) -> tuple[str | None, list[Any] | None, Any]:
     """Single chat model turn inside a LangGraph node (same contract as `process_chat_turn`)."""
+    cid = (composio_connection_id or "").strip()
+    if uid:
+        thread_id = f"echo-prism-chat-ws-{uid}-{cid}" if cid else f"echo-prism-chat-ws-{uid}"
+    else:
+        thread_id = "echo-prism-chat-ws"
     out = await _compiled_chat_turn().ainvoke(
-        {"history": history, "client": client, "model": model},
-        config={"configurable": {"thread_id": "echo-prism-chat-ws"}},
+        {
+            "history": history,
+            "client": client,
+            "model": model,
+            "uid": uid,
+            "composio_connection_id": composio_connection_id,
+        },
+        config={"configurable": {"thread_id": thread_id}},
     )
     return out["text_resp"], out["fn_calls"], out["model_content"]
 

@@ -16,7 +16,8 @@ import {
   runWorkflowRemote,
   runGoalOnlyRemote,
   abortActiveRun,
-  openAuth0ConnectForIntegration,
+  openComposioConnectForIntegration,
+  getIntegrationConnectionReady,
 } from "./agent-client/remote-workflow-runner";
 import {
   clearUserHitlWait,
@@ -997,13 +998,40 @@ ipcMain.handle("hitl-submit-resume", (_, resume: unknown) => {
 
 ipcMain.handle("hitl-reopen-oauth", async () => {
   const pending = getPendingIntegrationAuth();
-  if (!pending) return { ok: false as const, error: "no_pending" };
-  await openAuth0ConnectForIntegration(
-    { backendUrl: pending.backendUrl, token: pending.token },
-    pending.integration,
-    pending.auth0Linked,
-  );
-  return { ok: true as const };
+  if (!pending?.integration) {
+    return { ok: false as const, error: "no_pending" };
+  }
+  if (!pending.backendUrl || !pending.token) {
+    return { ok: false as const, error: "missing_context" };
+  }
+  try {
+    return await openComposioConnectForIntegration(
+      { backendUrl: pending.backendUrl, token: pending.token },
+      pending.integration,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false as const, error: msg };
+  }
+});
+
+ipcMain.handle("hitl-integration-status", async () => {
+  const pending = getPendingIntegrationAuth();
+  if (!pending?.integration) {
+    return { ok: false as const, error: "no_pending" };
+  }
+  if (!pending.backendUrl || !pending.token) {
+    return { ok: false as const, error: "missing_context" };
+  }
+  try {
+    return await getIntegrationConnectionReady(
+      { backendUrl: pending.backendUrl, token: pending.token },
+      pending.integration,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false as const, error: msg };
+  }
 });
 
 ipcMain.handle(

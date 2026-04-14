@@ -70,6 +70,8 @@ class ChatTurnState(TypedDict, total=False):
     history: list[Any]
     client: Any
     model: str
+    uid: str | None
+    composio_connection_id: str | None
     text_resp: str | None
     fn_calls: list[Any] | None
     model_content: Any

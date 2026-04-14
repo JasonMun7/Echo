@@ -1,4 +1,5 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { toast } from "sonner";
 import {
   IconGripVertical,
   IconPlayerPause,
@@ -25,10 +26,11 @@ const dragStyle = {
   appRegion: "no-drag",
 } as CSSProperties;
 
-function IntegrationBrandIcon({ integration }: { integration: string }) {
-  const i = integration.trim().toLowerCase();
+function IntegrationBrandIcon({ integration, toolkit }: { integration: string; toolkit?: string }) {
+  const i = (toolkit || integration).trim().toLowerCase();
   const common = { size: 26 as const, stroke: 1.5 as const };
-  if (i === "google") return <IconBrandGoogle {...common} className="text-[#4285F4]" />;
+  if (i === "google" || i === "googlecalendar" || i === "gmail")
+    return <IconBrandGoogle {...common} className="text-[#4285F4]" />;
   if (i === "github") return <IconBrandGithub {...common} className="text-(--echo-text)" />;
   if (i === "slack") return <IconBrandSlack {...common} className="text-[#4A154B]" />;
   return <IconShieldCheck size={26} stroke={1.5} className="text-(--echo-cyan)" />;
@@ -154,28 +156,202 @@ function HitlDragHeader({ title }: { title: string }) {
   );
 }
 
-function RunHitlCard({
+function IntegrationAuthHitl({
   hitl,
-  reopenBusy,
   onSubmitResume,
-  onReopenOauth,
 }: {
   hitl: NonNullable<RunHitlState>;
-  reopenBusy: boolean;
   onSubmitResume: (value: unknown) => void;
-  onReopenOauth: () => void;
+}) {
+  const [reopenBusy, setReopenBusy] = useState(false);
+  const [connectionReady, setConnectionReady] = useState(false);
+  const [connectedAccountId, setConnectedAccountId] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [oauthCallbackPreview, setOauthCallbackPreview] = useState<string | null | undefined>(
+    undefined,
+  );
+
+  const integration = String(hitl.payload.integration ?? "integration");
+  const toolkit = String(hitl.payload.toolkit ?? "");
+  const message = String(
+    hitl.payload.message ??
+      "Tap Connect to open Composio in your browser. We’ll enable Continue when your account is connected.",
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      const api = window.electronAPI;
+      if (!api?.hitlIntegrationStatus) return;
+      const r = await api.hitlIntegrationStatus();
+      if (cancelled || !r) return;
+      if (r.ok && "ready" in r) {
+        setConnectionReady(Boolean(r.ready));
+        setConnectedAccountId(
+          "connected_account_id" in r
+            ? (r.connected_account_id as string | null | undefined)
+            : undefined,
+        );
+        setOauthCallbackPreview(
+          "oauth_callback_url" in r
+            ? (r.oauth_callback_url as string | null | undefined)
+            : undefined,
+        );
+      }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [hitl.step, integration, toolkit]);
+
+  const openConnect = async () => {
+    const api = window.electronAPI;
+    if (!api?.hitlReopenOauth) return;
+    setReopenBusy(true);
+    try {
+      const r = await api.hitlReopenOauth();
+      if (!r) {
+        toast.error("Connect failed");
+        return;
+      }
+      if (r.ok === false) {
+        const err = "error" in r ? r.error : "Connect failed";
+        toast.error(err === "no_pending" ? "Session expired — cancel the run or try again." : err);
+        return;
+      }
+      if (r.ok && "urlOpened" in r && r.urlOpened) {
+        toast.success("Opened browser — finish signing in with Composio");
+      }
+    } finally {
+      setReopenBusy(false);
+    }
+  };
+
+  const shellClass =
+    "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border bg-(--echo-surface)/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
+
+  return (
+    <div className={`${shellClass} border-(--echo-lavender)/40`}>
+      <HitlDragHeader title={`Connect ${toolkit || integration}`} />
+      <div
+        className="echo-hud-no-drag flex min-h-0 flex-1 flex-col justify-between gap-4 px-4 pb-4 pt-4"
+        style={dragStyle}
+      >
+        <div className="flex gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-(--echo-border)/50 bg-(--echo-surface)/80 shadow-sm">
+            <IntegrationBrandIcon integration={integration} toolkit={toolkit} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-(--echo-text)">
+              Connect {toolkit || integration} via Composio
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-(--echo-text-secondary)">{message}</p>
+            <p className="mt-3 text-[10px] text-(--echo-text-secondary)/80">Step {hitl.step}</p>
+            {!connectionReady ? (
+              <p className="mt-2 text-[11px] text-(--echo-text-secondary)/90">
+                Checking connection… (updates every few seconds)
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] font-medium text-emerald-600/90">
+                Connection detected — tap Continue to resume the run.
+                {connectedAccountId ? (
+                  <span className="mt-1 block font-mono text-[10px] text-emerald-700/90">
+                    Connected account: {connectedAccountId}
+                  </span>
+                ) : null}
+              </p>
+            )}
+            {oauthCallbackPreview !== undefined &&
+            oauthCallbackPreview !== null &&
+            oauthCallbackPreview !== "" ? (
+              <p className="mt-2 text-[10px] leading-snug text-(--echo-text-secondary)/75">
+                OAuth return URL (API):{" "}
+                <span className="break-all font-mono">{oauthCallbackPreview}</span>
+              </p>
+            ) : connectionReady ? null : (
+              <p className="mt-2 text-[10px] text-(--echo-text-secondary)/70">
+                If the browser does not return to Echo after OAuth, the connection can still
+                complete — this panel polls Composio directly. Set{" "}
+                <span className="font-mono">COMPOSIO_OAUTH_CALLBACK_URL</span> or{" "}
+                <span className="font-mono">FRONTEND_ORIGIN</span> on the API for a branded
+                redirect.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2 border-t border-(--echo-border)/60 pt-4">
+          {connectionReady ? (
+            <>
+              <Button
+                type="button"
+                size="default"
+                className="echo-run-hud-btn-gradient h-9 border-0 px-5 text-sm font-semibold shadow-sm"
+                onClick={() => onSubmitResume(true)}
+              >
+                <IconCircleCheck size={16} stroke={2} />
+                Continue
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                className="h-9 border-(--echo-border) bg-transparent text-sm"
+                disabled={reopenBusy}
+                onClick={() => void openConnect()}
+              >
+                <IconExternalLink size={16} className="text-(--echo-cyan)" />
+                Open OAuth again
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              size="default"
+              className="echo-run-hud-btn-gradient h-9 border-0 px-5 text-sm font-semibold shadow-sm"
+              disabled={reopenBusy}
+              onClick={() => void openConnect()}
+            >
+              <IconExternalLink size={16} stroke={2} />
+              {reopenBusy ? "Opening…" : "Connect"}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RunHitlCard({
+  hitl,
+  onSubmitResume,
+}: {
+  hitl: NonNullable<RunHitlState>;
+  onSubmitResume: (value: unknown) => void;
 }) {
   const shellClass =
     "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border bg-(--echo-surface)/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
 
   if (hitl.kind === "api_call_approval") {
     const integration = String(hitl.payload.integration ?? "");
-    const method = String(hitl.payload.method ?? "");
-    const message = String(hitl.payload.message ?? `Approve API call: ${integration}.${method}`);
+    const toolkit = String(hitl.payload.toolkit ?? "");
+    const composioSlug = String(hitl.payload.composio_slug ?? "");
+    const message = String(
+      hitl.payload.message ??
+        (composioSlug
+          ? `Confirm sensitive Composio action: ${composioSlug}`
+          : `Approve API call: ${toolkit || integration || "integration"}`),
+    );
     const argsPreview = String(hitl.payload.args_preview ?? "{}");
+    const sensitive = Boolean(hitl.payload.requires_approval_reason);
+    const headline =
+      composioSlug || (toolkit || integration ? `${toolkit || integration}` : "Integration action");
     return (
       <div className={`${shellClass} border-(--echo-cyan)/35`}>
-        <HitlDragHeader title="API call approval" />
+        <HitlDragHeader title="Confirm action" />
         <div
           className="echo-hud-no-drag flex min-h-0 flex-1 flex-col gap-3 px-4 pb-3 pt-3"
           style={dragStyle}
@@ -183,11 +359,16 @@ function RunHitlCard({
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex shrink-0 gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-(--echo-border)/50 bg-(--echo-surface)/80 shadow-sm">
-                <IntegrationBrandIcon integration={integration} />
+                <IntegrationBrandIcon integration={integration} toolkit={toolkit} />
               </div>
               <div className="min-w-0 flex-1">
+                {sensitive ? (
+                  <span className="mb-1 inline-flex rounded-full border border-[#ef4444]/35 bg-[#ef4444]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#ef4444]">
+                    Sensitive
+                  </span>
+                ) : null}
                 <p className="font-mono text-sm font-semibold tracking-tight text-(--echo-text)">
-                  {integration}.{method}
+                  {headline}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-(--echo-text-secondary)">
                   {message}
@@ -228,52 +409,7 @@ function RunHitlCard({
   }
 
   if (hitl.kind === "integration_auth") {
-    const message = String(
-      hitl.payload.message ?? "Finish signing in in your browser, then tap Continue in EchoPrism.",
-    );
-    const integration = String(hitl.payload.integration ?? "integration");
-    return (
-      <div className={`${shellClass} border-(--echo-lavender)/40`}>
-        <HitlDragHeader title={`Connect ${integration}`} />
-        <div
-          className="echo-hud-no-drag flex min-h-0 flex-1 flex-col justify-between gap-4 px-4 pb-4 pt-4"
-          style={dragStyle}
-        >
-          <div className="flex gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--echo-lavender)/15 text-(--echo-lavender)">
-              <IconBrandGoogle size={24} stroke={1.5} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-(--echo-text)">Sign in to {integration}</p>
-              <p className="mt-2 text-sm leading-relaxed text-(--echo-text-secondary)">{message}</p>
-              <p className="mt-3 text-[10px] text-(--echo-text-secondary)/80">Step {hitl.step}</p>
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2 border-t border-(--echo-border)/60 pt-4">
-            <Button
-              type="button"
-              size="default"
-              className="echo-run-hud-btn-gradient h-9 border-0 px-5 text-sm font-semibold shadow-sm"
-              onClick={() => onSubmitResume(true)}
-            >
-              <IconCircleCheck size={16} stroke={2} />
-              Continue
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              className="h-9 border-(--echo-border) bg-transparent text-sm"
-              disabled={reopenBusy}
-              onClick={onReopenOauth}
-            >
-              <IconExternalLink size={16} className="text-(--echo-cyan)" />
-              Open sign-in again
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return <IntegrationAuthHitl hitl={hitl} onSubmitResume={onSubmitResume} />;
   }
 
   return (
@@ -382,8 +518,6 @@ function SingleStepPanel({
 }
 
 export default function RunHud({ runPaused, setRunPaused, liveProgress, hitl }: RunHudProps) {
-  const [reopenBusy, setReopenBusy] = useState(false);
-
   const handlePauseResume = () => {
     const next = !runPaused;
     setRunPaused(next);
@@ -397,15 +531,6 @@ export default function RunHud({ runPaused, setRunPaused, liveProgress, hitl }: 
 
   const handleSubmitResume = (value: unknown) => {
     void window.electronAPI?.hitlSubmitResume?.(value);
-  };
-
-  const handleHitlReopen = async () => {
-    setReopenBusy(true);
-    try {
-      await window.electronAPI?.hitlReopenOauth?.();
-    } finally {
-      setReopenBusy(false);
-    }
   };
 
   const { currentStepNum, currentThoughts, currentActions } = useMemo(() => {
@@ -460,12 +585,7 @@ export default function RunHud({ runPaused, setRunPaused, liveProgress, hitl }: 
         >
           {hitl ? (
             <div className="flex min-h-0 flex-1 flex-col px-2 pb-1 pt-2">
-              <RunHitlCard
-                hitl={hitl}
-                reopenBusy={reopenBusy}
-                onSubmitResume={handleSubmitResume}
-                onReopenOauth={handleHitlReopen}
-              />
+              <RunHitlCard hitl={hitl} onSubmitResume={handleSubmitResume} />
             </div>
           ) : (
             <SingleStepPanel

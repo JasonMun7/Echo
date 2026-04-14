@@ -1,6 +1,6 @@
 """
 Contract tests: every integration exposes the same surface (METHODS, execute shape),
-normalizes method names, lines up with Token Vault ids, and ``execute_api_call`` dispatches correctly.
+normalizes method names, and ``execute_api_call`` dispatches to Composio correctly.
 """
 
 from __future__ import annotations
@@ -11,17 +11,9 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from echo_prism_agent.auth0_token_vault import (
-    connection_name_for_integration,
-    normalize_integration_id,
-)
 from echo_prism_agent.execution.operator import execute_api_call
 from echo_prism_agent.integrations import github, google, slack
-from echo_prism_agent.integrations.gmail_content_guard import (
-    gmail_data_guard_error_message,
-    gmail_send_body_likely_missing_requested_data,
-)
-from echo_prism_agent.integrations.google import _gmail_rfc2822_raw_b64
+from echo_prism_agent.integrations.ids import normalize_integration_id
 from echo_prism_agent.integrations.user_text_sanitize import sanitize_api_call_string_args
 
 INTEGRATION_MODULES = (slack, github, google)
@@ -81,8 +73,8 @@ def test_dynamic_import_matches_package(mod_name) -> None:
 
 
 @pytest.mark.parametrize("mod_name", INTEGRATION_IDS)
-def test_token_vault_connection_mapping(mod_name) -> None:
-    assert connection_name_for_integration(normalize_integration_id(mod_name))
+def test_integration_id_normalization(mod_name) -> None:
+    assert normalize_integration_id(mod_name) == mod_name
 
 
 @pytest.mark.parametrize(
@@ -122,32 +114,6 @@ def test_google_duplicate_method_alias_documented() -> None:
     assert google.METHODS.get("rest") and google.METHODS.get("rest") == google.METHODS.get("google_rest")
 
 
-def test_gmail_guard_blocks_prompt_only_data_request() -> None:
-    body = "Please find the top 5 stocks based on the latest market data. List them here."
-    assert gmail_send_body_likely_missing_requested_data(body, "Weekly picks") is True
-    msg = gmail_data_guard_error_message()
-    assert "blocked" in msg.lower() and "concrete" in msg.lower()
-
-
-def test_gmail_skip_data_guard_bypasses_heuristic() -> None:
-    blocked_body = "Please find the top 5 stocks based on the latest market data. List them here."
-    raw, err = _gmail_rfc2822_raw_b64(
-        {
-            "to": "user@example.com",
-            "subject": "Weekly picks",
-            "body": blocked_body,
-            "skip_data_guard": True,
-        }
-    )
-    assert err is None
-    assert raw
-
-
-def test_gmail_guard_allows_body_with_figures() -> None:
-    body = "Top picks: AAPL +2.3%, MSFT +1.1% (see attached screen)."
-    assert gmail_send_body_likely_missing_requested_data(body, "Update") is False
-
-
 def test_sanitize_api_call_args_strips_vlm_from_body() -> None:
     raw = {
         "channel": "C1",
@@ -160,81 +126,80 @@ def test_sanitize_api_call_args_strips_vlm_from_body() -> None:
     assert "[VLM:" not in clean["body"]
 
 
-@pytest.mark.asyncio
-async def test_execute_api_call_dispatches_to_slack_connector() -> None:
-    async def fake_token(*_a, **_k):
-        return "xoxb-test"
+@pytest.fixture
+def composio_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMPOSIO_API_KEY", "test-composio-key")
+    from echo_prism_agent.composio_integration import client as cc
 
-    with patch(
-        "echo_prism_agent.integrations.resolver.get_integration_access_token",
-        fake_token,
-    ):
-        with patch(
-            "echo_prism_agent.integrations.slack.execute",
-            new_callable=AsyncMock,
-        ) as m_exec:
-            m_exec.return_value = {"ok": True, "result": {"ok": True}}
-            ok, err, meta = await execute_api_call(
-                {
-                    "params": {
-                        "integration": "slack",
-                        "method": "list_channels",
-                        "args": {"limit": 10},
-                    }
-                },
-                "uid-1",
-                None,
-            )
+    cc._composio_client.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_execute_api_call_composio_success(composio_key: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_execute(uid: str, slug: str, args: dict) -> dict:
+        assert uid == "uid-1"
+        assert slug == "SLACK_LIST_ALL_CHANNELS"
+        assert args == {"limit": 10}
+        return {"successful": True, "data": {"ok": True}}
+
+    monkeypatch.setattr(
+        "echo_prism_agent.composio_integration.client.execute_composio_tool",
+        fake_execute,
+    )
+    ok, err, meta = await execute_api_call(
+        {
+            "params": {
+                "slug": "SLACK_LIST_ALL_CHANNELS",
+                "arguments": {"limit": 10},
+            }
+        },
+        "uid-1",
+        None,
+    )
     assert ok is True
     assert err == ""
     assert meta is None
-    m_exec.assert_awaited_once()
-    call = m_exec.await_args
-    assert call[0][0] == "list_channels"
-    assert call[0][1] == {"limit": 10}
-    assert call[0][2] == "xoxb-test"
 
 
 @pytest.mark.asyncio
-async def test_execute_api_call_unknown_integration() -> None:
+async def test_execute_api_call_requires_slug(composio_key: None) -> None:
     ok, err, _meta = await execute_api_call(
-        {"params": {"integration": "not_real", "method": "x", "args": {}}},
+        {"params": {"arguments": {}}},
         "u",
         None,
     )
     assert ok is False
-    assert "Unknown integration" in err
+    assert "slug" in err.lower()
 
 
 @pytest.mark.asyncio
-async def test_execute_api_call_no_token_returns_hint_metadata() -> None:
-    async def no_token(*_a, **_k):
-        return ""
+async def test_execute_api_call_composio_auth_hint(composio_key: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def no_account(*_a, **_k):
+        return {"successful": False, "error": "not connected", "data": {}, "composio_auth_hint": True}
 
+    monkeypatch.setattr(
+        "echo_prism_agent.composio_integration.client.execute_composio_tool",
+        no_account,
+    )
     with patch(
-        "echo_prism_agent.integrations.resolver.get_integration_access_token",
-        no_token,
-    ):
-        with patch(
-            "echo_prism_agent.integrations.resolver.integration_connect_hint",
-            new_callable=AsyncMock,
-        ) as hint:
-            hint.return_value = {
-                "auth0_linked": False,
-                "connect_kind": "link_auth0",
-                "integration": "slack",
-            }
-            ok, err, meta = await execute_api_call(
-                {
-                    "params": {
-                        "integration": "slack",
-                        "method": "list_channels",
-                        "args": {},
-                    }
-                },
-                "u",
-                None,
-            )
+        "echo_prism_agent.integrations.resolver.integration_connect_hint",
+        new_callable=AsyncMock,
+    ) as hint:
+        hint.return_value = {
+            "integration": "slack",
+            "toolkit": "slack",
+            "connect_kind": "composio_oauth",
+        }
+        ok, err, meta = await execute_api_call(
+            {
+                "params": {
+                    "slug": "SLACK_LIST_ALL_CHANNELS",
+                    "arguments": {},
+                }
+            },
+            "u",
+            None,
+        )
     assert ok is False
-    assert "not connected" in err.lower()
+    assert "composio connected account" in err.lower()
     assert meta and meta.get("integration_auth_required")

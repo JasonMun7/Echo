@@ -214,12 +214,6 @@ export default function WorkflowDetailScreen() {
           />
           {isOwner ? (
             <>
-              <Pressable
-                style={styles.actionBtn}
-                onPress={() => router.push(`/(tabs)/workflows/${id}/edit`)}
-              >
-                <Text style={styles.actionBtnText}>Edit</Text>
-              </Pressable>
               <Pressable style={styles.actionBtn} onPress={() => setShareOpen(true)}>
                 <Text style={styles.actionBtnText}>Share</Text>
               </Pressable>

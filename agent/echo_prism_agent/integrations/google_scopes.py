@@ -1,16 +1,16 @@
 """
-Maximum Google OAuth 2 scopes Echo may use when fully enabled in Auth0 + Google consent.
+Maximum Google OAuth 2 scopes Echo may use when fully enabled in Composio + Google consent.
 
-Auth0’s Google connection UI groups these as Calendar / Gmail / Drive / etc. Enable only what
-you need; the federated access token will include scopes the user consented to.
+Composio’s Google auth config mirrors these product areas. Enable only what you need; the access
+token will include scopes the user consented to.
 
 Canonical scope URLs: https://developers.google.com/identity/protocols/oauth2/scopes
 """
 
 from __future__ import annotations
 
-# (Auth0 / Google Cloud label, OAuth 2 scope URL)
-# Aligns with Auth0 Social → Google: Basic/Extended profile, Calendar, Gmail, Drive, Sheets, Slides, Contacts, Tasks.
+# (Google Cloud label, OAuth 2 scope URL)
+# Aligns with typical Google OAuth products: profile, Calendar, Gmail, Drive, Sheets, Slides, Contacts, Tasks.
 GOOGLE_OAUTH_MAX_BY_PRODUCT: dict[str, list[tuple[str, str]]] = {
     "Sign-in / profile": [
         ("openid", "openid"),
