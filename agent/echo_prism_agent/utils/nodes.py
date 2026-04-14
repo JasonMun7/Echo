@@ -47,7 +47,12 @@ except ImportError:
 async def chat_turn_node(state: ChatTurnState) -> dict[str, Any]:
     from echo_prism_agent.utils.tools import process_chat_turn
 
-    text_resp, fn_calls, model_content = await process_chat_turn(state["history"], state["client"], state["model"])
+    text_resp, fn_calls, model_content = await process_chat_turn(
+        state["history"],
+        state["client"],
+        state["model"],
+        uid=state.get("uid"),
+    )
     return {
         "text_resp": text_resp,
         "fn_calls": fn_calls,

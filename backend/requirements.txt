@@ -18,3 +18,4 @@ google-auth-oauthlib>=1.2.0
 slack-sdk>=3.27.0
 PyGithub>=2.3.0
 mcp>=1.0.0
+composio>=0.8.0,<1.0.0

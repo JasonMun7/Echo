@@ -25,7 +25,7 @@ if [ -n "$BUILD_FIRST" ]; then
 fi
 
 section "Deploy Backend"
-# YAML env file: avoids gcloud --set-env-vars breaking on commas/special chars in Auth0 secrets.
+# YAML env file: avoids gcloud --set-env-vars breaking on commas/special chars in secrets.
 DEPLOY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/echo-backend-env.yaml.XXXXXX")"
 trap 'rm -f "$BACKEND_ENV_FILE"' EXIT

@@ -361,19 +361,17 @@ class LiveKitEchoPrismAgent(Agent):
     async def call_integration(
         self,
         context: RunContext,
-        integration: str,
-        method: str,
+        slug: str,
         arguments: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Execute a connected app integration action."""
+        """Execute a Composio tool (slug + arguments)."""
         await _publish_tool_event("tool_call", name="call_integration")
         uid = _get_participant_uid(context)
         return await _call_tool(
             uid,
             "call_integration",
             {
-                "integration": integration,
-                "method": method,
+                "slug": slug,
                 "arguments": arguments or {},
             },
         )

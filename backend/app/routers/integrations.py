@@ -1,213 +1,230 @@
 """
-Integrations: list, disconnect, and optional `api_call` execution via Auth0 Token Vault.
+Integrations: catalog and disconnect (OAuth via Composio — see ``/api/composio/link``).
 
-GET    /api/integrations              — list catalog + connection state
-DELETE /api/integrations/{name}       — disconnect
-POST   /api/integrations/{name}/call  — execute connector method
-GET    /api/integrations/{name}/methods — list methods
+GET    /api/integrations        — list catalog + optional Firestore flags
+DELETE /api/integrations/{name} — revoke Composio OAuth + remove optional Firestore doc
+
+Toolkit slugs sent to Tool Router must be verified (never guessed); see
+``.agents/skills/composio/AGENTS.md`` (“Verify Tool Slugs Before Use”) and
+``composio manage toolkits info "<slug>"`` when adding catalog entries.
 """
 
-import asyncio
-import importlib
 import logging
+import os
 
 import firebase_admin.firestore
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
 from app.auth import get_current_uid, get_firebase_app
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
-try:
-    from echo_prism_agent.integrations.resolver import get_integration_access_token
-except ImportError:
-    get_integration_access_token = None  # type: ignore[misc, assignment]
-
-
-async def _oauth_token_failure_detail(uid: str, name: str, db: firebase_admin.firestore.Client) -> str:
-    """
-    When /call has no provider access token, explain why and include Auth0 federated exchange error.
-    Common case: Auth0 is linked (refresh token exists) but user never completed Connect for this integration.
-    """
-    try:
-        from echo_prism_agent.auth0_token_vault import (
-            connection_name_for_integration,
-            federated_token_exchange_response,
-            normalize_integration_id,
-        )
-    except ImportError:
-        return (
-            f"Integration '{name}' has no provider token (echo_prism_agent unavailable for diagnostics). "
-            "Link Auth0, then Connect this integration via Token Vault."
-        )
-
-    user_doc = await asyncio.to_thread(lambda: db.collection("users").document(uid).get())
-    udata = user_doc.to_dict() or {}
-    refresh = (udata.get("auth0_refresh_token") or "").strip()
-    if not refresh:
-        return (
-            f"No Auth0 refresh token for this user. Use Universal Login to link Auth0 first, "
-            f"then Connect the '{name}' integration."
-        )
-
-    iid = normalize_integration_id(name)
-    conn = connection_name_for_integration(iid)
-    if not conn:
-        return (
-            f"Auth0 is linked, but this server has no Auth0 connection name for integration '{name}'. "
-            f"Set AUTH0_CONNECTION_{name.upper()} to match Authentication → Social connection name."
-        )
-
-    status, body = await federated_token_exchange_response(refresh, conn)
-    auth0_hint = ""
-    if isinstance(body, dict):
-        auth0_hint = (body.get("error_description") or body.get("error") or "").strip()
-    if not auth0_hint:
-        auth0_hint = f"HTTP {status}" if status else "empty response"
-
-    # Keep detail as one paragraph; clients show full string in debug JSON.
-    return (
-        f"Auth0 is linked, but Token Vault did not return a provider access token for connection "
-        f"'{conn}'. Signing in with Google (or another IdP) only links Echo to Auth0; you still need "
-        f"to click Connect on this integration so Auth0 can store third-party tokens for APIs. "
-        f"Auth0 federated exchange: {auth0_hint}"
-    )
-
-
 AVAILABLE_INTEGRATIONS = {
     "slack": {
         "name": "Slack",
-        "description": "Send messages, list channels, manage workspace",
+        "tagline": "Messages, channels & workspace actions.",
+        "description": "Send messages, list channels, manage workspace (Composio Managed Auth)",
         "icon": "IconBrandSlack",
         "oauth": True,
-        "scopes": "channels:read,chat:write,users:read (via Auth0 Slack connection)",
+        "scopes": "OAuth via Composio — configure auth config in Composio dashboard",
     },
     "github": {
         "name": "GitHub",
-        "description": "Create issues, list PRs, manage repos",
+        "tagline": "Issues, repos & pull requests.",
+        "description": "Issues, repos, PRs (Composio Managed Auth)",
         "icon": "IconBrandGithub",
         "oauth": True,
-        "scopes": "repo,issues (via Auth0 GitHub connection)",
+        "scopes": "OAuth via Composio",
     },
     "google": {
         "name": "Google",
-        "description": "Gmail, Calendar, Drive, and other Google APIs (via Auth0 Token Vault)",
+        "tagline": "Google account & APIs for Calendar, Drive, and more.",
+        "description": 'Connects via Composio\'s googlecalendar toolkit (Tool Router rejects the legacy umbrella slug "google").',
         "icon": "IconBrandGoogle",
         "oauth": True,
-        "scopes": "Calendar, Gmail, Drive, Sheets, Slides, Contacts, Tasks — see agent/echo_prism_agent/integrations/google_scopes.py",
+        "scopes": "OAuth via Composio",
+    },
+    "gmail": {
+        "name": "Gmail",
+        "tagline": "Send, read & search email.",
+        "description": 'Send and read mail (Composio `gmail` toolkit). Connect Gmail and "Google" separately if you use both.',
+        "icon": "IconBrandGoogle",
+        "oauth": True,
+        "scopes": "OAuth via Composio; Gmail scopes in Composio auth config",
     },
 }
 
-_TOKEN_VAULT_IDS = frozenset({"slack", "github", "google"})
+# Echo product ids → Composio toolkit slugs. TR v2 rejects "google"; map was validated by API error
+# and aligns with ``.agents/skills/composio/AGENTS.md`` / ``rules/tr-session-basic.md`` (use real slugs).
+_ECHO_TO_COMPOSIO_TOOLKIT: dict[str, str] = {
+    "google": "googlecalendar",
+}
+
+
+def echo_catalog_id_to_composio_toolkit(catalog_id: str) -> str:
+    """Map ``GET /api/integrations`` id to the Composio toolkit slug used for sessions and OAuth."""
+    c = (catalog_id or "").strip().lower()
+    return _ECHO_TO_COMPOSIO_TOOLKIT.get(c, c)
+
+
+def composio_toolkits_for_session() -> list[str]:
+    """Distinct Composio slugs for ``Composio.create`` / ``session.toolkits`` (valid slugs only)."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for k in AVAILABLE_INTEGRATIONS:
+        s = echo_catalog_id_to_composio_toolkit(k)
+        if s not in seen:
+            seen.add(s)
+            ordered.append(s)
+    return ordered
+
+
+def composio_slug_activates_catalog_entry(catalog_id: str, composio_slugs: set[str]) -> bool:
+    """Whether ``composio_account_active`` should be true for this catalog row."""
+    return echo_catalog_id_to_composio_toolkit(catalog_id) in composio_slugs
+
+
+def revoke_composio_connections_for_catalog(uid: str, catalog_key: str) -> int:
+    """
+    Soft-delete ACTIVE Composio connected accounts for this catalog integration’s toolkit.
+
+    Echo’s UI “disconnect” must clear Composio OAuth; otherwise ``GET /api/integrations`` still
+    reports ``composio_account_active`` from ``connected_accounts.list``.
+    """
+    api_key = (os.getenv("COMPOSIO_API_KEY") or "").strip()
+    if not api_key:
+        return 0
+    k = (catalog_key or "").strip().lower()
+    if k not in AVAILABLE_INTEGRATIONS:
+        return 0
+    composio_slug = echo_catalog_id_to_composio_toolkit(k)
+    from composio import Composio
+
+    c = Composio(api_key=api_key)
+    resp = c.connected_accounts.list(user_ids=[uid], statuses=["ACTIVE"], limit=100)
+    removed = 0
+    failed: list[str] = []
+    for item in resp.items:
+        tk = getattr(item, "toolkit", None)
+        slug = str(getattr(tk, "slug", "") or "").lower() if tk else ""
+        if slug != composio_slug:
+            continue
+        acc_id = getattr(item, "id", None)
+        if not acc_id:
+            continue
+        try:
+            c.connected_accounts.delete(str(acc_id))
+            removed += 1
+        except Exception as e:
+            logger.warning(
+                "Composio connected_accounts.delete failed uid=%s toolkit=%s acc_id=%s: %s",
+                uid,
+                composio_slug,
+                acc_id,
+                e,
+            )
+            failed.append(str(acc_id))
+    if failed:
+        raise RuntimeError(
+            f"Failed to revoke {len(failed)} Composio account(s) for {composio_slug}: {', '.join(failed)}"
+        )
+    return removed
+
+
+def _composio_active_toolkit_slugs(uid: str) -> set[str] | None:
+    """
+    Catalog toolkit slugs with an active Composio connection.
+
+    Merges ``session.toolkits()`` with ``connected_accounts.list(ACTIVE)`` — after OAuth, the
+    accounts API often reflects the new connection before toolkits state catches up, so the UI
+    updates reliably.
+    """
+    key = (os.getenv("COMPOSIO_API_KEY") or "").strip()
+    if not key:
+        return None
+    slugs: set[str] = set()
+    try:
+        from composio import Composio
+
+        catalog = composio_toolkits_for_session()
+        c = Composio(api_key=key)
+
+        session = c.create(user_id=uid, toolkits=catalog)
+        resp = session.toolkits(toolkits=catalog, limit=50)
+        for item in resp.items:
+            if item.connection and item.connection.is_active:
+                slugs.add(item.slug.lower())
+
+        try:
+            acc = c.connected_accounts.list(user_ids=[uid], statuses=["ACTIVE"], limit=100)
+            for row in acc.items:
+                tk = getattr(row, "toolkit", None)
+                s = getattr(tk, "slug", None) if tk else None
+                if s:
+                    slugs.add(str(s).lower())
+        except Exception as e2:
+            logger.debug("connected_accounts.list merge skipped: %s", e2)
+
+        return slugs
+    except Exception as e:
+        logger.warning("Composio active toolkit detection failed: %s", e)
+        return None
 
 
 @router.get("")
 async def list_integrations(uid: str = Depends(get_current_uid)):
-    """List all available integrations and which ones the user has connected."""
+    """List integrations and optional Firestore connection metadata."""
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
-    user_doc = db.collection("users").document(uid).get()
-    udata = user_doc.to_dict() or {}
-    auth0_linked = bool((udata.get("auth0_refresh_token") or "").strip())
 
     connected_docs = db.collection("users").document(uid).collection("integrations").stream()
     connected = {d.id: d.to_dict() for d in connected_docs}
 
+    active_slugs = _composio_active_toolkit_slugs(uid)
+
     result = []
     for key, meta in AVAILABLE_INTEGRATIONS.items():
         entry = {**meta, "id": key}
-        vault_flag = udata.get(f"vault_connection_{key}") is True
         if key in connected:
             conn = connected[key]
             entry["connected"] = True
             entry["connected_at"] = conn.get("connected_at")
             entry["account_name"] = conn.get("team_name") or conn.get("account_name")
-        elif vault_flag:
-            entry["connected"] = True
-            entry["account_name"] = "Auth0 Token Vault"
         else:
             entry["connected"] = False
-        if meta.get("oauth") and key in _TOKEN_VAULT_IDS:
-            entry["token_vault"] = True
+        if active_slugs is not None:
+            entry["composio_account_active"] = composio_slug_activates_catalog_entry(key, active_slugs)
+        else:
+            entry["composio_account_active"] = None
         result.append(entry)
 
     return {
         "integrations": result,
-        "auth0_linked": auth0_linked,
-        "auth0_sub": udata.get("auth0_sub"),
-        "auth0_email": udata.get("auth0_email"),
+        "composio_configured": bool((os.getenv("COMPOSIO_API_KEY") or "").strip()),
     }
 
 
 @router.delete("/{name}")
 async def disconnect_integration(name: str, uid: str = Depends(get_current_uid)):
-    """Remove integration tokens from Firestore and vault connection flag."""
-    from google.cloud.firestore import DELETE_FIELD
+    """Revoke Composio OAuth for this toolkit, then remove optional Firestore metadata."""
+    n = name.strip().lower()
+    if n not in AVAILABLE_INTEGRATIONS:
+        raise HTTPException(status_code=404, detail=f"Unknown integration: {name}")
+
+    if (os.getenv("COMPOSIO_API_KEY") or "").strip():
+        try:
+            revoke_composio_connections_for_catalog(uid, n)
+        except Exception as e:
+            logger.exception("Composio revoke failed uid=%s integration=%s", uid, n)
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to revoke connection in Composio. Try again in a moment.",
+            ) from e
 
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
-    ref = db.collection("users").document(uid).collection("integrations").document(name)
+    ref = db.collection("users").document(uid).collection("integrations").document(n)
     if ref.get().exists:
         ref.delete()
-    user_ref = db.collection("users").document(uid)
-    user_ref.update({f"vault_connection_{name}": DELETE_FIELD})
     return {"ok": True}
-
-
-class IntegrationCallBody(BaseModel):
-    method: str
-    args: dict = {}
-
-
-@router.post("/{name}/call")
-async def call_integration(
-    name: str,
-    body: IntegrationCallBody,
-    uid: str = Depends(get_current_uid),
-):
-    """Execute an integration method directly."""
-    app = get_firebase_app()
-    db = firebase_admin.firestore.client(app)
-
-    token_doc = db.collection("users").document(uid).collection("integrations").document(name).get()
-    if not token_doc.exists and AVAILABLE_INTEGRATIONS.get(name, {}).get("oauth"):
-        pass
-
-    token_data = token_doc.to_dict() if token_doc.exists else {}
-    if get_integration_access_token:
-        access_token = await get_integration_access_token(uid, name, db)
-    else:
-        access_token = token_data.get("access_token", "") or ""
-
-    from echo_prism_agent.integrations.user_text_sanitize import (
-        sanitize_api_call_string_args,
-    )
-
-    body.args = sanitize_api_call_string_args(dict(body.args or {}))
-
-    if not access_token and AVAILABLE_INTEGRATIONS.get(name, {}).get("oauth"):
-        detail = await _oauth_token_failure_detail(uid, name, db)
-        raise HTTPException(status_code=400, detail=detail)
-
-    try:
-        connector = importlib.import_module(f"echo_prism_agent.integrations.{name}")
-        result = await connector.execute(body.method, body.args, access_token)
-        return {"ok": True, "result": result}
-    except ModuleNotFoundError:
-        raise HTTPException(status_code=501, detail=f"Integration '{name}' not implemented")
-    except Exception as e:
-        logger.error("Integration %s.%s failed: %s", name, body.method, e)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{name}/methods")
-async def list_methods(name: str, uid: str = Depends(get_current_uid)):
-    """List available methods for an integration."""
-    try:
-        connector = importlib.import_module(f"echo_prism_agent.integrations.{name}")
-        methods = getattr(connector, "METHODS", {})
-        return {"integration": name, "methods": methods}
-    except ModuleNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Integration '{name}' not found")

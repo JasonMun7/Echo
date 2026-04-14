@@ -81,7 +81,18 @@ declare global {
       onRunHitlClear: (cb: () => void) => void;
       removeRunHitlClearListener: () => void;
       hitlSubmitResume: (resume?: unknown) => Promise<{ ok: boolean }>;
-      hitlReopenOauth: () => Promise<{ ok: true } | { ok: false; error: string }>;
+      hitlReopenOauth: () => Promise<
+        { ok: true; urlOpened: boolean } | { ok: false; error: string }
+      >;
+      hitlIntegrationStatus: () => Promise<
+        | {
+            ok: true;
+            ready: boolean;
+            connected_account_id?: string | null;
+            oauth_callback_url?: string | null;
+          }
+        | { ok: false; error: string }
+      >;
       onRunPausedByVoice: (callback: () => void) => void;
       removeRunPausedByVoiceListener: () => void;
       onRunResumedByVoice: (callback: () => void) => void;

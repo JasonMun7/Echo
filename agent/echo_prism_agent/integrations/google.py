@@ -1,9 +1,9 @@
-"""Google APIs connector (Bearer token from Auth0 Token Vault → Google).
+"""Google APIs connector (Bearer token from Composio or legacy Firestore OAuth → Google).
 
-Each method needs the corresponding OAuth scopes on the Auth0 Google connection
-and Google Cloud consent screen; otherwise Google returns 403.
+Each method needs the corresponding OAuth scopes on the Google consent screen (and Composio auth
+config); otherwise Google returns 403.
 
-Maximum scope groups Auth0/Google may offer for this integration: see
+Maximum scope groups Google may offer for this integration: see
 ``google_scopes.GOOGLE_OAUTH_MAX_BY_PRODUCT``.
 """
 
@@ -14,26 +14,11 @@ from email.message import EmailMessage
 from typing import Any
 
 import httpx
-from echo_prism_agent.integrations.gmail_content_guard import (
-    gmail_data_guard_error_message,
-    gmail_send_body_likely_missing_requested_data,
-)
 from echo_prism_agent.integrations.google_rest import execute_rest
 from echo_prism_agent.integrations.user_text_sanitize import strip_vlm_placeholders
 
 _FREEBUSY_URL = "https://www.googleapis.com/calendar/v3/freeBusy"
 _GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
-
-
-def _truthy_skip_gmail_data_guard(args: dict[str, Any]) -> bool:
-    """Per-send opt-out after human review (workflow ``api_call`` args only)."""
-    for key in ("skip_data_guard", "skip_content_guard"):
-        v = args.get(key)
-        if v is True:
-            return True
-        if isinstance(v, str) and v.strip().lower() in ("1", "true", "yes", "on"):
-            return True
-    return False
 
 
 def _bounded_int(args: dict[str, Any], key: str, default: int, cap: int) -> int:
@@ -48,17 +33,15 @@ METHODS: dict[str, str] = {
     "rest": (
         "Generic Google REST to any *.googleapis.com URL — args: { verb|http_method, url, params?, json?, "
         "headers?, timeout_seconds? }. Covers Calendar, Gmail, Drive, Sheets, Slides, People (Contacts), Tasks "
-        "per OAuth scopes enabled in Auth0 (see google_scopes.py). Alias: google_rest."
+        "per OAuth scopes enabled in Composio / Google (see google_scopes.py). Alias: google_rest."
     ),
     "userinfo": "GET oauth2/v3/userinfo — basic profile (openid / profile / email)",
     "calendar_list": "GET calendar/v3/users/me/calendarList — needs calendar or calendar.readonly",
     "calendar_freebusy": "POST calendar/v3/freeBusy — availability query; needs calendar.freebusy (or broader calendar scope)",
     "gmail_list_labels": "GET gmail/v1/users/me/labels — needs gmail.labels or gmail.readonly",
     "gmail_send": (
-        "POST gmail/v1/users/me/messages/send — args: { to, subject?, body|text?, cc?, bcc?, html?, "
-        "skip_data_guard? (bool, optional) }; needs https://www.googleapis.com/auth/gmail.send. "
-        "A content guard blocks prompt-like bodies that ask for data without figures—set skip_data_guard "
-        "to true only after you have reviewed the draft (e.g. intentional template mail)."
+        "POST gmail/v1/users/me/messages/send — args: { to, subject?, body|text?, cc?, bcc?, html? }; "
+        "needs https://www.googleapis.com/auth/gmail.send."
     ),
     "drive_list_files": "GET drive/v3/files — needs drive.readonly or drive.metadata.readonly",
 }
@@ -75,11 +58,6 @@ def _gmail_rfc2822_raw_b64(args: dict[str, Any]) -> tuple[str | None, str | None
     html = args.get("html")
     if html is not None and str(html).strip():
         html = strip_vlm_placeholders(str(html))
-    guard_text = plain
-    if html is not None and str(html).strip():
-        guard_text = f"{plain}\n{html}"
-    if not _truthy_skip_gmail_data_guard(args) and gmail_send_body_likely_missing_requested_data(guard_text, subject):
-        return None, gmail_data_guard_error_message()
     msg = EmailMessage()
     msg["To"] = to
     if args.get("cc"):

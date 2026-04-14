@@ -24,7 +24,7 @@ export default function NewWorkflowScreen() {
       });
       if (res.ok) {
         const data = await res.json();
-        router.replace(`/(tabs)/workflows/${data.id}/edit`);
+        router.replace(`/(tabs)/workflows/${data.id}`);
       } else {
         Alert.alert("Error", "Failed to create workflow.");
       }

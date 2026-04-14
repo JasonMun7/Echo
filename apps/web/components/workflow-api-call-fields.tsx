@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,16 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-const INTEGRATIONS = [
-  { value: "slack", label: "Slack" },
-  { value: "github", label: "GitHub" },
-  { value: "google", label: "Google" },
-] as const;
-
-const INTEGRATION_NONE = "__echo_int_none__";
-const METHOD_NONE = "__echo_method_none__";
-const METHOD_CUSTOM = "__echo_method_custom__";
+import {
+  COMPOSIO_TOOL_CATEGORIES,
+  filterComposioToolCatalog,
+  type ComposioToolCatalogEntry,
+} from "@/lib/composio-tool-catalog";
 
 const fieldClass =
   "w-full border-[#A577FF]/20 bg-white text-[#150A35] shadow-sm focus-visible:border-[#A577FF]/40 focus-visible:ring-[#A577FF]/25";
@@ -72,6 +66,26 @@ type ArgsFormKind =
   | "none"
   | "json";
 
+/** Map Composio tool slug → legacy method hint for structured form fields. */
+function slugToMethodHint(slug: string): string {
+  const u = slug.trim().toUpperCase();
+  const map: Record<string, string> = {
+    GMAIL_SEND_EMAIL: "gmail_send",
+    GMAIL_LIST_LABELS: "gmail_list_labels",
+    SLACK_SEND_MESSAGE: "post_message",
+    SLACK_LIST_ALL_CHANNELS: "list_channels",
+    GITHUB_CREATE_ISSUE: "create_issue",
+    GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER: "list_repos",
+    GOOGLECALENDAR_CALENDAR_LIST: "calendar_list",
+    GOOGLECALENDAR_FREEBUSY_QUERY: "calendar_freebusy",
+    GOOGLEDRIVE_LIST_FILES: "drive_list_files",
+    GOOGLEGET_USER_INFO: "userinfo",
+  };
+  if (map[u]) return map[u];
+  if (u.includes("GOOGLE") && u.includes("REST")) return "google_rest";
+  return "";
+}
+
 function argsFormKind(method: string): ArgsFormKind {
   const m = method.toLowerCase().replace(/-/g, "_");
   switch (m) {
@@ -103,7 +117,7 @@ function argsFormKind(method: string): ArgsFormKind {
 }
 
 function hasStructuredForm(method: string): boolean {
-  return argsFormKind(method) !== "json";
+  return Boolean(method) && argsFormKind(method) !== "json";
 }
 
 export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallFieldsProps) {
@@ -114,21 +128,18 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
     [onChange, params],
   );
 
-  const update = useCallback(
-    (k: string, v: unknown) => {
-      onChange({ ...params, [k]: v });
-    },
-    [onChange, params],
-  );
+  const slugVal = String((params.slug as string) || "").trim();
+  const methodHint = slugToMethodHint(slugVal);
 
-  const integration = ((params.integration as string) || "").trim();
-  const rawMethod = ((params.method as string) || "").trim();
-
-  const argsObj = useMemo(() => parseArgsObject(params.args), [params.args]);
+  const argsObj = useMemo(() => {
+    const primary = parseArgsObject(params.arguments);
+    if (Object.keys(primary).length > 0) return primary;
+    return parseArgsObject(params.args);
+  }, [params.arguments, params.args]);
 
   const setArgs = useCallback(
     (next: Record<string, unknown>) => {
-      patchParams({ args: next });
+      patchParams({ arguments: next });
     },
     [patchParams],
   );
@@ -141,84 +152,40 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
   );
 
   const [useRawJson, setUseRawJson] = useState(false);
+  /** Draft JSON text while invalid; avoids persisting a string into `arguments`. */
+  const [argsJsonDraft, setArgsJsonDraft] = useState<string | null>(null);
+  const [argsJsonError, setArgsJsonError] = useState<string | null>(null);
 
-  const formKind = rawMethod ? argsFormKind(rawMethod) : "none";
-  const structuredAvailable = Boolean(rawMethod) && hasStructuredForm(rawMethod);
+  const [actionSearch, setActionSearch] = useState("");
+  const [actionCategory, setActionCategory] =
+    useState<(typeof COMPOSIO_TOOL_CATEGORIES)[number]>("All");
+  const filteredActions = useMemo(
+    () => filterComposioToolCatalog(actionSearch, actionCategory),
+    [actionSearch, actionCategory],
+  );
+
+  const pickAction = useCallback(
+    (entry: ComposioToolCatalogEntry) => {
+      patchParams({ slug: entry.slug });
+      setActionSearch("");
+    },
+    [patchParams],
+  );
+
+  const formKind = methodHint ? argsFormKind(methodHint) : "none";
+  const structuredAvailable = Boolean(methodHint) && hasStructuredForm(methodHint);
 
   useEffect(() => {
     if (!structuredAvailable) setUseRawJson(true);
     else setUseRawJson(false);
-  }, [rawMethod, structuredAvailable]);
-
-  const [methods, setMethods] = useState<Record<string, string> | null>(null);
-  const [methodsLoading, setMethodsLoading] = useState(false);
-  const [methodsError, setMethodsError] = useState<string | null>(null);
+  }, [methodHint, structuredAvailable]);
 
   useEffect(() => {
-    let cancelled = false;
+    setArgsJsonDraft(null);
+    setArgsJsonError(null);
+  }, [params.arguments, params.args]);
 
-    const run = async () => {
-      await Promise.resolve();
-      if (cancelled) return;
-
-      if (!integration || !["slack", "github", "google"].includes(integration)) {
-        setMethods(null);
-        setMethodsError(null);
-        setMethodsLoading(false);
-        return;
-      }
-
-      setMethodsLoading(true);
-      setMethodsError(null);
-
-      try {
-        const res = await apiFetch(`/api/integrations/${encodeURIComponent(integration)}/methods`);
-        if (!res.ok) {
-          const t = await res.text();
-          throw new Error(t || res.statusText);
-        }
-        const data = (await res.json()) as { methods?: Record<string, string> };
-        if (!cancelled) {
-          setMethods(data.methods && typeof data.methods === "object" ? data.methods : {});
-          setMethodsError(null);
-        }
-      } catch {
-        if (!cancelled) {
-          setMethods(null);
-          setMethodsError("Could not load methods — enter the method name manually.");
-        }
-      } finally {
-        if (!cancelled) setMethodsLoading(false);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [integration]);
-
-  const sortedMethodEntries = useMemo(() => {
-    if (!methods) return [];
-    return Object.entries(methods).sort(([a], [b]) => a.localeCompare(b));
-  }, [methods]);
-
-  const methodInList = Boolean(
-    methods && rawMethod && Object.prototype.hasOwnProperty.call(methods, rawMethod),
-  );
-
-  const methodSelectValue = !rawMethod ? METHOD_NONE : methodInList ? rawMethod : METHOD_CUSTOM;
-
-  const selectedDescription = methods && rawMethod && methodInList ? methods[rawMethod] : null;
-
-  const showCustomMethodInput =
-    Boolean(methods && !methodsError) &&
-    (methodSelectValue === METHOD_CUSTOM || (Boolean(rawMethod) && !methodInList));
-
-  const argsString =
-    typeof params.args === "object" && params.args !== null
-      ? JSON.stringify(params.args, null, 2)
-      : (params.args as string) || "";
+  const argsString = useMemo(() => stringifyJson(argsObj), [argsObj]);
 
   const showForm = structuredAvailable && !useRawJson && formKind !== "json" && formKind !== "none";
 
@@ -412,7 +379,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
                 <code className="rounded bg-white/80 px-0.5">{`[{"id":"primary"}]`}</code>
               </p>
               <Textarea
-                key={`fb-items-${integration}-${rawMethod}`}
+                key={`fb-items-${slugVal || "default"}`}
                 defaultValue={stringifyJson(argsObj.items ?? [{ id: "primary" }])}
                 onBlur={(e) => {
                   try {
@@ -442,7 +409,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
           <div className="space-y-2 rounded-md border border-[#A577FF]/12 bg-white/90 px-3 py-3">
             <p className="text-sm font-medium text-[#150A35]">No arguments required</p>
             <p className="text-xs leading-relaxed text-echo-text-muted">
-              This method runs without parameters. Use{" "}
+              This tool runs without parameters. Use{" "}
               <span className="font-medium text-[#150A35]">Edit as JSON</span> if you need optional
               or advanced fields.
             </p>
@@ -488,13 +455,13 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
       case "google_rest": {
         const verb = String(argsObj.verb ?? argsObj.http_method ?? "GET").toUpperCase();
         const verbOk = ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(verb);
-        const restKey = `${integration}-${rawMethod}`;
+        const restKey = slugVal || "google-rest";
         return (
           <div className="space-y-3">
             <p className="text-xs leading-relaxed text-echo-text-muted">
               Call any Google API on a{" "}
               <code className="rounded bg-white/80 px-1">*.googleapis.com</code> host. Match OAuth
-              scopes in Auth0 to the API you use.
+              scopes you granted in Composio / Google Cloud to the API you use.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="w-full shrink-0 space-y-1.5 sm:w-[6.5rem]">
@@ -749,174 +716,160 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
     }
   };
 
+  const argumentsText = useMemo(() => {
+    const a = params.arguments;
+    if (a !== undefined && a !== null) {
+      return typeof a === "string" ? a : stringifyJson(a);
+    }
+    return argsString;
+  }, [params.arguments, argsString]);
+
+  const jsonEditorValue = argsJsonDraft ?? argumentsText;
+
   return (
     <div className="space-y-4 rounded-lg border border-[#A577FF]/15 bg-[#F5F7FC]/50 p-3">
-      <div className="space-y-2">
-        <Label htmlFor="wf-api-integration" className="text-xs font-medium text-[#150A35]">
-          Integration
-        </Label>
-        <Select
-          value={integration ? integration : INTEGRATION_NONE}
-          onValueChange={(v) => {
-            if (v === INTEGRATION_NONE) {
-              patchParams({ integration: "", method: "" });
-              return;
-            }
-            patchParams({ integration: v, method: "" });
-          }}
-        >
-          <SelectTrigger
-            id="wf-api-integration"
-            size="sm"
-            className={cn("h-9 w-full min-w-0", fieldClass)}
-          >
-            <SelectValue placeholder="Choose integration" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={INTEGRATION_NONE}>
-              <span className="text-echo-text-muted">— Select integration —</span>
-            </SelectItem>
-            {INTEGRATIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <div className="space-y-2 rounded-md border border-[#21C4DD]/25 bg-white/70 px-3 py-2">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-[#21C4DD]">Composio</p>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="wf-api-method" className="text-xs font-medium text-[#150A35]">
-            Method
-          </Label>
-          {methodsLoading && <span className="text-[10px] text-echo-text-muted">Loading…</span>}
+        <div className="space-y-2 rounded-md border border-[#A577FF]/12 bg-white/80 px-2 py-2">
+          <Label className="text-xs text-[#150A35]">Find an action</Label>
+          <p className="text-[10px] leading-relaxed text-echo-text-muted">
+            Search by what you want to do (like Zapier). Picking an action fills the tool slug
+            below; you can still paste any slug from the Composio dashboard.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {COMPOSIO_TOOL_CATEGORIES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setActionCategory(c)}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
+                  actionCategory === c
+                    ? "border-[#21C4DD] bg-[#21C4DD]/10 text-[#0d6f7d]"
+                    : "border-[#A577FF]/20 bg-white text-echo-text-muted hover:border-[#A577FF]/40",
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <Input
+            value={actionSearch}
+            onChange={(e) => setActionSearch(e.target.value)}
+            placeholder="e.g. send slack message, list repos, calendar…"
+            className={cn("h-9 text-sm", fieldClass)}
+          />
+          <div
+            className="max-h-40 overflow-y-auto rounded-md border border-[#A577FF]/15 bg-[#F5F7FC]/40"
+            role="listbox"
+            aria-label="Composio actions"
+          >
+            {filteredActions.length === 0 ? (
+              <p className="px-2 py-3 text-center text-[11px] text-echo-text-muted">
+                No matches. Try another search or type a slug manually.
+              </p>
+            ) : (
+              filteredActions.map((entry) => (
+                <button
+                  key={entry.slug}
+                  type="button"
+                  role="option"
+                  onClick={() => pickAction(entry)}
+                  className={cn(
+                    "flex w-full flex-col gap-0.5 border-b border-[#A577FF]/10 px-2.5 py-2 text-left last:border-b-0",
+                    "hover:bg-[#A577FF]/8",
+                    slugVal === entry.slug && "bg-[#21C4DD]/10",
+                  )}
+                >
+                  <span className="text-xs font-medium text-[#150A35]">{entry.title}</span>
+                  <span className="text-[10px] text-echo-text-muted">{entry.description}</span>
+                  <span className="font-mono text-[10px] text-[#21C4DD]/90">{entry.slug}</span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
 
-        {!integration && (
-          <p className="text-xs text-echo-text-muted">Select an integration to choose a method.</p>
-        )}
-
-        {integration && methodsError && (
+        <div className="space-y-1.5">
+          <Label htmlFor="wf-api-composio-slug" className="text-xs text-[#150A35]">
+            Tool slug
+          </Label>
           <Input
-            id="wf-api-method"
-            type="text"
-            value={rawMethod}
-            onChange={(e) => update("method", e.target.value)}
-            placeholder="e.g. post_message, rest, gmail_send"
+            id="wf-api-composio-slug"
+            value={slugVal}
+            onChange={(e) => patchParams({ slug: e.target.value.trim() })}
+            placeholder="e.g. SLACK_SEND_MESSAGE"
             className={cn("h-9 font-mono text-xs", fieldClass)}
           />
-        )}
-
-        {integration && !methodsError && (methodsLoading || methods) && (
-          <>
-            <Select
-              value={methodSelectValue}
-              onValueChange={(v) => {
-                if (v === METHOD_NONE) {
-                  update("method", "");
-                  return;
-                }
-                if (v === METHOD_CUSTOM) {
-                  update("method", "");
-                  return;
-                }
-                update("method", v);
-              }}
-              disabled={methodsLoading || !methods}
-            >
-              <SelectTrigger
-                id="wf-api-method"
-                size="sm"
-                className={cn("h-9 w-full min-w-0", fieldClass)}
-              >
-                <SelectValue placeholder="Choose a method" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[min(320px,50vh)]">
-                <SelectItem value={METHOD_NONE}>
-                  <span className="text-echo-text-muted">— Select method —</span>
-                </SelectItem>
-                {sortedMethodEntries.map(([name]) => (
-                  <SelectItem key={name} value={name}>
-                    <span className="font-mono text-xs">{name}</span>
-                  </SelectItem>
-                ))}
-                <SelectItem value={METHOD_CUSTOM}>
-                  <span className="text-echo-text-muted">Custom method…</span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-
-            {showCustomMethodInput && (
-              <Input
-                type="text"
-                value={rawMethod}
-                onChange={(e) => update("method", e.target.value)}
-                placeholder="Type method name"
-                className={cn("h-9 font-mono text-xs", fieldClass)}
-                aria-label="Custom API method name"
-              />
-            )}
-
-            {selectedDescription && !showCustomMethodInput && (
-              <p className="rounded-md border border-[#A577FF]/10 bg-white/80 px-2.5 py-2 text-xs leading-relaxed text-echo-text-muted">
-                {selectedDescription}
-              </p>
-            )}
-          </>
-        )}
-
-        {methodsError && <p className="text-xs text-echo-text-muted">{methodsError}</p>}
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label className="text-xs font-medium text-[#150A35]">
-            Arguments
-            {showForm ? (
-              <span className="ml-1 font-normal text-echo-text-muted">(form)</span>
-            ) : (
-              <span className="ml-1 font-normal text-echo-text-muted">(JSON)</span>
-            )}
-          </Label>
-          {structuredAvailable && (
-            <button
-              type="button"
-              onClick={() => setUseRawJson((v) => !v)}
-              className="text-[11px] font-medium text-[#A577FF] underline-offset-2 hover:underline"
-            >
-              {useRawJson ? "Use form fields" : "Edit as JSON"}
-            </button>
-          )}
+          <p className="text-[10px] leading-relaxed text-echo-text-muted">
+            Required. Echo runs this Composio tool with your Firebase uid. Connect the right app
+            under Integrations first. Structured argument fields appear when we recognize the slug.
+          </p>
         </div>
 
-        {showForm ? (
-          renderStructuredArgs()
-        ) : (
-          <textarea
-            id="wf-api-args"
-            value={argsString}
-            onChange={(e) => {
-              try {
-                update("args", JSON.parse(e.target.value));
-              } catch {
-                update("args", e.target.value);
-              }
-            }}
-            placeholder='{"key": "value"}'
-            rows={8}
-            className={cn(
-              "min-h-[120px] w-full resize-y rounded-md border px-3 py-2 font-mono text-xs",
-              fieldClass,
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label className="text-xs font-medium text-[#150A35]">
+              Arguments
+              {showForm ? (
+                <span className="ml-1 font-normal text-echo-text-muted">(form)</span>
+              ) : (
+                <span className="ml-1 font-normal text-echo-text-muted">(JSON)</span>
+              )}
+            </Label>
+            {structuredAvailable && (
+              <button
+                type="button"
+                onClick={() => setUseRawJson((v) => !v)}
+                className="text-[11px] font-medium text-[#A577FF] underline-offset-2 hover:underline"
+              >
+                {useRawJson ? "Use form fields" : "Edit as JSON"}
+              </button>
             )}
-          />
-        )}
+          </div>
 
-        <p className="text-[11px] leading-snug text-echo-text-muted">
-          {useRawJson || !structuredAvailable
-            ? "Advanced: pass any JSON object your method expects. For Google `rest` / `google_rest`, use `verb`, `url`, and optional `params`, `json`, `timeout_seconds`."
-            : "Values are saved under Args as JSON. Use Edit as JSON for uncommon keys or custom methods."}
-        </p>
+          {showForm ? (
+            renderStructuredArgs()
+          ) : (
+            <Textarea
+              id="wf-api-args-json"
+              value={jsonEditorValue}
+              onChange={(e) => {
+                const full = e.target.value;
+                setArgsJsonDraft(full);
+                const trimmed = full.trim();
+                if (!trimmed) {
+                  setArgsJsonError(null);
+                  setArgsJsonDraft(null);
+                  patchParams({ arguments: {} });
+                  return;
+                }
+                try {
+                  patchParams({ arguments: JSON.parse(trimmed) as Record<string, unknown> });
+                  setArgsJsonError(null);
+                  setArgsJsonDraft(null);
+                } catch {
+                  setArgsJsonError("Invalid JSON — fix to save.");
+                }
+              }}
+              placeholder='{"channel": "C…", "text": "Hello"}'
+              rows={8}
+              className={cn("min-h-[120px] font-mono text-xs", fieldClass)}
+            />
+          )}
+          {argsJsonError ? (
+            <p className="text-[11px] font-medium text-[#ef4444]" role="alert">
+              {argsJsonError}
+            </p>
+          ) : null}
+
+          <p className="text-[11px] leading-snug text-echo-text-muted">
+            {useRawJson || !structuredAvailable
+              ? "Pass the JSON payload the Composio tool expects. For Google generic REST tools, use verb, url, and optional params, json, timeout_seconds."
+              : "Values are stored under arguments. Use Edit as JSON for uncommon keys."}
+          </p>
+        </div>
       </div>
     </div>
   );

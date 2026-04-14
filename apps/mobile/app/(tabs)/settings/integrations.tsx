@@ -11,11 +11,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiErrorMessage } from "@/lib/api";
 import { colors } from "@echo/design-tokens";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Integration {
+  /** Composio toolkit slug from ``GET /api/integrations`` (e.g. ``slack``, ``gmail``). */
+  id: string;
   name: string;
   display_name: string;
   description?: string;
@@ -86,6 +88,7 @@ export default function IntegrationsScreen() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [composioConfigured, setComposioConfigured] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +96,7 @@ export default function IntegrationsScreen() {
       if (res.ok) {
         const data = await res.json();
         setIntegrations(data.integrations ?? data);
+        setComposioConfigured(Boolean(data.composio_configured));
       }
     } catch {}
   }, []);
@@ -108,15 +112,25 @@ export default function IntegrationsScreen() {
   }
 
   async function handleConnect(integration: Integration) {
-    setConnecting(integration.name);
+    if (!composioConfigured) {
+      Alert.alert(
+        "Composio not configured",
+        "The API server needs COMPOSIO_API_KEY set for Composio OAuth.",
+      );
+      return;
+    }
+    setConnecting(integration.id);
     try {
-      const res = await apiFetch(`/api/integrations/${integration.name}/connect`);
+      const res = await apiFetch(
+        `/api/composio/link?toolkit=${encodeURIComponent(integration.id)}`,
+      );
       if (!res.ok) {
-        Alert.alert("Error", "Failed to initiate connection.");
+        const msg = await apiErrorMessage(res, "Failed to initiate connection.");
+        Alert.alert("Could not connect", msg);
         return;
       }
-      const data = await res.json();
-      const authUrl = data.auth_url ?? data.url;
+      const data = (await res.json()) as { url?: string };
+      const authUrl = data.url;
       if (!authUrl) {
         Alert.alert("Error", "No authorization URL returned.");
         return;
@@ -140,7 +154,7 @@ export default function IntegrationsScreen() {
         text: "Disconnect",
         style: "destructive",
         onPress: async () => {
-          await apiFetch(`/api/integrations/${integration.name}`, {
+          await apiFetch(`/api/integrations/${integration.id}`, {
             method: "DELETE",
           });
           load();
@@ -150,14 +164,14 @@ export default function IntegrationsScreen() {
   }
 
   function renderItem({ item }: { item: Integration }) {
-    const meta = INTEGRATION_META[item.name] ?? {
+    const meta = INTEGRATION_META[item.id] ?? {
       icon: "ellipse-outline" as IoniconsName,
       bgColor: "#6b7280",
       iconColor: "#fff",
       description: item.description ?? "",
     };
     const accountLabel = item.team_name || item.account_name || null;
-    const isConnecting = connecting === item.name;
+    const isConnecting = connecting === item.id;
 
     return (
       <View style={styles.card}>
@@ -243,7 +257,7 @@ export default function IntegrationsScreen() {
       </View>
       <FlatList
         data={integrations}
-        keyExtractor={(item) => item.name}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 64 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={renderItem}

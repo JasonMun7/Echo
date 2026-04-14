@@ -14,7 +14,6 @@ import {
   IconMoon,
   IconDots,
   IconMenu2,
-  IconPencil,
   IconInfoCircle,
   IconSparkles,
   IconPower,
@@ -30,7 +29,6 @@ import RunLogsSection from "./RunLogsSection";
 import HazeOverlay from "./HazeOverlay";
 import VoiceInterruptionOverlay from "./VoiceInterruptionOverlay";
 import WorkflowDetailView from "./WorkflowDetailView";
-import WorkflowEditView from "./WorkflowEditView";
 import ScheduleView from "./ScheduleView";
 import echoLogo from "./assets/echo_logo.png";
 import GradientText from "./reactbits/GradientText";
@@ -1265,16 +1263,6 @@ function MainWindowApp() {
                                         Summary
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          selectWorkflow(w.id);
-                                          setPage("edit");
-                                        }}
-                                      >
-                                        <IconPencil size={14} />
-                                        Edit
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
                                         variant="destructive"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1341,23 +1329,12 @@ function MainWindowApp() {
                     setPage("home");
                     loadWorkflows();
                   }}
-                  onEdit={() => setPage("edit")}
                   onRun={handleRunWorkflow}
                   onDeleted={() => {
                     setPage("home");
                     loadWorkflows();
                   }}
                   onOpenWebUI={(p) => window.electronAPI?.openWebUI(p)}
-                />
-              )}
-
-              {page === "edit" && selectedWorkflowId && (
-                <WorkflowEditView
-                  workflowId={selectedWorkflowId}
-                  token={token}
-                  apiUrl={API_URL}
-                  onBack={() => setPage("detail")}
-                  onSaved={() => setPage("detail")}
                 />
               )}
 

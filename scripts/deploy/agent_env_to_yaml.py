@@ -4,9 +4,8 @@ Emit a YAML file for `gcloud run deploy --env-vars-file` for echo-prism-agent.
 
 Using a file avoids comma/equals ambiguity in `--set-env-vars` (secrets with special chars).
 
-Run under ``doppler run --config prd`` (same as backend) so **AUTH0_*** is in the environment:
-workflow ``api_call`` uses Token Vault in the agent process. Without it, the web app can show
-integrations as connected (echo-backend has Auth0) while runs fail with "Integration not connected".
+Run under ``doppler run --config prd`` (same as backend) so **COMPOSIO_API_KEY** and related keys
+are in the environment: workflow ``api_call`` uses Composio on the agent process.
 """
 from __future__ import annotations
 
@@ -42,16 +41,20 @@ def main() -> None:
         "LIVEKIT_API_KEY",
         "LIVEKIT_API_SECRET",
         "LIVEKIT_AGENT_SECRET",
-        # Token Vault (workflow api_call / integrations) — must match echo-backend
-        "AUTH0_DOMAIN",
-        "AUTH0_CLIENT_ID",
-        "AUTH0_CLIENT_SECRET",
-        "AUTH0_AUDIENCE",
-        "AUTH0_TOKEN_VAULT",
-        "AUTH0_CONNECTION_GOOGLE",
-        "AUTH0_CONNECTION_GITHUB",
-        "AUTH0_CONNECTION_SLACK",
-        "ECHO_INTEGRATIONS_TOKEN_VAULT_ONLY",
+        "COMPOSIO_API_KEY",
+        "COMPOSIO_DANGEROUSLY_SKIP_TOOLKIT_VERSION_CHECK",
+        "COMPOSIO_TOOLKIT_VERSION_GMAIL",
+        "COMPOSIO_TOOLKIT_VERSION_SLACK",
+        "COMPOSIO_TOOLKIT_VERSION_GITHUB",
+        "COMPOSIO_TOOLKIT_VERSION_GOOGLE",
+        "COMPOSIO_TOOLKIT_VERSION_GOOGLEDRIVE",
+        "COMPOSIO_TOOLKIT_VERSION_GOOGLECALENDAR",
+        "COMPOSIO_CHAT_TOOLKITS",
+        "COMPOSIO_CHAT_TOOL_LIMIT",
+        "LANGFUSE_BASE_URL",
+        "LANGFUSE_HOST",
+        "LANGFUSE_PUBLIC_KEY",
+        "LANGFUSE_SECRET_KEY",
     ]
     for key in optional:
         val = (os.environ.get(key) or "").strip()

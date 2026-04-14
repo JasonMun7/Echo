@@ -34,7 +34,6 @@ export default function WorkflowsLayout() {
       <Stack.Screen name="index" options={{ title: "Workflows" }} />
       <Stack.Screen name="new" options={{ title: "New Workflow" }} />
       <Stack.Screen name="[id]/index" options={{ title: "Workflow" }} />
-      <Stack.Screen name="[id]/edit" options={{ title: "Edit Steps" }} />
       <Stack.Screen name="[id]/runs/[runId]" options={{ title: "Run Details" }} />
     </Stack>
   );

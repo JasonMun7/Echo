@@ -48,16 +48,6 @@ else:
 # Gemini / google-genai accept either name; Doppler or Google AI Studio often use one or the other.
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 
-# Auth0 (Token Vault + Regular Web app — see README Auth0 section)
-AUTH0_DOMAIN = (os.getenv("AUTH0_DOMAIN") or "").strip().replace("https://", "").rstrip("/")
-AUTH0_CLIENT_ID = (os.getenv("AUTH0_CLIENT_ID") or "").strip()
-AUTH0_CLIENT_SECRET = (os.getenv("AUTH0_CLIENT_SECRET") or "").strip()
-AUTH0_AUDIENCE = (os.getenv("AUTH0_AUDIENCE") or "").strip()
-AUTH0_TOKEN_VAULT = os.getenv("AUTH0_TOKEN_VAULT", "1").strip() not in ("0", "false", "False")
-# Optional: Machine-to-Machine app for Management API (debug: GET user connected-accounts). Never expose to frontend.
-AUTH0_MGMT_CLIENT_ID = (os.getenv("AUTH0_MGMT_CLIENT_ID") or "").strip()
-AUTH0_MGMT_CLIENT_SECRET = (os.getenv("AUTH0_MGMT_CLIENT_SECRET") or "").strip()
-
 # LiveKit (for /api/livekit/token, /api/agent/tool)
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")

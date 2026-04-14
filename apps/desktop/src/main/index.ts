@@ -16,7 +16,8 @@ import {
   runWorkflowRemote,
   runGoalOnlyRemote,
   abortActiveRun,
-  openAuth0ConnectForIntegration,
+  openComposioConnectForIntegration,
+  getIntegrationConnectionReady,
 } from "./agent-client/remote-workflow-runner";
 import {
   clearUserHitlWait,
@@ -998,12 +999,21 @@ ipcMain.handle("hitl-submit-resume", (_, resume: unknown) => {
 ipcMain.handle("hitl-reopen-oauth", async () => {
   const pending = getPendingIntegrationAuth();
   if (!pending) return { ok: false as const, error: "no_pending" };
-  await openAuth0ConnectForIntegration(
+  return openComposioConnectForIntegration(
     { backendUrl: pending.backendUrl, token: pending.token },
     pending.integration,
-    pending.auth0Linked,
   );
-  return { ok: true as const };
+});
+
+ipcMain.handle("hitl-integration-status", async () => {
+  const pending = getPendingIntegrationAuth();
+  if (!pending?.integration) {
+    return { ok: false as const, error: "no_pending" };
+  }
+  return getIntegrationConnectionReady(
+    { backendUrl: pending.backendUrl, token: pending.token },
+    pending.integration,
+  );
 });
 
 ipcMain.handle(

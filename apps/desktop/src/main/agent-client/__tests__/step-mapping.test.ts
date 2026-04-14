@@ -24,7 +24,7 @@ describe("workflow step mapping (all editor actions)", () => {
   }> = [
     {
       action: "api_call",
-      params: { integration: "x", method: "m", args: {} },
+      params: { slug: "SLACK_SEND_MESSAGE", arguments: {} },
       expectDeterministic: true,
     },
     { action: "navigate", params: { url: "https://example.com" }, expectDeterministic: true },
@@ -129,13 +129,12 @@ describe("workflow step mapping (all editor actions)", () => {
       stepToOperatorAction({
         ...baseStep,
         action: "api_call",
-        params: { integration: "slack", method: "post", args: { c: 1 } },
+        params: { slug: "SLACK_SEND_MESSAGE", arguments: { channel: "C", text: "hi" } },
       }),
     ).toMatchObject({
       action: "apicall",
-      integration: "slack",
-      method: "post",
-      args: { c: 1 },
+      slug: "SLACK_SEND_MESSAGE",
+      arguments: { channel: "C", text: "hi" },
     });
   });
 

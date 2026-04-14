@@ -135,7 +135,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   hitlSubmitResume: (resume?: unknown) =>
     ipcRenderer.invoke("hitl-submit-resume", resume) as Promise<{ ok: boolean }>,
   hitlReopenOauth: () =>
-    ipcRenderer.invoke("hitl-reopen-oauth") as Promise<{ ok: true } | { ok: false; error: string }>,
+    ipcRenderer.invoke("hitl-reopen-oauth") as Promise<
+      { ok: true; urlOpened: boolean } | { ok: false; error: string }
+    >,
+  hitlIntegrationStatus: () =>
+    ipcRenderer.invoke("hitl-integration-status") as Promise<
+      { ok: true; ready: boolean } | { ok: false; error: string }
+    >,
 
   // Voice interruption
   openVoiceInterruption: () => ipcRenderer.invoke("open-voice-interruption"),

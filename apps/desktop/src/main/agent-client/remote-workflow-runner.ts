@@ -41,7 +41,6 @@ function runCtx(opts: RunWorkflowRemoteOptions | undefined, stepNum?: number): s
 function inferErrorCode(message: string, code?: string): string | undefined {
   if (code && String(code).startsWith("ECHO_")) return String(code);
   const m = (message || "").toLowerCase();
-  if (m.includes("gmail_send blocked")) return "ECHO_GUARD_BLOCKED";
   if (m.includes("not connected") || m.includes("missing_access_token")) return "ECHO_INTEGRATION";
   if (m.includes("verification failed") || m.includes("verify")) return "ECHO_VERIFY";
   return undefined;
@@ -174,10 +173,26 @@ function normIntegrationId(id: string): string {
   return id.trim().toLowerCase();
 }
 
-type IntegrationsSnapshot = {
-  integrations?: Array<{ id: string; connected?: boolean }>;
-  auth0_linked?: boolean;
+/** Prefer Composio toolkit slug from HITL (matches ``session.toolkits`` / ``GET /api/composio/toolkit-status``). */
+function hitlIntegrationSlug(intPayload: Record<string, unknown>): string {
+  return normIntegrationId(String(intPayload.toolkit || intPayload.integration || ""));
+}
+
+type IntegrationRow = {
+  id: string;
+  connected?: boolean;
+  /** From Composio API when Firestore doc is missing (see backend GET /api/integrations). */
+  composio_account_active?: boolean | null;
 };
+
+type IntegrationsSnapshot = {
+  integrations?: IntegrationRow[];
+};
+
+function rowEffectivelyConnected(row: IntegrationRow | undefined): boolean {
+  if (!row) return false;
+  return Boolean(row.connected || row.composio_account_active === true);
+}
 
 async function fetchIntegrationsSnapshot(
   opts: RunWorkflowRemoteOptions,
@@ -197,42 +212,144 @@ async function fetchIntegrationsSnapshot(
   }
 }
 
-/** Opens Auth0 Universal Login: link Echo to Auth0, or connect a federated integration (Token Vault). */
-export async function openAuth0ConnectForIntegration(
+/** Composio ``session.toolkits()`` snapshot for one toolkit (Run HUD / workflows). */
+async function fetchComposioToolkitStatus(
   opts: RunWorkflowRemoteOptions,
-  integration: string,
-  auth0Linked: boolean,
-): Promise<void> {
+  toolkit: string,
+): Promise<
+  | {
+      ok: true;
+      connected: boolean;
+      connected_account_id?: string | null;
+      oauth_callback_url?: string | null;
+    }
+  | { ok: false; error: string }
+> {
   const base = opts.backendUrl;
   const token = opts.token;
-  if (!base || !token) return;
-  const linkConn = (process.env.VITE_AUTH0_LINK_CONNECTION || "").trim();
-  const linkPath =
-    linkConn.length > 0
-      ? `/api/auth0/link-url?connection=${encodeURIComponent(linkConn)}`
-      : "/api/auth0/link-url";
-  const path = auth0Linked
-    ? `/api/auth0/vault-url?integration=${encodeURIComponent(integration)}`
-    : linkPath;
+  const want = normIntegrationId(toolkit);
+  if (!base || !token || !want) {
+    return { ok: false, error: "missing_context" };
+  }
   try {
-    const res = await fetch(`${base}${path}`, {
+    const res = await fetch(
+      `${base}/api/composio/toolkit-status?toolkit=${encodeURIComponent(want)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const text = await res.text();
+    if (!res.ok) {
+      return { ok: false, error: text?.trim() || `HTTP ${res.status}` };
+    }
+    const data = JSON.parse(text) as {
+      connected?: boolean;
+      connected_account_id?: string | null;
+      oauth_callback_url?: string | null;
+    };
+    return {
+      ok: true,
+      connected: Boolean(data.connected),
+      connected_account_id: data.connected_account_id ?? null,
+      oauth_callback_url: data.oauth_callback_url ?? null,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Opens Composio Managed Auth connect for the given toolkit id (slack, github, google, …). */
+export async function openComposioConnectForIntegration(
+  opts: RunWorkflowRemoteOptions,
+  integration: string,
+): Promise<{ ok: true; urlOpened: boolean } | { ok: false; error: string }> {
+  const base = opts.backendUrl;
+  const token = opts.token;
+  if (!base || !token) {
+    return { ok: false, error: "Missing API URL or sign-in token. Sign in again and retry." };
+  }
+  try {
+    const res = await fetch(
+      `${base}/api/composio/link?toolkit=${encodeURIComponent(integration)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    const text = await res.text();
+    if (!res.ok) {
+      let detail = text;
+      try {
+        const j = JSON.parse(text) as { detail?: unknown };
+        if (typeof j.detail === "string") detail = j.detail;
+      } catch {
+        /* plain text body */
+      }
+      console.warn("[remote-workflow-runner] composio connect URL failed:", res.status, detail);
+      return {
+        ok: false,
+        error: detail?.trim() || `Connect failed (HTTP ${res.status}).`,
+      };
+    }
+    let data: { url?: string };
+    try {
+      data = JSON.parse(text) as { url?: string };
+    } catch {
+      return { ok: false, error: "Invalid JSON from /api/composio/link." };
+    }
+    const url = data.url;
+    if (!url) {
+      return { ok: false, error: "Server did not return a connect URL." };
+    }
+    await shell.openExternal(url);
+    return { ok: true, urlOpened: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[remote-workflow-runner] openComposioConnectForIntegration:", e);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Poll Composio toolkit connection (``session.toolkits``) — used by Run HUD (renderer IPC). */
+export async function getIntegrationConnectionReady(
+  opts: RunWorkflowRemoteOptions,
+  integrationId: string,
+): Promise<
+  | {
+      ok: true;
+      ready: boolean;
+      connected_account_id?: string | null;
+      oauth_callback_url?: string | null;
+    }
+  | { ok: false; error: string }
+> {
+  const base = opts.backendUrl;
+  const token = opts.token;
+  const want = normIntegrationId(integrationId);
+  if (!base || !token || !want) {
+    return { ok: false, error: "missing_context" };
+  }
+  const st = await fetchComposioToolkitStatus(opts, want);
+  if (st.ok) {
+    return {
+      ok: true,
+      ready: st.connected,
+      connected_account_id: st.connected_account_id,
+      oauth_callback_url: st.oauth_callback_url,
+    };
+  }
+  try {
+    const res = await fetch(`${base}/api/integrations`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    const text = await res.text();
     if (!res.ok) {
-      console.warn(
-        "[remote-workflow-runner] auth0 connect URL failed:",
-        res.status,
-        await res.text(),
-      );
-      return;
+      return { ok: false, error: st.error || text || `HTTP ${res.status}` };
     }
-    const data = (await res.json()) as { auth_url?: string };
-    const url = data.auth_url;
-    if (url) {
-      await shell.openExternal(url);
-    }
+    const data = JSON.parse(text) as IntegrationsSnapshot;
+    const row = data.integrations?.find((i) => normIntegrationId(i.id) === want);
+    return { ok: true, ready: rowEffectivelyConnected(row) };
   } catch (e) {
-    console.warn("[remote-workflow-runner] openAuth0ConnectForIntegration:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: st.error || msg };
   }
 }
 
@@ -245,44 +362,33 @@ function integrationConnectedFromSnapshot(
 ): boolean {
   const want = normIntegrationId(integrationId);
   const row = snap?.integrations?.find((i) => normIntegrationId(i.id) === want);
-  return Boolean(row?.connected);
+  return rowEffectivelyConnected(row);
 }
 
-/** Poll GET /api/integrations until the given integration shows connected (Token Vault / Firestore). */
+/** Poll until Composio reports an active connected account for the toolkit (``session.toolkits``). */
 async function waitUntilIntegrationConnected(
   opts: RunWorkflowRemoteOptions,
   integrationId: string,
   timeoutMs: number,
 ): Promise<boolean> {
-  const base = opts.backendUrl;
-  const token = opts.token;
   const want = normIntegrationId(integrationId);
-  if (!base || !token || !want) return false;
+  if (!opts.backendUrl || !opts.token || !want) return false;
   const deadline = Date.now() + timeoutMs;
-  let first = true;
+  let iteration = 0;
   while (Date.now() < deadline) {
     if (isCancelRequested()) {
       throw new Error("Run cancelled");
     }
-    try {
-      const res = await fetch(`${base}/api/integrations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        await new Promise((r) => setTimeout(r, first ? 0 : INTEGRATIONS_POLL_MS));
-        first = false;
-        continue;
-      }
-      const data = (await res.json()) as {
-        integrations?: Array<{ id: string; connected?: boolean }>;
-      };
-      const row = data.integrations?.find((i) => normIntegrationId(i.id) === want);
-      if (row?.connected) return true;
-    } catch (e) {
-      console.warn("[remote-workflow-runner] waitUntilIntegrationConnected:", e);
+    const st = await fetchComposioToolkitStatus(opts, want);
+    if (st.ok && st.connected) return true;
+    if (!st.ok) {
+      console.warn(
+        "[remote-workflow-runner] waitUntilIntegrationConnected toolkit-status:",
+        st.error,
+      );
     }
-    first = false;
-    await new Promise((r) => setTimeout(r, INTEGRATIONS_POLL_MS));
+    await new Promise((r) => setTimeout(r, iteration === 0 ? 0 : INTEGRATIONS_POLL_MS));
+    iteration += 1;
   }
   return false;
 }
@@ -297,38 +403,28 @@ async function waitUntilIntegrationReconnectsAfterDisconnect(
   integrationId: string,
   timeoutMs: number,
 ): Promise<boolean> {
-  const base = opts.backendUrl;
-  const token = opts.token;
   const want = normIntegrationId(integrationId);
-  if (!base || !token || !want) return false;
+  if (!opts.backendUrl || !opts.token || !want) return false;
   const deadline = Date.now() + timeoutMs;
   let sawDisconnected = false;
-  let first = true;
+  let iteration = 0;
   while (Date.now() < deadline) {
     if (isCancelRequested()) {
       throw new Error("Run cancelled");
     }
-    try {
-      const res = await fetch(`${base}/api/integrations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        await new Promise((r) => setTimeout(r, first ? 0 : INTEGRATIONS_POLL_MS));
-        first = false;
-        continue;
-      }
-      const data = (await res.json()) as {
-        integrations?: Array<{ id: string; connected?: boolean }>;
-      };
-      const row = data.integrations?.find((i) => normIntegrationId(i.id) === want);
-      const connected = Boolean(row?.connected);
+    const st = await fetchComposioToolkitStatus(opts, want);
+    const connected = st.ok && st.connected;
+    if (st.ok) {
       if (!connected) sawDisconnected = true;
       if (sawDisconnected && connected) return true;
-    } catch (e) {
-      console.warn("[remote-workflow-runner] waitUntilIntegrationReconnectsAfterDisconnect:", e);
+    } else {
+      console.warn(
+        "[remote-workflow-runner] waitUntilIntegrationReconnectsAfterDisconnect:",
+        st.error,
+      );
     }
-    first = false;
-    await new Promise((r) => setTimeout(r, INTEGRATIONS_POLL_MS));
+    await new Promise((r) => setTimeout(r, iteration === 0 ? 0 : INTEGRATIONS_POLL_MS));
+    iteration += 1;
   }
   return false;
 }
@@ -521,8 +617,6 @@ export async function runWorkflowRemote(
       let screenshotB64: string | undefined;
 
       for (let attempt = 0; attempt < MAX_STEP_ATTEMPTS; attempt++) {
-        /** Only open the system browser once per step attempt while the agent re-interrupts for OAuth. */
-        let oauthOpenedThisStall = false;
         // Between retry attempts: respect pause and pick up any redirect that arrived
         // while the voice overlay was open. This also prevents screenshots from being
         // taken while the voice interruption overlay is visible on screen.
@@ -646,31 +740,24 @@ export async function runWorkflowRemote(
               throw new Error("Run cancelled");
             }
           } else if (kind === "integration_auth" && options) {
-            const integration = String(intPayload.integration ?? "");
+            const integration = hitlIntegrationSlug(intPayload);
             const snap = await fetchIntegrationsSnapshot(options);
-            const auth0LinkedEffective =
-              Boolean(snap?.auth0_linked) || Boolean(intPayload.auth0_linked);
-            const alreadyConnected = integrationConnectedFromSnapshot(snap, integration);
-            // GET /api/integrations "connected" can be true from vault_* flags while Token Vault
-            // exchange still fails — do not poll until "connected" in that case; it returns true
-            // immediately. Wait for disconnect → reconnect or user Continue.
+            const composioSt = await fetchComposioToolkitStatus(options, integration);
+            const alreadyConnected = composioSt.ok
+              ? composioSt.connected
+              : integrationConnectedFromSnapshot(snap, integration);
 
-            if (!oauthOpenedThisStall) {
-              await openAuth0ConnectForIntegration(options, integration, auth0LinkedEffective);
-              oauthOpenedThisStall = true;
-            }
             setPendingIntegrationAuth({
               backendUrl: options.backendUrl,
               token: options.token,
               integration,
-              auth0Linked: auth0LinkedEffective,
             });
             onProgress(
               alreadyConnected
-                ? "Echo shows this app as connected, but sign-in data is missing. Open Integrations, disconnect this app, connect again in the browser, then tap Continue."
+                ? "Echo shows this app as connected, but Composio sign-in may be stale. Tap Connect to re-open OAuth, or disconnect in Integrations and try again."
                 : String(
                     intPayload.message ??
-                      "Complete sign-in in the browser, then tap Continue in EchoPrism.",
+                      "Tap Connect to open Composio in your browser. When your connection is active, tap Continue.",
                   ),
               stepNum,
               undefined,
@@ -678,10 +765,7 @@ export async function runWorkflowRemote(
             );
             options.onHitl?.({
               kind: "integration_auth",
-              payload: {
-                ...intPayload,
-                auth0_linked: auth0LinkedEffective,
-              },
+              payload: intPayload,
               step: stepNum,
             });
             try {
@@ -1003,7 +1087,6 @@ export async function runGoalOnlyRemote(
     let lastError = "";
 
     while (true) {
-      let oauthOpenedThisStall = false;
       if (isCancelRequested()) {
         onProgress("Run cancelled by user", undefined, undefined, "cancel");
         await patchRunStatus(options, "cancelled");
@@ -1111,28 +1194,24 @@ export async function runGoalOnlyRemote(
             throw new Error("Run cancelled");
           }
         } else if (kind === "integration_auth") {
-          const integration = String(intPayload.integration ?? "");
+          const integration = hitlIntegrationSlug(intPayload);
           const snap = await fetchIntegrationsSnapshot(options);
-          const auth0LinkedEffective =
-            Boolean(snap?.auth0_linked) || Boolean(intPayload.auth0_linked);
-          const alreadyConnected = integrationConnectedFromSnapshot(snap, integration);
+          const composioSt = await fetchComposioToolkitStatus(options, integration);
+          const alreadyConnected = composioSt.ok
+            ? composioSt.connected
+            : integrationConnectedFromSnapshot(snap, integration);
 
-          if (!oauthOpenedThisStall) {
-            await openAuth0ConnectForIntegration(options, integration, auth0LinkedEffective);
-            oauthOpenedThisStall = true;
-          }
           setPendingIntegrationAuth({
             backendUrl: options.backendUrl,
             token: options.token,
             integration,
-            auth0Linked: auth0LinkedEffective,
           });
           onProgress(
             alreadyConnected
-              ? "Echo shows this app as connected, but sign-in data is missing. Open Integrations, disconnect this app, connect again in the browser, then tap Continue."
+              ? "Echo shows this app as connected, but Composio sign-in may be stale. Tap Connect to re-open OAuth, or disconnect in Integrations and try again."
               : String(
                   intPayload.message ??
-                    "Complete sign-in in the browser, then tap Continue in EchoPrism.",
+                    "Tap Connect to open Composio in your browser. When your connection is active, tap Continue.",
                 ),
             stepNumGoal,
             undefined,
@@ -1140,10 +1219,7 @@ export async function runGoalOnlyRemote(
           );
           options.onHitl?.({
             kind: "integration_auth",
-            payload: {
-              ...intPayload,
-              auth0_linked: auth0LinkedEffective,
-            },
+            payload: intPayload,
             step: stepNumGoal,
           });
           try {

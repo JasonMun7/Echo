@@ -92,7 +92,10 @@ module.exports = ({ config }) => {
     },
     web: {
       bundler: "metro",
-      output: "static",
+      // SPA: avoids SSG/static HTML prerender in dev (was breaking React Navigation + React 19 with
+      // "Invalid hook call" / useEffect on null during getStaticContent). Use "static" only if you
+      // need per-route HTML export and can fix SSR/hoisting; then `npx expo export -p web` for deploy.
+      output: "single",
       favicon: "./assets/images/favicon.png",
     },
     plugins: [
