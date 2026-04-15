@@ -20,9 +20,9 @@ export function Pricing() {
           automate their most time-consuming workflows — including accessibility-focused use cases.
         </SubHeading>
 
-        <div className="mt-10 w-full max-w-md rounded-xl border border-[#A577FF]/20 bg-white p-8 shadow-sm">
+        <div className="mt-10 w-full max-w-md rounded-xl border border-[#150A35]/12 bg-white p-8 shadow-sm">
           <div className="flex flex-col items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#150A35]/06">
               <span className="text-2xl">⚡</span>
             </div>
             <h3 className="text-lg font-semibold text-[#150A35]">Request early access</h3>

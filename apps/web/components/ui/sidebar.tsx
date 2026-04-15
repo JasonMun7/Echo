@@ -1,6 +1,7 @@
 "use client";
 import { cn } from "@/lib/utils";
-import React, { useState, createContext, useContext } from "react";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import React, { useState, createContext, useContext, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   IconLayoutSidebarLeftCollapse,
@@ -20,6 +21,11 @@ interface SidebarContextProps {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   animate: boolean;
+  /** Desktop (md+): sidebar is collapsed to icon rail only. */
+  isRailMode: boolean;
+  /** When true, rail stays expanded while pointer leaves (e.g. user menu or notifications drawer open — content is portaled). */
+  keepExpanded: boolean;
+  setKeepExpanded: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const SidebarContext = createContext<SidebarContextProps | undefined>(undefined);
@@ -43,13 +49,33 @@ export const SidebarProvider = ({
   setOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   animate?: boolean;
 }) => {
-  const [openState, setOpenState] = useState(true);
+  /** Desktop: default collapsed (icon rail); expands on hover. Mobile overlay starts closed via effect below. */
+  const [openState, setOpenState] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)", true);
 
   const open = openProp !== undefined ? openProp : openState;
   const setOpen = setOpenProp !== undefined ? setOpenProp : setOpenState;
+  const [keepExpanded, setKeepExpanded] = useState(false);
+
+  const isRailMode = Boolean(isDesktop && !open);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setOpen(false);
+    }
+  }, [setOpen]);
 
   return (
-    <SidebarContext.Provider value={{ open, setOpen, animate: animate }}>
+    <SidebarContext.Provider
+      value={{
+        open,
+        setOpen,
+        animate: animate,
+        isRailMode,
+        keepExpanded,
+        setKeepExpanded,
+      }}
+    >
       {children}
     </SidebarContext.Provider>
   );
@@ -105,18 +131,19 @@ export const SidebarTrigger = ({ className, ...props }: React.ComponentProps<"bu
   return (
     <button
       type="button"
+      aria-expanded={open}
       aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
       onClick={() => setOpen(!open)}
       className={cn(
-        "flex size-9 items-center justify-center rounded-md text-[#150A35] hover:bg-[#A577FF]/10 transition-colors",
+        "flex size-8 shrink-0 items-center justify-center rounded-md text-[#150A35]/75 transition-colors hover:bg-[#150A35]/08 hover:text-[#150A35] dark:text-white/80 dark:hover:bg-white/10 dark:hover:text-white",
         className,
       )}
       {...props}
     >
       {open ? (
-        <IconLayoutSidebarLeftCollapse className="size-5" />
+        <IconLayoutSidebarLeftCollapse className="size-[18px]" />
       ) : (
-        <IconLayoutSidebarLeftExpand className="size-5" />
+        <IconLayoutSidebarLeftExpand className="size-[18px]" />
       )}
     </button>
   );
@@ -134,13 +161,22 @@ export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
 
 /* Primitives for app-sidebar / nav-* */
 export const SidebarHeader = ({ className, ...props }: React.ComponentProps<"div">) => (
-  <div className={cn("flex flex-col gap-2 p-2", className)} {...props} />
+  <div className={cn("flex min-w-0 flex-col gap-2 overflow-x-hidden p-2", className)} {...props} />
 );
 export const SidebarContent = ({ className, ...props }: React.ComponentProps<"div">) => (
-  <div className={cn("flex flex-1 flex-col gap-2 overflow-auto p-2", className)} {...props} />
+  <div
+    className={cn(
+      "flex min-w-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2",
+      className,
+    )}
+    {...props}
+  />
 );
 export const SidebarFooter = ({ className, ...props }: React.ComponentProps<"div">) => (
-  <div className={cn("flex flex-col gap-2 p-2 mt-auto", className)} {...props} />
+  <div
+    className={cn("mt-auto flex min-w-0 flex-col gap-2 overflow-x-hidden p-2", className)}
+    {...props}
+  />
 );
 export const SidebarGroup = ({ className, ...props }: React.ComponentProps<"div">) => (
   <div className={cn("flex flex-col gap-2", className)} {...props} />
@@ -151,7 +187,7 @@ export const SidebarGroupContent = ({ className, ...props }: React.ComponentProp
 export const SidebarGroupLabel = ({ className, ...props }: React.ComponentProps<"div">) => (
   <div
     className={cn(
-      "px-2 py-1.5 text-xs font-semibold text-white/70 uppercase tracking-wider",
+      "px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#150A35]/45 dark:text-white/55",
       className,
     )}
     {...props}
@@ -168,19 +204,33 @@ export const SidebarMenuButton = ({
   asChild,
   tooltip,
   size = "default",
+  variant = "default",
   children: ch,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean;
   tooltip?: string;
   size?: "default" | "sm" | "lg";
+  /** Gradient CTA — no neutral row hover; uses `.echo-btn-primary` + brightness hover. */
+  variant?: "default" | "cta";
 }) => {
-  const slotClass = cn(
-    "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-white/90 hover:bg-white/10 hover:text-white transition-colors",
-    size === "sm" && "py-1 text-xs",
-    size === "lg" && "py-2 text-base",
-    className,
-  );
+  const slotClass =
+    variant === "cta"
+      ? cn(
+          "echo-btn-primary flex min-w-0 w-full items-center justify-center gap-2 rounded-lg border-0 font-medium !text-white shadow-sm transition-[filter] duration-200 hover:!text-white hover:brightness-110 active:brightness-95",
+          size === "sm" && "py-2 text-[11px]",
+          size === "lg" && "py-2.5 text-sm",
+          className,
+        )
+      : cn(
+          "group/nav-btn flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
+          "text-sidebar-foreground/90 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
+          "[&_svg]:shrink-0 [&_svg]:text-sidebar-foreground/55 [&_svg]:transition-colors",
+          "hover:[&_svg]:text-sidebar-accent-foreground",
+          size === "sm" && "py-1 text-[11px]",
+          size === "lg" && "py-2 text-sm",
+          className,
+        );
   if (asChild && ch && React.isValidElement(ch)) {
     const childProps = (ch as React.ReactElement<{ className?: string; title?: string }>).props;
     return React.cloneElement(ch as React.ReactElement<{ className?: string; title?: string }>, {
@@ -202,7 +252,7 @@ export const SidebarMenuAction = ({
   <button
     type="button"
     className={cn(
-      "flex size-7 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white",
+      "flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
       showOnHover &&
         "opacity-0 pointer-events-none transition-opacity group-hover/menu-item:pointer-events-auto group-hover/menu-item:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
       className,
@@ -211,7 +261,13 @@ export const SidebarMenuAction = ({
   />
 );
 
-const SIDEBAR_WIDTH = 300;
+/** Expanded desktop sidebar width (px). */
+export const SIDEBAR_WIDTH_EXPANDED = 240;
+/** Collapsed icon rail width (px). Outer px-3 + inner p-2 → 40px column for w-10 controls without clipping. */
+export const SIDEBAR_WIDTH_COLLAPSED = 80;
+
+/** @deprecated Use SIDEBAR_WIDTH_EXPANDED; kept for layout math defaults. */
+export const SIDEBAR_WIDTH = SIDEBAR_WIDTH_EXPANDED;
 
 export const DesktopSidebar = ({
   className,
@@ -220,20 +276,70 @@ export const DesktopSidebar = ({
   className?: string;
   children?: React.ReactNode;
 }) => {
-  const { open } = useSidebar();
+  const { open, setOpen, keepExpanded } = useSidebar();
+  const isDesktop = useMediaQuery("(min-width: 768px)", true);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const clearLeaveTimer = useCallback(() => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  }, []);
+
+  const expand = useCallback(() => {
+    if (!isDesktop) return;
+    clearLeaveTimer();
+    setOpen(true);
+  }, [isDesktop, clearLeaveTimer, setOpen]);
+
+  const scheduleCollapse = useCallback(() => {
+    if (!isDesktop) return;
+    clearLeaveTimer();
+    leaveTimerRef.current = setTimeout(() => {
+      leaveTimerRef.current = null;
+      setOpen(false);
+    }, 220);
+  }, [isDesktop, clearLeaveTimer, setOpen]);
+
+  useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
+
   return (
     <motion.div
-      className={cn("h-full hidden md:flex md:flex-col shrink-0 overflow-hidden", className)}
+      ref={containerRef}
+      className={cn(
+        "group/sidebar-rail h-full hidden md:flex md:flex-col shrink-0 overflow-hidden",
+        className,
+      )}
       initial={false}
       animate={{
-        width: open ? SIDEBAR_WIDTH : 0,
-        opacity: open ? 1 : 0,
+        width: open ? SIDEBAR_WIDTH_EXPANDED : SIDEBAR_WIDTH_COLLAPSED,
       }}
-      transition={{ type: "tween", duration: 0.2 }}
+      transition={{
+        type: "tween",
+        duration: 0.38,
+        ease: [0.32, 0.72, 0, 1],
+      }}
+      onMouseEnter={expand}
+      onMouseLeave={() => {
+        if (keepExpanded) return;
+        const el = containerRef.current;
+        if (el?.contains(document.activeElement)) return;
+        scheduleCollapse();
+      }}
+      onFocusCapture={expand}
+      onBlurCapture={(e) => {
+        if (keepExpanded) return;
+        const to = e.relatedTarget;
+        if (to instanceof Node && containerRef.current?.contains(to)) return;
+        scheduleCollapse();
+      }}
     >
       <div
         className={cn(
-          "echo-sidebar-inset h-full min-w-[300px] px-4 py-4 flex flex-col overflow-y-auto",
+          "echo-sidebar-inset h-full w-full min-w-0 flex flex-col overflow-y-auto overflow-x-hidden",
+          "px-3 py-3",
         )}
       >
         {children}
@@ -295,14 +401,16 @@ export const SidebarLink = ({
   active?: boolean;
   className?: string;
 }) => {
-  const { open, animate } = useSidebar();
+  const { animate, isRailMode } = useSidebar();
+  const showLabel = !isRailMode;
   return (
     <NextLink
       href={link.href}
       className={cn(
         "flex cursor-pointer items-center justify-start gap-2 group/sidebar rounded-lg py-2 px-2.5 transition-colors",
-        active && "bg-[#A577FF] text-white",
-        !active && "text-white/80 hover:bg-white/10 hover:text-white",
+        active && "bg-[#150A35]/10 text-[#150A35] dark:bg-[#150A35] dark:text-white",
+        !active &&
+          "text-[#150A35]/85 hover:bg-[#150A35]/06 hover:text-[#150A35] dark:text-white/80 dark:hover:bg-white/10 dark:hover:text-white",
         className,
       )}
       {...props}
@@ -311,10 +419,10 @@ export const SidebarLink = ({
 
       <motion.span
         animate={{
-          display: animate ? (open ? "inline-block" : "none") : "inline-block",
-          opacity: animate ? (open ? 1 : 0) : 1,
+          display: animate && showLabel ? "inline-block" : !animate ? "inline-block" : "none",
+          opacity: animate && showLabel ? 1 : !animate ? 1 : 0,
         }}
-        className="text-sm group-hover/sidebar:translate-x-0.5 transition duration-150 whitespace-pre inline-block !p-0 !m-0 [&.inherit]:inherit"
+        className="text-xs group-hover/sidebar:translate-x-0.5 transition duration-150 whitespace-pre inline-block !p-0 !m-0 [&.inherit]:inherit"
       >
         {link.label}
       </motion.span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type InputHTMLAttributes } from "react";
+import { useCallback, useId, useState, type ChangeEvent, type InputHTMLAttributes } from "react";
 import {
   FolderOpen,
   ImagePlus,
@@ -16,60 +16,16 @@ import { toast } from "sonner";
 import {
   assertFileSize,
   canAddAttachment,
+  nextAttachmentRefLabel,
   type ContextAttachment,
-  type ContextAttachmentKind,
   MAX_ATTACHMENTS,
 } from "@/lib/workflow-step-context-attachments";
+import { echoAttachDebug } from "@/lib/echo-attach-debug";
+import { attachmentKindFromFile, captureScreenAsPngBlob } from "@/lib/step-context-capture";
 import { uploadStepContextFile } from "@/lib/upload-step-context-file";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-
-function kindFromMime(mime: string): ContextAttachmentKind {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  return "file";
-}
-
-async function captureScreenAsPngBlob(): Promise<Blob> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("Screen capture is not supported in this browser.");
-  }
-  const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: true,
-    audio: false,
-  });
-  const video = document.createElement("video");
-  video.srcObject = stream;
-  video.playsInline = true;
-  try {
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error("Could not read display stream"));
-      void video.play().catch(reject);
-    });
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (!w || !h) throw new Error("Could not read display size");
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas not available");
-    ctx.drawImage(video, 0, 0);
-    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
-    if (!blob) throw new Error("Could not encode screenshot");
-    return blob;
-  } finally {
-    stream.getTracks().forEach((t) => t.stop());
-  }
-}
 
 type StepContextEnrichmentProps = {
   workflowId: string;
@@ -89,13 +45,20 @@ export function StepContextEnrichment({
   onChange,
 }: StepContextEnrichmentProps) {
   const [busy, setBusy] = useState(false);
-  const imgRef = useRef<HTMLInputElement>(null);
-  const vidRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const folderRef = useRef<HTMLInputElement>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const rid = useId();
+  const imageId = `${rid}-echo-enrich-img`;
+  const videoId = `${rid}-echo-enrich-vid`;
+  const filesId = `${rid}-echo-enrich-files`;
+  const folderId = `${rid}-echo-enrich-folder`;
+  const pickDisabled = disabled || busy || !canAddAttachment(attachments);
 
   const uploadOne = useCallback(
-    async (file: File, overrideName?: string): Promise<ContextAttachment | null> => {
+    async (
+      file: File,
+      ref_label: string,
+      overrideName?: string,
+    ): Promise<ContextAttachment | null> => {
       const sizeErr = assertFileSize(file);
       if (sizeErr) {
         toast.error(sizeErr);
@@ -109,23 +72,33 @@ export function StepContextEnrichment({
         overrideName ?? file.name,
         file.type,
       );
-      const kind = kindFromMime(mime);
+      const kind = attachmentKindFromFile(file, mime);
       return {
         id: crypto.randomUUID(),
         kind,
         url,
         name,
         mime,
+        ref_label,
       };
     },
     [stepId, uid, workflowId],
   );
 
   const onPickFiles = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       e.target.value = "";
-      if (!files?.length) return;
+      if (!files?.length) {
+        echoAttachDebug("StepContextEnrichment onPickFiles: no files", { workflowId, stepId });
+        return;
+      }
+      echoAttachDebug("StepContextEnrichment onPickFiles: start", {
+        workflowId,
+        stepId,
+        count: files.length,
+        names: Array.from(files).map((f) => f.name),
+      });
       setBusy(true);
       try {
         let list = [...attachments];
@@ -135,14 +108,26 @@ export function StepContextEnrichment({
             break;
           }
           try {
-            const row = await uploadOne(file);
+            const ref = nextAttachmentRefLabel(list);
+            echoAttachDebug("StepContextEnrichment uploadOne", {
+              ref_label: ref,
+              name: file.name,
+              size: file.size,
+            });
+            const row = await uploadOne(file, ref);
             if (row) list = [...list, row];
           } catch (err) {
+            echoAttachDebug("StepContextEnrichment uploadOne failed", {
+              message: err instanceof Error ? err.message : String(err),
+            });
             toast.error(err instanceof Error ? err.message : "Upload failed");
           }
         }
         if (list.length > attachments.length) {
           onChange(list);
+          echoAttachDebug("StepContextEnrichment onPickFiles: done", {
+            added: list.length - attachments.length,
+          });
           toast.success(
             list.length - attachments.length === 1
               ? "Context added"
@@ -153,7 +138,7 @@ export function StepContextEnrichment({
         setBusy(false);
       }
     },
-    [attachments, onChange, uploadOne],
+    [attachments, onChange, stepId, uploadOne, workflowId],
   );
 
   const captureScreen = useCallback(async () => {
@@ -164,14 +149,20 @@ export function StepContextEnrichment({
     }
     setBusy(true);
     try {
+      echoAttachDebug("StepContextEnrichment captureScreen", { workflowId, stepId });
       const blob = await captureScreenAsPngBlob();
       const file = new File([blob], `screen-capture-${Date.now()}.png`, { type: "image/png" });
-      const row = await uploadOne(file);
+      const ref = nextAttachmentRefLabel(attachments);
+      const row = await uploadOne(file, ref);
       if (row) {
+        echoAttachDebug("StepContextEnrichment captureScreen: uploaded", { ref_label: ref });
         onChange([...attachments, row]);
         toast.success("Screen capture added");
       }
     } catch (e) {
+      echoAttachDebug("StepContextEnrichment captureScreen error", {
+        message: e instanceof Error ? e.message : String(e),
+      });
       const msg = e instanceof Error ? e.message : "Screen capture failed";
       if (!/Permission|denied|Abort/i.test(msg)) {
         toast.error(msg);
@@ -179,74 +170,127 @@ export function StepContextEnrichment({
     } finally {
       setBusy(false);
     }
-  }, [attachments, busy, disabled, onChange, uploadOne]);
+  }, [attachments, busy, disabled, onChange, stepId, uploadOne, workflowId]);
 
   const remove = (id: string) => {
     onChange(attachments.filter((a) => a.id !== id));
   };
 
+  const handleAttachFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    echoAttachDebug("StepContextEnrichment input change", {
+      inputId: e.target.id,
+      accept: e.target.accept || "(any)",
+      multiple: e.target.multiple,
+      webkitdirectory: Boolean(
+        (e.target as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory,
+      ),
+      fileCount: list?.length ?? 0,
+      names: list?.length ? Array.from(list).map((f) => f.name) : [],
+    });
+    void onPickFiles(e);
+    setAttachOpen(false);
+  };
+
+  const rowClass = cn(
+    "flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[#150A35] hover:bg-[#150A35]/6",
+    pickDisabled && "pointer-events-none opacity-50",
+  );
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-[#150A35]/80">Extra context</p>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+      <input
+        id={imageId}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        tabIndex={-1}
+        disabled={pickDisabled}
+        onChange={handleAttachFiles}
+      />
+      <input
+        id={videoId}
+        type="file"
+        accept="video/*"
+        className="sr-only"
+        tabIndex={-1}
+        disabled={pickDisabled}
+        onChange={handleAttachFiles}
+      />
+      <input
+        id={filesId}
+        type="file"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        disabled={pickDisabled}
+        onChange={handleAttachFiles}
+      />
+      <input
+        id={folderId}
+        type="file"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        disabled={pickDisabled}
+        onChange={handleAttachFiles}
+        {...({ webkitdirectory: "", directory: "" } as InputHTMLAttributes<HTMLInputElement>)}
+      />
+      <div className="flex justify-end">
+        <Popover modal={false} open={attachOpen} onOpenChange={setAttachOpen}>
+          <PopoverTrigger asChild>
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              disabled={disabled || busy || !canAddAttachment(attachments)}
-              className="h-8 gap-1.5 border-[#A577FF]/35 text-xs text-[#150A35] hover:bg-[#A577FF]/10"
+              size="icon-sm"
+              disabled={pickDisabled}
+              className="shrink-0 border-[#A577FF]/35 text-[#150A35] hover:bg-[#A577FF]/10"
+              aria-label="Add image, file, or screen capture"
             >
               {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : (
-                <Plus className="h-3.5 w-3.5" aria-hidden />
+                <Plus className="h-4 w-4" aria-hidden />
               )}
-              Add
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onSelect={() => imgRef.current?.click()} className="gap-2 text-sm">
-              <ImagePlus className="h-4 w-4 text-[#A577FF]" aria-hidden />
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            className="w-56 p-1"
+            onCloseAutoFocus={(e) => e.preventDefault()}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <label htmlFor={imageId} className={rowClass}>
+              <ImagePlus className="h-4 w-4 shrink-0 text-[#A577FF]" aria-hidden />
               Image
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => vidRef.current?.click()} className="gap-2 text-sm">
-              <Video className="h-4 w-4 text-[#A577FF]" aria-hidden />
+            </label>
+            <label htmlFor={videoId} className={rowClass}>
+              <Video className="h-4 w-4 shrink-0 text-[#A577FF]" aria-hidden />
               Video
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => fileRef.current?.click()} className="gap-2 text-sm">
-              <Paperclip className="h-4 w-4 text-[#A577FF]" aria-hidden />
+            </label>
+            <label htmlFor={filesId} className={rowClass}>
+              <Paperclip className="h-4 w-4 shrink-0 text-[#A577FF]" aria-hidden />
               Files
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => folderRef.current?.click()} className="gap-2 text-sm">
-              <FolderOpen className="h-4 w-4 text-[#A577FF]" aria-hidden />
+            </label>
+            <label htmlFor={folderId} className={rowClass}>
+              <FolderOpen className="h-4 w-4 shrink-0 text-[#A577FF]" aria-hidden />
               Folder
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => void captureScreen()} className="gap-2 text-sm">
-              <MonitorUp className="h-4 w-4 text-[#21C4DD]" aria-hidden />
+            </label>
+            <div className="my-1 h-px bg-border" />
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-[#150A35] hover:bg-[#150A35]/6"
+              onClick={() => {
+                setAttachOpen(false);
+                void captureScreen();
+              }}
+            >
+              <MonitorUp className="h-4 w-4 shrink-0 text-[#21C4DD]" aria-hidden />
               Capture screen
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </button>
+          </PopoverContent>
+        </Popover>
       </div>
-      <p className="text-[11px] leading-snug text-[#6b7280]">
-        Uploads go to your Firebase Storage. Collaborators open the same step to view. Screen
-        capture asks which window or screen to share.
-      </p>
-
-      <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={onPickFiles} />
-      <input ref={vidRef} type="file" accept="video/*" className="hidden" onChange={onPickFiles} />
-      <input ref={fileRef} type="file" multiple className="hidden" onChange={onPickFiles} />
-      <input
-        ref={folderRef}
-        type="file"
-        className="hidden"
-        multiple
-        onChange={onPickFiles}
-        {...({ webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>)}
-      />
 
       {attachments.length > 0 ? (
         <ul className="space-y-2">
@@ -295,11 +339,7 @@ export function StepContextEnrichment({
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="rounded-lg border border-dashed border-[#150A35]/15 bg-white/60 px-3 py-4 text-center text-[11px] text-[#150A35]/50">
-          No extra images, videos, or files yet.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,21 @@ import { cn } from "@/lib/utils";
 import { GradientIconWell } from "@/components/ui/gradient-icon-well";
 import { Input } from "@/components/ui/input";
 
+/** Dropdown panel for contextual search (see DESIGN_SYSTEM — Echo contextual search). */
+export const ECHO_SEARCH_SUGGEST_PANEL_CLASS =
+  "absolute left-0 right-0 top-full z-[200] mt-1 max-h-72 overflow-auto rounded-lg border border-border bg-card py-1 shadow-lg";
+
+/** Empty state panel (query with no matches). */
+export const ECHO_SEARCH_SUGGEST_EMPTY_CLASS =
+  "absolute left-0 right-0 top-full z-[200] mt-1 rounded-lg border border-border bg-card px-3 py-4 text-center text-sm text-muted-foreground shadow-lg";
+
+export function echoSearchSuggestRowClass(active: boolean) {
+  return cn(
+    "flex w-full flex-row items-center gap-3 px-3 py-2.5 text-left text-sm",
+    active ? "bg-muted" : "hover:bg-muted/70",
+  );
+}
+
 export type EchoSearchSuggestion = {
   id: string;
   label: string;
@@ -97,7 +112,7 @@ export function EchoSearchWithSuggestions({
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       <div className="relative">
-        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A577FF]" />
+        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id={inputId}
           type="search"
@@ -146,17 +161,13 @@ export function EchoSearchWithSuggestions({
           placeholder={placeholder}
           aria-label={ariaLabel}
           className={cn(
-            "border-[#A577FF]/30 bg-white pl-9 pr-3 text-[#150A35] placeholder:text-gray-400 focus-visible:ring-[#A577FF]/35",
+            "border-border bg-card dark:bg-card pl-9 pr-3 text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:ring-ring/40",
             inputClassName,
           )}
         />
       </div>
       {open && filtered.length > 0 ? (
-        <ul
-          id={`${listBaseId}-listbox`}
-          className="absolute left-0 right-0 top-full z-[200] mt-1 max-h-72 overflow-auto rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] py-1 shadow-lg"
-          role="listbox"
-        >
+        <ul id={`${listBaseId}-listbox`} className={ECHO_SEARCH_SUGGEST_PANEL_CLASS} role="listbox">
           {filtered.map((item, idx) => (
             <li
               key={item.id}
@@ -166,25 +177,23 @@ export function EchoSearchWithSuggestions({
             >
               <button
                 type="button"
-                className={cn(
-                  "flex w-full flex-row items-center gap-3 px-3 py-2.5 text-left text-sm",
-                  activeIndex === idx ? "bg-[#A577FF]/15" : "hover:bg-[#A577FF]/10",
-                )}
+                className={echoSearchSuggestRowClass(activeIndex === idx)}
                 onMouseEnter={() => setActiveIndex(idx)}
                 onMouseDown={(ev) => ev.preventDefault()}
                 onClick={() => pick(item)}
               >
                 {item.icon ? (
                   <GradientIconWell
+                    corners="lg"
                     className={cn("shrink-0", centerSuggestions ? "h-9 w-9" : "h-8 w-8")}
                   >
                     {item.icon}
                   </GradientIconWell>
                 ) : null}
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-[#150A35]">{item.label}</div>
+                  <div className="font-medium text-foreground">{item.label}</div>
                   {item.subtitle ? (
-                    <div className="text-xs text-gray-500">{item.subtitle}</div>
+                    <div className="text-xs text-muted-foreground">{item.subtitle}</div>
                   ) : null}
                 </div>
               </button>
@@ -193,10 +202,7 @@ export function EchoSearchWithSuggestions({
         </ul>
       ) : null}
       {open && q.trim() && filtered.length === 0 ? (
-        <div
-          className="absolute left-0 right-0 top-full z-[200] mt-1 rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] px-3 py-4 text-center text-sm text-gray-500 shadow-lg"
-          role="status"
-        >
+        <div className={ECHO_SEARCH_SUGGEST_EMPTY_CLASS} role="status">
           {emptyText}
         </div>
       ) : null}

@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Workflow } from "lucide-react";
 import {
   IconMicrophone,
   IconMicrophoneOff,
   IconX,
   IconWaveSine,
-  IconJumpRope,
   IconPlayerPlay,
   IconWand,
   IconAlertCircle,
@@ -45,35 +45,35 @@ const SYNTHESIS_STEPS = [
 const TOOL_META: Record<string, { label: string; icon: React.ReactNode }> = {
   list_workflows: {
     label: "Listing workflows",
-    icon: <IconJumpRope className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <Workflow className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />,
   },
   run_workflow: {
     label: "Starting workflow",
-    icon: <IconPlayerPlay className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconPlayerPlay className="h-3.5 w-3.5 text-muted-foreground" />,
   },
   synthesize_from_description: {
     label: "Creating workflow",
-    icon: <IconWand className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconWand className="h-3.5 w-3.5 text-muted-foreground" />,
   },
   cancel_run: {
     label: "Cancelling run",
-    icon: <IconAlertCircle className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconAlertCircle className="h-3.5 w-3.5 text-muted-foreground" />,
   },
   redirect_run: {
     label: "Redirecting agent",
-    icon: <IconRefresh className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconRefresh className="h-3.5 w-3.5 text-muted-foreground" />,
   },
   dismiss_calluser: {
     label: "Dismissing alert",
-    icon: <IconAlertCircle className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconAlertCircle className="h-3.5 w-3.5 text-muted-foreground" />,
   },
   list_integrations: {
     label: "Listing integrations",
-    icon: <IconBrandSlack className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconBrandSlack className="h-3.5 w-3.5 text-muted-foreground" />,
   },
   call_integration: {
     label: "Calling integration",
-    icon: <IconBrandSlack className="h-3.5 w-3.5 text-[#A577FF]" />,
+    icon: <IconBrandSlack className="h-3.5 w-3.5 text-muted-foreground" />,
   },
 };
 
@@ -81,7 +81,7 @@ function getToolMeta(name: string) {
   return (
     TOOL_META[name] ?? {
       label: name,
-      icon: <IconTool className="h-3.5 w-3.5 text-[#A577FF]" />,
+      icon: <IconTool className="h-3.5 w-3.5 text-muted-foreground" />,
     }
   );
 }
@@ -387,7 +387,7 @@ export function EchoPrismVoiceModal({
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-[#0A0A14] px-8 py-10">
         {/* Header — just branding, no X */}
         <div className="flex w-full items-center justify-start gap-2">
-          <IconWaveSine className="h-5 w-5 text-[#A577FF]" />
+          <IconWaveSine className="h-5 w-5 text-muted-foreground" />
           <span className="text-sm font-semibold text-white tracking-wide">EchoPrismVoice</span>
         </div>
 
@@ -398,7 +398,7 @@ export function EchoPrismVoiceModal({
             {/* Outer glow — only when speaking */}
             <div
               className={cn(
-                "absolute rounded-full bg-[#A577FF]/20 transition-all duration-700",
+                "absolute rounded-full bg-[#150A35]/12 transition-all duration-700",
                 voiceState === "speaking"
                   ? "h-64 w-64 animate-ping opacity-30"
                   : "h-52 w-52 opacity-0",
@@ -407,7 +407,7 @@ export function EchoPrismVoiceModal({
             {/* Mid ring — pulses when listening */}
             <div
               className={cn(
-                "absolute rounded-full bg-[#A577FF]/30 transition-all duration-500",
+                "absolute rounded-full bg-[#150A35]/30 transition-all duration-500",
                 voiceState === "listening"
                   ? "h-52 w-52 animate-pulse"
                   : voiceState === "speaking"
@@ -420,7 +420,7 @@ export function EchoPrismVoiceModal({
             {/* Core orb */}
             <div
               className={cn(
-                "relative rounded-full bg-linear-to-br from-[#A577FF] to-[#7C3AED] shadow-2xl shadow-[#A577FF]/50 transition-all duration-300",
+                "echo-fill-cta-gradient-br relative rounded-full shadow-2xl shadow-black/25 transition-all duration-300",
                 orbSize,
                 (voiceState === "muted" || voiceState === "idle") && "opacity-50 saturate-50",
               )}
@@ -460,12 +460,12 @@ export function EchoPrismVoiceModal({
 
             {/* Active tool pill */}
             {activeTool && !isSynthesizing && (
-              <div className="flex items-center gap-1.5 rounded-full border border-[#A577FF]/40 bg-[#A577FF]/10 px-3 py-1.5">
+              <div className="flex items-center gap-1.5 rounded-full border border-[#150A35]/20 bg-[#150A35]/06 px-3 py-1.5">
                 {getToolMeta(activeTool).icon}
-                <span className="text-xs text-[#A577FF] font-medium">
+                <span className="text-xs text-muted-foreground font-medium">
                   {getToolMeta(activeTool).label}
                 </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-[#A577FF] animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#150A35] animate-pulse" />
               </div>
             )}
 
@@ -479,7 +479,7 @@ export function EchoPrismVoiceModal({
                 <div className="flex flex-col items-center gap-2 sm:flex-row">
                   <a
                     href={`/dashboard/workflows/${synthesizedWorkflow.id}/edit`}
-                    className="flex items-center gap-2 rounded-full bg-[#A577FF] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                    className="flex items-center gap-2 rounded-full bg-[#150A35] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
                   >
                     Open in Echo Flow
                   </a>
@@ -501,7 +501,7 @@ export function EchoPrismVoiceModal({
             <p className="text-sm font-medium text-white/70">Connection lost</p>
             <button
               onClick={handleReconnect}
-              className="flex items-center gap-2 rounded-full bg-[#A577FF] px-5 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 rounded-full bg-[#150A35] px-5 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
             >
               <IconRefresh className="h-4 w-4" />
               Reconnect
@@ -573,7 +573,7 @@ export function EchoPrismVoiceModal({
                   "flex h-14 w-14 items-center justify-center rounded-full transition-all",
                   isMuted
                     ? "bg-white/10 text-white/40 hover:bg-white/20"
-                    : "bg-[#A577FF]/20 text-[#A577FF] hover:bg-[#A577FF]/30",
+                    : "bg-[#150A35]/12 text-muted-foreground hover:bg-muted",
                 )}
               >
                 {isMuted ? (

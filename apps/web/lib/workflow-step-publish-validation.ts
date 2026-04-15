@@ -82,6 +82,26 @@ export function publishIssuesForStep(s: StepForPublishCheck): string[] {
   return issues;
 }
 
+/** Actions where freeform context tags are useful but not required by publish rules. */
+const OPTIONAL_CONTEXT_TAG_ACTIONS = new Set([
+  "take_screenshot",
+  "open_web_browser",
+  "close_web_browser",
+]);
+
+/**
+ * Whether the side panel should show the tag-style context composer, and if it is required to publish.
+ * Hidden when the step only uses structured fields (or auto context like open_app).
+ */
+export function getStepContextTagsMode(s: StepForPublishCheck): "hidden" | "optional" | "required" {
+  const a = s.action;
+  if (a === "open_app" || a === "focus_app") return "hidden";
+  if (OPTIONAL_CONTEXT_TAG_ACTIONS.has(a)) return "optional";
+  const issues = publishIssuesForStep({ ...s, context: "" });
+  if (issues.some((msg) => msg.includes("short description"))) return "required";
+  return "hidden";
+}
+
 export function validateStepsForPublish(steps: StepForPublishCheck[]): {
   invalidIds: Set<string>;
   /** First failing step’s issues (for toast / focus) */

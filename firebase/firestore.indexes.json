@@ -39,6 +39,14 @@
         { "fieldPath": "owner_uid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "workflow_invites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "to_uid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

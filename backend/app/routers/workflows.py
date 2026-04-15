@@ -86,6 +86,8 @@ class WorkflowUpdate(BaseModel):
     name: str | None = None
     status: str | None = None
     ephemeral: bool | None = None
+    # When True, invites and direct link sharing are allowed (owner-only update).
+    is_public: bool | None = None
 
 
 class WorkflowFlowUpdate(BaseModel):
@@ -165,6 +167,7 @@ async def create_workflow(
             "owner_uid": uid,
             "name": (body.name if body else None) or "Untitled workflow",
             "status": "draft",
+            "is_public": False,
             "createdAt": SERVER_TIMESTAMP,
             "updatedAt": SERVER_TIMESTAMP,
         }
@@ -220,6 +223,10 @@ async def update_workflow(
         update["status"] = body.status
     if body.ephemeral is not None:
         update["ephemeral"] = body.ephemeral
+    if body.is_public is not None:
+        if data.get("owner_uid") != uid:
+            raise HTTPException(status_code=403, detail="Only the owner can change visibility")
+        update["is_public"] = bool(body.is_public)
     wf_ref.update(update)
     return {"ok": True}
 
@@ -309,8 +316,14 @@ async def share_workflow(
     body: ShareWorkflow,
     uid: str = Depends(get_current_uid),
 ):
-    """Send a workflow invite to another user by email. Owner only."""
-    wf_ref, wf_data = _get_workflow(uid, workflow_id)
+    """Send a workflow invite to another user by email. Owner or collaborator with editor role."""
+    wf_ref, wf_data = _get_workflow(uid, workflow_id, require_owner=False)
+    _assert_can_edit_workflow(uid, wf_data)
+    if wf_data.get("is_public") is not True:
+        raise HTTPException(
+            status_code=400,
+            detail="Make this workflow public before inviting people or sharing the link.",
+        )
     try:
         target_user = firebase_admin.auth.get_user_by_email(body.email)
     except firebase_admin.auth.UserNotFoundError:
@@ -334,12 +347,16 @@ async def share_workflow(
     )
     if existing:
         raise HTTPException(status_code=400, detail="Invite already sent to this user")
-    # Resolve sender display name
+    # Resolve sender display name and photo (for in-app notifications)
     try:
         sender = firebase_admin.auth.get_user(uid)
         from_name = sender.display_name or sender.email or uid
+        from_photo = getattr(sender, "photo_url", None) or ""
+        if not isinstance(from_photo, str):
+            from_photo = ""
     except Exception:
         from_name = uid
+        from_photo = ""
     invite_ref = db.collection("workflow_invites").document()
     invite_ref.set(
         {
@@ -349,6 +366,7 @@ async def share_workflow(
             "from_name": from_name,
             "to_uid": target_user.uid,
             "to_email": target_user.email or body.email,
+            "role": body.role,
             "status": "pending",
             "createdAt": SERVER_TIMESTAMP,
         }
@@ -366,6 +384,7 @@ async def share_workflow(
             "workflow_name": workflow_name,
             "from_uid": uid,
             "from_name": from_name,
+            "from_photo_url": from_photo,
             "invite_id": invite_ref.id,
             "read": False,
             "createdAt": SERVER_TIMESTAMP,
@@ -387,7 +406,10 @@ async def accept_invite(
     workflow_id: str,
     uid: str = Depends(get_current_uid),
 ):
-    """Accept a pending workflow invite. Forks the workflow for the recipient so they own their own copy."""
+    """Accept a pending workflow invite: join the shared workflow for collaborative access (no automatic copy).
+
+    Use POST /workflows/{id}/fork to create a separate owned copy when desired.
+    """
     app = get_firebase_app()
     db = firebase_admin.firestore.client(app)
     invites = list(
@@ -400,34 +422,54 @@ async def accept_invite(
     )
     if not invites:
         raise HTTPException(status_code=404, detail="No pending invite found")
-    invite_ref = invites[0].reference
-    # Fork the source workflow so the recipient owns their own copy
+    invite_snap = invites[0]
+    invite_ref = invite_snap.reference
+    invite_data = invite_snap.to_dict() or {}
     wf_ref = db.collection("workflows").document(workflow_id)
     wf_doc = wf_ref.get()
     if not wf_doc.exists:
         raise HTTPException(status_code=404, detail="Source workflow no longer exists")
     wf_data = wf_doc.to_dict() or {}
-    new_id = str(uuid.uuid4())
-    new_ref = db.collection("workflows").document(new_id)
-    fork_payload: dict[str, Any] = {
-        "owner_uid": uid,
-        "name": wf_data.get("name", "Untitled"),
-        "status": wf_data.get("status", "draft"),
-        "workflow_type": wf_data.get("workflow_type", "desktop"),
-        "shared_with": [],
-        "forked_from": workflow_id,
-        "thumbnail_gcs_path": wf_data.get("thumbnail_gcs_path"),
-        "createdAt": SERVER_TIMESTAMP,
-        "updatedAt": SERVER_TIMESTAMP,
-    }
-    if wf_data.get("flow_graph") is not None:
-        fork_payload["flow_graph"] = wf_data.get("flow_graph")
-    new_ref.set(fork_payload)
-    for step_doc in wf_ref.collection("steps").order_by("order").stream():
-        step_data = step_doc.to_dict() or {}
-        new_ref.collection("steps").document(str(uuid.uuid4())).set(step_data)
-    invite_ref.update({"status": "accepted", "fork_id": new_id})
-    return {"ok": True, "fork_id": new_id}
+    # Owner invite usually already added the recipient to shared_with; repair if missing.
+    if uid not in (wf_data.get("shared_with") or []):
+        role = invite_data.get("role") if invite_data.get("role") in ("viewer", "editor") else "editor"
+        wf_ref.update(
+            {
+                "shared_with": ArrayUnion([uid]),
+                f"collaborator_roles.{uid}": role,
+                "updatedAt": SERVER_TIMESTAMP,
+            }
+        )
+    invite_ref.update({"status": "accepted"})
+    owner_uid = wf_data.get("owner_uid")
+    if isinstance(owner_uid, str) and owner_uid and owner_uid != uid:
+        try:
+            accepter = firebase_admin.auth.get_user(uid)
+            accepter_name = accepter.display_name or accepter.email or uid
+            accepter_photo = getattr(accepter, "photo_url", None) or ""
+            if not isinstance(accepter_photo, str):
+                accepter_photo = ""
+        except Exception:
+            accepter_name = uid
+            accepter_photo = ""
+        wf_name = wf_data.get("name", "Untitled workflow")
+        owner_notif = db.collection("notifications").document()
+        owner_notif.set(
+            {
+                "to_uid": owner_uid,
+                "type": "invite_accepted",
+                "title": "Collaborator joined",
+                "body": f'{accepter_name} accepted your invite to "{wf_name}".',
+                "workflow_id": workflow_id,
+                "workflow_name": wf_name,
+                "from_uid": uid,
+                "from_name": accepter_name,
+                "from_photo_url": accepter_photo,
+                "read": False,
+                "createdAt": SERVER_TIMESTAMP,
+            }
+        )
+    return {"ok": True, "workflow_id": workflow_id}
 
 
 @router.post("/{workflow_id}/invite/decline")
@@ -485,6 +527,47 @@ async def update_share_role(
     return {"ok": True}
 
 
+@router.post("/{workflow_id}/leave")
+async def leave_workflow(
+    workflow_id: str,
+    uid: str = Depends(get_current_uid),
+):
+    """Remove yourself as a collaborator (non-owners only)."""
+    app = get_firebase_app()
+    db = firebase_admin.firestore.client(app)
+    wf_ref = db.collection("workflows").document(workflow_id)
+    wf_doc = wf_ref.get()
+    if not wf_doc.exists:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    wf_data = wf_doc.to_dict() or {}
+    owner = wf_data.get("owner_uid")
+    if owner == uid:
+        raise HTTPException(
+            status_code=400,
+            detail="Owners cannot leave their own workflow; delete it or remove collaborators instead.",
+        )
+    shared = wf_data.get("shared_with") or []
+    if uid not in shared:
+        raise HTTPException(status_code=404, detail="You are not a collaborator on this workflow")
+    wf_ref.update(
+        {
+            "shared_with": ArrayRemove([uid]),
+            f"collaborator_roles.{uid}": DELETE_FIELD,
+            "updatedAt": SERVER_TIMESTAMP,
+        }
+    )
+    pending_invites = (
+        db.collection("workflow_invites")
+        .where(filter=FieldFilter("workflow_id", "==", workflow_id))
+        .where(filter=FieldFilter("to_uid", "==", uid))
+        .where(filter=FieldFilter("status", "==", "pending"))
+        .stream()
+    )
+    for inv in pending_invites:
+        inv.reference.delete()
+    return {"ok": True}
+
+
 @router.delete("/{workflow_id}/share/{target_uid}")
 async def unshare_workflow(
     workflow_id: str,
@@ -526,8 +609,9 @@ async def get_collaborators(
     _, data = _get_workflow(uid, workflow_id, require_owner=False)
     is_owner = data.get("owner_uid") == uid
     shared_uids: list[str] = data.get("shared_with") or []
+    is_editor = uid in shared_uids and _collaborator_role(data, uid) == "editor"
     pending_uids: set[str] = set()
-    if is_owner:
+    if is_owner or is_editor:
         pending_invites = (
             db.collection("workflow_invites")
             .where(filter=FieldFilter("workflow_id", "==", workflow_id))
@@ -540,32 +624,53 @@ async def get_collaborators(
             if isinstance(invite_uid, str) and invite_uid:
                 pending_uids.add(invite_uid)
 
-    all_collaborator_uids = list(dict.fromkeys([*shared_uids, *pending_uids])) if is_owner else shared_uids
+    # Everyone with access: workflow owner first, then collaborators, then any pending-only uids.
+    owner_uid = data.get("owner_uid")
+    owner_str = owner_uid if isinstance(owner_uid, str) and owner_uid else None
+    seen: set[str] = set()
+    ordered_uids: list[str] = []
+
+    def _push(u: str | None) -> None:
+        if u and u not in seen:
+            seen.add(u)
+            ordered_uids.append(u)
+
+    _push(owner_str)
+    for u in shared_uids:
+        _push(u)
+    if is_owner or is_editor:
+        for u in pending_uids:
+            _push(u)
+
     collaborators = []
-    for shared_uid in all_collaborator_uids:
-        status = "pending" if shared_uid in pending_uids else "accepted"
+    for uid_row in ordered_uids:
+        if owner_str and uid_row == owner_str:
+            role_out: str = "owner"
+        else:
+            role_out = _collaborator_role(data, uid_row)
+        status = "pending" if uid_row in pending_uids else "accepted"
         try:
-            user = firebase_admin.auth.get_user(shared_uid)
+            user = firebase_admin.auth.get_user(uid_row)
             photo = getattr(user, "photo_url", None)
             collaborators.append(
                 {
-                    "uid": shared_uid,
+                    "uid": uid_row,
                     "email": user.email or "",
-                    "display_name": user.display_name or user.email or shared_uid,
+                    "display_name": user.display_name or user.email or uid_row,
                     "photo_url": photo if isinstance(photo, str) and photo else "",
                     "status": status,
-                    "role": _collaborator_role(data, shared_uid),
+                    "role": role_out,
                 }
             )
         except Exception:
             collaborators.append(
                 {
-                    "uid": shared_uid,
+                    "uid": uid_row,
                     "email": "",
-                    "display_name": shared_uid,
+                    "display_name": uid_row,
                     "photo_url": "",
                     "status": status,
-                    "role": _collaborator_role(data, shared_uid),
+                    "role": role_out,
                 }
             )
     return {"collaborators": collaborators}
@@ -583,9 +688,10 @@ async def fork_workflow(
     db = firebase_admin.firestore.client(app)
     new_id = str(uuid.uuid4())
     new_ref = db.collection("workflows").document(new_id)
+    base_name = (data.get("name") or "Untitled") or "Untitled"
     fork_payload: dict[str, Any] = {
         "owner_uid": uid,
-        "name": f"{data.get('name', 'Untitled')} (copy)",
+        "name": f"{base_name} [COPY]",
         "status": "draft",
         "workflow_type": data.get("workflow_type", "browser"),
         "shared_with": [],

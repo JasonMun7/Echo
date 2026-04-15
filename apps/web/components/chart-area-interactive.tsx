@@ -92,10 +92,10 @@ export function ChartAreaInteractive({ runs = [] }: { runs?: RunForChart[] }) {
   }, [runs, timeRange]);
 
   return (
-    <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
+    <Card className="rounded-lg border-border @container/card">
       <CardHeader>
-        <CardTitle className="text-[#150A35]">Run Activity</CardTitle>
-        <CardDescription className="text-echo-text-muted">
+        <CardTitle className="text-foreground">Run Activity</CardTitle>
+        <CardDescription className="text-muted-foreground">
           <span className="hidden @[540px]/card:block">Total for the last 3 months</span>
           <span className="@[540px]/card:hidden">Last 3 months</span>
         </CardDescription>

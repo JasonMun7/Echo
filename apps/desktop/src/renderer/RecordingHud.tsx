@@ -87,7 +87,7 @@ export default function RecordingHud(_props: RecordingHudProps) {
           <button
             type="button"
             onClick={handleStop}
-            className="echo-btn-cyan-lavender flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            className="echo-btn-primary flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white"
           >
             <IconSquare size={14} fill="currentColor" />
             Stop

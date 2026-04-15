@@ -227,7 +227,7 @@ export default function WorkflowDetailView({
           </button>
           <button
             type="button"
-            className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-md px-2 py-1 text-sm disabled:opacity-50"
+            className="echo-btn-primary flex items-center gap-1.5 rounded-md px-2 py-1 text-sm disabled:opacity-50"
             onClick={handleRun}
             disabled={!canRun || steps.length === 0}
           >

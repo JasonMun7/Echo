@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  IconAlertTriangle,
-  IconCircleCheck,
-  IconJumpRope,
-  IconPlayerPlay,
-} from "@tabler/icons-react";
+import { Workflow } from "lucide-react";
+import { IconAlertTriangle, IconCircleCheck, IconPlayerPlay } from "@tabler/icons-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -26,74 +22,74 @@ export function SectionCards({
 }: SectionCardsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4 lg:px-6">
-      <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
+      <Card className="rounded-lg border-border @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">Total Workflows</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A577FF]/10">
-            <IconJumpRope className="size-5 text-[#A577FF]" />
+          <CardDescription className="text-muted-foreground">Total Workflows</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+            <Workflow className="size-5 text-muted-foreground" strokeWidth={1.75} />
           </div>
         </CardHeader>
         <CardContent>
-          <CardTitle className="text-2xl font-semibold tabular-nums text-[#150A35] @[250px]/card:text-3xl">
+          <CardTitle className="text-2xl font-semibold tabular-nums text-foreground @[250px]/card:text-3xl">
             {totalWorkflows}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">Workflows you&apos;ve created</p>
+          <p className="mt-1 text-xs text-muted-foreground">Workflows you&apos;ve created</p>
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
+      <Card className="rounded-lg border-border @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">Active Workflows</CardDescription>
+          <CardDescription className="text-muted-foreground">Active Workflows</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-echo-success/10">
             <IconCircleCheck className="size-5 text-echo-success" />
           </div>
         </CardHeader>
         <CardContent>
-          <CardTitle className="text-2xl font-semibold tabular-nums text-[#150A35] @[250px]/card:text-3xl">
+          <CardTitle className="text-2xl font-semibold tabular-nums text-foreground @[250px]/card:text-3xl">
             {activeWorkflows}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">Ready or live</p>
+          <p className="mt-1 text-xs text-muted-foreground">Ready or live</p>
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm @container/card">
+      <Card className="rounded-lg border-border @container/card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">Total Runs</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A577FF]/10">
-            <IconPlayerPlay className="size-5 text-[#A577FF]" />
+          <CardDescription className="text-muted-foreground">Total Runs</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+            <IconPlayerPlay className="size-5 text-muted-foreground" />
           </div>
         </CardHeader>
         <CardContent>
-          <CardTitle className="text-2xl font-semibold tabular-nums text-[#150A35] @[250px]/card:text-3xl">
+          <CardTitle className="text-2xl font-semibold tabular-nums text-foreground @[250px]/card:text-3xl">
             {totalRuns}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">All workflow runs</p>
+          <p className="mt-1 text-xs text-muted-foreground">All workflow runs</p>
         </CardContent>
       </Card>
 
       <Card
         className={`rounded-lg border shadow-sm @container/card ${
           awaitingInput
-            ? "cursor-pointer border-amber-200 bg-amber-50 hover:bg-amber-100/80"
-            : "border-[#A577FF]/20 bg-[#F5F7FC]"
+            ? "cursor-pointer border-amber-200 bg-amber-50 hover:bg-amber-100/80 dark:border-amber-800/60 dark:bg-amber-950/45 dark:hover:bg-amber-950/65"
+            : "border-border"
         }`}
         onClick={onAwaitingClick}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardDescription className="text-echo-text-muted">Awaiting Input</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
-            <IconAlertTriangle className="size-5 text-amber-500" />
+          <CardDescription className="text-muted-foreground">Awaiting Input</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-950/60">
+            <IconAlertTriangle className="size-5 text-amber-600 dark:text-amber-400" />
           </div>
         </CardHeader>
         <CardContent>
           <CardTitle
             className={`text-2xl font-semibold tabular-nums @[250px]/card:text-3xl ${
-              awaitingInput ? "text-amber-600" : "text-[#150A35]"
+              awaitingInput ? "text-amber-700 dark:text-amber-300" : "text-foreground"
             }`}
           >
             {awaitingInput}
           </CardTitle>
-          <p className="text-xs text-echo-text-muted mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             {awaitingInput ? "Click to view" : "No runs waiting"}
           </p>
         </CardContent>

@@ -97,7 +97,7 @@ export function OpenAppBrandSearchFields({
       </p>
 
       {brandDomain.trim() && app.trim() ? (
-        <div className="flex items-center gap-2 rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] px-2 py-1.5">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 shadow-sm">
           {selectedUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- Brandfetch Logo API hotlink
             <img
@@ -132,7 +132,7 @@ export function OpenAppBrandSearchFields({
       ) : null}
 
       <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#150A35]/35" />
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <input
           type="search"
           autoComplete="off"
@@ -143,15 +143,15 @@ export function OpenAppBrandSearchFields({
           }}
           onFocus={() => setMenuOpen(true)}
           placeholder="Type a name, e.g. Spotify, Notion…"
-          className="w-full rounded border border-[#A577FF]/40 bg-white py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          className="w-full rounded border border-border bg-card py-1.5 pl-8 pr-3 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
         />
         {loading ? (
-          <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#A577FF]" />
+          <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
         ) : null}
 
         {menuOpen && hits.length > 0 ? (
           <ul
-            className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-[#150A35]/12 bg-white py-1 shadow-lg"
+            className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-card py-1 shadow-lg"
             role="listbox"
           >
             {hits.map((h) => (

@@ -148,7 +148,7 @@ export const ScrollContent = memo(function ScrollContent({
     >
       <div className="w-full">
         <motion.div style={{ y: translate, opacity: index === 0 ? opacityContent : 1 }}>
-          {item.icon && <div className={isEcho ? "text-[#A577FF]" : ""}>{item.icon}</div>}
+          {item.icon && <div className={isEcho ? "text-foreground" : ""}>{item.icon}</div>}
           <h2 className={titleClass}>{item.title}</h2>
           <p className={descClass}>{item.description}</p>
         </motion.div>
@@ -188,7 +188,7 @@ export const ScrollContentMobile = memo(function ScrollContentMobile({
       </div>
       <div className="w-full">
         <div className="mb-6">
-          {item.icon && <div className={isEcho ? "text-[#A577FF]" : ""}>{item.icon}</div>}
+          {item.icon && <div className={isEcho ? "text-foreground" : ""}>{item.icon}</div>}
           <h2 className={titleClass}>{item.title}</h2>
           <p className={descClass}>{item.description}</p>
         </div>

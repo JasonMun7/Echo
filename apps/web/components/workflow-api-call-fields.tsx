@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plug } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Plug } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -13,6 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ComposioToolSchemaArgsFields,
+  composioSchemaHasRenderableFields,
+} from "@/components/composio-tool-schema-args";
 import type { Integration } from "@/app/dashboard/integrations/_lib/integration-types";
 import { brandfetchLogoUrlForIntegrationId } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import { apiFetch } from "@/lib/api";
@@ -23,14 +37,10 @@ import {
   type ComposioAppGroupKey,
 } from "@/lib/composio-app-groups";
 import { cn } from "@/lib/utils";
-import {
-  COMPOSIO_TOOL_CATEGORIES,
-  filterComposioToolCatalog,
-  type ComposioToolCatalogEntry,
-} from "@/lib/composio-tool-catalog";
+import type { ComposioToolCatalogEntry } from "@/lib/composio-tool-catalog";
 
 const fieldClass =
-  "w-full border-[#A577FF]/20 bg-white text-[#150A35] shadow-sm focus-visible:border-[#A577FF]/40 focus-visible:ring-[#A577FF]/25";
+  "w-full border-[#150A35]/12 bg-white text-[#150A35] shadow-sm focus-visible:border-[#150A35]/30 focus-visible:ring-[#21C4DD]/25";
 
 type WorkflowApiCallFieldsProps = {
   params: Record<string, unknown>;
@@ -150,11 +160,11 @@ function IntegrationLogoChip({ integrationId, title }: { integrationId: string; 
   }
   return (
     <span
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#A577FF]/10"
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#150A35]/06"
       title={title}
       aria-hidden
     >
-      <Plug className="h-3 w-3 text-[#A577FF]" />
+      <Plug className="h-3 w-3 text-[#0891b2]" />
     </span>
   );
 }
@@ -197,21 +207,12 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
   const [argsJsonDraft, setArgsJsonDraft] = useState<string | null>(null);
   const [argsJsonError, setArgsJsonError] = useState<string | null>(null);
 
-  const [actionSearch, setActionSearch] = useState("");
-  const [actionCategory, setActionCategory] =
-    useState<(typeof COMPOSIO_TOOL_CATEGORIES)[number]>("All");
-  const filteredActions = useMemo(
-    () => filterComposioToolCatalog(actionSearch, actionCategory),
-    [actionSearch, actionCategory],
-  );
-
   const pickAction = useCallback(
     (entry: ComposioToolCatalogEntry) => {
       patchParams({ slug: entry.slug, arguments: {} });
-      setActionSearch("");
       setPreferRawJson(false);
     },
-    [patchParams, setActionSearch, setPreferRawJson],
+    [patchParams, setPreferRawJson],
   );
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -235,7 +236,6 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
   }, []);
 
   const appGroupKey = useMemo(() => inferAppGroupKeyFromSlug(slugVal), [slugVal]);
-  const toolsInGroup = useMemo(() => catalogEntriesForAppGroup(appGroupKey), [appGroupKey]);
 
   const groupDefinition = useMemo(
     () => COMPOSIO_APP_GROUPS.find((g) => g.key === appGroupKey),
@@ -262,10 +262,118 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
     [slugVal, pickAction],
   );
 
+  type RemoteToolkitTool = {
+    slug: string;
+    name: string;
+    description: string;
+    toolkit_slug?: string;
+    scopes?: string[];
+  };
+
+  const [remoteTools, setRemoteTools] = useState<RemoteToolkitTool[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(true);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [actionPickerOpen, setActionPickerOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteLoading(true);
+    setRemoteError(null);
+    apiFetch(`/api/composio/toolkit-tools?app_group=${encodeURIComponent(appGroupKey)}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const t = await r.text();
+          throw new Error(t || r.statusText);
+        }
+        return r.json() as Promise<{ tools?: RemoteToolkitTool[] }>;
+      })
+      .then((d) => {
+        if (cancelled) return;
+        setRemoteTools(Array.isArray(d.tools) ? d.tools : []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRemoteError("Could not load the full action list from Composio.");
+          setRemoteTools([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRemoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appGroupKey]);
+
+  const actionOptions: ComposioToolCatalogEntry[] = useMemo(() => {
+    const cat = groupDefinition?.label ?? "All";
+    if (remoteTools.length > 0) {
+      return remoteTools.map((t) => ({
+        slug: t.slug,
+        title: t.name,
+        description: t.description || "",
+        category: cat,
+      }));
+    }
+    return catalogEntriesForAppGroup(appGroupKey);
+  }, [remoteTools, appGroupKey, groupDefinition?.label]);
+
+  const selectedActionEntry = useMemo(
+    () => actionOptions.find((e) => e.slug === slugVal),
+    [actionOptions, slugVal],
+  );
+
+  const [inputSchema, setInputSchema] = useState<Record<string, unknown> | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+
+  useEffect(() => {
+    if (!slugVal) {
+      setInputSchema(null);
+      setSchemaLoading(false);
+      return;
+    }
+    const mh = slugToMethodHint(slugVal);
+    if (mh && hasStructuredForm(mh)) {
+      setInputSchema(null);
+      setSchemaLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSchemaLoading(true);
+    apiFetch(`/api/composio/tool-schema?slug=${encodeURIComponent(slugVal)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { input_parameters?: Record<string, unknown> } | null) => {
+        if (cancelled) return;
+        const p = d?.input_parameters;
+        setInputSchema(p && typeof p === "object" && !Array.isArray(p) ? p : null);
+      })
+      .catch(() => {
+        if (!cancelled) setInputSchema(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSchemaLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slugVal]);
+
   const formKind = methodHint ? argsFormKind(methodHint) : "none";
   const structuredAvailable = Boolean(methodHint) && hasStructuredForm(methodHint);
 
-  const useRawJson = !structuredAvailable || preferRawJson;
+  const showLegacyForm =
+    structuredAvailable && !preferRawJson && formKind !== "json" && formKind !== "none";
+
+  const showSchemaForm =
+    !showLegacyForm &&
+    !preferRawJson &&
+    Boolean(inputSchema && composioSchemaHasRenderableFields(inputSchema));
+
+  const showJsonArgs = !showLegacyForm && !showSchemaForm;
+
+  const canUseFormInsteadOfJson =
+    (structuredAvailable && formKind !== "json" && formKind !== "none") ||
+    Boolean(inputSchema && composioSchemaHasRenderableFields(inputSchema));
 
   const argsFingerprint = useMemo(
     () => JSON.stringify([params.arguments, params.args]),
@@ -279,8 +387,6 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
   }
 
   const argsString = useMemo(() => stringifyJson(argsObj), [argsObj]);
-
-  const showForm = structuredAvailable && !useRawJson && formKind !== "json" && formKind !== "none";
 
   const renderStructuredArgs = () => {
     switch (formKind) {
@@ -319,7 +425,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
                 className={cn("min-h-[88px] text-sm", fieldClass)}
               />
             </div>
-            <details className="rounded-md border border-[#A577FF]/10 bg-white/60 px-2 py-1.5 text-xs">
+            <details className="rounded-md border border-[#150A35]/08 bg-white/60 px-2 py-1.5 text-xs">
               <summary className="cursor-pointer font-medium text-echo-text-muted">
                 Cc / Bcc / HTML (optional)
               </summary>
@@ -463,7 +569,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
                 className={cn("h-9 text-sm", fieldClass)}
               />
             </div>
-            <details className="rounded-md border border-[#A577FF]/10 bg-white/60 px-2 py-1.5 text-xs">
+            <details className="rounded-md border border-[#150A35]/08 bg-white/60 px-2 py-1.5 text-xs">
               <summary className="cursor-pointer font-medium text-echo-text-muted">
                 Calendar IDs (JSON array, optional)
               </summary>
@@ -499,7 +605,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
         );
       case "no_args":
         return (
-          <div className="space-y-2 rounded-md border border-[#A577FF]/12 bg-white/90 px-3 py-3">
+          <div className="space-y-2 rounded-md border border-[#150A35]/08 bg-white/90 px-3 py-3">
             <p className="text-sm font-medium text-[#150A35]">No arguments required</p>
             <p className="text-xs leading-relaxed text-echo-text-muted">
               This tool runs without parameters. Use{" "}
@@ -665,7 +771,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
                 className={cn("h-9 text-sm", fieldClass)}
               />
             </div>
-            <details className="rounded-md border border-[#A577FF]/10 bg-white/60 px-2 py-1.5 text-xs">
+            <details className="rounded-md border border-[#150A35]/08 bg-white/60 px-2 py-1.5 text-xs">
               <summary className="cursor-pointer font-medium text-echo-text-muted">
                 Extra headers (JSON, optional)
               </summary>
@@ -826,7 +932,7 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
           Connect <span className="font-semibold text-[#150A35]">{integrationMeta.name}</span> in{" "}
           <Link
             href="/dashboard/integrations"
-            className="font-medium text-[#A577FF] underline-offset-2 hover:underline"
+            className="font-medium text-[#0891b2] underline-offset-2 hover:underline"
           >
             Integrations
           </Link>{" "}
@@ -854,36 +960,87 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-[#150A35]">Action</Label>
-          <Select
-            value={slugVal || undefined}
-            onValueChange={(s) => {
-              const entry = toolsInGroup.find((t) => t.slug === s);
-              if (entry) pickAction(entry);
-            }}
-          >
-            <SelectTrigger className={cn("h-10 w-full", fieldClass)}>
-              <SelectValue placeholder="Choose what this step does" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[min(60vh,20rem)]">
-              {toolsInGroup.map((entry) => (
-                <SelectItem key={entry.slug} value={entry.slug} textValue={entry.title}>
-                  <span className="flex max-w-[min(90vw,22rem)] flex-col gap-0.5 text-left">
-                    <span className="text-sm font-medium leading-tight">{entry.title}</span>
-                    <span className="text-[11px] leading-snug text-[#6b7280]">
-                      {entry.description}
-                    </span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs font-medium text-[#150A35]">Action</Label>
+            {remoteLoading ? (
+              <span className="flex items-center gap-1 text-[10px] text-[#6b7280]">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                Loading…
+              </span>
+            ) : (
+              <span className="text-[10px] text-[#6b7280]">
+                {actionOptions.length} action{actionOptions.length === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+          <Popover open={actionPickerOpen} onOpenChange={setActionPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={actionPickerOpen}
+                className={cn("h-10 w-full justify-between font-normal", fieldClass)}
+              >
+                <span className="truncate text-left text-sm text-[#150A35]">
+                  {selectedActionEntry
+                    ? selectedActionEntry.title
+                    : slugVal || "Search or choose an action…"}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[min(92vw,26rem)] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search actions…" />
+                <CommandList>
+                  <CommandEmpty>
+                    {remoteLoading ? "Loading actions…" : "No matching actions."}
+                  </CommandEmpty>
+                  <CommandGroup heading={groupDefinition?.label ?? "Actions"}>
+                    {actionOptions.map((entry) => (
+                      <CommandItem
+                        key={entry.slug}
+                        value={`${entry.slug} ${entry.title} ${entry.description}`}
+                        onSelect={() => {
+                          pickAction(entry);
+                          setActionPickerOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4 shrink-0",
+                            slugVal === entry.slug ? "opacity-100" : "opacity-0",
+                          )}
+                          aria-hidden
+                        />
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="truncate font-medium leading-tight">{entry.title}</span>
+                          {entry.description ? (
+                            <span className="line-clamp-2 text-[11px] text-muted-foreground">
+                              {entry.description}
+                            </span>
+                          ) : null}
+                          <span className="font-mono text-[10px] text-[#6b7280]">{entry.slug}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          {remoteError ? (
+            <p className="text-[10px] leading-snug text-amber-800">
+              {remoteError} Showing a short list.
+            </p>
+          ) : null}
         </div>
       </div>
 
       <p className="text-[11px] leading-relaxed text-[#6b7280]">
-        Choose the app (with logo) and the action—similar to the Integrations catalog. Fields below
-        match the action when we support them.
+        Actions load from Composio for this app (everything available for the toolkit after you
+        connect). Pick one, then fill in the fields—use JSON only if you need an advanced payload.
       </p>
       {integrationMeta?.account_name && isEffectivelyConnected ? (
         <p className="text-[11px] text-[#6b7280]">
@@ -894,77 +1051,22 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
 
       <details className="rounded-lg border border-[#150A35]/10 bg-white px-3 py-2 shadow-sm">
         <summary className="cursor-pointer text-xs font-medium text-[#150A35]">
-          Search all actions and advanced
+          Advanced: manual tool slug
         </summary>
-        <div className="mt-3 space-y-3 border-t border-[#150A35]/8 pt-3">
-          <div className="space-y-2">
-            <Label className="text-xs text-[#150A35]">Search catalog</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {COMPOSIO_TOOL_CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setActionCategory(c)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
-                    actionCategory === c
-                      ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]"
-                      : "border-[#150A35]/15 bg-white text-[#6b7280] hover:border-[#A577FF]/35",
-                  )}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-            <Input
-              value={actionSearch}
-              onChange={(e) => setActionSearch(e.target.value)}
-              placeholder="e.g. send message, list calendars…"
-              className={cn("h-9 text-sm", fieldClass)}
-            />
-            <div
-              className="max-h-36 overflow-y-auto rounded-md border border-[#150A35]/10 bg-[#F9FAFB]"
-              role="listbox"
-              aria-label="All Composio actions"
-            >
-              {filteredActions.length === 0 ? (
-                <p className="px-2 py-3 text-center text-[11px] text-[#6b7280]">No matches.</p>
-              ) : (
-                filteredActions.map((entry) => (
-                  <button
-                    key={entry.slug}
-                    type="button"
-                    role="option"
-                    aria-selected={slugVal === entry.slug}
-                    onClick={() => pickAction(entry)}
-                    className={cn(
-                      "flex w-full flex-col gap-0.5 border-b border-[#150A35]/6 px-2.5 py-2 text-left last:border-b-0",
-                      "hover:bg-[#A577FF]/8",
-                      slugVal === entry.slug && "bg-[#A577FF]/10",
-                    )}
-                  >
-                    <span className="text-xs font-medium text-[#150A35]">{entry.title}</span>
-                    <span className="text-[10px] text-[#6b7280]">{entry.description}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wf-api-composio-slug" className="text-xs text-[#150A35]">
-              Tool slug (manual)
-            </Label>
-            <Input
-              id="wf-api-composio-slug"
-              value={slugVal}
-              onChange={(e) => patchParams({ slug: e.target.value.trim(), arguments: {} })}
-              placeholder="e.g. SLACK_SEND_MESSAGE"
-              className={cn("h-9 font-mono text-xs", fieldClass)}
-            />
-            <p className="text-[10px] leading-relaxed text-[#6b7280]">
-              Only if you need a Composio tool that is not in the catalog yet.
-            </p>
-          </div>
+        <div className="mt-3 space-y-1.5 border-t border-[#150A35]/8 pt-3">
+          <Label htmlFor="wf-api-composio-slug" className="text-xs text-[#150A35]">
+            Composio tool slug
+          </Label>
+          <Input
+            id="wf-api-composio-slug"
+            value={slugVal}
+            onChange={(e) => patchParams({ slug: e.target.value.trim(), arguments: {} })}
+            placeholder="e.g. SLACK_SEND_MESSAGE"
+            className={cn("h-9 font-mono text-xs", fieldClass)}
+          />
+          <p className="text-[10px] leading-relaxed text-[#6b7280]">
+            Paste a slug from Composio if it does not appear in the list above.
+          </p>
         </div>
       </details>
 
@@ -972,25 +1074,37 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Label className="text-xs font-medium text-[#150A35]">
             Arguments
-            {showForm ? (
+            {showLegacyForm || showSchemaForm ? (
               <span className="ml-1 font-normal text-echo-text-muted">(form)</span>
             ) : (
               <span className="ml-1 font-normal text-echo-text-muted">(JSON)</span>
             )}
           </Label>
-          {structuredAvailable && (
+          {canUseFormInsteadOfJson ? (
             <button
               type="button"
               onClick={() => setPreferRawJson((v) => !v)}
-              className="text-[11px] font-medium text-[#A577FF] underline-offset-2 hover:underline"
+              className="text-[11px] font-medium text-[#0891b2] underline-offset-2 hover:underline"
             >
-              {useRawJson ? "Use form fields" : "Edit as JSON"}
+              {showJsonArgs ? "Use form fields" : "Edit as JSON"}
             </button>
-          )}
+          ) : null}
         </div>
 
-        {showForm ? (
+        {showLegacyForm ? (
           renderStructuredArgs()
+        ) : showSchemaForm && inputSchema ? (
+          <ComposioToolSchemaArgsFields
+            schema={inputSchema}
+            value={argsObj}
+            onChange={setArgs}
+            fieldClass={fieldClass}
+          />
+        ) : showJsonArgs && schemaLoading ? (
+          <div className="flex items-center gap-2 rounded-md border border-[#150A35]/10 bg-white px-3 py-6 text-sm text-echo-text-muted">
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+            Loading parameter fields…
+          </div>
         ) : (
           <Textarea
             id="wf-api-args-json"
@@ -1025,9 +1139,13 @@ export function WorkflowApiCallFields({ params, onChange }: WorkflowApiCallField
         ) : null}
 
         <p className="text-[11px] leading-snug text-echo-text-muted">
-          {useRawJson || !structuredAvailable
-            ? "Pass the JSON payload the Composio tool expects. For Google generic REST tools, use verb, url, and optional params, json, timeout_seconds."
-            : "Values are stored under arguments. Use Edit as JSON for uncommon keys."}
+          {showLegacyForm
+            ? "Values are stored under arguments. Use Edit as JSON for uncommon keys."
+            : showSchemaForm
+              ? "Fields follow Composio’s schema for this action. Use Edit as JSON for edge cases."
+              : showJsonArgs && schemaLoading
+                ? "Fetching the tool schema from Composio…"
+                : "Pass the JSON payload the Composio tool expects. For Google generic REST tools, use verb, url, and optional params, json, timeout_seconds."}
         </p>
       </div>
     </div>

@@ -23,7 +23,7 @@ export default function SignUpPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
             <Link
               href="/"
-              className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-[#A577FF]"
+              className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
             >
               <IconArrowLeft className="size-4" />
               Back

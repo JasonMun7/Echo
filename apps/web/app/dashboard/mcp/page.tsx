@@ -189,7 +189,7 @@ export default function McpToolsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <div className="flex min-h-0 flex-1 flex-col gap-6 p-6 md:p-10">
+      <div className="flex min-h-0 flex-1 flex-col gap-6">
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between">
           <div>
@@ -200,7 +200,7 @@ export default function McpToolsPage() {
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openCreate} className="echo-btn-cyan-lavender">
+              <Button onClick={openCreate} className="echo-btn-primary">
                 <IconPlus className="mr-2 h-4 w-4" />
                 Add Tool
               </Button>
@@ -279,7 +279,7 @@ export default function McpToolsPage() {
                 <Button
                   onClick={saveTool}
                   disabled={!form.name || !form.url || saving}
-                  className="echo-btn-cyan-lavender"
+                  className="echo-btn-primary"
                 >
                   {saving ? "Saving..." : "Save Tool"}
                 </Button>
@@ -290,7 +290,7 @@ export default function McpToolsPage() {
 
         {/* Info banner — only when we have tools or loading */}
         {!(tools.length === 0 && !loading) && (
-          <div className="shrink-0 rounded-xl border border-[#A577FF]/20 bg-[#F5F3FF] px-4 py-3 text-sm text-[#5B3FA0]">
+          <div className="shrink-0 rounded-xl border border-border bg-card px-4 py-3 text-sm text-[#5B3FA0] dark:text-[#c4b5fd]">
             <div className="flex items-center gap-2">
               <IconTool className="h-4 w-4 shrink-0" />
               <span>
@@ -309,7 +309,7 @@ export default function McpToolsPage() {
             ))}
           </div>
         ) : tools.length === 0 ? (
-          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-[#A577FF]/40">
+          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-border">
             <div className="absolute inset-0 overflow-hidden rounded-lg">
               <Threads
                 color={[165 / 255, 119 / 255, 255 / 255]}
@@ -319,16 +319,16 @@ export default function McpToolsPage() {
               />
             </div>
             <div className="relative z-[1] flex flex-col items-center gap-3 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#A577FF]/10">
-                <IconTool className="h-6 w-6 text-[#A577FF]" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <IconTool className="h-6 w-6 text-[#0891b2]" />
               </div>
-              <p className="font-medium text-[#150A35]">No MCP tools yet</p>
-              <p className="text-sm text-[#150A35]/70">
+              <p className="font-medium text-foreground">No MCP tools yet</p>
+              <p className="text-sm text-foreground/70">
                 Add your first custom tool to get started.
               </p>
               <Button
                 onClick={openCreate}
-                className="echo-btn-cyan-lavender inline-flex items-center gap-2"
+                className="echo-btn-primary inline-flex items-center gap-2"
               >
                 <IconPlus className="h-5 w-5" />
                 Add Tool
@@ -338,7 +338,7 @@ export default function McpToolsPage() {
         ) : (
           <Table>
             <TableHeader>
-              <TableRow className="border-[#A577FF]/20">
+              <TableRow className="border-border">
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Method</TableHead>
@@ -350,7 +350,7 @@ export default function McpToolsPage() {
               {tools.map((tool) => {
                 const testResult = testResults[tool.id];
                 return (
-                  <TableRow key={tool.id} className="border-[#A577FF]/10 hover:bg-[#F5F3FF]/50">
+                  <TableRow key={tool.id} className="border-border/80 hover:bg-muted/60">
                     <TableCell className="font-mono text-sm font-medium text-[#1A1A2E]">
                       {tool.name}
                     </TableCell>
@@ -360,7 +360,7 @@ export default function McpToolsPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className="border-[#A577FF]/30 text-[#A577FF] text-xs"
+                        className="border-[#21C4DD]/35 text-[#0891b2] text-xs"
                       >
                         {tool.method}
                       </Badge>
@@ -388,7 +388,7 @@ export default function McpToolsPage() {
                           size="sm"
                           onClick={() => testTool(tool.id)}
                           disabled={testing === tool.id}
-                          className="h-8 text-xs text-[#A577FF] hover:bg-[#A577FF]/10"
+                          className="h-8 text-xs text-cyan-600 hover:bg-muted dark:text-cyan-400"
                         >
                           <IconPlayerPlay className="mr-1 h-3 w-3" />
                           {testing === tool.id ? "Testing..." : "Test"}

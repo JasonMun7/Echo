@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { IconNotification, IconCheck, IconShare3, IconArrowRight } from "@tabler/icons-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GradientIconTag } from "@/components/ui/gradient-icon-well";
 
 interface Notification {
   id: string;
@@ -84,11 +85,11 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
-      <div className="flex flex-col gap-6 p-6 md:p-10">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-background">
+      <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-semibold text-[#150A35]">Notifications</h1>
-          <p className="mt-1 text-sm text-echo-text-muted">
+          <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Workflow shares and other updates. Click to open or mark as read.
           </p>
         </div>
@@ -96,14 +97,14 @@ export default function NotificationsPage() {
         {loading ? (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-xl border border-[#A577FF]/20" />
+              <Skeleton key={i} className="h-20 w-full rounded-xl border border-border" />
             ))}
           </div>
         ) : notifications.length === 0 ? (
-          <div className="echo-card flex flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white/80 p-12 text-center">
-            <IconNotification className="h-12 w-12 text-[#150A35]/20" />
-            <p className="mt-3 text-base font-medium text-[#150A35]">No notifications yet</p>
-            <p className="mt-1 text-sm text-echo-text-muted">
+          <div className="echo-card flex flex-col items-center justify-center rounded-xl border border-border bg-card/90 p-12 text-center">
+            <IconNotification className="h-12 w-12 text-foreground/20" />
+            <p className="mt-3 text-base font-medium text-foreground">No notifications yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               When someone shares a workflow with you, it will appear here.
             </p>
           </div>
@@ -112,23 +113,25 @@ export default function NotificationsPage() {
             {notifications.map((n) => (
               <li key={n.id}>
                 <div
-                  className={`echo-card rounded-xl border bg-white/90 shadow-sm transition-colors ${
-                    n.read ? "border-[#150A35]/10" : "border-[#A577FF]/30 bg-[#A577FF]/5"
+                  className={`echo-card rounded-xl border bg-card/95 shadow-sm transition-colors ${
+                    n.read
+                      ? "border-border"
+                      : "border-cyan-500/35 bg-cyan-500/10 dark:border-cyan-400/25 dark:bg-cyan-950/35"
                   }`}
                 >
                   <div className="flex items-start gap-4 p-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#A577FF]/15">
-                      <IconShare3 className="h-5 w-5 text-[#A577FF]" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                      <IconShare3 className="h-5 w-5 text-[#0891b2]" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="font-medium text-[#150A35]">{n.title}</p>
+                          <p className="font-medium text-foreground">{n.title}</p>
                           {n.body && (
-                            <p className="mt-0.5 text-sm text-echo-text-muted">{n.body}</p>
+                            <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>
                           )}
                         </div>
-                        <span className="shrink-0 text-xs text-echo-text-muted">
+                        <span className="shrink-0 text-xs text-muted-foreground">
                           {formatDate(n.createdAt)}
                         </span>
                       </div>
@@ -136,17 +139,23 @@ export default function NotificationsPage() {
                         {n.workflow_id && (
                           <Link
                             href={`/dashboard/workflows/${n.workflow_id}`}
-                            className="echo-btn-secondary-accent inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium"
+                            className="inline-flex max-w-full"
                           >
-                            View workflow
-                            <IconArrowRight className="h-3.5 w-3.5" />
+                            <GradientIconTag
+                              size="md"
+                              className="max-w-full min-w-0"
+                              innerClassName="inline-flex items-center gap-1.5 text-foreground"
+                            >
+                              <span className="truncate">View workflow</span>
+                              <IconArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            </GradientIconTag>
                           </Link>
                         )}
                         {!n.read && (
                           <button
                             type="button"
                             onClick={() => markRead(n.id)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#150A35]/20 px-2.5 py-1.5 text-sm font-medium text-echo-text-muted hover:bg-[#150A35]/5"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
                           >
                             <IconCheck className="h-3.5 w-3.5" />
                             Mark read

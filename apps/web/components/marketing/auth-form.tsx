@@ -184,7 +184,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
             type="button"
             onClick={handleForgotPassword}
             disabled={resetLoading}
-            className="text-xs font-medium text-[#A577FF] hover:underline disabled:opacity-50"
+            className="text-xs font-medium text-[#0891b2] hover:underline disabled:opacity-50"
           >
             {resetLoading ? "Sending..." : "Forgot password?"}
           </button>
@@ -192,9 +192,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       )}
 
       <div className="flex items-center gap-4">
-        <div className="h-px flex-1 bg-[#A577FF]/20" />
+        <div className="h-px flex-1 bg-[#150A35]/12" />
         <span className="text-sm text-gray-500">or</span>
-        <div className="h-px flex-1 bg-[#A577FF]/20" />
+        <div className="h-px flex-1 bg-[#150A35]/12" />
       </div>
 
       <Button
@@ -208,11 +208,11 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         {isGoogleLoading ? <LoaderFive text="Signing in..." /> : "Continue with Google"}
       </Button>
 
-      <p className="rounded-lg border border-[#A577FF]/15 bg-[#F5F3FF]/35 px-3 py-2.5 text-center text-xs leading-relaxed text-gray-600">
+      <p className="rounded-lg border border-[#150A35]/10 bg-[#F5F7FC]/35 px-3 py-2.5 text-center text-xs leading-relaxed text-gray-600">
         Slack, GitHub, and Google integrations use{" "}
         <span className="font-medium text-[#1A1A2E]">Composio</span> (managed OAuth). After you sign
         in, open{" "}
-        <Link href="/dashboard/integrations" className="font-medium text-[#A577FF] hover:underline">
+        <Link href="/dashboard/integrations" className="font-medium text-[#0891b2] hover:underline">
           Integrations
         </Link>{" "}
         to connect each app.
@@ -222,14 +222,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         {mode === "sign-in" ? (
           <>
             Don&apos;t have an account?{" "}
-            <Link href="/sign-up" className="font-medium text-[#A577FF] hover:underline">
+            <Link href="/sign-up" className="font-medium text-[#0891b2] hover:underline">
               Sign up
             </Link>
           </>
         ) : (
           <>
             Already have an account?{" "}
-            <Link href="/sign-in" className="font-medium text-[#A577FF] hover:underline">
+            <Link href="/sign-in" className="font-medium text-[#0891b2] hover:underline">
               Sign in
             </Link>
           </>

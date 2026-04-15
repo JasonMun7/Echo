@@ -64,7 +64,7 @@ export function StepVisualContext({ step }: { step: WorkflowStepEditorStep }) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-[#150A35]/70">Screen context</p>
-      <div className="relative overflow-hidden rounded-lg border border-[#A577FF]/25 bg-[#150A35]/5">
+      <div className="relative overflow-hidden rounded-lg border border-[#150A35]/15 bg-[#150A35]/5">
         {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary synthesis / GCS URLs */}
         <img
           src={url}

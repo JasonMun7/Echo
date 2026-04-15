@@ -93,17 +93,17 @@ export function FeaturesOne() {
 
       <div className="mx-auto mt-4 grid grid-cols-1 gap-4 md:mt-12 md:grid-cols-3">
         <MarketingFeatureCard
-          icon={<IconBolt className="group-hover:text-[#A577FF] size-5" />}
+          icon={<IconBolt className="size-5 text-foreground" />}
           title="Gemini-powered"
           description="Vision, synthesis, and native audio all run on Gemini 2.5 Pro — the same model that sees, thinks, and speaks."
         />
         <MarketingFeatureCard
-          icon={<IconPuzzle className="group-hover:text-[#A577FF] size-5" />}
+          icon={<IconPuzzle className="group-hover:text-[#150A35] size-5" />}
           title="Connect your tools"
           description="Deep integrations with Slack, Gmail, GitHub, Notion, Google Sheets, Google Calendar, and Linear."
         />
         <MarketingFeatureCard
-          icon={<IconChartBar className="group-hover:text-[#A577FF] size-5" />}
+          icon={<IconChartBar className="size-5 text-foreground" />}
           title="Built on Google Cloud"
           description="Cloud Run, Firestore, Vertex AI, and GCS — enterprise-grade infrastructure with zero servers to manage."
         />

@@ -15,6 +15,17 @@ const hasConfig =
   typeof process.env.NEXT_PUBLIC_FIREBASE_API_KEY === "string" &&
   process.env.NEXT_PUBLIC_FIREBASE_API_KEY.length > 0;
 
+/**
+ * Values from `NEXT_PUBLIC_FIREBASE_*` (baked at build time). Safe to log — use to confirm
+ * the web bundle matches the Firebase project you expect (and matches backend token verification).
+ */
+export const firebaseClientEnv = {
+  projectId: String(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "").trim(),
+  storageBucket: String(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "").trim(),
+  authDomain: String(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "").trim(),
+  configured: hasConfig,
+} as const;
+
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
@@ -45,6 +56,14 @@ if (
   console.error(
     "[Echo] NEXT_PUBLIC_FIREBASE_PROJECT_ID is empty in this build. Rebuild echo-frontend with Doppler prd so Cloud Build receives Firebase env (see scripts/deploy/README.md).",
   );
+}
+
+if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+  (
+    window as unknown as {
+      __ECHO_FIREBASE_ENV?: typeof firebaseClientEnv;
+    }
+  ).__ECHO_FIREBASE_ENV = firebaseClientEnv;
 }
 
 export { app, auth, db };

@@ -34,16 +34,16 @@ export const gradients = {
     end: { x: 1, y: 0 },
   },
 
-  /** Cyan → Lavender — dual-accent highlights, hover states */
+  /** Cyan → Lavender — primary CTAs, buttons, dual-accent highlights (project standard) */
   cyanLavender: {
     colors: ["#21C4DD", "#A577FF"] as const,
     start: { x: 0, y: 0 },
     end: { x: 1, y: 0 },
   },
 
-  /** Lavender → Cetacean Blue — primary buttons */
+  /** @deprecated Use cyanLavender — alias for primary button gradient */
   primary: {
-    colors: ["#A577FF", "#150A35"] as const,
+    colors: ["#21C4DD", "#A577FF"] as const,
     start: { x: 0, y: 0 },
     end: { x: 1, y: 0 },
   },

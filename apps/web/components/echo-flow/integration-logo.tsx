@@ -34,12 +34,12 @@ export function IntegrationLogo({ composioSlug, className, imgClassName }: Integ
   return (
     <span
       className={cn(
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#A577FF]/10",
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#150A35]/06",
         className,
       )}
       aria-hidden
     >
-      <Plug className="h-3.5 w-3.5 text-[#A577FF]" />
+      <Plug className="h-3.5 w-3.5 text-muted-foreground" />
     </span>
   );
 }

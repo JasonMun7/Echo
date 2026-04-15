@@ -89,7 +89,7 @@ function DesktopSuccessContent() {
           <p className="text-sm text-red-500">{error}</p>
           <Link
             href={`/signin?desktop=1${callbackPort ? `&port=${callbackPort}` : ""}`}
-            className="echo-btn-cyan-lavender mt-4 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
+            className="echo-btn-primary mt-4 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
           >
             Try again
           </Link>
@@ -131,7 +131,7 @@ function DesktopSuccessContent() {
 
         <a
           href={openDesktopUrl}
-          className="echo-btn-cyan-lavender mt-6 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
+          className="echo-btn-primary mt-6 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
         >
           <IconDeviceDesktop className="size-5" />
           Go back to desktop app

@@ -43,24 +43,24 @@ export default function NewWorkflowPage() {
   }, [router]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6 md:p-10">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6">
       <div className="relative flex h-16 w-16 items-center justify-center">
-        <div className="absolute inset-0 animate-spin rounded-full border-2 border-[#A577FF]/20 border-t-[#A577FF]" />
-        <IconDeviceDesktop className="h-7 w-7 text-[#A577FF]" />
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-primary" />
+        <IconDeviceDesktop className="h-7 w-7 text-[#0891b2]" />
       </div>
       <div className="flex flex-col items-center gap-1.5 text-center">
-        <p className="text-base font-semibold text-[#150A35]">Opening Echo Desktop…</p>
-        <p className="text-sm text-[#150A35]/60">
+        <p className="text-base font-semibold text-foreground">Opening Echo Desktop…</p>
+        <p className="text-sm text-muted-foreground">
           Echo Desktop will open so you can record a workflow.
         </p>
       </div>
-      <p className="text-center text-xs text-[#150A35]/50">
+      <p className="text-center text-xs text-muted-foreground">
         Don&apos;t have the app?{" "}
-        <Link href="/get-started" className="text-[#A577FF] hover:underline">
+        <Link href="/get-started" className="text-[#0891b2] hover:underline">
           Download Echo Desktop
         </Link>
         {" · "}
-        <Link href="/dashboard/workflows" className="text-[#A577FF] hover:underline">
+        <Link href="/dashboard/workflows" className="text-[#0891b2] hover:underline">
           Back to workflows
         </Link>
       </p>

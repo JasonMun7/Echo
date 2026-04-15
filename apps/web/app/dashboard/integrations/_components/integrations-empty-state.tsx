@@ -21,7 +21,7 @@ export function IntegrationsEmptyState({
   icon: Icon = IconPlug,
 }: IntegrationsEmptyStateProps) {
   return (
-    <div className="relative flex min-h-[220px] w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-[#A577FF]/40">
+    <div className="relative flex min-h-[220px] w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-border">
       <div className="absolute inset-0 overflow-hidden rounded-lg">
         <Threads
           color={[165 / 255, 119 / 255, 255 / 255]}
@@ -31,11 +31,11 @@ export function IntegrationsEmptyState({
         />
       </div>
       <div className="relative z-[1] flex flex-col items-center gap-3 px-4 py-8 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#A577FF]/10">
-          <Icon className="h-6 w-6 text-[#A577FF]" aria-hidden />
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+          <Icon className="h-6 w-6 text-[#0891b2]" aria-hidden />
         </div>
-        <h2 className="font-medium text-[#150A35]">{title}</h2>
-        {description ? <p className="max-w-md text-sm text-[#150A35]/70">{description}</p> : null}
+        <h2 className="font-medium text-foreground">{title}</h2>
+        {description ? <p className="max-w-md text-sm text-foreground/70">{description}</p> : null}
       </div>
     </div>
   );

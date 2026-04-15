@@ -35,7 +35,7 @@ const faqData: FAQSection[] = [
       {
         question: "Can I share workflows with others?",
         answer:
-          "Yes. You can share any workflow via email. The recipient can run it with one click or voice command, and fork it to create their own editable copy.",
+          "Yes. You can share any workflow via email. The recipient joins the same workflow to edit with you, and can optionally make their own copy anytime.",
       },
     ],
   },

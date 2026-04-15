@@ -214,7 +214,7 @@ function AutocompleteTextarea({
             <button
               key={s}
               type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-[#A577FF]/10 rounded-sm"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-[#150A35]/08 rounded-sm"
               onClick={() => {
                 onChange(s);
                 setOpen(false);
@@ -1106,14 +1106,14 @@ export default function DatasetCreatorPage() {
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
-      <div className="flex flex-1 flex-col min-h-0 border-r border-[#A577FF]/20">
-        <div className="flex flex-wrap items-center gap-2 p-4 bg-[#F5F7FC] border-b border-[#A577FF]/20">
+      <div className="flex flex-1 flex-col min-h-0 border-r border-[#150A35]/12">
+        <div className="flex flex-wrap items-center gap-2 p-4 bg-[#F5F7FC] border-b border-[#150A35]/12">
           <ButtonGroup aria-label="Capture and sequence">
             <Button
               size="sm"
               onClick={stream ? stopStream : startStream}
               variant={stream ? "destructive" : "default"}
-              className={!stream ? "echo-btn-cyan-lavender" : undefined}
+              className={!stream ? "echo-btn-primary" : undefined}
             >
               {stream ? (
                 <>
@@ -1166,8 +1166,8 @@ export default function DatasetCreatorPage() {
               disabled={!currentFrame}
               className={
                 drawing === "bbox"
-                  ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]"
-                  : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"
+                  ? "border-[#150A35] bg-[#150A35]/06 text-[#150A35]"
+                  : "border-[#150A35]/20 hover:bg-[#150A35]/08"
               }
             >
               <IconPlus className="h-4 w-4 mr-1.5" /> Draw Bbox
@@ -1179,8 +1179,8 @@ export default function DatasetCreatorPage() {
               disabled={!currentFrame}
               className={
                 drawing === "point"
-                  ? "border-[#A577FF] bg-[#A577FF]/10 text-[#150A35]"
-                  : "border-[#A577FF]/40 hover:bg-[#A577FF]/10"
+                  ? "border-[#150A35] bg-[#150A35]/06 text-[#150A35]"
+                  : "border-[#150A35]/20 hover:bg-[#150A35]/08"
               }
             >
               <IconPlus className="h-4 w-4 mr-1.5" /> Add Point
@@ -1246,7 +1246,7 @@ export default function DatasetCreatorPage() {
                     top: previewBbox.y * scaleY,
                     width: previewBbox.w * scaleX,
                     height: previewBbox.h * scaleY,
-                    border: "2px dashed #A577FF",
+                    border: "2px dashed #150A35",
                     background: "rgba(165, 119, 255, 0.15)",
                     pointerEvents: "none",
                   }}
@@ -1336,7 +1336,7 @@ export default function DatasetCreatorPage() {
           )}
         </div>
 
-        <div className="px-4 py-2 bg-[#F5F7FC] border-t border-[#A577FF]/20 flex justify-between items-center text-sm text-echo-text-muted">
+        <div className="px-4 py-2 bg-[#F5F7FC] border-t border-[#150A35]/12 flex justify-between items-center text-sm text-echo-text-muted">
           <span>{status}</span>
           <span
             className={`rounded px-2 py-0.5 text-xs font-medium ${mode === "streaming" ? "bg-echo-success text-white" : mode === "drawing" ? "bg-amber-400 text-black" : "bg-gray-200"}`}
@@ -1352,8 +1352,8 @@ export default function DatasetCreatorPage() {
         </div>
       </div>
 
-      <div className="w-[420px] flex flex-col bg-white border-l border-[#A577FF]/20 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white border-b border-[#A577FF]/20">
+      <div className="w-[420px] flex flex-col bg-white border-l border-[#150A35]/12 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white border-b border-[#150A35]/12">
           <h2 className="text-base font-semibold text-[#150A35]">
             {appMode === "capture" ? "Live Capture" : "Review/Edit"}
           </h2>
@@ -1361,7 +1361,7 @@ export default function DatasetCreatorPage() {
             <Button
               size="sm"
               variant="ghost"
-              className="text-sm text-[#A577FF] hover:bg-[#A577FF]/10 -mr-2"
+              className="text-sm text-[#0891b2] hover:bg-[#150A35]/08 -mr-2"
               onClick={switchToCapture}
             >
               ← Back to Capture
@@ -1371,18 +1371,18 @@ export default function DatasetCreatorPage() {
 
         <div className="p-4 space-y-6">
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm p-4 text-center">
-              <div className="text-2xl font-bold text-[#A577FF]">{dataset.images.length}</div>
+            <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] shadow-sm p-4 text-center">
+              <div className="text-2xl font-bold text-[#0891b2]">{dataset.images.length}</div>
               <div className="text-xs text-echo-text-muted mt-1">Images</div>
             </div>
-            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm p-4 text-center">
-              <div className="text-2xl font-bold text-[#A577FF]">{dataset.annotations.length}</div>
+            <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] shadow-sm p-4 text-center">
+              <div className="text-2xl font-bold text-[#0891b2]">{dataset.annotations.length}</div>
               <div className="text-xs text-echo-text-muted mt-1">Annotations</div>
             </div>
           </div>
 
           {appMode === "review" && filteredSamples.length > 0 && (
-            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
+            <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4">
               <h3 className="text-sm font-semibold text-[#150A35] mb-3">Sample Navigation</h3>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-echo-text-muted">
@@ -1416,7 +1416,7 @@ export default function DatasetCreatorPage() {
             </div>
           )}
 
-          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
+          <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4 space-y-3">
             <h3 className="text-sm font-semibold text-[#150A35]">Frame Info</h3>
             <div className="space-y-3">
               <div>
@@ -1447,7 +1447,7 @@ export default function DatasetCreatorPage() {
           </div>
 
           {currentSequence && (
-            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
+            <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4">
               <h3 className="text-sm font-semibold text-[#150A35] mb-2">Sequence</h3>
               <p className="text-xs text-echo-text-muted mb-1">ID: {currentSequence.id}</p>
               <p className="text-xs text-echo-text-muted mb-3">
@@ -1461,7 +1461,7 @@ export default function DatasetCreatorPage() {
                 placeholder="Overall sequence description..."
                 rows={2}
               />
-              <ScrollArea className="h-32 mt-2 border border-[#A577FF]/20 rounded-lg p-3 bg-white">
+              <ScrollArea className="h-32 mt-2 border border-[#150A35]/12 rounded-lg p-3 bg-white">
                 {sequenceHistory.length === 0 ? (
                   <div className="p-4 text-center text-sm text-echo-text-muted">
                     {currentSequence.frames.length === 0
@@ -1471,7 +1471,7 @@ export default function DatasetCreatorPage() {
                 ) : (
                   sequenceHistory.map((h, i) => (
                     <div key={i} className="text-xs py-1 flex gap-2">
-                      <span className="rounded-full bg-[#A577FF] text-white w-5 h-5 flex items-center justify-center shrink-0">
+                      <span className="rounded-full bg-[#150A35] text-white w-5 h-5 flex items-center justify-center shrink-0">
                         {i + 1}
                       </span>
                       <span>{h.action}</span>
@@ -1482,15 +1482,15 @@ export default function DatasetCreatorPage() {
             </div>
           )}
 
-          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4">
+          <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4">
             <h3 className="text-sm font-semibold text-[#150A35] mb-3">Annotations</h3>
-            <ScrollArea className="h-40 border border-[#A577FF]/20 rounded-lg bg-white">
+            <ScrollArea className="h-40 border border-[#150A35]/12 rounded-lg bg-white">
               {currentFrame?.annotations.length ? (
                 currentFrame.annotations.map((a, idx) => (
                   <div
                     key={`list-${currentFrame?.id}-${a.id}-${idx}`}
                     onClick={() => selectAnnotation(a)}
-                    className={`p-2 border-b cursor-pointer flex items-center justify-between gap-2 ${selectedAnnotation?.id === a.id ? "bg-[#A577FF]/10 border-[#A577FF]" : "border-gray-200"}`}
+                    className={`p-2 border-b cursor-pointer flex items-center justify-between gap-2 ${selectedAnnotation?.id === a.id ? "bg-[#150A35]/06 border-[#150A35]" : "border-gray-200"}`}
                   >
                     <span className="text-sm flex items-center gap-2 flex-wrap">
                       <span
@@ -1531,7 +1531,7 @@ export default function DatasetCreatorPage() {
           </div>
 
           {selectedAnnotation && (
-            <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-4">
+            <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4 space-y-4">
               <h3 className="text-sm font-semibold text-[#150A35]">
                 Edit Annotation #{selectedAnnotation.id}
               </h3>
@@ -1681,10 +1681,10 @@ export default function DatasetCreatorPage() {
             </div>
           )}
 
-          <div className="rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 space-y-3">
+          <div className="rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4 space-y-3">
             {appMode === "capture" && (
               <Button
-                className="echo-btn-cyan-lavender w-full"
+                className="echo-btn-primary w-full"
                 onClick={saveCurrentFrame}
                 disabled={!currentFrame}
               >

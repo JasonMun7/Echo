@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { apiFetch, apiErrorMessage } from "@/lib/api";
 import type { Integration } from "./_lib/integration-types";
+import { IntegrationSearchDropdownIcon } from "./_components/integration-search-dropdown-icon";
 import { IntegrationCard } from "./_components/integration-card";
 import { IntegrationCardSkeleton } from "./_components/integration-card-skeleton";
 import { IntegrationsEmptyState } from "./_components/integrations-empty-state";
@@ -88,6 +89,19 @@ export default function IntegrationsPage() {
     });
     return () => unsub?.();
   }, [router, loadIntegrations]);
+
+  const highlightId = searchParams.get("highlight");
+
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    const raf = requestAnimationFrame(() => {
+      document.getElementById(`integration-card-${highlightId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [highlightId, loading, integrations.length]);
 
   /** Composio often redirects back without query params — refetch immediately and once more after Composio sync. */
   useEffect(() => {
@@ -202,6 +216,7 @@ export default function IntegrationsPage() {
         id: i.id,
         label: i.name,
         subtitle: i.tagline || i.description?.slice(0, 80) || i.id,
+        icon: <IntegrationSearchDropdownIcon integration={i} />,
       })),
     [integrations],
   );
@@ -225,12 +240,12 @@ export default function IntegrationsPage() {
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F5F7FC]">
-        <div className="flex flex-1 flex-col gap-6 p-6 pb-24 md:p-10 md:pb-24">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-background">
+        <div className="flex flex-1 flex-col gap-6 pb-24 md:pb-24">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="max-w-xl">
-              <h1 className="text-2xl font-semibold text-[#150A35]">Integrations</h1>
-              <p className="mt-1 text-sm text-[#6b7280]">
+              <h1 className="text-2xl font-semibold text-foreground">Integrations</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Connect apps once so Echo can work with them on your behalf. You stay signed in to
                 Echo with Google; third-party access is handled securely by Composio.
               </p>
@@ -284,8 +299,10 @@ export default function IntegrationsPage() {
             <div className="flex flex-col gap-8">
               <section className="flex flex-col gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-[#150A35]">Connected</h2>
-                  <p className="text-sm text-[#6b7280]">Apps ready for workflows and chat tools.</p>
+                  <h2 className="text-lg font-semibold text-foreground">Connected</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Apps ready for workflows and chat tools.
+                  </p>
                 </div>
                 {connectedPlugins.length === 0 ? (
                   query.trim() ? (
@@ -320,8 +337,8 @@ export default function IntegrationsPage() {
 
               <section className="flex flex-col gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-[#150A35]">Available</h2>
-                  <p className="text-sm text-[#6b7280]">
+                  <h2 className="text-lg font-semibold text-foreground">Available</h2>
+                  <p className="text-sm text-muted-foreground">
                     Connect these when you&apos;re ready — you&apos;ll leave this page briefly to
                     sign in with the provider, then return here.
                   </p>

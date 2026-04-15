@@ -80,6 +80,28 @@ service cloud.firestore {
         allow delete: if canAccessWorkflowLock() && resource.data.uid == request.auth.uid;
       }
 
+      // Live cursor positions (collaborators) — throttled client writes; stale docs ignored in UI
+      match /presencePointers/{pointerId} {
+        function wfForPresence() {
+          return get(/databases/$(database)/documents/workflows/$(workflowId)).data;
+        }
+        function canPresenceWorkflow() {
+          return request.auth != null
+            && exists(/databases/$(database)/documents/workflows/$(workflowId))
+            && (wfForPresence().owner_uid == request.auth.uid
+                || (wfForPresence().shared_with is list
+                    && request.auth.uid in wfForPresence().shared_with));
+        }
+        allow read: if canPresenceWorkflow();
+        allow create, update: if canPresenceWorkflow()
+          && request.resource.data.uid == request.auth.uid
+          && pointerId == request.auth.uid
+          && request.resource.data.x is number
+          && request.resource.data.y is number
+          && request.resource.data.updatedAt is number;
+        allow delete: if canPresenceWorkflow() && resource.data.uid == request.auth.uid;
+      }
+
       match /runs/{runId} {
         allow read: if request.auth != null
           && exists(/databases/$(database)/documents/workflows/$(workflowId))

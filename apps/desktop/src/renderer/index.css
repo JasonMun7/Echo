@@ -205,29 +205,48 @@ body {
   box-shadow: 0 4px 32px rgba(165, 119, 255, 0.08);
 }
 
-.echo-btn-primary {
+/* Primary gradient CTA — Cyan → Lavender (same as apps/web .echo-btn-primary) */
+.echo-btn-primary,
+.echo-btn-gradient,
+.echo-btn-cyan-lavender,
+.echo-btn-cyan-cetacean,
+.echo-btn-primary-to-secondary {
   cursor: pointer;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #a577ff 0%, #7c3aed 50%, #5b21b6 100%);
+  background: linear-gradient(to right, #21c4dd, #a577ff);
   padding: 0.625rem 1.25rem;
   font-weight: 600;
   color: white;
   border: none;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 12px rgba(165, 119, 255, 0.3);
-  letter-spacing: 0.01em;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  box-shadow: 0 2px 12px rgba(33, 196, 221, 0.25);
 }
 
-.echo-btn-primary:hover:not(:disabled) {
+.echo-btn-primary:hover:not(:disabled),
+.echo-btn-gradient:hover:not(:disabled),
+.echo-btn-cyan-lavender:hover:not(:disabled),
+.echo-btn-cyan-cetacean:hover:not(:disabled),
+.echo-btn-primary-to-secondary:hover:not(:disabled) {
+  opacity: 0.95;
   transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(165, 119, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(33, 196, 221, 0.35);
 }
 
-.echo-btn-primary:active:not(:disabled) {
+.echo-btn-primary:active:not(:disabled),
+.echo-btn-gradient:active:not(:disabled),
+.echo-btn-cyan-lavender:active:not(:disabled),
+.echo-btn-cyan-cetacean:active:not(:disabled),
+.echo-btn-primary-to-secondary:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.echo-btn-primary:disabled {
+.echo-btn-primary:disabled,
+.echo-btn-gradient:disabled,
+.echo-btn-cyan-lavender:disabled,
+.echo-btn-cyan-cetacean:disabled,
+.echo-btn-primary-to-secondary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -265,23 +284,6 @@ body {
   background: rgba(33, 196, 221, 0.1);
   border-color: rgba(33, 196, 221, 0.4);
   box-shadow: 0 0 16px rgba(33, 196, 221, 0.15);
-}
-
-.echo-btn-cyan-lavender {
-  cursor: pointer;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, #21c4dd, #a577ff);
-  padding: 0.625rem 1.25rem;
-  font-weight: 600;
-  color: white;
-  border: none;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 12px rgba(33, 196, 221, 0.25);
-}
-
-.echo-btn-cyan-lavender:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(33, 196, 221, 0.4);
 }
 
 .echo-btn-danger {

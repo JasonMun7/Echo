@@ -9,18 +9,23 @@ import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 import {
+  workflowSharedTagClass,
   workflowShellClass,
   workflowStatusBadgeClass,
   workflowStatusLabel,
 } from "@/lib/workflow-status";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { WorkflowShareDialog, type WorkflowShareRole } from "@/components/workflow-share-dialog";
+import {
+  WorkflowShareDialog,
+  type WorkflowParticipantRole,
+  type WorkflowShareRole,
+} from "@/components/workflow-share-dialog";
 import {
   IconArrowLeft,
   IconPlayerPlay,
   IconTrash,
-  IconBinaryTree2,
+  IconCopy,
   IconShare,
   IconDots,
   IconPencil,
@@ -49,7 +54,7 @@ interface Collaborator {
   display_name: string;
   photo_url?: string;
   status?: "pending" | "accepted";
-  role?: WorkflowShareRole;
+  role?: WorkflowParticipantRole;
 }
 
 interface WorkflowDetail {
@@ -60,6 +65,9 @@ interface WorkflowDetail {
   owner_uid?: string;
   owner_name?: string;
   source_recording_id?: string;
+  shared_with?: string[];
+  collaborator_roles?: Record<string, string>;
+  is_public?: boolean;
   [key: string]: unknown;
 }
 
@@ -79,9 +87,14 @@ export default function WorkflowDetailPage() {
   const [roleChangePendingUid, setRoleChangePendingUid] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [forking, setForking] = useState(false);
+  const [publicSaving, setPublicSaving] = useState(false);
   const [authUid, setAuthUid] = useState<string | null>(auth?.currentUser?.uid ?? null);
-  const getCollaboratorStatusLabel = (c: Collaborator) =>
-    c.status === "pending" ? "Pending" : c.role === "viewer" ? "Can view" : "Can edit";
+  const getCollaboratorStatusLabel = (c: Collaborator) => {
+    if (c.role === "owner") return "Owner";
+    if (c.status === "pending") return "Pending";
+    if (c.role === "viewer") return "Can view";
+    return "Can edit";
+  };
 
   // Track auth state so snapshot effect re-runs once Firebase auth is ready
   useEffect(() => {
@@ -176,8 +189,42 @@ export default function WorkflowDetailPage() {
     }
   };
 
+  const handleWorkflowPublicChange = async (next: boolean) => {
+    if (!workflow || workflow.owner_uid !== authUid) return;
+    setPublicSaving(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.detail === "string" ? data.detail : "Could not update visibility",
+        );
+      }
+      setWorkflow((prev) => (prev ? { ...prev, is_public: next } : prev));
+      toast.success(next ? "Workflow is public" : "Workflow is private", {
+        description: next
+          ? "You can copy the link and send invites."
+          : "Sharing is disabled until you turn public on again.",
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update visibility");
+    } finally {
+      setPublicSaving(false);
+    }
+  };
+
   const handleShare = async () => {
     if (!shareEmail.trim()) return;
+    if (!workflow?.is_public) {
+      toast.info("Make the workflow public first", {
+        description: "Use the toggle in this dialog to enable sharing.",
+      });
+      return;
+    }
     setSharing(true);
     try {
       const res = await apiFetch(`/api/workflows/${id}/share`, {
@@ -238,13 +285,13 @@ export default function WorkflowDetailPage() {
     try {
       const res = await apiFetch(`/api/workflows/${id}/fork`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "Failed to fork");
-      toast.success("Workflow forked", {
+      if (!res.ok) throw new Error(data.detail || "Failed to make a copy");
+      toast.success("Copy created", {
         description: "Opening your copy—you can edit and publish it independently.",
       });
       router.push(`/dashboard/workflows/${data.id}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to fork workflow");
+      toast.error(e instanceof Error ? e.message : "Failed to make a copy");
     } finally {
       setForking(false);
     }
@@ -277,8 +324,8 @@ export default function WorkflowDetailPage() {
 
   if (loading || !workflow) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#F5F7FC]">
-        <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6 p-6 md:p-10">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6">
           <Skeleton className="h-32 w-full shrink-0 rounded-xl" />
           <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-xl border border-[#A577FF]/20 bg-white p-4">
             <Skeleton className="h-6 w-24 shrink-0 rounded-md" />
@@ -290,7 +337,14 @@ export default function WorkflowDetailPage() {
     );
   }
 
-  const isOwner = workflow.owner_uid === auth?.currentUser?.uid;
+  const uid = auth?.currentUser?.uid;
+  const isOwner = workflow.owner_uid === uid;
+  const canEditWorkflow =
+    isOwner ||
+    (uid != null &&
+      Array.isArray(workflow.shared_with) &&
+      workflow.shared_with.includes(uid) &&
+      workflow.collaborator_roles?.[uid] !== "viewer");
   const status = workflow.status ?? "unknown";
   const failureReason = typeof workflow.error === "string" ? workflow.error.trim() : "";
 
@@ -301,14 +355,14 @@ export default function WorkflowDetailPage() {
           <div className="echo-run-haze" />
           <div className="echo-run-haze-content">
             <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#A577FF]/50 border-t-[#A577FF]" />
-            <p className="animate-pulse text-lg font-bold tracking-wide text-[#150A35] drop-shadow-sm">
+            <p className="animate-pulse text-lg font-bold tracking-wide text-foreground drop-shadow-sm">
               EchoPrism is taking control…
             </p>
           </div>
         </>
       )}
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#F5F7FC]">
-        <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6 p-6 md:p-10">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6">
           <div className={cn(workflowShellClass, "shrink-0 p-5 sm:p-6")}>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
@@ -316,7 +370,7 @@ export default function WorkflowDetailPage() {
                   <TooltipTrigger asChild>
                     <Link
                       href="/dashboard/workflows"
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#150A35]/10 bg-[#fafafa]/80 text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#150A35] sm:mt-0.5"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/80 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:mt-0.5"
                       aria-label="Back to workflows"
                     >
                       <IconArrowLeft className="h-5 w-5" stroke={1.5} />
@@ -327,7 +381,7 @@ export default function WorkflowDetailPage() {
 
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-[#150A35] sm:text-2xl">
+                    <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                       {String(workflow.name || id)}
                     </h1>
                     <div className="flex shrink-0 items-center justify-end">
@@ -335,7 +389,7 @@ export default function WorkflowDetailPage() {
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#150A35]/10 bg-white text-[#150A35] shadow-sm transition-colors hover:border-[#A577FF]/30 hover:bg-[#A577FF]/5 hover:text-[#A577FF]"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
                             aria-label="Workflow actions"
                           >
                             <IconDots className="h-4 w-4" />
@@ -352,15 +406,15 @@ export default function WorkflowDetailPage() {
                             <IconPlayerPlay className="h-4 w-4" />
                             {running ? "Starting…" : "Run workflow"}
                           </DropdownMenuItem>
-                          {isOwner && (
+                          {canEditWorkflow ? (
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/workflows/${id}/edit`}>
                                 <IconPencil className="h-4 w-4" />
                                 Edit
                               </Link>
                             </DropdownMenuItem>
-                          )}
-                          {isOwner && (
+                          ) : null}
+                          {canEditWorkflow ? (
                             <DropdownMenuItem
                               onClick={() => {
                                 setShareModalOpen(true);
@@ -370,13 +424,13 @@ export default function WorkflowDetailPage() {
                               <IconShare className="h-4 w-4" />
                               Share
                             </DropdownMenuItem>
-                          )}
-                          {!isOwner && (
+                          ) : null}
+                          {!isOwner ? (
                             <DropdownMenuItem onClick={() => void handleFork()} disabled={forking}>
-                              <IconBinaryTree2 className="h-4 w-4" />
-                              {forking ? "Forking…" : "Fork"}
+                              <IconCopy className="h-4 w-4" />
+                              {forking ? "Copying…" : "Make a copy"}
                             </DropdownMenuItem>
-                          )}
+                          ) : null}
                           {isOwner && (
                             <DropdownMenuItem
                               variant="destructive"
@@ -392,18 +446,6 @@ export default function WorkflowDetailPage() {
                     </div>
                   </div>
 
-                  {!isOwner && (
-                    <p className="text-sm leading-relaxed text-[#6b7280]">
-                      Shared by{" "}
-                      <span className="font-medium text-[#150A35]">
-                        {typeof workflow.owner_name === "string" && workflow.owner_name
-                          ? workflow.owner_name
-                          : "another user"}
-                      </span>
-                      . Fork to edit your own copy.
-                    </p>
-                  )}
-
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
                     <span
                       className={workflowStatusBadgeClass(status)}
@@ -411,14 +453,22 @@ export default function WorkflowDetailPage() {
                     >
                       {workflowStatusLabel(status)}
                     </span>
+                    {!isOwner ? (
+                      <span
+                        className={workflowSharedTagClass}
+                        title="This workflow was shared with you"
+                      >
+                        Shared
+                      </span>
+                    ) : null}
                     {typeof workflow.source_recording_id === "string" &&
                       workflow.source_recording_id && (
                         <span
-                          className="text-[#6b7280]"
+                          className="text-muted-foreground"
                           title="Recording used to create this workflow"
                         >
-                          <span className="text-[#9ca3af]">Recording </span>
-                          <code className="rounded bg-[#150A35]/5 px-1.5 py-0.5 font-mono text-[11px] text-[#150A35]">
+                          <span className="text-muted-foreground">Recording </span>
+                          <code className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                             {String(workflow.source_recording_id)}
                           </code>
                         </span>
@@ -430,7 +480,7 @@ export default function WorkflowDetailPage() {
                         Workflow synthesis failed
                       </p>
                       <p className="mt-1 text-sm text-echo-error/90">{failureReason}</p>
-                      <p className="mt-1 text-xs text-[#150A35]/70">
+                      <p className="mt-1 text-xs text-foreground/70">
                         Retry with a clearer recording or edit steps manually once fixed.
                       </p>
                     </div>
@@ -446,9 +496,9 @@ export default function WorkflowDetailPage() {
               "flex min-h-0 flex-1 basis-0 flex-col overflow-hidden p-0",
             )}
           >
-            <div className="shrink-0 border-b border-[#150A35]/6 px-5 py-4 sm:px-6">
-              <h2 className="text-base font-semibold tracking-tight text-[#150A35]">Runs</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#6b7280]">
+            <div className="shrink-0 border-b border-border px-5 py-4 sm:px-6">
+              <h2 className="text-base font-semibold tracking-tight text-foreground">Runs</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Execution history for this workflow. Start a run from the button above; EchoPrism
                 drives the desktop session.
               </p>
@@ -479,6 +529,12 @@ export default function WorkflowDetailPage() {
         getCollaboratorStatusLabel={getCollaboratorStatusLabel}
         workflowId={id}
         directLinkVariant="detail"
+        canManageCollaborators={isOwner}
+        currentUserUid={authUid}
+        isPublic={Boolean(workflow.is_public)}
+        onPublicChange={isOwner ? handleWorkflowPublicChange : undefined}
+        publicSaving={publicSaving}
+        canManagePublic={isOwner}
       />
     </>
   );

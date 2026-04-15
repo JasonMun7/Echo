@@ -12,7 +12,7 @@ import type { Integration } from "@/app/dashboard/integrations/_lib/integration-
 import { brandfetchLogoUrlForIntegrationId } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import { COMPOSIO_APP_GROUPS, catalogEntriesForAppGroup } from "@/lib/composio-app-groups";
 import { WorkflowActionIcon } from "@/lib/workflow-action-icons";
-import { GradientIconWell } from "@/components/ui/gradient-icon-well";
+import { GradientIconWell, gradientWellImageClass } from "@/components/ui/gradient-icon-well";
 import { cn } from "@/lib/utils";
 
 type CategoryId = "all" | "apps" | "screen" | "utils";
@@ -60,9 +60,13 @@ function IntegrationPickTile({
     <button
       type="button"
       onClick={onPick}
-      className="flex w-full flex-row items-center gap-3 rounded-xl border border-[#150A35]/10 bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#A577FF]/35 hover:shadow-md"
+      className="flex w-full flex-row items-center gap-3 rounded-xl border border-[#150A35]/10 bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#150A35]/18 hover:shadow-md"
     >
-      <GradientIconWell className="h-10 w-10 shrink-0 overflow-hidden">
+      <GradientIconWell
+        corners="lg"
+        className="h-10 w-10 shrink-0"
+        innerClassName="overflow-hidden"
+      >
         {url && !imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element -- Brandfetch hotlink
           <img
@@ -70,11 +74,11 @@ function IntegrationPickTile({
             alt=""
             width={40}
             height={40}
-            className="h-full w-full object-contain p-0.5"
+            className={gradientWellImageClass("lg")}
             onError={() => setImgFailed(true)}
           />
         ) : (
-          <Plug className="h-5 w-5 text-[#A577FF]" aria-hidden />
+          <Plug className="h-5 w-5 text-muted-foreground" aria-hidden />
         )}
       </GradientIconWell>
       <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
@@ -334,10 +338,10 @@ export function AddActionModal({
                         }}
                         className="flex flex-row items-center justify-center gap-3 rounded-lg border border-[#150A35]/10 bg-[#F5F7FC] px-3 py-2.5 text-left text-sm font-medium text-[#150A35] transition hover:border-[#150A35]/25 hover:bg-white"
                       >
-                        <GradientIconWell className="h-9 w-9 shrink-0">
+                        <GradientIconWell corners="lg" className="h-9 w-9 shrink-0">
                           <WorkflowActionIcon
                             action={a}
-                            className="h-4 w-4 text-slate-700"
+                            className="h-4 w-4 text-card-foreground"
                             preferComposioLogo={false}
                           />
                         </GradientIconWell>

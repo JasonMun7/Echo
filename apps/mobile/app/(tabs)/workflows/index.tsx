@@ -94,14 +94,41 @@ export default function WorkflowListScreen() {
         method: "POST",
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.fork_id) {
-          router.push(`/(tabs)/workflows/${data.fork_id}`);
-        }
+        const data = (await res.json()) as { workflow_id?: string };
+        const wid = data.workflow_id ?? invite.workflow_id;
+        router.push(`/(tabs)/workflows/${wid}`);
         loadApi();
       }
     } catch {
       Alert.alert("Error", "Failed to accept invite.");
+    }
+  }
+
+  async function handleCopyInvite(invite: WorkflowInvite) {
+    try {
+      const acceptRes = await apiFetch(`/api/workflows/${invite.workflow_id}/invite/accept`, {
+        method: "POST",
+      });
+      if (!acceptRes.ok) {
+        const err = (await acceptRes.json().catch(() => ({}))) as { detail?: string };
+        Alert.alert("Error", err.detail ?? "Could not join shared workflow.");
+        return;
+      }
+      const forkRes = await apiFetch(`/api/workflows/${invite.workflow_id}/fork`, {
+        method: "POST",
+      });
+      const forkData = (await forkRes.json().catch(() => ({}))) as { id?: string; detail?: string };
+      if (!forkRes.ok) {
+        Alert.alert("Error", forkData.detail ?? "Joined the shared workflow, but copy failed.");
+        loadApi();
+        return;
+      }
+      if (forkData.id) {
+        router.push(`/(tabs)/workflows/${forkData.id}`);
+      }
+      loadApi();
+    } catch {
+      Alert.alert("Error", "Failed to copy workflow.");
     }
   }
 
@@ -154,8 +181,11 @@ export default function WorkflowListScreen() {
                     >
                       <Text style={styles.declineBtnText}>Decline</Text>
                     </Pressable>
+                    <Pressable style={styles.copyBtn} onPress={() => handleCopyInvite(invite)}>
+                      <Text style={styles.copyBtnText}>Copy</Text>
+                    </Pressable>
                     <Pressable style={styles.acceptBtn} onPress={() => handleAcceptInvite(invite)}>
-                      <Text style={styles.acceptBtnText}>Accept</Text>
+                      <Text style={styles.acceptBtnText}>Join</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -229,6 +259,19 @@ const styles = StyleSheet.create({
   declineBtnText: {
     fontSize: 12,
     color: colors.textMuted,
+    fontFamily: "Inter",
+  },
+  copyBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  copyBtnText: {
+    fontSize: 12,
+    color: colors.text,
     fontFamily: "Inter",
   },
   acceptBtn: {

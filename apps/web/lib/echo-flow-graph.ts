@@ -1,5 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
+import { formatContextForDisplay } from "@/lib/context-prompt-tokens";
 import { formatAction } from "@/lib/workflow-action-labels";
+import { normalizeContextAttachments } from "@/lib/workflow-step-context-attachments";
 
 /**
  * Vertical stack layout for Echo Flow (center column).
@@ -25,6 +27,7 @@ type StepLite = {
   action: string;
   context: string;
   params?: Record<string, unknown>;
+  context_attachments?: unknown;
 };
 
 /** Primary line on the canvas card — optional `params.display_label`, else formatted action name. */
@@ -66,7 +69,10 @@ export function buildNodesAndEdges(
       data: {
         action: s.action,
         label: echoStepCardLabel(s),
-        subtitle: (s.context || "").slice(0, 72),
+        subtitle: formatContextForDisplay(
+          s.context || "",
+          normalizeContextAttachments(s.context_attachments),
+        ).slice(0, 72),
         stepId: s.id,
         stepNumber: i + 1,
         isApiCall: s.action === "api_call",
@@ -82,7 +88,10 @@ export function buildNodesAndEdges(
   return { nodes, edges };
 }
 
-const CHAIN_EDGE_STYLE = { stroke: "#6366f1", strokeWidth: 2 } as const;
+/** Stroke for vertical step chain edges (`echoInsert`) — reuse for reorder ghost, handles, etc. */
+export const ECHO_FLOW_EDGE_STROKE = "#6366f1" as const;
+
+const CHAIN_EDGE_STYLE = { stroke: ECHO_FLOW_EDGE_STROKE, strokeWidth: 2 } as const;
 
 /** Linear chain edges for a vertical step list (order matches array order). */
 export function chainEdgesFromOrderedIds(orderedIds: string[]): Edge[] {

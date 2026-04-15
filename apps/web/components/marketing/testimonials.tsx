@@ -64,11 +64,11 @@ function UseCaseCard({ item, index }: { item: (typeof USE_CASES)[0]; index: numb
       initial={{ opacity: 0, y: 20 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.4, delay: index * 0.1 }}
-      className="rounded-xl border border-[#A577FF]/20 bg-white p-5 shadow-sm transition-colors hover:border-[#A577FF]/30"
+      className="rounded-xl border border-[#150A35]/12 bg-white p-5 shadow-sm transition-colors hover:border-[#21C4DD]/40"
     >
       <div className="flex items-center gap-2 mb-3">
         <span className="text-2xl">{item.emoji}</span>
-        <span className="rounded-full bg-[#A577FF]/10 px-2.5 py-0.5 text-xs font-medium text-[#A577FF]">
+        <span className="rounded-full bg-[#150A35]/06 px-2.5 py-0.5 text-xs font-medium text-[#0891b2]">
           {item.tag}
         </span>
       </div>

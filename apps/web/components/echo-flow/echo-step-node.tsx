@@ -15,9 +15,10 @@ import {
 
 import { brandfetchLogoUrlForDomain } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import { WorkflowActionIcon } from "@/lib/workflow-action-icons";
-import { GradientIconWell } from "@/components/ui/gradient-icon-well";
+import { GradientIconWell, gradientWellImageClass } from "@/components/ui/gradient-icon-well";
 import { useEchoReorderPreview } from "@/components/echo-flow/echo-flow-reorder-context";
 import { ECHO_FLOW_LAYOUT } from "@/lib/echo-flow-graph";
+import type { PeerPresenceAccent } from "@/lib/peer-presence-color";
 import { cn } from "@/lib/utils";
 
 export type EchoStepNodeData = {
@@ -39,6 +40,8 @@ export type EchoStepNodeData = {
   invalidForPublish?: boolean;
   /** Recently added step — subtle highlight until configured */
   isNewStep?: boolean;
+  /** Another collaborator is focused on / locking / dragging this step — matches their cursor hue. */
+  remotePeerAccent?: PeerPresenceAccent;
 };
 
 function EchoStepNodeInner({ data, selected }: NodeProps) {
@@ -62,13 +65,24 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
     reorderActive && ctxPreview != null && ctxPreview !== d.stepNumber,
   );
   const showDragStyle = ctxDragTarget || d.isReorderDragTarget;
+  const peerAccent = !d.invalidForPublish ? d.remotePeerAccent : undefined;
 
   return (
     <div
-      style={{ height: ECHO_FLOW_LAYOUT.nodeSlotHeight }}
+      style={{
+        height: ECHO_FLOW_LAYOUT.nodeSlotHeight,
+        ...(peerAccent && !showDragStyle
+          ? {
+              borderColor: peerAccent.stroke,
+              backgroundImage: `linear-gradient(180deg, #ffffff 0%, ${peerAccent.pillBg} 95%)`,
+              boxShadow: `0 0 0 2px ${peerAccent.stroke}, 0 10px 28px -8px ${peerAccent.softRing}`,
+            }
+          : undefined),
+      }}
       className={cn(
-        "box-border flex w-[min(100vw-2rem,300px)] max-w-[300px] flex-col rounded-[10px] border bg-white px-4 py-3 shadow-[0_2px_12px_-2px_rgba(15,23,42,0.12)] transition-[box-shadow,border-color,transform,opacity]",
+        "box-border flex w-[min(100vw-2rem,300px)] max-w-[300px] flex-col rounded-[10px] border bg-white px-4 py-3 shadow-[0_2px_12px_-2px_rgba(15,23,42,0.12)] transition-[box-shadow,border-color,transform,opacity,background-image]",
         reorderActive && !showDragStyle && "opacity-[0.92]",
+        peerAccent && !showDragStyle && "z-[6]",
         d.invalidForPublish
           ? "z-[5] border-red-400/90 shadow-[0_4px_20px_-4px_rgba(239,68,68,0.25)] ring-2 ring-red-400/30"
           : showDragStyle
@@ -97,7 +111,11 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
           ) : null}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex flex-wrap items-center gap-2">
-              <GradientIconWell className="h-8 w-8 shrink-0 overflow-hidden">
+              <GradientIconWell
+                corners="lg"
+                className="h-8 w-8 shrink-0"
+                innerClassName="overflow-hidden"
+              >
                 {openAppLogoUrl && !openAppLogoFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element -- Brandfetch Logo API hotlink
                   <img
@@ -105,14 +123,14 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
                     alt=""
                     width={32}
                     height={32}
-                    className="h-full w-full object-contain p-0.5"
+                    className={gradientWellImageClass("lg")}
                     onError={() => setOpenAppLogoFailed(true)}
                   />
                 ) : (
                   <WorkflowActionIcon
                     action={d.action}
                     composioSlug={d.composioSlug}
-                    className="h-5 w-5 text-slate-700"
+                    className="h-5 w-5 text-card-foreground"
                   />
                 )}
               </GradientIconWell>
@@ -163,7 +181,7 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
                 <button
                   type="button"
                   className={cn(
-                    "nodrag nopan -m-0.5 rounded-md p-1 text-slate-400 outline-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40",
+                    "nodrag nopan -m-0.5 rounded-md p-1 text-slate-400 outline-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-[#21C4DD]/40",
                     reorderActive && "text-violet-500 hover:text-violet-600",
                   )}
                   aria-label="Step actions"

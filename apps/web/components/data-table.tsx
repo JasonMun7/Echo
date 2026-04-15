@@ -108,13 +108,15 @@ function formatDuration(start: unknown, end: unknown): string {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  running: "bg-blue-100 text-blue-700",
-  pending: "bg-slate-100 text-slate-700",
-  completed: "bg-green-100 text-green-700",
-  failed: "bg-red-100 text-red-700",
-  cancelled: "border border-[#A577FF]/25 bg-[rgba(165,119,255,0.12)] text-[#A577FF]",
-  stopped: "border border-[#A577FF]/25 bg-[rgba(165,119,255,0.12)] text-[#A577FF]",
-  awaiting_user: "bg-amber-100 text-amber-700",
+  running: "bg-blue-100 text-blue-800 dark:bg-blue-950/55 dark:text-blue-200",
+  pending: "bg-slate-100 text-slate-800 dark:bg-slate-800/80 dark:text-slate-200",
+  completed: "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-200",
+  failed: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200",
+  cancelled:
+    "border border-cyan-500/25 bg-cyan-500/10 text-cyan-800 dark:border-cyan-500/30 dark:bg-cyan-950/45 dark:text-cyan-200",
+  stopped:
+    "border border-cyan-500/25 bg-cyan-500/10 text-cyan-800 dark:border-cyan-500/30 dark:bg-cyan-950/45 dark:text-cyan-200",
+  awaiting_user: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
 };
 
 const IN_PROGRESS_STATUSES = new Set(["running", "pending", "awaiting_user"]);
@@ -127,7 +129,7 @@ const baseColumns: ColumnDef<Run>[] = [
     cell: ({ row }) => (
       <Link
         href={`/dashboard/workflows/${row.original.workflowId}/runs/${row.original.id}`}
-        className="font-medium text-[#150A35] hover:text-[#A577FF] hover:underline transition-colors"
+        className="font-medium text-foreground transition-colors hover:underline"
       >
         {row.original.workflowName}
       </Link>
@@ -146,7 +148,7 @@ const baseColumns: ColumnDef<Run>[] = [
       return (
         <Badge
           variant="outline"
-          className={`px-2.5 py-0.5 text-xs font-medium border-0 ${STATUS_STYLES[styleKey] ?? STATUS_STYLES[s] ?? "bg-gray-100 text-gray-600"}`}
+          className={`px-2.5 py-0.5 text-xs font-medium border-0 ${STATUS_STYLES[styleKey] ?? STATUS_STYLES[s] ?? "bg-muted text-muted-foreground"}`}
         >
           {label}
         </Badge>
@@ -157,14 +159,14 @@ const baseColumns: ColumnDef<Run>[] = [
     accessorKey: "createdAt",
     header: "Started",
     cell: ({ row }) => (
-      <span className="text-sm text-echo-text-muted">{formatDate(row.original.createdAt)}</span>
+      <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAt)}</span>
     ),
   },
   {
     id: "duration",
     header: "Duration",
     cell: ({ row }) => (
-      <span className="text-sm text-echo-text-muted">
+      <span className="text-sm text-muted-foreground">
         {formatDuration(row.original.createdAt, row.original.completedAt)}
       </span>
     ),
@@ -173,7 +175,7 @@ const baseColumns: ColumnDef<Run>[] = [
     accessorKey: "source",
     header: "Source",
     cell: ({ row }) => (
-      <span className="text-sm text-echo-text-muted capitalize">
+      <span className="text-sm capitalize text-muted-foreground">
         {row.original.source ?? "desktop"}
       </span>
     ),
@@ -216,9 +218,9 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       toast.success("Run stopped", {
         description: "EchoPrism is ending this run.",
         classNames: {
-          toast: "border-[#A577FF]/25 bg-[#F5F7FC]",
-          title: "text-[#150A35]",
-          description: "text-gray-600",
+          toast: "border-border bg-card",
+          title: "text-foreground",
+          description: "text-muted-foreground",
         },
       });
     } catch (e) {
@@ -335,7 +337,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       <div
         className={cn("flex items-center justify-between px-4 lg:px-6", fillRunsPane && "shrink-0")}
       >
-        <div className="flex gap-1 rounded-lg bg-[#150A35]/5 p-1">
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
           {TABS.map((tab) => {
             const count = countFor(tab.value);
             return (
@@ -347,8 +349,8 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                 }}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   activeTab === tab.value
-                    ? "bg-white text-[#150A35] shadow-sm"
-                    : "text-[#150A35]/60 hover:text-[#150A35]"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {tab.label}
@@ -356,8 +358,8 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                   <span
                     className={`rounded-full px-1.5 py-0.5 text-xs ${
                       activeTab === tab.value
-                        ? "bg-[#A577FF]/15 text-[#A577FF]"
-                        : "bg-[#150A35]/10 text-[#150A35]/50"
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted-foreground/10 text-muted-foreground"
                     }`}
                   >
                     {count}
@@ -373,7 +375,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
             <Button
               variant="outline"
               size="sm"
-              className="border-[#A577FF]/40 text-[#150A35] hover:bg-[#A577FF]/10"
+              className="border-border text-foreground hover:bg-muted"
             >
               <IconLayoutColumns />
               <span className="hidden lg:inline">Customize Columns</span>
@@ -402,7 +404,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       {/* Table — workflow detail: plain <table> so one scroll container scrolls (Table wraps in extra div). */}
       <div
         className={cn(
-          "rounded-lg border border-[#A577FF]/20 bg-white shadow-sm mx-4 lg:mx-6",
+          "rounded-lg border border-border bg-card shadow-sm mx-4 lg:mx-6",
           fillRunsPane
             ? "echo-runs-table-scroll min-h-0 flex-1 overflow-auto"
             : "overflow-hidden overflow-x-auto",
@@ -410,7 +412,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       >
         {fillRunsPane ? (
           <table className="w-full caption-bottom text-sm">
-            <TableHeader className="sticky top-0 z-10 border-b border-[#150A35]/8 bg-[#F5F7FC] shadow-[0_1px_0_0_rgba(21,10,53,0.06)]">
+            <TableHeader className="sticky top-0 z-10 border-b border-border bg-card shadow-[0_1px_0_0_rgba(21,10,53,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -438,7 +440,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center text-echo-text-muted"
+                    className="h-24 text-center text-muted-foreground"
                   >
                     No runs yet.
                   </TableCell>
@@ -448,7 +450,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
           </table>
         ) : (
           <Table>
-            <TableHeader className="sticky top-0 z-10 border-b border-[#150A35]/8 bg-[#F5F7FC] shadow-[0_1px_0_0_rgba(21,10,53,0.06)]">
+            <TableHeader className="sticky top-0 z-10 border-b border-border bg-card shadow-[0_1px_0_0_rgba(21,10,53,0.06)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -476,7 +478,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center text-echo-text-muted"
+                    className="h-24 text-center text-muted-foreground"
                   >
                     No runs yet.
                   </TableCell>
@@ -515,7 +517,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
               </SelectContent>
             </Select>
           </div>
-          <div className="flex w-fit items-center justify-center text-sm font-medium">
+          <div className="flex w-fit items-center justify-center text-sm font-medium text-foreground">
             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
           </div>
           <div className="ml-auto flex items-center gap-2 lg:ml-0">

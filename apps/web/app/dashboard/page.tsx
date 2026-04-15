@@ -7,8 +7,8 @@ import { db, auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Workflow } from "lucide-react";
 import {
-  IconJumpRope,
   IconPlus,
   IconArrowRight,
   IconPlayerPlay,
@@ -217,7 +217,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+        <div className="flex flex-col gap-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-2">
               <Skeleton className="h-9 w-52 rounded-lg" />
@@ -235,19 +235,19 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+      <div className="flex flex-col gap-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#150A35]">
+            <h1 className="text-3xl font-bold text-foreground">
               Welcome back
               {user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}
             </h1>
-            <p className="mt-1 text-sm text-echo-text-muted">
+            <p className="mt-1 text-sm text-muted-foreground">
               Here&apos;s what&apos;s happening with your workflows today.
             </p>
           </div>
-          <DesktopCaptureLink className="echo-btn-cyan-lavender flex shrink-0 items-center gap-2">
+          <DesktopCaptureLink className="echo-btn-primary flex shrink-0 items-center gap-2">
             <IconPlus className="h-5 w-5" />
             New Workflow
           </DesktopCaptureLink>
@@ -255,18 +255,18 @@ export default function DashboardPage() {
 
         {/* Onboarding banner */}
         {showOnboarding && (
-          <div className="relative rounded-xl border border-[#A577FF]/30 bg-linear-to-r from-[#F5F3FF] to-[#EDE9FF] p-5">
+          <div className="relative rounded-xl border border-primary/25 bg-linear-to-r from-violet-50/90 to-violet-100/50 p-5 dark:border-primary/30 dark:from-violet-950/35 dark:to-violet-950/15">
             <button
               onClick={() => {
                 setShowOnboarding(false);
                 localStorage.setItem("echo_onboarding_dismissed", "true");
               }}
-              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
             >
               <IconX className="h-4 w-4" />
             </button>
-            <h3 className="text-base font-semibold text-[#150A35]">Welcome to Echo!</h3>
-            <p className="mt-1 text-sm text-gray-500">Get started with these 3 steps:</p>
+            <h3 className="text-base font-semibold text-foreground">Welcome to Echo!</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Get started with these 3 steps:</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               {[
                 {
@@ -285,7 +285,7 @@ export default function DashboardPage() {
                 step.isCapture ? (
                   <DesktopCaptureLink
                     key={step.label}
-                    className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+                    className="flex items-center gap-2 rounded-lg border border-primary/35 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted"
                   >
                     {step.icon}
                     {step.label}
@@ -294,20 +294,20 @@ export default function DashboardPage() {
                   <Link
                     key={step.label}
                     href={step.href}
-                    className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+                    className="flex items-center gap-2 rounded-lg border border-primary/35 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted"
                   >
                     {step.icon}
                     {step.label}
                   </Link>
                 ),
               )}
-              <a
-                href="echo-desktop://echoprism"
-                className="flex items-center gap-2 rounded-lg border border-[#A577FF]/30 bg-white px-3 py-2 text-sm font-medium text-[#A577FF] hover:bg-[#A577FF]/10 transition-colors"
+              <Link
+                href="/dashboard/chat"
+                className="flex items-center gap-2 rounded-lg border border-primary/35 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-muted"
               >
                 <IconMessageCircle className="h-4 w-4" />
-                Try EchoPrismVoice
-              </a>
+                Try EchoPrism
+              </Link>
             </div>
           </div>
         )}
@@ -331,7 +331,7 @@ export default function DashboardPage() {
         />
 
         {/* Activity chart */}
-        <div className="px-4 lg:px-6">
+        <div className="w-full min-w-0">
           <ChartAreaInteractive runs={allRuns} />
         </div>
 
@@ -341,10 +341,10 @@ export default function DashboardPage() {
         {/* Recent Workflows */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[#150A35]">Recent Workflows</h2>
+            <h2 className="text-lg font-semibold text-foreground">Recent Workflows</h2>
             <Link
               href="/dashboard/workflows"
-              className="flex cursor-pointer items-center gap-1 text-sm font-medium text-[#A577FF] hover:underline"
+              className="flex cursor-pointer items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               View all
               <IconArrowRight className="h-4 w-4" />
@@ -352,19 +352,17 @@ export default function DashboardPage() {
           </div>
 
           {recentWorkflows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[#A577FF]/40 bg-[#F5F7FC] py-16">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#A577FF]/10">
-                <IconJumpRope className="h-7 w-7 text-[#A577FF]" />
+            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card py-16 shadow-sm">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                <Workflow className="h-7 w-7 text-primary" strokeWidth={1.75} />
               </div>
               <div className="text-center">
-                <p className="font-medium text-[#150A35]">No workflows yet</p>
-                <p className="mt-1 text-sm text-echo-text-muted">
+                <p className="font-medium text-foreground">No workflows yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Create your first workflow to get started
                 </p>
               </div>
-              <DesktopCaptureLink className="echo-btn-cyan-lavender">
-                Create workflow
-              </DesktopCaptureLink>
+              <DesktopCaptureLink className="echo-btn-primary">Create workflow</DesktopCaptureLink>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -395,43 +393,41 @@ function WorkflowCard({ workflow: w, isLatest }: { workflow: Workflow; isLatest:
       className={cn(
         workflowListCardClass,
         "cursor-pointer overflow-visible",
-        isLatest && "border-[#A577FF]/40 ring-1 ring-[#A577FF]/18",
+        isLatest && "border-primary/30 ring-1 ring-primary/20",
       )}
     >
       {isLatest && (
         <Tooltip>
           <TooltipTrigger asChild>
             <span
-              className="absolute -right-1 -top-1 z-10 h-4 w-4 animate-echo-indicator-flash cursor-default rounded-full bg-[#A577FF] ring-2 ring-white shadow-sm"
+              className="absolute -right-1 -top-1 z-10 echo-indicator-flash-dot"
               onClick={(e) => e.preventDefault()}
               onMouseDown={(e) => e.stopPropagation()}
             />
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="border-[#A577FF]/20 bg-[#150A35] text-[#F5F7FC]">
-            Newest or most recently modified workflow
-          </TooltipContent>
+          <TooltipContent side="bottom">Newest or most recently modified workflow</TooltipContent>
         </Tooltip>
       )}
       {/* Thumbnail */}
       {w.thumbnail_gcs_path ? (
         <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
       ) : (
-        <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-[#F5F7FC] to-[#A577FF]/5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#A577FF]/10">
-            <IconJumpRope className="h-5 w-5 text-[#A577FF]" />
+        <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Workflow className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
           </div>
         </div>
       )}
 
       <div className="flex flex-1 flex-col px-4 pt-4">
-        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-[#150A35] transition-colors group-hover:text-[#7c3aed]">
+        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-foreground">
           {w.name ?? "Untitled workflow"}
         </span>
       </div>
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#150A35]/6 px-4 py-3">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-4 py-3">
         <span className={workflowStatusBadgeClass(w.status)}>{workflowStatusLabel(w.status)}</span>
         <IconChevronRight
-          className="h-4 w-4 shrink-0 text-[#A577FF]/45 transition-transform group-hover:translate-x-0.5 group-hover:text-[#A577FF]/80"
+          className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
           stroke={1.5}
           aria-hidden
         />

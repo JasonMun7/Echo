@@ -9,6 +9,8 @@ export type ContextAttachment = {
   url: string;
   name: string;
   mime?: string;
+  /** Stable id (c1, c2, …). In step text use tokens like {{c1}} (UI shows “Image 1”, etc.). */
+  ref_label?: string;
 };
 
 const MAX_ATTACHMENTS = 12;
@@ -26,9 +28,31 @@ export function normalizeContextAttachments(raw: unknown): ContextAttachment[] {
     const kind = o.kind === "image" || o.kind === "video" || o.kind === "file" ? o.kind : "file";
     const mime = typeof o.mime === "string" ? o.mime : undefined;
     if (!id || !url) continue;
-    out.push({ id, kind, url, name, mime });
+    const refRaw = o.ref_label;
+    const ref_label =
+      typeof refRaw === "string" && /^c\d+$/i.test(refRaw.trim())
+        ? refRaw.trim().toLowerCase()
+        : undefined;
+    out.push({
+      id,
+      kind,
+      url,
+      name,
+      mime,
+      ref_label: ref_label ?? `c${out.length + 1}`,
+    });
   }
   return out.slice(0, MAX_ATTACHMENTS);
+}
+
+/** Next free label c1, c2, … based on existing attachment ref_labels. */
+export function nextAttachmentRefLabel(current: ContextAttachment[]): string {
+  let max = 0;
+  for (const a of current) {
+    const m = /^c(\d+)$/i.exec(a.ref_label ?? "");
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `c${max + 1}`;
 }
 
 export function canAddAttachment(current: ContextAttachment[]): boolean {

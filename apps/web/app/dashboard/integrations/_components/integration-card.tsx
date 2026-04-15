@@ -73,10 +73,10 @@ export function IntegrationCard({
     <div
       id={`integration-card-${integration.id}`}
       className={cn(
-        "echo-card flex flex-col rounded-xl border bg-white p-3 shadow-sm transition-colors",
+        "echo-card flex flex-col rounded-xl border border-border bg-card p-3 shadow-sm transition-colors",
         on
-          ? "border-[#A577FF]/35 shadow-[0_1px_0_0_rgba(165,119,255,0.15)] ring-1 ring-[#A577FF]/10"
-          : "border-[#A577FF]/12 bg-white hover:border-[#A577FF]/25",
+          ? "shadow-[0_1px_0_0_rgba(165,119,255,0.15)] ring-1 ring-cyan-500/15 dark:ring-cyan-400/20"
+          : "hover:border-muted-foreground/25",
       )}
     >
       <div className="flex items-start gap-3">
@@ -85,10 +85,10 @@ export function IntegrationCard({
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
             showBrandfetchLogo && "overflow-hidden",
             showBrandfetchLogo
-              ? "border border-[#150A35]/10 bg-white shadow-sm"
+              ? "border border-border bg-card shadow-sm"
               : on
                 ? "echo-gradient-cyan-lavender text-white shadow-sm"
-                : "bg-[#F5F3FF] text-[#A577FF]",
+                : "bg-muted text-muted-foreground",
           )}
         >
           {showBrandfetchLogo && brandfetchUrl ? (
@@ -109,7 +109,7 @@ export function IntegrationCard({
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="truncate text-sm font-semibold leading-tight text-[#150A35]">
+            <h3 className="truncate text-sm font-semibold leading-tight text-foreground">
               {integration.name}
             </h3>
             {canOAuth ? (
@@ -126,24 +126,24 @@ export function IntegrationCard({
           </div>
           {descriptionLine ? (
             <p
-              className="mt-1 truncate text-xs leading-snug text-[#6b7280]"
+              className="mt-1 truncate text-xs leading-snug text-muted-foreground"
               title={descriptionLine}
             >
               {descriptionLine}
             </p>
           ) : null}
           {integration.account_name ? (
-            <p className="mt-1 truncate text-[11px] font-medium text-[#A577FF]">
+            <p className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
               {integration.account_name}
             </p>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-3 flex items-start justify-between gap-2 border-t border-[#150A35]/6 pt-2.5">
+      <div className="mt-3 flex items-start justify-between gap-2 border-t border-border pt-2.5">
         {!canOAuth ? (
           <p
-            className="min-w-0 flex-1 truncate text-[10px] font-medium leading-snug text-[#A577FF]/90"
+            className="min-w-0 flex-1 truncate text-[10px] font-medium leading-snug text-muted-foreground/90"
             title={noteText}
           >
             {noteText}
@@ -160,7 +160,7 @@ export function IntegrationCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-[#6b7280] hover:bg-[#F5F7FC] hover:text-[#150A35]"
+                  className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label="Integration options"
                 >
                   <IconSettings className="h-4 w-4" stroke={1.5} />
@@ -172,9 +172,9 @@ export function IntegrationCard({
           <DropdownMenuContent align="end" className="w-56">
             {on && integration.account_name ? (
               <>
-                <p className="px-2 py-1.5 text-xs text-[#6b7280]">
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
                   Signed in as{" "}
-                  <span className="font-medium text-[#150A35]">{integration.account_name}</span>
+                  <span className="font-medium text-foreground">{integration.account_name}</span>
                 </p>
                 <DropdownMenuSeparator />
               </>
@@ -190,9 +190,11 @@ export function IntegrationCard({
                 Disconnect
               </DropdownMenuItem>
             ) : null}
-            {!canOAuth ? <p className="px-2 py-2 text-xs text-[#6b7280]">{noteText}</p> : null}
+            {!canOAuth ? (
+              <p className="px-2 py-2 text-xs text-muted-foreground">{noteText}</p>
+            ) : null}
             {canOAuth && !on ? (
-              <p className="px-2 py-2 text-xs text-[#6b7280]">
+              <p className="px-2 py-2 text-xs text-muted-foreground">
                 Turn on the switch to connect with Composio (OAuth).
               </p>
             ) : null}

@@ -275,9 +275,9 @@ export default function RunDetailPage() {
       toast.success("Run stopped", {
         description: "EchoPrism is ending this run. Logs will appear in a moment.",
         classNames: {
-          toast: "border-[#A577FF]/25 bg-[#F5F7FC]",
-          title: "text-[#150A35]",
-          description: "text-gray-600",
+          toast: "border-border bg-card",
+          title: "text-foreground",
+          description: "text-muted-foreground",
         },
       });
     } catch (e) {
@@ -357,22 +357,22 @@ export default function RunDetailPage() {
       <>
         <div className="echo-run-haze" />
         <div className="echo-run-haze-content">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#A577FF]/50 border-t-[#A577FF]" />
-          <p className="animate-pulse text-lg font-bold tracking-wide text-[#150A35] drop-shadow-sm">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+          <p className="animate-pulse text-lg font-bold tracking-wide text-foreground drop-shadow-sm">
             EchoPrism is taking control…
           </p>
 
           {/* Live thoughts panel */}
           {liveThoughts.length > 0 && (
-            <div className="mt-4 w-full max-w-md max-h-48 overflow-y-auto rounded-xl border border-[#A577FF]/30 bg-white/90 backdrop-blur-sm p-3 text-left">
+            <div className="mt-4 w-full max-w-md max-h-48 overflow-y-auto rounded-xl border border-cyan-500/30 bg-card/95 backdrop-blur-sm p-3 text-left">
               <div className="flex items-center gap-1.5 mb-2">
-                <IconBrain className="h-4 w-4 text-[#A577FF]" />
-                <span className="text-xs font-semibold text-[#A577FF]">EchoPrism thinking…</span>
+                <IconBrain className="h-4 w-4 text-[#0891b2]" />
+                <span className="text-xs font-semibold text-[#0891b2]">EchoPrism thinking…</span>
               </div>
               {liveThoughts.slice(-5).map((t, i) => (
                 <div key={i} className="mb-2 text-xs">
-                  <span className="text-gray-400">Step {t.step_index + 1}: </span>
-                  <span className="text-[#150A35]/70">
+                  <span className="text-muted-foreground">Step {t.step_index + 1}: </span>
+                  <span className="text-foreground/70">
                     {t.thought.slice(0, 150)}
                     {t.thought.length > 150 ? "…" : ""}
                   </span>
@@ -383,7 +383,7 @@ export default function RunDetailPage() {
 
           {/* Live log entries */}
           {logs.length > 0 && (
-            <div className="mt-2 w-full max-w-md max-h-32 overflow-y-auto rounded-xl border border-[#A577FF]/20 bg-[#150A35]/90 p-3 text-left font-mono">
+            <div className="mt-2 w-full max-w-md max-h-32 overflow-y-auto rounded-xl border border-border bg-[#150A35]/90 p-3 text-left font-mono">
               {logs.slice(-8).map((log) => (
                 <div key={log.id} className="text-xs text-white/70 leading-relaxed">
                   {log.message}
@@ -393,7 +393,7 @@ export default function RunDetailPage() {
           )}
 
           {status && (
-            <span className="mt-2 rounded-full bg-[#A577FF]/20 px-3 py-1 text-sm font-semibold text-[#150A35]">
+            <span className="mt-2 rounded-full bg-muted px-3 py-1 text-sm font-semibold text-foreground">
               {status}
             </span>
           )}
@@ -433,41 +433,41 @@ export default function RunDetailPage() {
     const reason = run?.callUserReason as string | undefined;
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 p-6 md:p-10">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 border border-amber-200">
-              <IconUserQuestion className="h-8 w-8 text-amber-500" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/40">
+              <IconUserQuestion className="h-8 w-8 text-amber-600 dark:text-amber-400" />
             </div>
             <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-semibold text-[#150A35]">EchoPrism needs your help</h2>
-              <p className="text-sm text-echo-text-muted">
+              <h2 className="text-lg font-semibold text-foreground">EchoPrism needs your help</h2>
+              <p className="text-sm text-muted-foreground">
                 The agent paused and is waiting for you to take action before it can continue.
               </p>
             </div>
             {reason && (
-              <div className="w-full rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-left">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-1">
+              <div className="w-full rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-left dark:border-amber-800/50 dark:bg-amber-950/35">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                   Agent&apos;s reason
                 </p>
-                <p className="text-sm text-[#150A35]/80 leading-relaxed">{reason}</p>
+                <p className="text-sm text-foreground/80 leading-relaxed">{reason}</p>
               </div>
             )}
             <div className="w-full flex flex-col gap-2">
-              <label className="text-xs font-semibold text-[#150A35]">
+              <label className="text-xs font-semibold text-foreground">
                 Send feedback &amp; resume
               </label>
               <Input
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 placeholder="e.g. Click the green button instead, or I resolved it manually"
-                className="border-[#A577FF]/30 bg-[#F5F7FC] placeholder:text-gray-400"
+                className="border-[#21C4DD]/35 bg-card placeholder:text-muted-foreground"
                 onKeyDown={(e) => e.key === "Enter" && handleSendFeedback()}
               />
               <button
                 type="button"
                 onClick={handleSendFeedback}
                 disabled={sendingFeedback || !feedbackText.trim()}
-                className="echo-btn-cyan-lavender cursor-pointer px-5 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                className="echo-btn-primary cursor-pointer px-5 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {sendingFeedback ? "Sending…" : "Send feedback & resume"}
               </button>
@@ -477,7 +477,7 @@ export default function RunDetailPage() {
                 type="button"
                 onClick={handleDismiss}
                 disabled={dismissing}
-                className="echo-btn-cyan-lavender cursor-pointer px-5 py-2 text-sm font-semibold disabled:opacity-40"
+                className="echo-btn-primary cursor-pointer px-5 py-2 text-sm font-semibold disabled:opacity-40"
               >
                 {dismissing ? "Dismissing…" : "Mark as done"}
               </button>
@@ -492,7 +492,7 @@ export default function RunDetailPage() {
             </div>
             <Link
               href={`/dashboard/workflows/${workflowId}`}
-              className="flex items-center gap-1 text-sm text-echo-text-muted hover:text-[#A577FF] transition-colors"
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <IconArrowLeft className="h-4 w-4" />
               Back to workflow
@@ -510,35 +510,35 @@ export default function RunDetailPage() {
     terminalPresentation.kind === "success" ? (
       <IconCircleCheck className="h-5 w-5 text-echo-success" />
     ) : terminalPresentation.kind === "stopped" ? (
-      <IconBan className="h-5 w-5 text-[#A577FF]" />
+      <IconBan className="h-5 w-5 text-[#0891b2]" />
     ) : terminalPresentation.kind === "failed" ? (
       <IconAlertCircle className="h-5 w-5 text-echo-error" />
     ) : (
-      <IconBan className="h-5 w-5 text-echo-text-muted" />
+      <IconBan className="h-5 w-5 text-muted-foreground" />
     );
 
   const statusColor =
     terminalPresentation.kind === "success"
       ? "bg-echo-success/15 text-echo-success"
       : terminalPresentation.kind === "stopped"
-        ? "border border-[#A577FF]/20 bg-[rgba(165,119,255,0.12)] text-[#A577FF]"
+        ? "border border-border bg-[rgba(165,119,255,0.12)] text-[#0891b2]"
         : terminalPresentation.kind === "failed"
           ? "bg-echo-error/15 text-echo-error"
-          : "bg-[#150A35]/10 text-[#150A35]/70";
+          : "bg-muted text-foreground/70";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 md:p-10">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
               href={`/dashboard/workflows/${workflowId}`}
-              className="cursor-pointer text-[#150A35]/70 hover:text-[#A577FF]"
+              className="cursor-pointer text-foreground/70 hover:text-foreground"
             >
               <IconArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-xl font-semibold text-[#150A35]">Run Logs</h1>
+            <h1 className="text-xl font-semibold text-foreground">Run Logs</h1>
           </div>
           <div className="flex items-center gap-2">
             {statusIcon}
@@ -550,17 +550,17 @@ export default function RunDetailPage() {
 
         {/* Stopped (cancel / benign disconnect) — glass card, not error red */}
         {terminalPresentation.kind === "stopped" && (
-          <div className="echo-glass-card rounded-lg border border-[#A577FF]/15 bg-[#150A35]/8 px-4 py-4 backdrop-blur-md">
+          <div className="echo-glass-card rounded-lg border border-border bg-muted/40 px-4 py-4 backdrop-blur-md">
             <div className="flex gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(165,119,255,0.15)]">
-                <IconBan className="h-5 w-5 text-[#A577FF]" />
+                <IconBan className="h-5 w-5 text-[#0891b2]" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#150A35]">
+                <p className="text-sm font-semibold text-foreground">
                   {terminalPresentation.headline}
                 </p>
                 {terminalPresentation.description && (
-                  <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                     {terminalPresentation.description}
                   </p>
                 )}
@@ -573,7 +573,7 @@ export default function RunDetailPage() {
         {terminalPresentation.kind === "failed" && (
           <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
             <div className="flex-1">
-              <p className="text-sm font-medium text-[#150A35]">This run hit an error</p>
+              <p className="text-sm font-medium text-foreground">This run hit an error</p>
               <p className="mt-1 text-sm text-echo-error">
                 {run?.error != null ? String(run.error) : "Run failed"}
               </p>
@@ -585,7 +585,7 @@ export default function RunDetailPage() {
               type="button"
               onClick={handleRetry}
               disabled={retrying}
-              className="echo-btn-cyan-lavender ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              className="echo-btn-primary ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
             >
               <IconRefresh className="h-3.5 w-3.5" />
               {retrying ? "Starting…" : "Retry Run"}
@@ -594,7 +594,7 @@ export default function RunDetailPage() {
         )}
 
         {/* Logs */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#A577FF]/20 bg-[#150A35]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-[#150A35]">
           <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
             <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
               Output
@@ -623,7 +623,7 @@ export default function RunDetailPage() {
                   {/* Thought row */}
                   {log.thought && (
                     <div className="flex gap-2 items-start mb-1">
-                      <IconBrain className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#A577FF]" />
+                      <IconBrain className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#0891b2]" />
                       <span className="text-white/70 text-xs leading-relaxed">{log.thought}</span>
                     </div>
                   )}

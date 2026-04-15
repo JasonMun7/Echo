@@ -37,7 +37,7 @@ const components = {
       return (
         <div
           className={cn(
-            "my-2 rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] p-4 shadow-sm overflow-x-auto echo-card",
+            "my-2 rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4 shadow-sm overflow-x-auto echo-card",
           )}
         >
           <code className="text-sm text-[#150A35] block whitespace-pre" {...props}>
@@ -48,7 +48,7 @@ const components = {
     }
     return (
       <code
-        className="rounded border border-[#A577FF]/20 bg-[#F5F7FC] px-1 text-sm text-[#150A35]"
+        className="rounded border border-[#150A35]/12 bg-[#F5F7FC] px-1 text-sm text-[#150A35]"
         {...props}
       >
         {children}
