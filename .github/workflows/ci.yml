@@ -35,6 +35,9 @@ jobs:
       - name: Knip
         run: pnpm run knip
 
+      - name: Vitest (web)
+        run: cd apps/web && pnpm test
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
