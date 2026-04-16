@@ -397,10 +397,15 @@ def _compiled_synthesis():
     return _synth_compiled
 
 
-async def synthesize_via_langgraph(client: Any, parts: list[Any]) -> dict[str, Any]:
+async def synthesize_via_langgraph(
+    client: Any,
+    parts: list[Any],
+    *,
+    gcs_prefix: str | None = None,
+) -> dict[str, Any]:
     """Run synthesis inside a LangGraph (no checkpointer)."""
     out = await _compiled_synthesis().ainvoke(
-        {"client": client, "parts": parts},
+        {"client": client, "parts": parts, "gcs_prefix": gcs_prefix},
         config={"configurable": {"thread_id": "synthesis-main"}},
     )
     if out.get("error"):

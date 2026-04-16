@@ -80,7 +80,7 @@ function DesktopSuccessContent() {
   if (error) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
-        <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
+        <div className="echo-card mx-auto w-full max-w-md p-6">
           <div className="mb-6 flex justify-center">
             <div className="relative w-[120px] h-[120px]">
               <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
@@ -89,7 +89,7 @@ function DesktopSuccessContent() {
           <p className="text-sm text-red-500">{error}</p>
           <Link
             href={`/signin?desktop=1${callbackPort ? `&port=${callbackPort}` : ""}`}
-            className="echo-btn-cyan-lavender mt-4 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
+            className="echo-btn-primary mt-4 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
           >
             Try again
           </Link>
@@ -101,7 +101,7 @@ function DesktopSuccessContent() {
   if (!token) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
-        <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
+        <div className="echo-card mx-auto w-full max-w-md p-6">
           <div className="mb-6 flex justify-center">
             <div className="relative w-[120px] h-[120px]">
               <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
@@ -118,7 +118,7 @@ function DesktopSuccessContent() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
-      <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm md:p-8">
+      <div className="echo-card mx-auto w-full max-w-md p-6 md:p-8">
         <div className="mb-6 flex justify-center">
           <div className="relative w-[120px] h-[120px]">
             <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />
@@ -131,7 +131,7 @@ function DesktopSuccessContent() {
 
         <a
           href={openDesktopUrl}
-          className="echo-btn-cyan-lavender mt-6 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
+          className="echo-btn-primary mt-6 flex h-10 w-full cursor-pointer items-center justify-center gap-2"
         >
           <IconDeviceDesktop className="size-5" />
           Go back to desktop app
@@ -158,7 +158,7 @@ export default function DesktopSuccessPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F7FC] px-4">
-          <div className="echo-card mx-auto w-full max-w-md p-6 shadow-sm">
+          <div className="echo-card mx-auto w-full max-w-md p-6">
             <div className="mb-6 flex justify-center">
               <div className="relative w-[120px] h-[120px]">
                 <Image src="/echo_logo.png" alt="Echo" fill className="object-contain" />

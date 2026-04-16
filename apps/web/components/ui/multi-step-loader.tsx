@@ -60,11 +60,11 @@ const LoaderCore = ({
           transition={{ duration: 0.5 }}
         >
           <div className="shrink-0">
-            {isDone && <CheckFilled className="text-[#A577FF]" />}
+            {isDone && <CheckFilled className="text-[#0891b2]" />}
             {isActive && (
               <div className="relative flex items-center justify-center">
-                <CheckFilled className="text-[#A577FF]" />
-                <span className="absolute inset-0 animate-ping rounded-full bg-[#A577FF]/30" />
+                <CheckFilled className="text-[#0891b2]" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-[#150A35]/30" />
               </div>
             )}
             {index > value && <CheckIcon className="text-[#150A35]/30" />}
@@ -73,7 +73,7 @@ const LoaderCore = ({
             className={cn(
               "text-base font-medium transition-colors",
               isActive && "text-[#150A35]",
-              isDone && "text-[#A577FF]",
+              isDone && "text-[#0891b2]",
               !isActive && !isDone && "text-[#150A35]/30",
             )}
           >
@@ -139,12 +139,12 @@ export const MultiStepLoader = ({
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="echo-card mb-2 flex flex-col items-center gap-3 rounded-2xl border border-[#A577FF]/20 px-6 py-4 shadow-sm"
+            className="echo-card mb-2 flex flex-col items-center gap-3 rounded-2xl px-6 py-4"
           >
             <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
               <Image src="/echo_logo.png" alt="Echo" fill className="object-contain p-2" priority />
             </div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#A577FF]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#0891b2]">
               {title}
             </p>
           </motion.div>

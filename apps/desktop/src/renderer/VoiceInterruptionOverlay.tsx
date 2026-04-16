@@ -225,6 +225,7 @@ function VoiceSession({
         <AgentSessionView_01
           connectingMessage="Connecting…"
           preConnectMessage="Speak to guide EchoPrism, or press Resume to continue."
+          autoOpenChatOnUserTurn
           isPreConnectBufferEnabled={true}
           supportsChatInput={true}
           supportsVideoInput={false}

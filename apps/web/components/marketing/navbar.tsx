@@ -171,7 +171,7 @@ export const Navbar = () => {
             <Link
               href="/sign-in"
               onClick={() => setMobileMenuOpen(false)}
-              className="block w-full rounded-xl border border-[#A577FF]/30 px-4 py-3.5 text-center text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
+              className="block w-full rounded-xl border border-[#21C4DD]/35 px-4 py-3.5 text-center text-base font-medium text-[#150A35] transition-colors hover:bg-white/80"
             >
               Sign in
             </Link>

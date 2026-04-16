@@ -62,6 +62,7 @@ interface Props {
     workflowId: string;
     steps: Array<Record<string, unknown>>;
     workflowType: string;
+    flowGraph?: Record<string, unknown> | null;
   }) => void;
   onDeleted: () => void;
   onOpenWebUI: (path: string) => void;
@@ -140,6 +141,10 @@ export default function WorkflowDetailView({
       workflowId,
       steps: steps as unknown as Array<Record<string, unknown>>,
       workflowType: workflow.workflow_type ?? "desktop",
+      flowGraph:
+        typeof workflow === "object" && "flow_graph" in workflow
+          ? (workflow as { flow_graph?: Record<string, unknown> | null }).flow_graph
+          : null,
     });
   };
 
@@ -222,7 +227,7 @@ export default function WorkflowDetailView({
           </button>
           <button
             type="button"
-            className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-md px-2 py-1 text-sm disabled:opacity-50"
+            className="echo-btn-primary flex items-center gap-1.5 rounded-md px-2 py-1 text-sm disabled:opacity-50"
             onClick={handleRun}
             disabled={!canRun || steps.length === 0}
           >

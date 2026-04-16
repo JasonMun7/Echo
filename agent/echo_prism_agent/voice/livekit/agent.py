@@ -102,8 +102,11 @@ async def _publish_run_started(
     run_id: str,
     goal: str | None = None,
     goal_only: bool = False,
+    *,
+    workflow_name: str | None = None,
+    ephemeral: bool = False,
 ) -> None:
-    """Notify the desktop to start the run via LiveKit data packet."""
+    """Notify clients to start the run via LiveKit data packet."""
     try:
         job_ctx = get_job_context()
         room = job_ctx.room
@@ -112,6 +115,10 @@ async def _publish_run_started(
             "workflowId": workflow_id,
             "runId": run_id,
         }
+        if workflow_name:
+            data["name"] = workflow_name
+        if ephemeral:
+            data["ephemeral"] = True
         if goal_only and goal:
             data["goalOnly"] = True
             data["goal"] = goal
@@ -195,7 +202,11 @@ class LiveKitEchoPrismAgent(Agent):
             },
         )
         if result.get("ok") and result.get("run_id") and result.get("workflow_id"):
-            await _publish_run_started(result["workflow_id"], result["run_id"])
+            await _publish_run_started(
+                result["workflow_id"],
+                result["run_id"],
+                workflow_name=(result.get("workflow_name") or workflow_name or None),
+            )
         return result
 
     @function_tool()
@@ -311,7 +322,9 @@ class LiveKitEchoPrismAgent(Agent):
                 result["workflow_id"],
                 result["run_id"],
                 goal=result.get("goal"),
-                goal_only=result.get("goal_only", False),
+                goal_only=bool(result.get("goal_only")),
+                workflow_name=result.get("workflow_name"),
+                ephemeral=bool(result.get("ephemeral")),
             )
         return result
 

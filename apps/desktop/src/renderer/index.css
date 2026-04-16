@@ -205,29 +205,48 @@ body {
   box-shadow: 0 4px 32px rgba(165, 119, 255, 0.08);
 }
 
-.echo-btn-primary {
+/* Primary gradient CTA — Cyan → Lavender (same as apps/web .echo-btn-primary) */
+.echo-btn-primary,
+.echo-btn-gradient,
+.echo-btn-cyan-lavender,
+.echo-btn-cyan-cetacean,
+.echo-btn-primary-to-secondary {
   cursor: pointer;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #a577ff 0%, #7c3aed 50%, #5b21b6 100%);
+  background: linear-gradient(to right, #21c4dd, #a577ff);
   padding: 0.625rem 1.25rem;
   font-weight: 600;
   color: white;
   border: none;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 12px rgba(165, 119, 255, 0.3);
-  letter-spacing: 0.01em;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  box-shadow: 0 2px 12px rgba(33, 196, 221, 0.25);
 }
 
-.echo-btn-primary:hover:not(:disabled) {
+.echo-btn-primary:hover:not(:disabled),
+.echo-btn-gradient:hover:not(:disabled),
+.echo-btn-cyan-lavender:hover:not(:disabled),
+.echo-btn-cyan-cetacean:hover:not(:disabled),
+.echo-btn-primary-to-secondary:hover:not(:disabled) {
+  opacity: 0.95;
   transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(165, 119, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(33, 196, 221, 0.35);
 }
 
-.echo-btn-primary:active:not(:disabled) {
+.echo-btn-primary:active:not(:disabled),
+.echo-btn-gradient:active:not(:disabled),
+.echo-btn-cyan-lavender:active:not(:disabled),
+.echo-btn-cyan-cetacean:active:not(:disabled),
+.echo-btn-primary-to-secondary:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.echo-btn-primary:disabled {
+.echo-btn-primary:disabled,
+.echo-btn-gradient:disabled,
+.echo-btn-cyan-lavender:disabled,
+.echo-btn-cyan-cetacean:disabled,
+.echo-btn-primary-to-secondary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -265,23 +284,6 @@ body {
   background: rgba(33, 196, 221, 0.1);
   border-color: rgba(33, 196, 221, 0.4);
   box-shadow: 0 0 16px rgba(33, 196, 221, 0.15);
-}
-
-.echo-btn-cyan-lavender {
-  cursor: pointer;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, #21c4dd, #a577ff);
-  padding: 0.625rem 1.25rem;
-  font-weight: 600;
-  color: white;
-  border: none;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 12px rgba(33, 196, 221, 0.25);
-}
-
-.echo-btn-cyan-lavender:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(33, 196, 221, 0.4);
 }
 
 .echo-btn-danger {
@@ -322,27 +324,32 @@ body {
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
 }
 
-/* Dropdown menu item — secondary accent on icons (not whole item) + scale bigger on hover */
+/* Dropdown menu item — flat highlight, no gradient, no scale */
 .echo-dropdown-item {
-  transition:
-    background-color 0.2s ease,
-    transform 0.2s ease;
-  transform-origin: center;
+  transition: background-color 0.15s ease;
 }
-.echo-dropdown-item[data-highlighted],
-.echo-dropdown-item:focus,
-.echo-dropdown-item[data-state="open"] {
-  background: var(--echo-surface-hover);
-  transform: scale(1.02);
-}
-.echo-dropdown-item[data-highlighted]:not([data-variant="destructive"]) svg,
-.echo-dropdown-item:focus:not([data-variant="destructive"]) svg,
-.echo-dropdown-item[data-state="open"]:not([data-variant="destructive"]) svg {
-  stroke: var(--echo-cyan);
+.echo-dropdown-item[data-highlighted]:not([data-variant="destructive"]),
+.echo-dropdown-item:focus-visible:not([data-variant="destructive"]),
+.echo-dropdown-item[data-state="open"]:not([data-variant="destructive"]) {
+  background-color: rgba(165, 119, 255, 0.12) !important;
+  background-image: none !important;
 }
 .echo-dropdown-item[data-variant="destructive"][data-highlighted],
-.echo-dropdown-item[data-variant="destructive"]:focus {
-  transform: scale(1);
+.echo-dropdown-item[data-variant="destructive"]:focus-visible {
+  background-image: none !important;
+}
+
+[data-slot="dropdown-menu-item"][data-highlighted]:not([data-variant="destructive"]),
+[data-slot="dropdown-menu-checkbox-item"][data-highlighted],
+[data-slot="dropdown-menu-radio-item"][data-highlighted],
+[data-slot="dropdown-menu-sub-trigger"][data-highlighted],
+[data-slot="dropdown-menu-sub-trigger"][data-state="open"] {
+  background-color: rgba(165, 119, 255, 0.12) !important;
+  background-image: none !important;
+}
+[data-slot="dropdown-menu-item"][data-variant="destructive"][data-highlighted],
+[data-slot="dropdown-menu-item"][data-variant="destructive"]:focus-visible {
+  background-image: none !important;
 }
 
 .echo-icon-gradient {
@@ -519,25 +526,18 @@ body[data-echo-prism-open] [data-slot="select-content"] {
   z-index: 10000 !important;
 }
 
-/* EchoPrism: mic/camera device select — white background (no transparent), gradient hover like shadcn dropdown */
+/* EchoPrism: mic/camera device select — white background; flat item hover (no gradient / scale) */
 body[data-echo-prism-open] [data-slot="select-content"] {
   background: white !important;
   border-color: var(--echo-border) !important;
 }
 body[data-echo-prism-open] [data-slot="select-item"] {
-  transition:
-    background-color 0.2s ease,
-    transform 0.2s ease;
-  transform-origin: center;
+  transition: background-color 0.15s ease;
 }
 body[data-echo-prism-open] [data-slot="select-item"][data-highlighted],
-body[data-echo-prism-open] [data-slot="select-item"]:focus {
-  background: linear-gradient(135deg, rgba(33, 196, 221, 0.1), rgba(165, 119, 255, 0.1)) !important;
-  transform: scale(1.02);
-}
-body[data-echo-prism-open] [data-slot="select-item"][data-highlighted] svg,
-body[data-echo-prism-open] [data-slot="select-item"]:focus svg {
-  stroke: var(--echo-cyan);
+body[data-echo-prism-open] [data-slot="select-item"]:focus-visible {
+  background-color: rgba(21, 10, 53, 0.06) !important;
+  background-image: none !important;
 }
 
 /* EchoPrism control bar: white/surface bg + secondary accent icons when active */

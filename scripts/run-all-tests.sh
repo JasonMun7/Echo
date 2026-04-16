@@ -7,3 +7,4 @@ cd "$ROOT"
 export PYTHONPATH=agent
 pytest agent/tests "$@"
 pnpm --filter echo-desktop test
+(cd apps/web && pnpm test)

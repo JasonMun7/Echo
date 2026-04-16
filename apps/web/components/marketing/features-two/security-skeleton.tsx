@@ -73,7 +73,7 @@ function SecurityBeam({ delay = 0 }: { delay?: number }) {
         className="absolute top-0 h-px w-10"
         style={{
           background:
-            "linear-gradient(to right, transparent, #A577FF 20%, #A577FF 80%, transparent)",
+            "linear-gradient(to right, transparent, #21C4DD 20%, #150A35 80%, transparent)",
           maskImage:
             "repeating-linear-gradient(to right, black 0px, black 2px, transparent 2px, transparent 5px)",
           WebkitMaskImage:

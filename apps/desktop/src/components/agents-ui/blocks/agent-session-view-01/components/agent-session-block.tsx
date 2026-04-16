@@ -138,6 +138,13 @@ export interface AgentSessionView_01Props {
    * @default true
    */
   isPreConnectBufferEnabled?: boolean;
+  /**
+   * Opens the transcript when the latest session message is from the user so in-chat activity
+   * (e.g. “responding…”) stays visible during tools or voice turns.
+   *
+   * @default false
+   */
+  autoOpenChatOnUserTurn?: boolean;
 
   /** Selects the visualizer style rendered in the main tile area. */
   audioVisualizerType?: "bar" | "wave" | "grid" | "radial" | "aura";
@@ -168,6 +175,7 @@ export function AgentSessionView_01({
   supportsVideoInput = true,
   supportsScreenShare = true,
   isPreConnectBufferEnabled = true,
+  autoOpenChatOnUserTurn = false,
 
   audioVisualizerType,
   audioVisualizerColor,
@@ -206,6 +214,14 @@ export function AgentSessionView_01({
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!autoOpenChatOnUserTurn) return;
+    const last = messages.at(-1);
+    if (last?.from?.isLocal === true) {
+      setChatOpen(true);
+    }
+  }, [messages, autoOpenChatOnUserTurn]);
 
   return (
     <section

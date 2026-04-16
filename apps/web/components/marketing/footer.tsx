@@ -22,7 +22,7 @@ const signups = [
 
 export function Footer() {
   return (
-    <div className="relative w-full overflow-hidden border-t border-[#A577FF]/10 bg-white px-8 pt-20">
+    <div className="relative w-full overflow-hidden border-t border-[#150A35]/08 bg-white px-8 pt-20">
       <div className="mx-auto flex max-w-7xl flex-col items-start justify-between text-sm text-gray-600 sm:flex-row md:px-8">
         <div>
           <span className="relative z-20 inline-block px-2 py-1">

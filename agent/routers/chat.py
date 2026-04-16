@@ -1,9 +1,8 @@
 """
-EchoPrism WebSocket endpoint: /ws/chat
-- mode=voice → Gemini Live API, gemini-live-2.5-flash-native-audio, AUDIO modality
-              (EchoPrismVoice fullscreen modal — real-time mic streaming)
-- mode=text  → Standard Gemini generate_content, gemini-3.1-flash-lite-preview, multi-turn chat
-              (EchoPrism Chat page — text only, no Live API dependency)
+EchoPrism tool execution for LiveKit and HTTP.
+
+``_execute_tool`` backs ``POST /api/agent/tool`` (LiveKit agent). Mobile and web chat use
+LiveKit (``sendText`` / voice); the legacy WebSocket text endpoint has been removed.
 """
 
 import json
@@ -11,21 +10,14 @@ import logging
 import os
 import re
 import sys
-import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 import firebase_admin.firestore
-from app.auth import get_firebase_app
-from app.config import GEMINI_API_KEY
-from echo_prism_agent.models_config import CHAT_MODEL
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from google import genai
 from google.cloud.firestore import SERVER_TIMESTAMP, FieldFilter
-from google.genai import types
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["chat"])
 
 ACTIVE_RUN_STATUSES = ("running", "pending", "awaiting_user")
 
@@ -79,199 +71,6 @@ def _ensure_agent_path() -> None:
         sys.path.insert(0, str(root))
 
 
-async def _handle_tool_call(tool_call, uid: str, db, websocket: WebSocket) -> list[types.LiveClientToolResponse]:
-    """Route Live API tool calls for the voice session. Delegates to _execute_tool."""
-    responses = []
-    connection_id = str(id(websocket))
-    for fc in tool_call.function_calls:
-        name = fc.name
-        args = dict(fc.args) if fc.args else {}
-
-        # Signal frontend to show tool indicator
-        try:
-            await websocket.send_text(json.dumps({"type": "tool_call", "name": name}))
-        except Exception as e:
-            logger.error("Failed to send tool_call for %s: %s", name, e, exc_info=True)
-
-        try:
-            result = await _execute_tool(name, args, uid, db, websocket, connection_id=connection_id)
-        except Exception as e:
-            logger.error("Tool call %s failed: %s", name, e)
-            result = {"ok": False, "error": str(e)}
-
-        responses.append(
-            types.LiveClientToolResponse(
-                function_responses=[types.FunctionResponse(name=name, id=fc.id, response=result)]
-            )
-        )
-
-    return responses
-
-
-def _verify_token(token: str) -> str | None:
-    """Verify Firebase ID token and return uid, or None if invalid."""
-    try:
-        from firebase_admin import auth as firebase_auth
-
-        get_firebase_app()
-        decoded = firebase_auth.verify_id_token(token)
-        return decoded.get("uid")
-    except Exception:
-        return None
-
-
-@router.websocket("/ws/chat")
-async def echoprisim_ws(
-    websocket: WebSocket,
-    token: str = Query(...),
-    mode: str = Query(default="voice"),
-    workflow_id: str | None = Query(default=None),
-    run_id: str | None = Query(default=None),
-):
-    """EchoPrism WebSocket — routes to the right backend based on mode.
-
-    mode=voice → Gemini Live API (AUDIO) for EchoPrismVoice modal
-    mode=text  → Standard gemini-3.1-flash-lite-preview chat for EchoPrism Chat page
-
-    Optional workflow_id + run_id: when provided with mode=voice, the model is told
-    there is an active run and can use redirect_run for mid-run voice interrupts.
-    """
-    uid = _verify_token(token)
-    if not uid:
-        await websocket.close(code=4001)
-        return
-
-    await websocket.accept()
-
-    app = get_firebase_app()
-    db = firebase_admin.firestore.client(app)
-
-    api_key = GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        await websocket.send_text(json.dumps({"type": "error", "text": "GEMINI_API_KEY not configured"}))
-        await websocket.close()
-        return
-
-    client = genai.Client(api_key=api_key)
-
-    if mode == "text":
-        await _text_chat_session(websocket, uid, db, client)
-    else:
-        await _voice_live_session(websocket, uid, db, client, workflow_id, run_id)
-
-
-async def _text_chat_session(websocket: WebSocket, uid: str, db, client: genai.Client) -> None:
-    """EchoPrism Chat: standard gemini-3.1-flash-lite-preview multi-turn chat over WebSocket.
-
-    Delegates generate_content to EchoPrism chat_agent; router handles WebSocket and tool execution.
-    """
-    _ensure_agent_path()
-    from echo_prism_agent.composio_integration.chat_session import (
-        clear_chat_session_cache,
-        invalidate_chat_session_if_auth_hint,
-    )
-    from echo_prism_agent.composio_integration.langfuse_tracing import (
-        chat_turn_span,
-        maybe_score_tool_result,
-    )
-
-    connection_id = str(uuid.uuid4())
-
-    from echo_prism_agent.agent import run_chat_turn_via_langgraph
-
-    history: list[types.Content] = []
-
-    try:
-        while True:
-            msg = await websocket.receive()
-            if msg["type"] == "websocket.disconnect":
-                break
-            if msg["type"] != "websocket.receive" or not msg.get("text"):
-                continue
-
-            try:
-                data = json.loads(msg["text"])
-            except Exception:
-                continue
-
-            if data.get("type") != "text":
-                continue
-
-            user_text = data.get("text", "").strip()
-            if not user_text:
-                continue
-
-            history.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
-
-            # Agentic loop: delegate to chat_agent until no more tool calls
-            with chat_turn_span(uid=uid, model=CHAT_MODEL):
-                while True:
-                    text_resp, fn_calls, model_content = await run_chat_turn_via_langgraph(
-                        history,
-                        client,
-                        CHAT_MODEL,
-                        uid,
-                        composio_connection_id=connection_id,
-                    )
-                    if model_content:
-                        history.append(model_content)
-
-                    if fn_calls:
-                        for fc in fn_calls:
-                            try:
-                                await websocket.send_text(json.dumps({"type": "tool_call", "name": fc.name}))
-                            except Exception as e:
-                                # Best-effort progress update; failure should not interrupt the tool execution flow.
-                                logger.warning("Failed to send tool_call update for %s: %s", fc.name, e)
-
-                        tool_parts: list[types.Part] = []
-                        for fc in fn_calls:
-                            args = dict(fc.args) if fc.args else {}
-                            result: dict = {}
-                            t0 = time.perf_counter()
-                            try:
-                                result = await _execute_tool(
-                                    fc.name, args, uid, db, websocket, connection_id=connection_id
-                                )
-                            except Exception as e:
-                                logger.error("Tool %s failed: %s", fc.name, e)
-                                result = {"ok": False, "error": str(e)}
-                            finally:
-                                maybe_score_tool_result(
-                                    tool_name=fc.name,
-                                    ok=bool(result.get("ok")),
-                                    latency_ms=(time.perf_counter() - t0) * 1000.0,
-                                )
-                            if isinstance(result, dict):
-                                invalidate_chat_session_if_auth_hint(uid, connection_id, result)
-                            tool_parts.append(
-                                types.Part(
-                                    function_response=types.FunctionResponse(
-                                        name=fc.name,
-                                        id=getattr(fc, "id", None),
-                                        response=result,
-                                    )
-                                )
-                            )
-                        history.append(types.Content(role="tool", parts=tool_parts))
-                        continue
-
-                    if text_resp:
-                        await websocket.send_text(json.dumps({"type": "text", "text": text_resp}))
-                    break
-
-    except WebSocketDisconnect:
-        logger.info("EchoPrism text chat disconnected uid=%s", uid)
-    except Exception as e:
-        logger.error("EchoPrism text chat error: %s", e)
-        try:
-            await websocket.send_text(json.dumps({"type": "error", "text": str(e)}))
-        except Exception:
-            pass
-    finally:
-        clear_chat_session_cache(uid, connection_id)
-
-
 def _sanitize(value):
     """Recursively convert Firestore-specific types to JSON-safe primitives."""
 
@@ -289,7 +88,7 @@ async def _execute_tool(
     args: dict,
     uid: str,
     db,
-    websocket: WebSocket | None = None,
+    websocket: Any = None,
     *,
     connection_id: str,
 ) -> dict:
@@ -673,60 +472,3 @@ async def _execute_tool(
         return merge_composio_execute_result(out)
 
     return {"ok": False, "error": f"Unknown tool: {name}"}
-
-
-def _voice_system_prompt(workflow_id: str | None, run_id: str | None) -> str:
-    _ensure_agent_path()
-    from echo_prism_agent.utils.tools import SYSTEM_PROMPT
-
-    base = SYSTEM_PROMPT
-    if workflow_id and run_id:
-        base += f"\n\nACTIVE RUN: There is currently an active workflow run (workflow_id={workflow_id}, run_id={run_id}). When the user gives mid-run instructions (e.g. pause, stop, change what to click, do something different), immediately use redirect_run with workflow_id={workflow_id}, run_id={run_id}, and instruction set to the user's exact words."
-    return base
-
-
-async def _voice_live_session(
-    websocket: WebSocket,
-    uid: str,
-    db,
-    client: genai.Client,
-    workflow_id: str | None = None,
-    run_id: str | None = None,
-) -> None:
-    """EchoPrismVoice: Gemini Live API with AUDIO modality. Delegates to `voice.live_session`."""
-    _ensure_agent_path()
-    from echo_prism_agent.voice import LIVE_MODEL_VOICE, run_voice_session
-
-    system_prompt = _voice_system_prompt(workflow_id, run_id)
-    from echo_prism_agent.utils.tools import get_tools as get_genai_tools
-
-    voice_connection_id = str(id(websocket))
-    config = types.LiveConnectConfig(
-        response_modalities=["AUDIO"],
-        output_audio_transcription={},
-        system_instruction=system_prompt,
-        tools=get_genai_tools(uid, composio_connection_id=voice_connection_id),
-    )
-
-    from echo_prism_agent.composio_integration.chat_session import clear_chat_session_cache
-
-    try:
-        await run_voice_session(
-            client,
-            LIVE_MODEL_VOICE,
-            config,
-            websocket,
-            uid,
-            db,
-            _handle_tool_call,
-        )
-    except WebSocketDisconnect:
-        logger.info("EchoPrismVoice disconnected uid=%s", uid)
-    except Exception as e:
-        logger.error("EchoPrismVoice session error: %s", e)
-        try:
-            await websocket.send_text(json.dumps({"type": "error", "text": str(e)}))
-        except Exception:
-            pass
-    finally:
-        clear_chat_session_cache(uid, voice_connection_id)

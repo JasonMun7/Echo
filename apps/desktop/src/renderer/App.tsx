@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { Workflow } from "lucide-react";
 import {
   IconPlayerPlayFilled,
   IconUpload,
@@ -17,7 +18,6 @@ import {
   IconInfoCircle,
   IconSparkles,
   IconPower,
-  IconJumpRope,
   IconRefresh,
 } from "@tabler/icons-react";
 import RecordingHud from "./RecordingHud";
@@ -492,7 +492,7 @@ function MainWindowApp() {
             </p>
             <button
               type="button"
-              className="echo-btn-cyan-lavender"
+              className="echo-btn-primary"
               style={{
                 width: "100%",
                 padding: "0.5rem 1rem",
@@ -600,7 +600,7 @@ function MainWindowApp() {
               </p>
               <button
                 type="button"
-                className="echo-btn-cyan-lavender"
+                className="echo-btn-primary"
                 onClick={signIn}
                 style={{
                   width: "100%",
@@ -928,7 +928,7 @@ function MainWindowApp() {
                       <button
                         type="button"
                         onClick={startRecording}
-                        className="echo-btn-cyan-lavender mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white"
+                        className="echo-btn-primary mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white"
                       >
                         <IconPlayerRecord size={18} />
                         Start Capture
@@ -949,7 +949,7 @@ function MainWindowApp() {
                         </span>
                         <button
                           type="button"
-                          className="echo-btn-cyan-lavender flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="echo-btn-primary flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
                           onClick={uploadAndSynthesize}
                           disabled={!!recordStatus}
                         >
@@ -1100,9 +1100,10 @@ function MainWindowApp() {
                               animation: "run-logs-placeholder-pulse 3s ease-in-out infinite",
                             }}
                           >
-                            <IconJumpRope
-                              size={30}
-                              stroke={1.5}
+                            <Workflow
+                              width={30}
+                              height={30}
+                              strokeWidth={1.5}
                               style={{
                                 color: "var(--echo-lavender)",
                                 opacity: 0.9,

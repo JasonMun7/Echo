@@ -21,7 +21,7 @@ export function LegalPageTemplate({
       <p className="mt-8">
         <Link
           href={backHref}
-          className="text-sm font-medium text-[#A577FF] underline-offset-4 hover:underline"
+          className="text-sm font-medium text-[#0891b2] underline-offset-4 hover:underline"
         >
           {backLabel}
         </Link>

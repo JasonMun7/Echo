@@ -221,6 +221,7 @@ export function EchoPrismLiveKitSession({
             <AgentSessionView_01
               connectingMessage="Connecting..."
               preConnectMessage="EchoPrism is listening. Ask a question or press the chat button to type."
+              autoOpenChatOnUserTurn
               isPreConnectBufferEnabled={true}
               supportsChatInput={true}
               supportsVideoInput={true}

@@ -77,7 +77,7 @@ export function ContactFormGridWithDetails() {
                 type="text"
                 placeholder="Your name"
                 variant="plain"
-                className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+                className="h-10 w-full rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#21C4DD]/40"
               />
             </div>
             <div className="w-full">
@@ -89,7 +89,7 @@ export function ContactFormGridWithDetails() {
                 type="email"
                 placeholder="you@example.com"
                 variant="plain"
-                className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+                className="h-10 w-full rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#21C4DD]/40"
               />
             </div>
             <div className="w-full">
@@ -101,7 +101,7 @@ export function ContactFormGridWithDetails() {
                 type="text"
                 placeholder="Your company"
                 variant="plain"
-                className="h-10 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+                className="h-10 w-full rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] pl-4 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#21C4DD]/40"
               />
             </div>
             <div className="w-full">
@@ -112,7 +112,7 @@ export function ContactFormGridWithDetails() {
                 id="message"
                 rows={5}
                 placeholder="Type your message here"
-                className="min-h-24 w-full rounded-lg border border-[#A577FF]/20 bg-[#F5F7FC] px-4 py-3 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#A577FF]/40"
+                className="min-h-24 w-full rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] px-4 py-3 text-sm text-[#150A35] placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#21C4DD]/40"
               />
             </div>
             <StatefulButton

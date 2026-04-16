@@ -145,3 +145,6 @@ export interface OperatorAction {
   arguments?: unknown;
   [key: string]: unknown;
 }
+
+export type { FlowGraph, FlowGraphEdge, FlowGraphNode } from "./flow-graph";
+export { orderStepsByFlowGraph } from "./flow-graph";

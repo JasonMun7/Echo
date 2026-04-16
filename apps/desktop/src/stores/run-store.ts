@@ -57,6 +57,7 @@ interface RunState {
     workflowId: string;
     steps: Array<Record<string, unknown>>;
     workflowType: string;
+    flowGraph?: Record<string, unknown> | null;
   }) => Promise<void>;
   handleRunStarted: (arg: {
     workflowId: string;
@@ -190,6 +191,11 @@ export const useRunStore = create<RunState>((set, get) => ({
         token,
       });
 
+      const wf = useWorkflowsStore.getState().workflow;
+      const flowGraph =
+        wf && typeof wf === "object" && "flow_graph" in wf
+          ? (wf as { flow_graph?: Record<string, unknown> | null }).flow_graph
+          : null;
       const result = await window.electronAPI?.runWorkflowLocal?.({
         steps,
         sourceId,
@@ -197,6 +203,7 @@ export const useRunStore = create<RunState>((set, get) => ({
         workflowId: selectedWorkflowId,
         runId,
         token,
+        flowGraph,
       });
       window.electronAPI?.removeRunProgressListener?.();
       window.electronAPI?.removeRunThinkingDeltaListener?.();
@@ -284,6 +291,7 @@ export const useRunStore = create<RunState>((set, get) => ({
         workflowId: args.workflowId,
         runId,
         token,
+        flowGraph: args.flowGraph,
       });
       window.electronAPI?.removeRunProgressListener?.();
       window.electronAPI?.removeRunThinkingDeltaListener?.();
@@ -437,6 +445,10 @@ export const useRunStore = create<RunState>((set, get) => ({
         workflowId: arg.workflowId,
         runId: arg.runId,
         token,
+        flowGraph:
+          workflow && typeof workflow === "object" && "flow_graph" in workflow
+            ? (workflow as { flow_graph?: Record<string, unknown> | null }).flow_graph
+            : null,
       });
       window.electronAPI?.removeRunProgressListener?.();
       window.electronAPI?.removeRunThinkingDeltaListener?.();

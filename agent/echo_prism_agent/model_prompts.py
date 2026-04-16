@@ -637,10 +637,24 @@ OUTPUT FORMAT (JSON only, no markdown fences)
       "action": "<action_type>",
       "context": "<why this step serves the goal>",
       "params": { },
-      "expected_outcome": "<visible change after success>"
+      "expected_outcome": "<visible change after success>",
+      "frame_image_url": "<optional — https URL, gs://…/blob, or relative filename under the upload prefix when STORAGE note is given>",
+      "click_overlay": { },
+      "context_attachments": [
+        {
+          "id": "<stable id>",
+          "kind": "image" | "video" | "file",
+          "name": "<short label>",
+          "url": "<https URL, gs://… path, or relative file under STORAGE prefix — e.g. image_0.png>",
+          "mime": "<optional>",
+          "ref_label": "c1"
+        }
+      ]
     }
   ]
 }
+
+When you set `frame_image_url` for a step still, the system also copies that frame into `context_attachments` and adds `{{c1}}`-style tokens for the editor — you may still emit `context_attachments` + `{{cN}}` in `context` for extra stills beyond the main frame.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BROWSER — params shapes (no coordinates)
@@ -658,11 +672,15 @@ BROWSER — params shapes (no coordinates)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DESKTOP — params shapes (no coordinates)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- click_at, right_click, double_click: { "description": "..." }
+- click_at, right_click, double_click: { "description": "..." } — **in-app** targets only; not dock/taskbar icon clicks when `open_app`/`focus_app` applies.
 - type_text_at: { "text": "...", "description": "..." }
 - scroll: { "direction", "distance", "description" }
 - hotkey: { "keys": ["cmd","c"], "description" }
-- press_key, drag, wait, open_app, focus_app: as before without x/y
+- press_key, drag, wait: as before without x/y
+- open_app: { "app": "<display name>", "brand_domain": "<registered domain e.g. spotify.com>" } — **launch** from cold start; prefer over `click_at` on dock/taskbar/menu when that matches the recording.
+- focus_app: same shape as open_app — bring an already-running app forward; prefer over `click_at` on the app icon when switching apps is the only goal.
+
+**Desktop — app launch / focus:** Do not use `click_at` solely to foreground a native app if `open_app` or `focus_app` can do it. Do not chain `focus_app` + `click_at` when `click_at` only repeats bringing the same app forward.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULES
@@ -673,7 +691,7 @@ RULES
 4. {{snake_case}} variables only where the user must supply a value at run time.
 5. Deduplicate consecutive identical steps.
 6. wait_for_element after navigations/modals that load content.
-7. **Text entry**: If the user types into a field (name, search, message body), include a `type_text_at` step with `params.text` (literal or {{var}}), typically after a `click_at` that focuses the field and before `press_key` if they submit. Do not represent typing as only `click_at` + `press_key` — the runtime VLM cannot infer hidden strings from pixels alone.
+7. **Text entry**: If the user types into a field (name, search, message body), include a `type_text_at` step with `params.text` (literal or {{var}}), typically after a `click_at` on **that specific input or control inside the app** (not after clicking the app icon) and before `press_key` if they submit. Do not represent typing as only `click_at` + `press_key` — the runtime VLM cannot infer hidden strings from pixels alone.
 8. OUTPUT: valid JSON only."""
     )
     + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSUPPORTED api_call (Composio)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -691,16 +709,25 @@ STEP 0 — If Slack, GitHub, or Google APIs fit the task, prefer `api_call` with
 
 For UI steps use: navigate | click_at | type_text_at | scroll | wait | wait_for_element | press_key | select_option | hover | right_click | double_click | drag | hotkey | open_app | focus_app | api_call
 
-- params use description + text/value/url/direction/distance/keys/appName as needed — never x, y.
+- params use description + text/value/url/direction/distance/keys plus for open_app/focus_app: `app` and `brand_domain` (e.g. spotify.com) — never x, y.
+- **Desktop:** Prefer `open_app` / `focus_app` over `click_at` on dock, taskbar, or Start menu when the goal is to launch or switch to a native app. Do not use `click_at` only to foreground an app that `open_app`/`focus_app` can open. Do not chain redundant `focus_app` + `click_at` for the same app-switch intent.
 
 Output ONLY valid JSON:
 {
   "title": "short workflow title",
   "workflow_type": "browser" | "desktop",
   "steps": [
-    { "action": "...", "context": "...", "params": {}, "expected_outcome": "<visible result when validation matters>" }
+    {
+      "action": "...",
+      "context": "...",
+      "params": {},
+      "expected_outcome": "<visible result when validation matters>",
+      "context_attachments": [ { "id": "…", "kind": "image", "name": "…", "url": "https://…" } ]
+    }
   ]
 }
+
+Optional per-step `context_attachments` (rare for text-only): only when useful; use real https URLs if including files.
 
 Include expected_outcome on steps where checking success matters; omit or keep minimal for trivial steps.
 
@@ -721,6 +748,7 @@ FRAME_SINGLE_STEP_SYSTEM = (
 
 FRAME_SINGLE_STEP_USER = """Frame {idx}/{total}. Describe the single clearest user action in this frame.
 If the user is entering text (cursor in a field, visible characters changing), use action "type_text_at" with params.text set to the literal text (or {{var}}), not only click_at.
+For desktop, if the user is clearly launching or switching to an app via dock/taskbar, prefer "open_app" or "focus_app" with params.app and params.brand_domain over "click_at" on the icon.
 Output ONLY valid JSON:
 {{
   "workflow_type": "browser" | "desktop",

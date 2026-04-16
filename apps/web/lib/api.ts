@@ -6,19 +6,19 @@ export const MAIN_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost
 
 const API_URL = MAIN_API_URL;
 
-/** Echo Prism agent (chat `/ws/chat`, voice, synthesis). Not the same process as the main API (:8000). */
+/** Echo Prism agent (LiveKit voice/chat, synthesis, `/api/agent/*`). Not the same process as the main API (:8000). */
 function resolveAgentUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_ECHO_AGENT_URL?.trim();
   if (explicit) {
     if (process.env.NODE_ENV === "development" && /:(8000|8081)\b/.test(explicit)) {
       console.warn(
-        "[Echo] NEXT_PUBLIC_ECHO_AGENT_URL is %s — chat/voice WebSockets use the Echo Prism agent. Run `pnpm dev:agent` (default :8083) and set this to http://127.0.0.1:8083 or remove it for the dev default.",
+        "[Echo] NEXT_PUBLIC_ECHO_AGENT_URL is %s — EchoPrism (LiveKit + synthesis) uses the agent service. Run `pnpm dev:agent` (default :8083) and set this to http://127.0.0.1:8083 or remove it for the dev default.",
         explicit,
       );
     }
     return explicit;
   }
-  // `next dev`: WebSocket chat must hit the agent service (`pnpm dev:agent`, default :8083), not the backend.
+  // `next dev`: EchoPrism must hit the agent service (`pnpm dev:agent`, default :8083), not the backend.
   if (process.env.NODE_ENV === "development") {
     return "http://127.0.0.1:8083";
   }

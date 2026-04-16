@@ -1,14 +1,14 @@
 "use client";
 import { cn } from "@/lib/utils";
 import React from "react";
-import { motion, useAnimate } from "motion/react";
+import { motion, AnimatePresence, useAnimate } from "motion/react";
 
-interface StatefulButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   children: React.ReactNode;
 }
 
-export const StatefulButton = ({ className, children, ...props }: StatefulButtonProps) => {
+export const Button = ({ className, children, ...props }: ButtonProps) => {
   const [scope, animate] = useAnimate();
 
   const animateLoading = async () => {
@@ -70,20 +70,14 @@ export const StatefulButton = ({ className, children, ...props }: StatefulButton
   };
 
   const {
-    onClick: _stripOnClick,
-    onDrag: _stripOnDrag,
-    onDragStart: _stripOnDragStart,
-    onDragEnd: _stripOnDragEnd,
-    onAnimationStart: _stripAnimStart,
-    onAnimationEnd: _stripAnimEnd,
+    onClick,
+    onDrag,
+    onDragStart,
+    onDragEnd,
+    onAnimationStart,
+    onAnimationEnd,
     ...buttonProps
   } = props;
-  void _stripOnClick;
-  void _stripOnDrag;
-  void _stripOnDragStart;
-  void _stripOnDragEnd;
-  void _stripAnimStart;
-  void _stripAnimEnd;
 
   return (
     <motion.button
@@ -91,7 +85,7 @@ export const StatefulButton = ({ className, children, ...props }: StatefulButton
       layoutId="button"
       ref={scope}
       className={cn(
-        "echo-btn-primary flex min-w-[120px] cursor-pointer items-center justify-center gap-2 rounded-lg px-5 py-2.5 font-medium text-white ring-2 ring-transparent ring-offset-2 ring-offset-[#F5F7FC] transition duration-200 hover:ring-[#A577FF]/40 dark:ring-offset-[#150A35]",
+        "flex min-w-[120px] cursor-pointer items-center justify-center gap-2 rounded-full bg-green-500 px-4 py-2 font-medium text-white ring-offset-2 transition duration-200 hover:ring-2 hover:ring-green-500 dark:ring-offset-black",
         className,
       )}
       {...buttonProps}
@@ -135,7 +129,7 @@ const Loader = () => {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="loader text-white shrink-0"
+      className="loader text-white"
     >
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3a9 9 0 1 0 9 9" />
@@ -164,7 +158,7 @@ const CheckIcon = () => {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="check text-white shrink-0"
+      className="check text-white"
     >
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
@@ -172,3 +166,5 @@ const CheckIcon = () => {
     </motion.svg>
   );
 };
+
+export { Button as StatefulButton };

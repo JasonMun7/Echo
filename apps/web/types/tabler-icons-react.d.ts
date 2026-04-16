@@ -80,6 +80,7 @@ declare module "@tabler/icons-react" {
   export const IconMicrophone: TablerIcon;
   export const IconMicrophoneOff: TablerIcon;
   export const IconPackage: TablerIcon;
+  export const IconPaperclip: TablerIcon;
   export const IconPencil: TablerIcon;
   export const IconPhone: TablerIcon;
   export const IconPhoto: TablerIcon;
@@ -96,6 +97,7 @@ declare module "@tabler/icons-react" {
   export const IconSearch: TablerIcon;
   export const IconSend: TablerIcon;
   export const IconSettings: TablerIcon;
+  export const IconShare: TablerIcon;
   export const IconShare3: TablerIcon;
   export const IconSparkles: TablerIcon;
   export const IconSparkles2: TablerIcon;

@@ -113,7 +113,7 @@ function FeatureItem({ children }: { children: React.ReactNode }) {
 function BeamCircle() {
   return (
     <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-neutral-200">
-      <div className="h-2 w-2 rounded-full bg-[#A577FF]" />
+      <div className="h-2 w-2 rounded-full bg-[#150A35]" />
     </div>
   );
 }

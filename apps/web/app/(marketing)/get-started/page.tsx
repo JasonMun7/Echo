@@ -17,7 +17,7 @@ export default function GetStartedPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-[#A577FF]"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
           >
             <IconArrowLeft className="size-4" />
             Back

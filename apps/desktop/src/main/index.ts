@@ -11,7 +11,7 @@ import {
   type DesktopCapturerSource,
 } from "electron";
 import { createServer } from "http";
-import type { Step, WorkflowType } from "@echo/types";
+import type { FlowGraph, Step, WorkflowType } from "@echo/types";
 import {
   runWorkflowRemote,
   runGoalOnlyRemote,
@@ -1047,6 +1047,7 @@ ipcMain.handle(
       token?: string;
       variableValues?: Record<string, string>;
       typingOverride?: string;
+      flowGraph?: Record<string, unknown> | null;
     },
   ) => {
     const {
@@ -1058,6 +1059,7 @@ ipcMain.handle(
       token,
       variableValues,
       typingOverride,
+      flowGraph,
     } = args;
     if (!steps?.length || !sourceId) {
       return { success: false, error: "steps and sourceId required" };
@@ -1094,6 +1096,7 @@ ipcMain.handle(
       token,
       variableValues,
       typingOverride,
+      flowGraph: flowGraph as FlowGraph | null | undefined,
       backendUrl: base,
       agentWsUrl: agentUrl,
       ...hitlIpc,

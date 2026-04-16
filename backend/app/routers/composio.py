@@ -260,3 +260,143 @@ async def composio_connection_status(uid: str = Depends(get_current_uid)):
     except Exception as e:
         logger.exception("composio connection-status failed: %s", e)
         raise HTTPException(status_code=502, detail="Upstream service error") from e
+
+
+# Echo workflow editor app groups → Composio toolkit slug(s). Aligns with ``composio-app-groups`` / integrations.
+_COMPOSIO_TOOLKITS_BY_APP_GROUP: dict[str, list[str]] = {
+    "slack": ["slack"],
+    "gmail": ["gmail"],
+    "github": ["github"],
+    # Google OAuth in Echo uses Composio googlecalendar for catalog; Drive is a separate toolkit.
+    "google": ["googlecalendar", "googledrive"],
+}
+
+
+def _serialize_tool_item(item: object) -> dict:
+    """Map Composio tool list item to JSON for the workflow editor."""
+    slug = str(getattr(item, "slug", "") or "")
+    name = str(getattr(item, "name", "") or slug)
+    human = getattr(item, "human_description", None)
+    desc = str(human or getattr(item, "description", "") or "")
+    tk = getattr(item, "toolkit", None)
+    toolkit_slug = str(getattr(tk, "slug", "") or "").lower() if tk else ""
+    scopes = getattr(item, "scopes", None) or []
+    scope_list = [str(s) for s in scopes] if isinstance(scopes, (list, tuple)) else []
+    return {
+        "slug": slug,
+        "name": name,
+        "description": desc.strip(),
+        "toolkit_slug": toolkit_slug,
+        "scopes": scope_list,
+    }
+
+
+@router.get("/toolkit-tools")
+async def composio_toolkit_tools(
+    app_group: str = Query(
+        ...,
+        description="Workflow editor bucket: slack | gmail | github | google",
+    ),
+    uid: str = Depends(get_current_uid),
+):
+    """
+    List Composio tools for the toolkit(s) behind an Echo app group (full catalog from Composio, not the short static list).
+
+    Used by the workflow ``api_call`` step editor so users can pick any tool after OAuth.
+    """
+    _ = uid
+    key = (os.getenv("COMPOSIO_API_KEY") or "").strip()
+    if not key:
+        raise HTTPException(status_code=503, detail="COMPOSIO_API_KEY not configured on API server")
+
+    g = app_group.strip().lower()
+    if g not in _COMPOSIO_TOOLKITS_BY_APP_GROUP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid app_group: {app_group}. Expected one of: {', '.join(sorted(_COMPOSIO_TOOLKITS_BY_APP_GROUP))}.",
+        )
+    toolkits = _COMPOSIO_TOOLKITS_BY_APP_GROUP[g]
+    toolkit_param = ",".join(toolkits)
+
+    try:
+        from composio import Composio
+
+        c = Composio(api_key=key)
+        merged: dict[str, dict] = {}
+        cursor: str | None = None
+        while True:
+            resp = c.client.tools.list(
+                toolkit_slug=toolkit_param,
+                limit=500,
+                cursor=cursor,
+            )
+            for item in resp.items:
+                row = _serialize_tool_item(item)
+                s = row["slug"]
+                if s and s not in merged:
+                    merged[s] = row
+            cursor = getattr(resp, "next_cursor", None) or None
+            if not cursor:
+                break
+            if len(merged) >= 4000:
+                logger.warning("composio toolkit-tools: hit merge cap for app_group=%s", g)
+                break
+
+        tools = sorted(merged.values(), key=lambda x: (x["name"].lower(), x["slug"]))
+        return {"app_group": g, "toolkits": toolkits, "tools": tools, "composio_configured": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("composio toolkit-tools failed app_group=%s: %s", g, e)
+        raise HTTPException(status_code=502, detail="Upstream service error") from e
+
+
+@router.get("/tool-schema")
+async def composio_tool_schema(
+    slug: str = Query(..., min_length=1, description="Composio tool slug, e.g. GMAIL_SEND_EMAIL"),
+    uid: str = Depends(get_current_uid),
+):
+    """Return input parameter JSON Schema for a tool (for form-based arguments in the workflow editor)."""
+    _ = uid
+    key = (os.getenv("COMPOSIO_API_KEY") or "").strip()
+    if not key:
+        raise HTTPException(status_code=503, detail="COMPOSIO_API_KEY not configured on API server")
+
+    s = slug.strip()
+    if not s:
+        raise HTTPException(status_code=400, detail="slug is required")
+
+    try:
+        from composio import Composio
+
+        c = Composio(api_key=key)
+        try:
+            tool = c.tools.get_raw_composio_tool_by_slug(s)
+        except Exception as e:
+            err = str(e).lower()
+            if "404" in err or "not found" in err:
+                raise HTTPException(status_code=404, detail=f"Unknown tool: {s}") from e
+            logger.exception("composio tool-schema retrieve failed slug=%s", s)
+            raise HTTPException(status_code=502, detail="Upstream service error") from e
+
+        tk = getattr(tool, "toolkit", None)
+        toolkit_slug = str(getattr(tk, "slug", "") or "").lower() if tk else ""
+        human = getattr(tool, "human_description", None)
+        desc = str(human or getattr(tool, "description", "") or "").strip()
+        params = getattr(tool, "input_parameters", None)
+        if not isinstance(params, dict):
+            params = {}
+
+        return {
+            "slug": str(getattr(tool, "slug", "") or s),
+            "name": str(getattr(tool, "name", "") or s),
+            "description": desc,
+            "toolkit_slug": toolkit_slug,
+            "input_parameters": params,
+            "composio_configured": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("composio tool-schema failed slug=%s: %s", s, e)
+        raise HTTPException(status_code=502, detail="Upstream service error") from e

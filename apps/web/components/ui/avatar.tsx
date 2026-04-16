@@ -25,11 +25,17 @@ function Avatar({
   );
 }
 
-function AvatarImage({ className, ...props }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
+function AvatarImage({
+  className,
+  /** Google and other OAuth CDNs often block hotlinked avatars unless Referer is omitted. */
+  referrerPolicy = "no-referrer",
+  ...props
+}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
+      referrerPolicy={referrerPolicy}
       {...props}
     />
   );

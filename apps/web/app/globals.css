@@ -9,7 +9,8 @@
 @theme inline {
   --color-echo-cetacean: #150a35;
   --color-echo-lavender: #a577ff;
-  --color-echo-ghost: #f5f7fc;
+  /* Page canvas (deemphasized); keep in sync with :root --background */
+  --color-echo-ghost: #eef2fa;
   --color-echo-lavender-80: rgba(165, 119, 255, 0.8);
   --color-echo-lavender-60: rgba(165, 119, 255, 0.6);
   --color-echo-lavender-40: rgba(165, 119, 255, 0.4);
@@ -22,7 +23,8 @@
   --color-echo-text-muted: #6b7280;
   --color-echo-cyan: #21c4dd;
   --color-echo-border: rgba(165, 119, 255, 0.2);
-  --color-echo-surface: #f5f7fc;
+  /* Emphasized surface (cards, panels); keep in sync with :root --card */
+  --color-echo-surface: #ffffff;
   --shadow-echo-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --radius-echo: 0.5rem;
   --radius-echo-lg: 0.75rem;
@@ -69,9 +71,16 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/*
+ * Hierarchy: --background = deemphasized page canvas (recedes).
+ * --card, --popover = emphasized surfaces (lifted above canvas).
+ * Dashboard app rail uses the canvas (see `.echo-sidebar-inset`); main column uses --card.
+ * --sidebar tokens remain for shadcn compatibility; prefer canvas/muted nav on the rail.
+ */
 :root {
   --radius: var(--radius-echo);
-  --background: #f5f7fc;
+  /* Canvas: deemphasized (lighter than before; surfaces still read above) */
+  --background: #eef2fa;
   --foreground: #150a35;
   --card: #ffffff;
   --card-foreground: #1f2937;
@@ -79,63 +88,86 @@
   --popover-foreground: #1f2937;
   --primary: #a577ff;
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f6;
+  --secondary: #e8ecf4;
   --secondary-foreground: #1f2937;
-  --muted: #f9fafb;
-  --muted-foreground: #6b7280;
-  --accent: #eff6ff;
-  --accent-foreground: #1d4ed8;
+  /* Muted fills sit between canvas and card */
+  --muted: #eef1f7;
+  --muted-foreground: #64748b;
+  --accent: #e8f0ff;
+  --accent-foreground: #1f2937;
   --destructive: #ef4444;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #a577ff;
+  --border: #c5d0e5;
+  --input: #c5d0e5;
+  /* Neutral focus ring (not brand lavender) — see DESIGN_SYSTEM §4 */
+  --ring: oklch(0.55 0.02 265);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: #ffffff;
+  --sidebar: #fafcff;
   --sidebar-foreground: #1f2937;
   --sidebar-primary: #a577ff;
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-accent: #eef1f7;
+  --sidebar-accent-foreground: #1f2937;
+  --sidebar-border: #c5d0e5;
   --sidebar-ring: oklch(0.708 0 0);
+  /* Cyan → Lavender ring for GradientIconWell / GradientIconTag — adapts in `.dark` */
+  --echo-icon-well-from: #21c4dd;
+  --echo-icon-well-to: #a577ff;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* Deeper canvas so elevated surfaces separate clearly */
+  --background: oklch(0.098 0.016 285);
+  --foreground: oklch(0.97 0.008 285);
+  --card: oklch(0.242 0.024 285);
+  --card-foreground: oklch(0.97 0.008 285);
+  --popover: oklch(0.242 0.024 285);
+  --popover-foreground: oklch(0.97 0.008 285);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.295 0.028 285);
+  --secondary-foreground: oklch(0.97 0.008 285);
+  --muted: oklch(0.195 0.02 285);
+  --muted-foreground: oklch(0.68 0.02 285);
+  --accent: oklch(0.3 0.03 285);
+  --accent-foreground: oklch(0.97 0.008 285);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  /* Slightly brighter than card so the rail reads as primary chrome */
+  --sidebar: oklch(0.258 0.026 285);
+  --sidebar-foreground: oklch(0.97 0.008 285);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-accent: oklch(0.32 0.03 285);
+  --sidebar-accent-foreground: oklch(0.97 0.008 285);
+  --sidebar-border: oklch(1 0 0 / 12%);
   --sidebar-ring: oklch(0.556 0 0);
+  /* Keep Tailwind echo-* colors aligned with canvas / card in dark mode */
+  --color-echo-ghost: oklch(0.098 0.016 285);
+  --color-echo-surface: oklch(0.242 0.024 285);
+  /* Brighter ring stops so the gradient reads on dark surfaces */
+  --echo-icon-well-from: oklch(0.78 0.12 215);
+  --echo-icon-well-to: oklch(0.74 0.17 300);
+  /* Legacy marketing tokens — align with theme so `text-echo-text*` is never dark-on-dark */
+  --color-echo-text: var(--foreground);
+  --color-echo-text-muted: var(--muted-foreground);
+}
+
+/* Theme toggle: document.startViewTransition — root cross-fade */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @layer base {
@@ -160,7 +192,7 @@
 
 @layer utilities {
   .echo-card {
-    @apply rounded-lg border border-[#A577FF]/20 bg-white shadow-sm;
+    @apply rounded-lg border border-border bg-card text-card-foreground shadow-lg shadow-black/[0.08] dark:shadow-black/45;
   }
 
   .echo-run-haze {
@@ -188,14 +220,26 @@
       opacity: 1;
     }
   }
-  .echo-btn-primary {
-    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#A577FF] to-[#150A35] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
+  /*
+   * Gradient CTAs — single project standard: Cyan → Lavender (matches add-step / capture buttons).
+   * Aliases exist for legacy class names; all render identically. Prefer .echo-btn-primary in new code.
+   */
+  .echo-btn-primary,
+  .echo-btn-gradient,
+  .echo-btn-cyan-lavender,
+  .echo-btn-cyan-cetacean,
+  .echo-btn-primary-to-secondary {
+    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-5 py-2.5 font-medium text-white shadow-sm transition-[filter,transform] duration-200 hover:brightness-110 active:brightness-95 active:scale-[0.99];
   }
   .echo-btn-secondary {
-    @apply cursor-pointer rounded-lg border border-[#A577FF]/40 bg-[#F5F7FC] px-5 py-2.5 font-medium text-[#150A35] transition-colors hover:bg-[#A577FF]/10;
+    @apply cursor-pointer rounded-lg border border-border bg-card px-5 py-2.5 font-medium text-foreground transition-colors hover:bg-muted dark:text-foreground;
   }
-  .echo-btn-gradient {
-    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#A577FF] to-[#150A35] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
+  /** Same gradient as buttons — avatars, icon wells, orbs (not for text links). */
+  .echo-fill-cta-gradient {
+    @apply bg-linear-to-r from-[#21C4DD] to-[#A577FF];
+  }
+  .echo-fill-cta-gradient-br {
+    @apply bg-linear-to-br from-[#21C4DD] to-[#A577FF];
   }
   .echo-gradient-dark {
     background: linear-gradient(to right, #150a35, #2d1b69);
@@ -212,9 +256,12 @@
   .echo-gradient-sidebar-secondary {
     background: linear-gradient(to bottom, #150a35, #21c4dd);
   }
+  /* Dashboard sidebar rail — same plane as page canvas (deemphasized vs main column card) */
   .echo-sidebar-inset {
-    background: #2d2d2d;
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: var(--background);
+    color: var(--foreground);
+    border-right: none;
+    box-shadow: none;
   }
   .echo-gradient-cyan-lavender {
     background: linear-gradient(to right, #21c4dd, #a577ff);
@@ -223,39 +270,89 @@
     @apply bg-white/12 backdrop-blur-md border border-white/20;
   }
   .echo-glass-dark {
-    @apply bg-[#150A35]/8 backdrop-blur-md border border-[#A577FF]/15;
+    @apply bg-[#150A35]/8 backdrop-blur-md border border-border/40;
   }
   .echo-glass-card {
-    @apply rounded-lg border border-[#A577FF]/15 bg-[#150A35]/8 backdrop-blur-md shadow-sm;
+    @apply rounded-lg border border-border/50 bg-[#150A35]/8 backdrop-blur-md shadow-sm;
   }
   .echo-btn-secondary-accent {
-    @apply cursor-pointer rounded-lg border border-[#21C4DD]/40 bg-[#F5F7FC] px-5 py-2.5 font-medium text-[#21C4DD] transition-colors hover:bg-[#21C4DD]/10;
-  }
-  /* Primary to secondary gradient (Cetacean Blue → Cyan); use for secondary CTAs per design system */
-  .echo-btn-primary-to-secondary {
-    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#150A35] to-[#21C4DD] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
-  }
-  .echo-btn-cyan-lavender {
-    @apply cursor-pointer rounded-lg bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-95;
+    @apply cursor-pointer rounded-lg border border-border bg-card px-5 py-2.5 font-medium text-foreground transition-colors hover:bg-muted;
   }
   .echo-btn-danger {
     @apply cursor-pointer rounded-lg border border-echo-error/40 px-5 py-2.5 font-medium text-echo-error transition-colors hover:bg-echo-error/10;
   }
-  /* Dropdown menu item — Cyan→Lavender gradient highlight + scale on hover/focus */
+  /* Dropdown menu item — flat highlight (no gradient, no scale).
+     Use plain CSS so this wins over shadcn/tailwind.css or other layers that set gradients. */
   .echo-dropdown-item {
-    @apply transition-all duration-200 ease-out origin-left;
+    transition:
+      background-color 0.15s ease-out,
+      color 0.15s ease-out;
   }
-  .echo-dropdown-item[data-highlighted],
-  .echo-dropdown-item:focus,
-  .echo-dropdown-item[data-state="open"] {
-    background: linear-gradient(to right, rgba(33, 196, 221, 0.15), rgba(165, 119, 255, 0.2));
-    transform: scale(1.02);
+  .echo-dropdown-item[data-highlighted]:not([data-variant="destructive"]),
+  .echo-dropdown-item:focus-visible:not([data-variant="destructive"]),
+  .echo-dropdown-item[data-state="open"]:not([data-variant="destructive"]) {
+    background-color: var(--muted) !important;
+    background-image: none !important;
   }
+  .echo-dropdown-item[data-variant="destructive"][data-highlighted],
+  .echo-dropdown-item[data-variant="destructive"]:focus-visible {
+    background-image: none !important;
+  }
+
+  /* Dashboard sidebar + settings modal rail — same flat highlight timing as dropdown rows */
+  .echo-sidebar-nav-item {
+    transition:
+      background-color 0.15s ease-out,
+      color 0.15s ease-out;
+  }
+  .echo-sidebar-nav-item:hover:not(:disabled),
+  .echo-sidebar-nav-item:focus-visible {
+    background-color: var(--muted) !important;
+    background-image: none !important;
+  }
+
+  /* Same flat hover for Radix menu slots (covers any theme layer that adds gradients) */
+  [data-slot="dropdown-menu-item"][data-highlighted]:not([data-variant="destructive"]),
+  [data-slot="dropdown-menu-checkbox-item"][data-highlighted],
+  [data-slot="dropdown-menu-radio-item"][data-highlighted],
+  [data-slot="dropdown-menu-sub-trigger"][data-highlighted],
+  [data-slot="dropdown-menu-sub-trigger"][data-state="open"] {
+    background-color: var(--muted) !important;
+    background-image: none !important;
+  }
+  [data-slot="dropdown-menu-item"][data-variant="destructive"][data-highlighted],
+  [data-slot="dropdown-menu-item"][data-variant="destructive"]:focus-visible {
+    background-image: none !important;
+  }
+
+  /* Runs table (workflow detail): visible scrollbars — macOS overlay + Windows gutter */
+  .echo-runs-table-scroll {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.55 0.02 265 / 0.45) var(--background);
+  }
+  .echo-runs-table-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .echo-runs-table-scroll::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 6px;
+  }
+  .echo-runs-table-scroll::-webkit-scrollbar-thumb {
+    background: oklch(0.55 0.02 265 / 0.4);
+    border-radius: 6px;
+    border: 2px solid #f5f7fc;
+  }
+  .echo-runs-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.5 0.02 265 / 0.55);
+  }
+
   /* Gradient icon for primary actions (Cyan → Lavender) */
   .echo-icon-gradient {
     stroke: url(#echoIconGradient);
   }
-  /* Flashing indicator for latest workflow */
+  /* Pulse opacity — paired with Cyan→Lavender fills (latest-workflow dot, speaking mic) */
   @keyframes echo-indicator-flash {
     0%,
     100% {
@@ -265,8 +362,31 @@
       opacity: 0.45;
     }
   }
+  /* Plain class (not a Tailwind @apply target) — use in JSX as `animate-echo-indicator-flash` */
   .animate-echo-indicator-flash {
     animation: echo-indicator-flash 1.5s ease-in-out infinite;
+  }
+  /** Latest-workflow flash dot — same gradient as `.echo-btn-primary` */
+  .echo-indicator-flash-dot {
+    @apply h-4 w-4 cursor-default rounded-full bg-linear-to-br from-[#21C4DD] to-[#A577FF] ring-2 ring-white shadow-sm;
+    animation: echo-indicator-flash 1.5s ease-in-out infinite;
+  }
+
+  /* Dictation / listening: staggered bars (scale from bottom) */
+  @keyframes echo-dictation-bar {
+    0%,
+    100% {
+      transform: scaleY(0.2);
+      opacity: 0.35;
+    }
+    50% {
+      transform: scaleY(1);
+      opacity: 1;
+    }
+  }
+  .animate-echo-dictation-bar {
+    animation: echo-dictation-bar 0.65s ease-in-out infinite;
+    transform-origin: bottom center;
   }
 
   /* Skeleton shimmer: primary (Lavender) → secondary (Cyan) per design system */
@@ -289,5 +409,26 @@
     );
     background-size: 200% 100%;
     animation: echo-skeleton-shimmer 1.8s ease-in-out infinite;
+  }
+
+  /* Keep dragged step above siblings while reordering (RF applies .dragging while pointer moves). */
+  .echo-flow-canvas-host .react-flow__node.dragging {
+    z-index: 100 !important;
+  }
+
+  .echo-flow-canvas-host--reordering {
+    box-shadow: inset 0 0 0 2px rgba(167, 139, 250, 0.42);
+    border-radius: 0.75rem;
+  }
+
+  /* Remote reorder: real nodes stay on saved positions; ghosts show target order — dim the stack slightly. */
+  .echo-flow-canvas-host--remote-reorder-ghost .react-flow__node {
+    opacity: 0.4;
+    transition: opacity 0.18s ease;
+  }
+
+  .echo-flow-canvas-host--remote-reorder-ghost .react-flow__edge {
+    opacity: 0.38;
+    transition: opacity 0.18s ease;
   }
 }

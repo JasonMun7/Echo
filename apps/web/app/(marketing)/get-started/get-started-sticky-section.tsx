@@ -24,16 +24,16 @@ const steps: StickyScrollItem[] = [
     description:
       "Get the app for Mac or Windows. Choose your platform and download the installer—one click and you're ready.",
     content: (
-      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white p-8 shadow-sm md:p-12">
+      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl border border-[#150A35]/12 bg-white p-8 shadow-sm md:p-12">
         <div className="flex flex-col items-center gap-8">
-          <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-2 border-[#A577FF]/40 bg-[#A577FF]/10">
-            <IconDownload className="h-16 w-16 text-[#A577FF]" />
+          <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-2 border-[#150A35]/20 bg-[#150A35]/06">
+            <IconDownload className="h-16 w-16 text-[#0891b2]" />
           </div>
           <div className="flex w-full max-w-md flex-col gap-4 sm:flex-row sm:gap-6">
             {MAC_URL ? (
               <Button
                 asChild
-                className="echo-btn-cyan-lavender h-14 flex-1 gap-3 text-base font-semibold"
+                className="echo-btn-primary h-14 flex-1 gap-3 text-base font-semibold"
               >
                 <a href={MAC_URL} target="_blank" rel="noopener noreferrer">
                   <IconBrandApple className="h-6 w-6" />
@@ -53,7 +53,7 @@ const steps: StickyScrollItem[] = [
             {WIN_URL ? (
               <Button
                 asChild
-                className="echo-btn-cyan-lavender h-14 flex-1 gap-3 text-base font-semibold"
+                className="echo-btn-primary h-14 flex-1 gap-3 text-base font-semibold"
               >
                 <a href={WIN_URL} target="_blank" rel="noopener noreferrer">
                   <IconBrandWindows className="h-6 w-6" />
@@ -73,7 +73,7 @@ const steps: StickyScrollItem[] = [
           </div>
           <p className="text-center text-sm text-gray-600">
             Already have the app?{" "}
-            <Link href="/sign-in" className="font-medium text-[#A577FF] hover:underline">
+            <Link href="/sign-in" className="font-medium text-[#0891b2] hover:underline">
               Sign in
             </Link>
           </p>
@@ -87,7 +87,7 @@ const steps: StickyScrollItem[] = [
     description:
       "Run the installer and launch Echo Desktop. Grant screen recording permission when prompted so the app can capture workflows.",
     content: (
-      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white p-8 shadow-sm md:p-12">
+      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl border border-[#150A35]/12 bg-white p-8 shadow-sm md:p-12">
         <div className="flex flex-col items-center gap-8">
           <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-2 border-echo-cyan/40 bg-echo-cyan/10">
             <IconPackage className="h-16 w-16 text-echo-cyan" />
@@ -108,15 +108,12 @@ const steps: StickyScrollItem[] = [
     description:
       "Click Sign in in the app. You'll complete authentication in your browser and return to the desktop—your workflows stay in sync.",
     content: (
-      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl border border-[#A577FF]/20 bg-white p-8 shadow-sm md:p-12">
+      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl border border-[#150A35]/12 bg-white p-8 shadow-sm md:p-12">
         <div className="flex flex-col items-center gap-8">
-          <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-2 border-[#A577FF]/40 bg-[#A577FF]/10">
-            <IconLogin className="h-16 w-16 text-[#A577FF]" />
+          <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-2 border-[#150A35]/20 bg-[#150A35]/06">
+            <IconLogin className="h-16 w-16 text-[#0891b2]" />
           </div>
-          <Button
-            asChild
-            className="echo-btn-cyan-lavender h-14 gap-3 px-8 text-base font-semibold"
-          >
+          <Button asChild className="echo-btn-primary h-14 gap-3 px-8 text-base font-semibold">
             <Link href="/sign-in">
               <IconLogin className="h-6 w-6" />
               Sign in
@@ -146,7 +143,7 @@ export function GetStartedStickySection() {
       <StickyScroll content={steps} theme="echo" />
 
       <div className="mx-auto max-w-3xl px-6 pb-24 text-center md:pb-32">
-        <div className="rounded-2xl border border-[#A577FF]/20 bg-white/80 p-8 shadow-sm backdrop-blur-sm md:p-12">
+        <div className="rounded-2xl border border-[#150A35]/12 bg-white/80 p-8 shadow-sm backdrop-blur-sm md:p-12">
           <p className="flex flex-wrap items-baseline justify-center gap-x-2 text-center text-2xl font-semibold text-[#150A35] md:text-3xl lg:text-4xl">
             <span>Now let&apos;s create</span>
             <GradientText className="inline-block align-baseline">
@@ -158,10 +155,7 @@ export function GetStartedStickySection() {
             in the desktop app.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <Button
-              asChild
-              className="echo-btn-cyan-lavender h-12 gap-2 px-6 text-base font-semibold"
-            >
+            <Button asChild className="echo-btn-primary h-12 gap-2 px-6 text-base font-semibold">
               <DesktopCaptureLink>
                 <IconRocket className="h-5 w-5" />
                 Open Echo Desktop to record
@@ -170,7 +164,7 @@ export function GetStartedStickySection() {
             <Button
               asChild
               variant="secondary"
-              className="h-12 border-[#A577FF]/40 px-6 text-base font-medium text-[#150A35] hover:bg-[#A577FF]/10"
+              className="h-12 border-[#150A35]/20 px-6 text-base font-medium text-[#150A35] hover:bg-[#150A35]/08"
             >
               <Link href="/dashboard">Go to dashboard</Link>
             </Button>

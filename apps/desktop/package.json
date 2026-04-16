@@ -10,6 +10,13 @@
   },
   "main": "out/main/index.js",
   "scripts": {
+    "predev": "pnpm run build:types",
+    "prebuild": "pnpm run build:types",
+    "predist": "pnpm run build:types",
+    "predist:mac": "pnpm run build:types",
+    "predist:win": "pnpm run build:types",
+    "prepack": "pnpm run build:types",
+    "build:types": "pnpm --filter @echo/types run build",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",

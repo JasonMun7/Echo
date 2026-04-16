@@ -31,7 +31,7 @@ export default function DownloadPage() {
           <div className="mx-auto max-w-2xl space-y-8">
             <Link
               href="/"
-              className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-[#A577FF]"
+              className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-[#150A35]"
             >
               <IconArrowLeft className="size-4" />
               Back
@@ -46,7 +46,7 @@ export default function DownloadPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               {MAC_URL ? (
-                <Button asChild className="echo-btn-cyan-lavender h-12 w-full gap-2 font-medium">
+                <Button asChild className="echo-btn-primary h-12 w-full gap-2 font-medium">
                   <a href={MAC_URL} target="_blank" rel="noopener noreferrer">
                     <IconBrandApple className="size-5" />
                     Download for Mac
@@ -63,7 +63,7 @@ export default function DownloadPage() {
                 </Button>
               )}
               {WIN_URL ? (
-                <Button asChild className="echo-btn-cyan-lavender h-12 w-full gap-2 font-medium">
+                <Button asChild className="echo-btn-primary h-12 w-full gap-2 font-medium">
                   <a href={WIN_URL} target="_blank" rel="noopener noreferrer">
                     <IconBrandWindows className="size-5" />
                     Download for Windows
@@ -81,7 +81,7 @@ export default function DownloadPage() {
               )}
             </div>
 
-            <Card className="echo-card border border-[#A577FF]/20 bg-[#F5F7FC] shadow-sm">
+            <Card className="echo-card border-border bg-[#F5F7FC]">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-[#150A35]">
                   Already have Echo Desktop?
@@ -91,7 +91,7 @@ export default function DownloadPage() {
                 </CardDescription>
               </CardHeader>
               <CardFooter>
-                <Button asChild className="echo-btn-cyan-lavender gap-2">
+                <Button asChild className="echo-btn-primary gap-2">
                   <Link href="/sign-in">
                     <IconDeviceDesktop className="size-4" />
                     Sign in

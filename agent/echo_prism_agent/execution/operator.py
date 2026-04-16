@@ -342,6 +342,10 @@ def step_to_action(step: dict[str, Any]) -> dict[str, Any]:
         result["slug"] = str(params["slug"])
     if "arguments" in params:
         result["arguments"] = params["arguments"]
+    if "appName" in params and params.get("appName") is not None:
+        result["appName"] = str(params["appName"])
+    elif "app" in params and str(params.get("app") or "").strip():
+        result["appName"] = str(params["app"])
 
     return result
 

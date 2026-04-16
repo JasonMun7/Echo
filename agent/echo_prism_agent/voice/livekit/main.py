@@ -10,6 +10,11 @@ DTMF handling, phone→user lookup for personalization, and log context.
 To see [EchoPrism] logs in dev when you call in: scale the deployed LiveKit agent
 (Cloud Run) to 0 so only your local worker is registered; otherwise the call
 goes to the deployed worker and logs appear only in Cloud Run.
+
+Worker subprocess init: if you see ``TimeoutError`` / "error initializing process", imports may be
+slow (e.g. conda + ``livekit.plugins.google``). Heavy imports run at job start (inside ``entrypoint``),
+and ``AgentServer`` uses ``initialize_process_timeout`` **90s** by default. Override with
+``LIVEKIT_AGENT_INIT_TIMEOUT`` or ``ECHO_LIVEKIT_AGENT_INIT_TIMEOUT`` (seconds).
 """
 
 import asyncio
@@ -61,7 +66,9 @@ from echo_prism_agent.constants import (
 from echo_prism_agent.models_config import VOICE_MODEL
 from livekit import agents, rtc
 from livekit.agents import AgentSession, room_io
-from livekit.plugins import google
+
+# Heavy plugins (e.g. google.realtime) are imported inside `entrypoint` so the worker
+# subprocess can complete IPC bootstrap before the default init timeout.
 
 # Telephony: per-participant noise cancellation (BVCTelephony for SIP)
 try:
@@ -81,9 +88,13 @@ from echo_prism_agent.model_prompts import (
     INTERRUPTION_SYSTEM_PROMPT_PREFIX,
 )
 from echo_prism_agent.voice.livekit import phone_lookup
-from echo_prism_agent.voice.livekit.agent import LiveKitEchoPrismAgent
 
-server = agents.AgentServer()
+server = agents.AgentServer(
+    # Subprocess must import this module + finish setup; cold conda + google.genai often exceeds 10s.
+    initialize_process_timeout=float(
+        os.environ.get("LIVEKIT_AGENT_INIT_TIMEOUT", os.environ.get("ECHO_LIVEKIT_AGENT_INIT_TIMEOUT", "90"))
+    ),
+)
 
 
 def _is_sip_participant(p) -> bool:
@@ -190,6 +201,11 @@ async def _lookup_user_by_phone(phone: str) -> tuple[dict | None, str]:
 @server.rtc_session(agent_name="echoprism-agent")
 async def entrypoint(ctx: agents.JobContext):
     import time
+
+    from echo_prism_agent.voice.livekit.agent import LiveKitEchoPrismAgent
+
+    # Deferred imports — keep worker IPC init under timeout on slow machines (see AgentServer above).
+    from livekit.plugins import google
 
     t_entry = time.perf_counter()
     # Each new call is fresh: clear any resolved user for this room (in case of reuse or stale state)

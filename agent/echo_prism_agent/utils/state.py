@@ -82,6 +82,7 @@ class SynthesisGraphState(TypedDict, total=False):
 
     client: Any
     parts: list[Any]
+    gcs_prefix: str | None
     steps_data: list[dict[str, Any]]
     variables: list[str]
     title: str | None

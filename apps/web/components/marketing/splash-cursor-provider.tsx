@@ -22,6 +22,8 @@ export function SplashCursorProvider() {
     <SplashCursor
       TRANSPARENT={true}
       BACK_COLOR={BACK_COLOR}
+      // SplashCursor JSX prop types expect palette null; runtime accepts color tuples.
+      // @ts-expect-error palette custom colors
       palette={PALETTE}
       DYE_RESOLUTION={512}
       SPLAT_RADIUS={0.08}

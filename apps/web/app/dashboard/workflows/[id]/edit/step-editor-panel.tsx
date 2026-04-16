@@ -1,8 +1,27 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
-import { IconTrash, IconX } from "@tabler/icons-react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
+import { IconTrash } from "@tabler/icons-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { WorkflowApiCallFields } from "@/components/workflow-api-call-fields";
+import { OpenAppBrandSearchFields } from "@/components/echo-flow/open-app-brand-search-fields";
+import { StepContextComposer } from "@/components/echo-flow/step-context-composer";
+import { StepContextTagField } from "@/components/echo-flow/step-context-tag-field";
+import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/firebase";
+import { formatAction } from "@/lib/workflow-action-labels";
+import { migratePromptTokensToCanonical } from "@/lib/context-prompt-tokens";
+import {
+  SYNTHETIC_FRAME_ATTACHMENT_PREFIX,
+  isSyntheticFrameAttachment,
+  normalizeContextAttachments,
+  type ContextAttachment,
+} from "@/lib/workflow-step-context-attachments";
+import {
+  getStepContextTagsMode,
+  publishIssuesForStep,
+} from "@/lib/workflow-step-publish-validation";
+import { displayNameFromBrandHit } from "@/app/dashboard/integrations/_lib/brandfetch-search";
 
 export interface WorkflowStepEditorStep {
   id: string;
@@ -11,13 +30,122 @@ export interface WorkflowStepEditorStep {
   context: string;
   params: Record<string, unknown>;
   expected_outcome?: string;
+  /** Scribe-style screenshot URL from synthesis (optional). */
+  frame_image_url?: string;
+  /** Normalized or pixel bbox for highlight overlay in Echo Flow. */
+  click_overlay?: Record<string, unknown>;
+  /** Extra images, videos, or files for collaborators (Firebase Storage URLs). */
+  context_attachments?: ContextAttachment[] | unknown;
 }
 
-export function formatAction(action: string): string {
-  return action
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+export { formatAction };
+
+/** Actions whose primary narrative lives in `params.description` and is edited in {@link StepContextComposer}. */
+const ACTIONS_WITH_DESCRIPTION_IN_COMPOSER = new Set([
+  "wait_for_element",
+  "click_at",
+  "type_text_at",
+  "hover",
+  "right_click",
+  "double_click",
+  "drag_drop",
+  "drag",
+  "select_option",
+]);
+
+/** Prefer non-empty `params.description`; fall back to `context` when description is blank (legacy / sync). */
+function waitForElementPromptFromStep(step: WorkflowStepEditorStep): string {
+  const raw = step.params?.description;
+  if (typeof raw === "string" && raw.trim() !== "") return raw;
+  return String(step.context ?? "");
+}
+
+/** Single prompt string for {@link StepContextComposer} (matches publish validation fields). */
+function primaryPromptFromStep(step: WorkflowStepEditorStep): string {
+  if (ACTIONS_WITH_DESCRIPTION_IN_COMPOSER.has(step.action)) {
+    return waitForElementPromptFromStep(step);
+  }
+  return String(step.context ?? "");
+}
+
+function primaryPromptPatch(
+  step: WorkflowStepEditorStep,
+  value: string,
+): Partial<WorkflowStepEditorStep> {
+  if (ACTIONS_WITH_DESCRIPTION_IN_COMPOSER.has(step.action)) {
+    return {
+      params: { ...step.params, description: value },
+      context: value,
+    };
+  }
+  return { context: value };
+}
+
+/**
+ * Synthesis sometimes keeps a signed `frame_image_url` while `context_attachments` is empty or
+ * dropped during hydrate — tokens like `{{c1}}` still need a matching row for chips + thumbnails.
+ */
+function buildComposerAttachments(step: WorkflowStepEditorStep): ContextAttachment[] {
+  const base = normalizeContextAttachments(step.context_attachments);
+  const fu = typeof step.frame_image_url === "string" ? step.frame_image_url.trim() : "";
+  if (!fu) return base;
+  if (base.some((a) => a.url.trim() === fu)) return base;
+
+  const prompt = migratePromptTokensToCanonical(primaryPromptFromStep(step));
+  const byRef = new Map(base.map((a) => [(a.ref_label ?? "c1").toLowerCase(), a]));
+  const missingRefs = [...prompt.matchAll(/\{\{c(\d+)\}\}/gi)]
+    .map((m) => `c${m[1]}`.toLowerCase())
+    .filter((ref) => !byRef.has(ref));
+
+  if (missingRefs.length > 0) {
+    const ref = missingRefs[0]!;
+    return [
+      ...base,
+      {
+        id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:${ref}`,
+        kind: "image",
+        name: "Step capture",
+        url: fu,
+        ref_label: ref,
+      },
+    ];
+  }
+
+  if (base.length === 0) {
+    return [
+      {
+        id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:c1`,
+        kind: "image",
+        name: "Step capture",
+        url: fu,
+        ref_label: "c1",
+      },
+    ];
+  }
+
+  return base;
+}
+
+function contextComposerPlaceholder(action: string): string {
+  switch (action) {
+    case "wait_for_element":
+      return "Describe what the agent should wait for. @refs appear when you add files.";
+    case "click_at":
+      return "Describe what to click. @refs appear when you add files.";
+    case "type_text_at":
+      return "Describe where to type. @refs appear when you add files.";
+    case "hover":
+    case "right_click":
+    case "double_click":
+      return "Describe the control or region. @refs appear when you add files.";
+    case "drag_drop":
+    case "drag":
+      return "Describe the drag (what moves where). @refs appear when you add files.";
+    case "select_option":
+      return "Describe the dropdown or control. @refs appear when you add files.";
+    default:
+      return "Notes for this step, @refs for attachments, or use the mic.";
+  }
 }
 
 function clampNonNegativeInt(raw: string, fallbackWhenInvalid: number): number {
@@ -32,18 +160,21 @@ export function getDefaultParamsForAction(action: string): Record<string, unknow
     case "navigate":
       return { url: "" };
     case "click_at":
+      return { description: "" };
     case "type_text_at":
       return { description: "", text: "" };
     case "hover":
     case "right_click":
     case "double_click":
       return { description: "" };
+    case "drag_drop":
+      return { description: "" };
     case "drag":
-      return { description: "", x1: 0, y1: 0, x2: 0, y2: 0 };
+      return { description: "" };
     case "wait_for_element":
       return { description: "" };
     case "scroll":
-      return { direction: "down", amount: 500 };
+      return { direction: "down" };
     case "wait":
       return { seconds: 2 };
     case "select_option":
@@ -53,7 +184,7 @@ export function getDefaultParamsForAction(action: string): Record<string, unknow
       return { key: "" };
     case "open_app":
     case "focus_app":
-      return { app: "" };
+      return { app: "", brand_domain: "" };
     case "api_call":
       return {};
     default:
@@ -65,10 +196,13 @@ function ParamFields({
   action,
   params,
   onChange,
+  /** When true, narrative lives in {@link StepContextComposer}; omit duplicate textareas. */
+  richContextEnabled,
 }: {
   action: string;
   params: Record<string, unknown>;
   onChange: (p: Record<string, unknown>) => void;
+  richContextEnabled: boolean;
 }) {
   const update = (k: string, v: unknown) => {
     onChange({ ...params, [k]: v });
@@ -76,167 +210,147 @@ function ParamFields({
   if (action === "navigate") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">URL</label>
+        <label className="block text-xs font-medium text-foreground/80">URL</label>
         <input
           type="text"
           value={(params.url as string) || ""}
           onChange={(e) => update("url", e.target.value)}
           placeholder="https://..."
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
         />
       </div>
     );
   }
-  if (
-    action === "click_at" ||
-    action === "type_text_at" ||
-    action === "hover" ||
-    action === "right_click" ||
-    action === "double_click"
-  ) {
+  if (action === "click_at") {
+    if (richContextEnabled) return null;
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Description
-          <span className="ml-1 text-[#150A35]/40">
-            (e.g. blue &apos;Submit&apos; button in the bottom-center of the form)
-          </span>
-        </label>
+        <label className="block text-xs font-medium text-foreground/80">What to click</label>
         <textarea
           value={(params.description as string) || ""}
           onChange={(e) => update("description", e.target.value)}
-          placeholder="blue 'Submit' button in the bottom-center of the form"
-          rows={2}
-          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
+          placeholder="e.g. blue “Submit” button at the bottom of the form"
+          rows={3}
+          className="w-full min-w-0 resize-y rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 break-words"
         />
-        {action === "type_text_at" && (
+      </div>
+    );
+  }
+  if (action === "type_text_at") {
+    return (
+      <div className="space-y-2">
+        {!richContextEnabled ? (
           <>
-            <label className="block text-xs text-[#150A35]/70">Text</label>
-            <input
-              type="text"
-              value={(params.text as string) || ""}
-              onChange={(e) => update("text", e.target.value)}
-              placeholder="{{variable}}"
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+            <label className="block text-xs font-medium text-foreground/80">Where to type</label>
+            <textarea
+              value={(params.description as string) || ""}
+              onChange={(e) => update("description", e.target.value)}
+              placeholder="e.g. email field in the login form"
+              rows={2}
+              className="w-full min-w-0 resize-y rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 break-words"
             />
           </>
-        )}
+        ) : null}
+        <label className="block text-xs font-medium text-foreground/80">Text to type</label>
+        <input
+          type="text"
+          value={(params.text as string) || ""}
+          onChange={(e) => update("text", e.target.value)}
+          placeholder="Literal text or {{variable}}"
+          className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+        />
+      </div>
+    );
+  }
+  if (action === "hover" || action === "right_click" || action === "double_click") {
+    if (richContextEnabled) return null;
+    const verb =
+      action === "hover" ? "hover" : action === "right_click" ? "right-click" : "double-click";
+    return (
+      <div className="space-y-2">
+        <label className="block text-xs font-medium text-foreground/80">What to {verb}</label>
+        <textarea
+          value={(params.description as string) || ""}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="Describe the control or region clearly"
+          rows={3}
+          className="w-full min-w-0 resize-y rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 break-words"
+        />
+      </div>
+    );
+  }
+  if (action === "drag_drop") {
+    if (richContextEnabled) return null;
+    return (
+      <div className="space-y-2">
+        <label className="block text-xs font-medium text-foreground/80">Drag</label>
+        <textarea
+          value={(params.description as string) || ""}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="What to drag and where it should land (no pixel coordinates needed)"
+          rows={3}
+          className="w-full min-w-0 resize-y rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 break-words"
+        />
       </div>
     );
   }
   if (action === "drag") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Description
-          <span className="ml-1 text-[#150A35]/40">(what to drag from → to)</span>
+        <label className="block text-xs font-medium text-foreground/80">
+          Drag <span className="font-normal text-foreground/50">(from → to)</span>
         </label>
-        <textarea
-          value={(params.description as string) || ""}
-          onChange={(e) => update("description", e.target.value)}
-          placeholder="Drag the handle from the left panel to the canvas"
-          rows={2}
-          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-xs text-[#150A35]/70">Start X</label>
-            <input
-              type="number"
-              min={0}
-              value={(params.x1 as number) ?? 0}
-              onChange={(e) => update("x1", clampNonNegativeInt(e.target.value, 0))}
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-[#150A35]/70">Start Y</label>
-            <input
-              type="number"
-              min={0}
-              value={(params.y1 as number) ?? 0}
-              onChange={(e) => update("y1", clampNonNegativeInt(e.target.value, 0))}
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-[#150A35]/70">End X</label>
-            <input
-              type="number"
-              min={0}
-              value={(params.x2 as number) ?? 0}
-              onChange={(e) => update("x2", clampNonNegativeInt(e.target.value, 0))}
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-[#150A35]/70">End Y</label>
-            <input
-              type="number"
-              min={0}
-              value={(params.y2 as number) ?? 0}
-              onChange={(e) => update("y2", clampNonNegativeInt(e.target.value, 0))}
-              className="w-full rounded border border-[#A577FF]/40 bg-white px-2 py-1 text-sm"
-            />
-          </div>
-        </div>
+        {richContextEnabled ? (
+          <p className="text-[11px] text-muted-foreground">
+            Describe what to drag and where it should land—the run will locate controls from your
+            description.
+          </p>
+        ) : (
+          <textarea
+            value={(params.description as string) || ""}
+            onChange={(e) => update("description", e.target.value)}
+            placeholder="Drag the handle from the left panel to the canvas"
+            rows={2}
+            className="w-full min-w-0 resize-y rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 break-words"
+          />
+        )}
       </div>
     );
   }
   if (action === "wait_for_element") {
-    return (
-      <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Element Description
-          <span className="ml-1 text-[#150A35]/40">(describe what to wait for visually)</span>
-        </label>
-        <textarea
-          value={(params.description as string) || ""}
-          onChange={(e) => update("description", e.target.value)}
-          placeholder="loading spinner disappears and dashboard is visible"
-          rows={2}
-          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
-        />
-      </div>
-    );
+    /** Prompt + media live in `StepContextComposer` (single field). */
+    return null;
   }
   if (action === "scroll") {
     return (
-      <div className="flex gap-4">
+      <div className="space-y-1.5">
         <div>
-          <label className="block text-xs text-[#150A35]/70">Direction</label>
+          <label className="block text-xs font-medium text-foreground/80">Direction</label>
           <select
             value={(params.direction as string) || "down"}
-            onChange={(e) => update("direction", e.target.value)}
-            className="rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
+            onChange={(e) => onChange({ direction: e.target.value })}
+            className="rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground"
           >
-            <option value="down">down</option>
-            <option value="up">up</option>
+            <option value="down">Down</option>
+            <option value="up">Up</option>
           </select>
         </div>
-        <div>
-          <label className="block text-xs text-[#150A35]/70">Amount</label>
-          <input
-            type="number"
-            min={0}
-            value={(params.amount as number) ?? 500}
-            onChange={(e) => update("amount", clampNonNegativeInt(e.target.value, 500))}
-            className="w-24 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
-          />
-        </div>
+        <p className="text-[11px] text-muted-foreground">
+          How far to scroll is chosen automatically at run time from the page view.
+        </p>
       </div>
     );
   }
   if (action === "wait") {
     return (
       <div>
-        <label className="block text-xs text-[#150A35]/70">Seconds</label>
+        <label className="block text-xs font-medium text-foreground/80">Seconds</label>
         <input
           type="number"
           min={0}
           value={(params.seconds as number) ?? 2}
           onChange={(e) => update("seconds", clampNonNegativeInt(e.target.value, 2))}
-          className="w-24 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
+          className="w-24 rounded border border-border bg-background px-3 py-1.5 text-sm"
         />
       </div>
     );
@@ -244,26 +358,27 @@ function ParamFields({
   if (action === "select_option") {
     return (
       <div className="space-y-2">
-        <label className="block text-xs text-[#150A35]/70">
-          Description
-          <span className="ml-1 text-[#150A35]/40">
-            (e.g. country dropdown in the billing section)
-          </span>
-        </label>
-        <textarea
-          value={(params.description as string) || ""}
-          onChange={(e) => update("description", e.target.value)}
-          placeholder="country dropdown in the billing section"
-          rows={2}
-          className="w-full min-w-0 resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40 break-words"
-        />
-        <label className="block text-xs text-[#150A35]/70">Value</label>
+        {!richContextEnabled ? (
+          <>
+            <label className="block text-xs font-medium text-foreground/80">
+              Dropdown or control
+            </label>
+            <textarea
+              value={(params.description as string) || ""}
+              onChange={(e) => update("description", e.target.value)}
+              placeholder="e.g. Country in the billing section"
+              rows={2}
+              className="w-full min-w-0 resize-y rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 break-words"
+            />
+          </>
+        ) : null}
+        <label className="block text-xs font-medium text-foreground/80">Option value</label>
         <input
           type="text"
           value={(params.value as string) || ""}
           onChange={(e) => update("value", e.target.value)}
-          placeholder="US"
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          placeholder="e.g. US"
+          className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
         />
       </div>
     );
@@ -271,27 +386,15 @@ function ParamFields({
   if (action === "press_key" || action === "hotkey") {
     return (
       <div>
-        <label className="block text-xs text-[#150A35]/70">Key</label>
+        <label className="block text-xs font-medium text-foreground/80">
+          {action === "hotkey" ? "Shortcut" : "Key"}
+        </label>
         <input
           type="text"
           value={(params.key as string) || ""}
           onChange={(e) => update("key", e.target.value)}
           placeholder={action === "hotkey" ? "ctrl+c" : "Enter"}
-          className="w-32 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
-        />
-      </div>
-    );
-  }
-  if (action === "open_app" || action === "focus_app") {
-    return (
-      <div>
-        <label className="block text-xs text-[#150A35]/70">App Name</label>
-        <input
-          type="text"
-          value={(params.app as string) || ""}
-          onChange={(e) => update("app", e.target.value)}
-          placeholder="Google Chrome"
-          className="w-full rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm"
+          className="w-32 rounded border border-border bg-background px-3 py-1.5 text-sm"
         />
       </div>
     );
@@ -303,99 +406,266 @@ function ParamFields({
 }
 
 export type StepEditorPanelProps = {
+  workflowId: string;
   step: WorkflowStepEditorStep;
-  stepIndex: number;
-  availableActions: readonly string[];
   dirtyStepIds: Set<string>;
   invalidStepIds: Set<string>;
-  onClose: () => void;
   handleStepUpdate: (stepId: string, data: Partial<WorkflowStepEditorStep>) => void;
   handleDeleteStep: (stepId: string) => void;
+  onSaveStep?: () => void | Promise<void>;
+  saveStepDisabled?: boolean;
+  savingStep?: boolean;
   setInvalidStepIds: Dispatch<SetStateAction<Set<string>>>;
+  /** Opens the same action picker as Add step; choose a type to replace this step’s action. */
+  onOpenStepTypePicker?: () => void;
+  /** Another collaborator holds the edit lock on this step (§7b). */
+  readOnly?: boolean;
+  lockOwnerLabel?: string | null;
 };
 
+function contextTagsHelperText(action: string): string | null {
+  if (
+    action === "take_screenshot" ||
+    action === "open_web_browser" ||
+    action === "close_web_browser"
+  ) {
+    return "Optional notes for your team—each line is a tag you can remove anytime.";
+  }
+  return null;
+}
+
 export function StepEditorPanel({
+  workflowId,
   step,
-  stepIndex,
-  availableActions,
   dirtyStepIds,
   invalidStepIds,
-  onClose,
   handleStepUpdate,
   handleDeleteStep,
+  onSaveStep,
+  saveStepDisabled = true,
+  savingStep = false,
   setInvalidStepIds,
+  onOpenStepTypePicker,
+  readOnly = false,
+  lockOwnerLabel,
 }: StepEditorPanelProps) {
+  const applyParams = (nextParams: Record<string, unknown>) => {
+    handleStepUpdate(step.id, { params: nextParams });
+    if (publishIssuesForStep({ ...step, params: nextParams }).length === 0) {
+      setInvalidStepIds((prev) => {
+        const next = new Set(prev);
+        next.delete(step.id);
+        return next;
+      });
+    }
+  };
+
+  const applyContextTags = (context: string) => {
+    handleStepUpdate(step.id, { context });
+    if (publishIssuesForStep({ ...step, context }).length === 0) {
+      setInvalidStepIds((prev) => {
+        const next = new Set(prev);
+        next.delete(step.id);
+        return next;
+      });
+    }
+  };
+
+  const contextTagsMode = getStepContextTagsMode(step);
+  const contextTagsHint = contextTagsHelperText(step.action);
+
+  const composerAttachments = useMemo(() => buildComposerAttachments(step), [step]);
+
   return (
-    <div className="rounded-xl border border-[#A577FF]/40 bg-white p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-[#150A35]">Step {stepIndex + 1} — Edit</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded p-1 text-[#150A35]/40 hover:text-[#150A35]"
-          aria-label="Close step editor"
-        >
-          <IconX className="h-4 w-4" aria-hidden />
-        </button>
-      </div>
+    <div className="space-y-4">
+      {readOnly && lockOwnerLabel ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          <span className="font-medium">{lockOwnerLabel}</span> is editing this step. You can review
+          fields but not save changes until they finish.
+        </p>
+      ) : null}
       {dirtyStepIds.has(step.id) && (
-        <p className="text-xs font-medium text-[#A577FF]">Unsaved changes</p>
+        <p className="text-xs font-medium text-primary">Unsaved changes</p>
       )}
-      {invalidStepIds.has(step.id) && (
-        <p className="text-xs font-medium text-echo-error">Context is required before saving</p>
-      )}
-      <div>
-        <label className="block text-xs text-[#150A35]/70">Action</label>
-        <select
-          value={step.action}
-          onChange={(e) => {
-            const newAction = e.target.value;
-            handleStepUpdate(step.id, {
-              action: newAction,
-              params: getDefaultParamsForAction(newAction),
-            });
-          }}
-          className="mt-1 rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm text-[#150A35]"
+      {invalidStepIds.has(step.id) ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50/90 px-3 py-2 text-xs text-red-900"
         >
-          {availableActions.map((a) => (
-            <option key={a} value={a}>
-              {formatAction(a)}
-            </option>
-          ))}
-        </select>
-      </div>
+          <p className="font-semibold text-red-950">Complete this step before publishing</p>
+          <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-red-900/95">
+            {publishIssuesForStep(step).map((msg) => (
+              <li key={msg}>{msg}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div>
-        <label className="block text-xs text-[#150A35]/70">Context</label>
-        <textarea
-          value={step.context}
-          onChange={(e) => {
-            handleStepUpdate(step.id, { context: e.target.value });
-            if (e.target.value.trim()) {
+        <label className="block text-xs font-medium text-foreground/80" htmlFor="step-type-trigger">
+          Step type
+        </label>
+        {readOnly ? (
+          <p
+            id="step-type-trigger"
+            className="mt-1.5 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground/90"
+          >
+            {formatAction(step.action)}
+          </p>
+        ) : (
+          <button
+            id="step-type-trigger"
+            type="button"
+            onClick={() => onOpenStepTypePicker?.()}
+            className="mt-1.5 flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring/40"
+          >
+            <span className="min-w-0 truncate font-medium">{formatAction(step.action)}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-foreground/45" aria-hidden />
+          </button>
+        )}
+      </div>
+      {auth?.currentUser?.uid ? (
+        <StepContextComposer
+          workflowId={workflowId}
+          stepId={step.id}
+          uid={auth.currentUser.uid}
+          prompt={primaryPromptFromStep(step)}
+          placeholder={contextComposerPlaceholder(step.action)}
+          onPromptChange={(v) => {
+            const patch = primaryPromptPatch(step, v);
+            handleStepUpdate(step.id, patch);
+            const nextStep: WorkflowStepEditorStep = {
+              ...step,
+              ...patch,
+              params: patch.params ? { ...step.params, ...patch.params } : step.params,
+            };
+            if (publishIssuesForStep(nextStep).length === 0) {
               setInvalidStepIds((prev) => {
-                const next = new Set(prev);
-                next.delete(step.id);
-                return next;
+                const n = new Set(prev);
+                n.delete(step.id);
+                return n;
               });
             }
           }}
-          placeholder="Description of this step"
-          rows={2}
-          className="mt-1 w-full resize-y rounded border border-[#A577FF]/40 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A577FF]/40"
+          attachments={composerAttachments}
+          onAttachmentsChange={(next) => {
+            const persisted = next.filter((a) => !isSyntheticFrameAttachment(a));
+            handleStepUpdate(step.id, { context_attachments: persisted });
+            const nextStep: WorkflowStepEditorStep = { ...step, context_attachments: persisted };
+            if (publishIssuesForStep(nextStep).length === 0) {
+              setInvalidStepIds((prev) => {
+                const n = new Set(prev);
+                n.delete(step.id);
+                return n;
+              });
+            }
+          }}
+          onRemoveSyntheticFrame={() => {
+            handleStepUpdate(step.id, { frame_image_url: undefined });
+          }}
+          disabled={readOnly}
         />
-      </div>
-      <ParamFields
-        action={step.action}
-        params={step.params}
-        onChange={(p) => handleStepUpdate(step.id, { params: p })}
-      />
-      <button
-        type="button"
-        onClick={() => handleDeleteStep(step.id)}
-        className="flex items-center gap-1.5 text-xs text-echo-text-muted hover:text-echo-error"
-      >
-        <IconTrash className="h-3.5 w-3.5" />
-        Delete step
-      </button>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Sign in to edit rich context, @refs, and attachments for this step.
+        </p>
+      )}
+      <fieldset disabled={readOnly} className="min-w-0 space-y-4 border-0 p-0 disabled:opacity-80">
+        {step.action === "open_app" || step.action === "focus_app" ? (
+          <OpenAppBrandSearchFields
+            action={step.action}
+            app={String(step.params?.app ?? "").trim()}
+            brandDomain={String(step.params?.brand_domain ?? "").trim()}
+            onPickBrand={(hit) => {
+              const name = displayNameFromBrandHit(hit);
+              const context = step.action === "open_app" ? `Open ${name}` : `Focus ${name}`;
+              handleStepUpdate(step.id, {
+                params: { ...step.params, app: name, brand_domain: hit.domain },
+                context,
+              });
+              if (name.trim()) {
+                setInvalidStepIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(step.id);
+                  return next;
+                });
+              }
+            }}
+            onClearSelection={() => {
+              handleStepUpdate(step.id, {
+                params: { ...step.params, app: "", brand_domain: "" },
+                context: "",
+              });
+            }}
+          />
+        ) : (
+          <>
+            <ParamFields
+              action={step.action}
+              params={step.params}
+              onChange={applyParams}
+              richContextEnabled={Boolean(auth?.currentUser?.uid)}
+            />
+            {contextTagsMode !== "hidden" && !auth?.currentUser?.uid ? (
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <label
+                    className="text-xs font-medium text-foreground/80"
+                    htmlFor={`step-ctx-tags-${step.id}`}
+                  >
+                    Context
+                  </label>
+                  {contextTagsMode === "optional" ? (
+                    <span className="text-[11px] font-normal text-foreground/45">optional</span>
+                  ) : (
+                    <span className="text-[11px] font-medium text-foreground/55">required</span>
+                  )}
+                </div>
+                {contextTagsHint ? (
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    {contextTagsHint}
+                  </p>
+                ) : null}
+                <div id={`step-ctx-tags-${step.id}`}>
+                  <StepContextTagField
+                    value={step.context}
+                    onChange={applyContextTags}
+                    disabled={readOnly}
+                    inputPlaceholder={
+                      contextTagsMode === "required"
+                        ? "Describe what should happen, then Enter or +"
+                        : "Add a note, then Enter or +"
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+          {onSaveStep ? (
+            <Button
+              type="button"
+              size="sm"
+              className="echo-btn-primary h-9 gap-2 px-4"
+              disabled={saveStepDisabled}
+              onClick={() => void onSaveStep()}
+            >
+              {savingStep ? (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+              ) : null}
+              Save step
+            </Button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => handleDeleteStep(step.id)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
+          >
+            <IconTrash className="h-3.5 w-3.5" />
+            Delete step
+          </button>
+        </div>
+      </fieldset>
     </div>
   );
 }

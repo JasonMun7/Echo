@@ -7,57 +7,43 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 /**
- * Echo Design System toast styling:
- * - Success: #22c55e (echo-success)
- * - Error: #ef4444 (echo-error)
- * - Ghost White surface, Lavender borders, Cetacean text
+ * Echo toasts: white surface, black copy; only the leading icon carries semantic color
+ * (success / info / warning / error / loading). `richColors` stays off so the bar isn’t tinted.
  */
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
       className="toaster group"
       position="bottom-right"
       icons={{
-        success: <CircleCheckIcon className="size-4 text-echo-success" />,
-        info: <InfoIcon className="size-4 text-echo-cyan" />,
-        warning: <TriangleAlertIcon className="size-4 text-amber-500" />,
-        error: <OctagonXIcon className="size-4 text-echo-error" />,
-        loading: <Loader2Icon className="size-4 animate-spin text-echo-lavender" />,
+        success: (
+          <CircleCheckIcon className="size-4 text-echo-success" strokeWidth={2} aria-hidden />
+        ),
+        info: <InfoIcon className="size-4 text-echo-cyan" strokeWidth={2} aria-hidden />,
+        warning: (
+          <TriangleAlertIcon className="size-4 text-amber-500" strokeWidth={2} aria-hidden />
+        ),
+        error: <OctagonXIcon className="size-4 text-echo-error" strokeWidth={2} aria-hidden />,
+        loading: <Loader2Icon className="size-4 animate-spin text-echo-lavender" aria-hidden />,
       }}
       toastOptions={{
-        style: {
-          border: "1px solid rgba(165, 119, 255, 0.2)",
-          borderRadius: "var(--radius-echo-lg, 0.75rem)",
-          background: "var(--color-echo-ghost, #F5F7FC)",
-          color: "var(--color-echo-text, #150A35)",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+        classNames: {
+          toast:
+            "!border !border-neutral-200/90 !bg-white !text-black shadow-[0_4px_24px_rgba(0,0,0,0.08)]",
+          title: "!text-black !font-medium",
+          description: "!text-black !opacity-100",
         },
       }}
       style={
         {
-          "--normal-bg": "var(--color-echo-ghost, #F5F7FC)",
-          "--normal-text": "var(--color-echo-text, #150A35)",
-          "--normal-border": "rgba(165, 119, 255, 0.2)",
-          "--success-bg": "rgba(34, 197, 94, 0.12)",
-          "--success-text": "var(--color-echo-text, #150A35)",
-          "--success-border": "rgba(34, 197, 94, 0.4)",
-          "--error-bg": "rgba(239, 68, 68, 0.12)",
-          "--error-text": "var(--color-echo-text, #150A35)",
-          "--error-border": "rgba(239, 68, 68, 0.4)",
-          "--warning-bg": "rgba(245, 158, 11, 0.12)",
-          "--warning-text": "var(--color-echo-text, #150A35)",
-          "--warning-border": "rgba(245, 158, 11, 0.4)",
-          "--info-bg": "rgba(33, 196, 221, 0.12)",
-          "--info-text": "var(--color-echo-text, #150A35)",
-          "--info-border": "rgba(33, 196, 221, 0.4)",
           "--border-radius": "var(--radius-echo-lg, 0.75rem)",
+          "--normal-bg": "#ffffff",
+          "--normal-border": "rgba(0, 0, 0, 0.1)",
+          "--normal-text": "#000000",
         } as React.CSSProperties
       }
       {...props}
