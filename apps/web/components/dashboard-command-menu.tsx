@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from "react";
-import { Bell, Database, LineChart, PlusCircle, Settings, Workflow } from "lucide-react";
+import { Database, LineChart, PlusCircle, Settings, Workflow } from "lucide-react";
 import {
   IconBrandGithub,
   IconBrandGoogle,
@@ -73,12 +73,6 @@ const NAV_ROUTES: {
     href: "/dashboard/datasets/create",
     icon: Database,
     keywords: "data upload",
-  },
-  {
-    label: "Notifications",
-    href: "/dashboard/notifications",
-    icon: Bell,
-    keywords: "alerts invites",
   },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, keywords: "preferences" },
 ];
@@ -273,7 +267,7 @@ export function DashboardCommandMenu({
         <CommandGroup heading="Navigate">
           {NAV_ROUTES.map((r) => (
             <CommandItem
-              key={r.href}
+              key={`${r.href}:${r.label}`}
               value={`${r.label} ${r.keywords ?? ""} ${r.href}`}
               onSelect={() => run(r.href)}
             >
@@ -361,18 +355,16 @@ export function DashboardSearchTrigger({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full max-w-xl items-center gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left text-sm text-muted-foreground shadow-sm",
+        "flex w-full max-w-xl items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm text-muted-foreground shadow-sm",
         "transition-colors hover:bg-card hover:text-foreground",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A577FF]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A577FF]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         className,
       )}
     >
       <GradientIconWell corners="lg" className="h-7 w-7 shrink-0">
         <IconSearch className="h-3 w-3 text-card-foreground" aria-hidden />
       </GradientIconWell>
-      <span className="flex-1 truncate font-medium text-sidebar-foreground/80">
-        Search or jump to…
-      </span>
+      <span className="flex-1 truncate font-medium text-muted-foreground">Search or jump to…</span>
       <kbd className="pointer-events-none hidden h-[1.125rem] select-none items-center gap-1 rounded border border-border bg-muted/80 px-1 font-mono text-[10px] font-medium leading-none text-muted-foreground sm:inline-flex">
         ⌘K
       </kbd>

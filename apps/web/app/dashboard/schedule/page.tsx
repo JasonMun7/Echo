@@ -26,8 +26,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { IconPlus, IconTrash, IconCalendarClock, IconClock } from "@tabler/icons-react";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import Threads from "@/components/threads";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -183,8 +188,8 @@ export default function SchedulePage() {
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-[#1A1A2E]">Scheduled Runs</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>Scheduled Runs</h1>
+            <p className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "mt-1")}>
               Automatically run workflows on a schedule using Cloud Scheduler.
             </p>
           </div>
@@ -286,32 +291,20 @@ export default function SchedulePage() {
             ))}
           </div>
         ) : schedules.length === 0 ? (
-          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-border">
-            <div className="absolute inset-0 overflow-hidden rounded-lg">
-              <Threads
-                color={[165 / 255, 119 / 255, 255 / 255]}
-                amplitude={1.3}
-                distance={0.3}
-                enableMouseInteraction={false}
-              />
-            </div>
-            <div className="relative z-[1] flex flex-col items-center gap-3 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                <IconCalendarClock className="h-6 w-6 text-[#0891b2]" />
-              </div>
-              <p className="font-medium text-foreground">No schedules yet</p>
-              <p className="text-sm text-foreground/70">
-                Create a schedule to automatically run workflows.
-              </p>
-              <Button
-                onClick={() => setDialogOpen(true)}
-                className="echo-btn-primary inline-flex items-center gap-2"
-              >
-                <IconPlus className="h-5 w-5" />
-                New Schedule
-              </Button>
-            </div>
-          </div>
+          <DashboardEmptyState
+            minHeightClass="min-h-0 flex-1"
+            title="No schedules yet"
+            description="Create a schedule to automatically run workflows."
+            icon={IconCalendarClock}
+          >
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="echo-btn-primary inline-flex items-center gap-2"
+            >
+              <IconPlus className="h-5 w-5" />
+              New Schedule
+            </Button>
+          </DashboardEmptyState>
         ) : (
           <div className="flex flex-col gap-3">
             {schedules.map((sched) => (

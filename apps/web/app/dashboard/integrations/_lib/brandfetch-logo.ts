@@ -36,7 +36,7 @@ export function normalizeBrandDomain(raw: string): string | null {
   if (!t) return null;
   try {
     const u = t.includes("://") ? new URL(t) : new URL(`https://${t}`);
-    let host = u.hostname.replace(/^www\./, "");
+    const host = u.hostname.replace(/^www\./, "");
     if (!host || !host.includes(".")) return null;
     return host;
   } catch {

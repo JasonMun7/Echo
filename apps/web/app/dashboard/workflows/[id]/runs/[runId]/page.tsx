@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { doc, collection, query, orderBy, onSnapshot } from "firebase/firestore";
@@ -19,9 +19,11 @@ import {
   IconBolt,
   IconMicrophone,
 } from "@tabler/icons-react";
-import { EchoPrismVoiceModal } from "@/components/echo-prism-voice-modal";
+import { EchoPrismRunLiveKitModal } from "@/components/echo-prism-run-livekit-modal";
 import { toast } from "sonner";
 import { getRunStatusBadgeLabel, getTerminalRunPresentation } from "@/lib/run-terminal-ui";
+import { DASHBOARD_PAGE_TITLE_CLASS } from "@/lib/dashboard-page-typography";
+import { cn } from "@/lib/utils";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
@@ -177,6 +179,16 @@ export default function RunDetailPage() {
   const [liveThoughts, setLiveThoughts] = useState<ThoughtEntry[]>([]);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+
+  const voiceRecentContext = useMemo(
+    () =>
+      liveThoughts
+        .slice(-3)
+        .map((t) => `Step ${t.step_index + 1}: ${t.thought}`)
+        .join(" | ")
+        .slice(0, 400),
+    [liveThoughts],
+  );
   const logsEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const u = auth?.currentUser;
@@ -358,7 +370,7 @@ export default function RunDetailPage() {
         <div className="echo-run-haze" />
         <div className="echo-run-haze-content">
           <div className="h-12 w-12 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-          <p className="animate-pulse text-lg font-bold tracking-wide text-foreground drop-shadow-sm">
+          <p className={cn("animate-pulse drop-shadow-sm", DASHBOARD_PAGE_TITLE_CLASS)}>
             EchoPrism is taking control…
           </p>
 
@@ -417,12 +429,12 @@ export default function RunDetailPage() {
             </button>
           </div>
         </div>
-        <EchoPrismVoiceModal
+        <EchoPrismRunLiveKitModal
           isOpen={voiceModalOpen}
           onClose={() => setVoiceModalOpen(false)}
-          token={token}
           workflowId={workflowId}
           runId={runId}
+          recentContext={voiceRecentContext || undefined}
         />
       </>
     );
@@ -538,7 +550,7 @@ export default function RunDetailPage() {
             >
               <IconArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="text-xl font-semibold text-foreground">Run Logs</h1>
+            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>Run Logs</h1>
           </div>
           <div className="flex items-center gap-2">
             {statusIcon}

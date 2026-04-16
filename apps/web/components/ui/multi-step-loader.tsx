@@ -139,7 +139,7 @@ export const MultiStepLoader = ({
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="echo-card mb-2 flex flex-col items-center gap-3 rounded-2xl border border-[#150A35]/12 px-6 py-4 shadow-sm"
+            className="echo-card mb-2 flex flex-col items-center gap-3 rounded-2xl px-6 py-4"
           >
             <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
               <Image src="/echo_logo.png" alt="Echo" fill className="object-contain p-2" priority />

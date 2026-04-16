@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/stores/auth-store";
-import { AGENT_URL, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { randomUUID } from "expo-crypto";
 import { colors } from "@echo/design-tokens";
 import {
@@ -28,6 +28,7 @@ import {
   updateConversationMeta,
 } from "@/hooks/use-chat-persistence";
 import { useRunStatus } from "@/hooks/use-firestore-listener";
+import { useLiveKitSession } from "@/hooks/use-livekit-session";
 
 const iosVersion = Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
 const supportsLiquidGlass = Platform.OS === "ios" && iosVersion >= 26;
@@ -153,8 +154,6 @@ export default function ChatScreen() {
   const [conversationId, setConversationId] = useState<string | null>(paramConvId ?? null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [connectError, setConnectError] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthStep, setSynthStep] = useState(0);
@@ -167,16 +166,11 @@ export default function ChatScreen() {
   const [inputHeight, setInputHeight] = useState(36);
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
-  const wsRef = useRef<WebSocket | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const reconnectDelay = useRef(1000);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttempts = useRef(0);
   const synthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const user = useAuthStore((s) => s.user);
   const uid = user?.uid ?? null;
-  const getIdToken = useAuthStore((s) => s.getIdToken);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -250,142 +244,7 @@ export default function ChatScreen() {
     }
   }
 
-  /* ─── WebSocket ─── */
-  const connect = useCallback(
-    async (isRetry = false) => {
-      setConnectError(false);
-      if (!isRetry) {
-        reconnectAttempts.current = 0;
-        reconnectDelay.current = 1000;
-      }
-      const token = await getIdToken();
-      if (!token) return;
-
-      const wsUrl = `${AGENT_URL.replace(/^http/, "ws")}/ws/chat?token=${encodeURIComponent(token)}&mode=text`;
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        setConnected(true);
-        setConnectError(false);
-        reconnectDelay.current = 1000; // reset backoff
-        reconnectAttempts.current = 0;
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const ts = Date.now();
-
-          /** Add a message to state and persist it to Firestore. */
-          const addMsg = (msg: Message) => {
-            setMessages((prev) => [...prev, msg]);
-            persistMsgRef.current(msg);
-          };
-
-          if (data.type === "text" || data.type === "response") {
-            setThinking(false);
-            addMsg({
-              id: `msg-${randomUUID()}`,
-              role: "assistant",
-              type: "text",
-              content: data.text ?? data.content ?? "",
-              timestamp: ts,
-              workflowId: data.runLink?.workflowId,
-              runId: data.runLink?.runId,
-            });
-          } else if (data.type === "tool_call") {
-            const name = data.name ?? "tool";
-            const meta = TOOL_META[name];
-            // Start synthesis loader for synthesis/adhoc tools
-            if (name === "synthesize_from_description" || name === "run_adhoc") {
-              startSynthesis();
-            }
-            addMsg({
-              id: `tool-${randomUUID()}`,
-              role: "system",
-              type: "tool_call",
-              content: meta?.label ?? `Running: ${name}`,
-              toolName: name,
-              timestamp: ts,
-            });
-          } else if (data.type === "synthesis_complete") {
-            stopSynthesis();
-            setThinking(false);
-            addMsg({
-              id: `synth-${randomUUID()}`,
-              role: "system",
-              type: "synthesis_complete",
-              content: `Workflow "${data.workflow_name ?? "New"}" created!`,
-              workflowId: data.workflow_id,
-              workflowName: data.workflow_name,
-              timestamp: ts,
-            });
-          } else if (data.type === "run_started") {
-            setThinking(false);
-            const link = data.runLink ?? data;
-            if (link.ephemeral) {
-              setAdhocWorkflow({
-                workflowId: link.workflowId ?? link.workflow_id,
-                runId: link.runId ?? link.run_id,
-                name: link.name ?? "Ad-hoc workflow",
-              });
-            }
-            addMsg({
-              id: `run-${randomUUID()}`,
-              role: "system",
-              type: "run_started",
-              content: `Run started`,
-              workflowId: link.workflowId ?? link.workflow_id,
-              runId: link.runId ?? link.run_id,
-              workflowName: link.name,
-              ephemeral: link.ephemeral,
-              timestamp: ts,
-            });
-          } else if (data.type === "error") {
-            setThinking(false);
-            addMsg({
-              id: `err-${randomUUID()}`,
-              role: "assistant",
-              type: "error",
-              content: data.text ?? "An error occurred.",
-              timestamp: ts,
-            });
-          } else if (data.type === "turn_complete") {
-            setThinking(false);
-          }
-        } catch {}
-      };
-
-      ws.onclose = () => {
-        setConnected(false);
-        reconnectAttempts.current += 1;
-        // After 3 failed attempts (~14s total), show error and stop auto-retry
-        if (reconnectAttempts.current >= 3) {
-          setConnectError(true);
-          return;
-        }
-        // Exponential backoff reconnection
-        const delay = Math.min(reconnectDelay.current, 30000);
-        reconnectTimer.current = setTimeout(() => connect(true), delay);
-        reconnectDelay.current = delay * 2;
-      };
-
-      ws.onerror = () => ws.close();
-      wsRef.current = ws;
-    },
-    [getIdToken],
-  );
-
-  useEffect(() => {
-    connect();
-    return () => {
-      wsRef.current?.close();
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (synthTimer.current) clearInterval(synthTimer.current);
-    };
-  }, [connect]);
-
-  /* ─── persistence helper ─── */
+  /* ─── persistence helper (before LiveKit callbacks) ─── */
 
   const persistMsgRef = useRef<(msg: Message) => void>(() => {});
   const conversationIdRef = useRef<string | null>(conversationId);
@@ -433,10 +292,107 @@ export default function ChatScreen() {
   }
   persistMsgRef.current = persistMsg;
 
+  const session = useLiveKitSession(
+    {
+      onTranscript: (text, role) => {
+        const ts = Date.now();
+        const trim = text.trim();
+        if (!trim) return;
+        const msg: Message =
+          role === "user"
+            ? {
+                id: `user-t-${randomUUID()}`,
+                role: "user",
+                type: "text",
+                content: trim,
+                timestamp: ts,
+              }
+            : {
+                id: `asst-t-${randomUUID()}`,
+                role: "assistant",
+                type: "text",
+                content: trim,
+                timestamp: ts,
+              };
+        setThinking(false);
+        setMessages((prev) => [...prev, msg]);
+        persistMsgRef.current(msg);
+      },
+      onToolCall: (name) => {
+        const ts = Date.now();
+        if (name === "synthesize_from_description" || name === "run_adhoc") {
+          startSynthesis();
+        }
+        const meta = TOOL_META[name];
+        const msg: Message = {
+          id: `tool-${randomUUID()}`,
+          role: "system",
+          type: "tool_call",
+          content: meta?.label ?? `Running: ${name}`,
+          toolName: name,
+          timestamp: ts,
+        };
+        setMessages((prev) => [...prev, msg]);
+        persistMsgRef.current(msg);
+      },
+      onSynthesisComplete: (workflowId, wfName) => {
+        stopSynthesis();
+        setThinking(false);
+        const msg: Message = {
+          id: `synth-${randomUUID()}`,
+          role: "system",
+          type: "synthesis_complete",
+          content: `Workflow "${wfName ?? "New"}" created!`,
+          workflowId,
+          workflowName: wfName,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, msg]);
+        persistMsgRef.current(msg);
+      },
+      onRunStarted: (wfId, runId, meta) => {
+        setThinking(false);
+        const ts = Date.now();
+        if (meta?.ephemeral) {
+          setAdhocWorkflow({
+            workflowId: wfId,
+            runId,
+            name: meta?.name ?? "Ad-hoc workflow",
+          });
+        }
+        const msg: Message = {
+          id: `run-${randomUUID()}`,
+          role: "system",
+          type: "run_started",
+          content: "Run started",
+          workflowId: wfId,
+          runId,
+          workflowName: meta?.name,
+          ephemeral: meta?.ephemeral,
+          timestamp: ts,
+        };
+        setMessages((prev) => [...prev, msg]);
+        persistMsgRef.current(msg);
+      },
+      onTurnComplete: () => {
+        setThinking(false);
+      },
+    },
+    { enableMicOnConnect: false },
+  );
+
+  useEffect(() => {
+    void session.connect();
+    return () => {
+      session.disconnect();
+      if (synthTimer.current) clearInterval(synthTimer.current);
+    };
+  }, [session.connect, session.disconnect]);
+
   /* ─── actions ─── */
 
-  function sendMessage(text: string) {
-    if (!text.trim() || !wsRef.current) return;
+  async function sendMessage(text: string) {
+    if (!text.trim() || !session.connected) return;
     const msg: Message = {
       id: `user-${randomUUID()}`,
       role: "user",
@@ -449,7 +405,19 @@ export default function ChatScreen() {
     setInput("");
     setThinking(true);
     setAdhocWorkflow(null);
-    wsRef.current.send(JSON.stringify({ type: "text", text: text.trim() }));
+    try {
+      await session.sendChatText(text.trim());
+    } catch {
+      setThinking(false);
+      const errMsg: Message = {
+        id: `err-${randomUUID()}`,
+        role: "assistant",
+        type: "error",
+        content: "Could not send message. Check your connection and try again.",
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    }
   }
 
   async function handleSaveAdhoc() {
@@ -574,17 +542,21 @@ export default function ChatScreen() {
   // ─── Shared input pill contents ───
   const inputPillContents = (
     <>
-      <Pressable style={styles.voiceBtn} onPress={() => router.push("/(tabs)/chat/voice")}>
-        <Ionicons name="mic-outline" size={20} color="#8B6CF7" />
+      <Pressable style={styles.voiceBtn} onPress={() => session.toggleMute()}>
+        <Ionicons
+          name={session.isMuted ? "mic-off" : "mic"}
+          size={20}
+          color={session.isMuted ? "#ef4444" : "#8B6CF7"}
+        />
       </Pressable>
       <TextInput
         multiline
         style={[styles.input, { height: Math.min(Math.max(inputHeight, 36), 100) }]}
-        placeholder={connected ? "Message Echo..." : "Connecting..."}
+        placeholder={session.connected ? "Message Echo..." : "Connecting..."}
         placeholderTextColor={colors.textLight}
         value={input}
         onChangeText={setInput}
-        editable={connected}
+        editable={session.connected}
         onContentSizeChange={(e) => setInputHeight(e.nativeEvent.contentSize.height)}
         returnKeyType="send"
         blurOnSubmit={false}
@@ -638,12 +610,15 @@ export default function ChatScreen() {
         pointerEvents="none"
       />
       {/* Connection banner */}
-      {!connected && (
+      {!session.connected && (
         <Pressable
-          style={[styles.connectionBanner, connectError && styles.connectionBannerError]}
-          onPress={connectError ? () => connect() : undefined}
+          style={[
+            styles.connectionBanner,
+            session.state === "disconnected" && styles.connectionBannerError,
+          ]}
+          onPress={session.state === "disconnected" ? () => void session.connect() : undefined}
         >
-          {connectError ? (
+          {session.state === "disconnected" ? (
             <>
               <Text style={styles.connectionTextError}>⚠ Failed to connect</Text>
               <Text style={styles.connectionRetry}>Tap to retry</Text>

@@ -1,6 +1,6 @@
 # Echo Design System
 
-Standards for UI in the Echo web app. **Lead with the brand gradient: Cyan → Lavender** (`#21C4DD` → `#A577FF`) for primary CTAs, key highlights, and “Echo” moments. **Cetacean Blue** (`#150A35`) anchors text, sidebar chrome, and contrast.
+Standards for UI in the Echo web app. **Lead with the brand gradient: Cyan → Lavender** (`#21C4DD` → `#A577FF`) for primary CTAs, key highlights, and “Echo” moments. **Cetacean Blue** (`#150A35`) anchors text and contrast; the **dashboard sidebar rail** sits on the same deemphasized plane as the page canvas (see **§1**).
 
 **Interactive chrome** (icons, menus, borders, focus) is **neutral and monochrome** — see **§4**. Only **§5 — Gradient border frame** (`GradientIconWell`, `GradientIconTag`) and named gradient “wall” utilities carry the Cyan→Lavender **ring**; everything else uses `border-border`, muted highlights, and a neutral focus ring.
 
@@ -16,20 +16,30 @@ Standards for UI in the Echo web app. **Lead with the brand gradient: Cyan → L
 
 ### Deemphasized & emphasized backgrounds
 
-Source of truth: [`app/globals.css`](app/globals.css) (`:root` and `.dark`). **Deemphasized** = full-page canvas (recedes). **Emphasized** = surfaces that sit above the canvas (cards, popovers, sidebar).
+Source of truth: [`app/globals.css`](app/globals.css) (`:root` and `.dark`). **Deemphasized** = full-page canvas and **dashboard sidebar rail** (recede). **Emphasized** = main dashboard column, cards, popovers, and modals (lifted above the canvas).
 
-| Layer                         | Role                                                   | Tailwind / token                 | Light (`:root`) | Dark (`.dark`)           |
-| ----------------------------- | ------------------------------------------------------ | -------------------------------- | --------------- | ------------------------ |
-| **Canvas (deemphasized)**     | Page ground; default behind main content               | `bg-background` · `--background` | `#eef2fa`       | `oklch(0.098 0.016 285)` |
-| **Echo ghost**                | Kept in sync with canvas (`@theme --color-echo-ghost`) | `bg-echo-ghost`                  | `#eef2fa`       | same as `--background`   |
-| **Emphasized — card**         | Panels, sheets, modals                                 | `bg-card` · `--card`             | `#ffffff`       | `oklch(0.242 0.024 285)` |
-| **Emphasized — echo surface** | Alias for card-level white/surface                     | `--color-echo-surface`           | `#ffffff`       | matches `--card`         |
-| **Emphasized — sidebar**      | App sidebar chrome                                     | `bg-sidebar` · `--sidebar`       | `#fafcff`       | `oklch(0.258 0.026 285)` |
-| **Muted (between)**           | Secondary rows, subtle fills                           | `bg-muted` · `--muted`           | `#eef1f7`       | `oklch(0.195 0.02 285)`  |
+| Layer                         | Role                                                   | Tailwind / token                                                                       | Light (`:root`)  | Dark (`.dark`)           |
+| ----------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------- | ---------------- | ------------------------ |
+| **Canvas (deemphasized)**     | Page ground; sidebar rail (`.echo-sidebar-inset`)      | `bg-background` · `--background`                                                       | `#eef2fa`        | `oklch(0.098 0.016 285)` |
+| **Echo ghost**                | Kept in sync with canvas (`@theme --color-echo-ghost`) | `bg-echo-ghost`                                                                        | `#eef2fa`        | same as `--background`   |
+| **Emphasized — main column**  | Dashboard `SidebarInset` (card surface + elevation)    | `DASHBOARD_MAIN_SURFACE_CLASS` → `bg-card`, `md:rounded-tl-2xl`, shadow, `md:border-l` | matches `--card` | matches `--card`         |
+| **Emphasized — card**         | Panels, sheets, in-page cards                          | `bg-card` · `--card`                                                                   | `#ffffff`        | `oklch(0.242 0.024 285)` |
+| **Emphasized — echo surface** | Alias for card-level white/surface                     | `--color-echo-surface`                                                                 | `#ffffff`        | matches `--card`         |
+| **Sidebar tokens (legacy)**   | shadcn compatibility; optional chrome outside the rail | `bg-sidebar` · `--sidebar`                                                             | `#fafcff`        | `oklch(0.258 0.026 285)` |
+| **Muted (between)**           | Secondary rows, nav active state, subtle fills         | `bg-muted` · `--muted`                                                                 | `#eef1f7`        | `oklch(0.195 0.02 285)`  |
 
-**Usage:** Apply **`bg-background`** to the outer page shell; use **`bg-card`** / **`bg-popover`** / **`bg-sidebar`** (or patterns like `.echo-sidebar-inset`) for anything that should read as **lifted** above the canvas. Default borders: **`border-border`**, **`border-sidebar-border`**. Marketing or legacy copy may still mention `#F5F7FC`; the app canvas token is **`#eef2fa`**.
+**Usage:** Apply **`bg-background`** to the app shell behind the dashboard; the **sidebar rail** uses **`.echo-sidebar-inset`** (canvas; no rail border — separation from the main column is shadow + **`md:border-l`** on **`SidebarInset`**). The **main column** uses **`bg-card`** via **`DASHBOARD_MAIN_SURFACE_CLASS`** in [`lib/dashboard-shell.ts`](lib/dashboard-shell.ts) (applied in [`app/dashboard/layout.tsx`](app/dashboard/layout.tsx)). Nest **`.echo-card`**, bordered panels, and data tables on the main column for additional elevation. Default borders: **`border-border`**. Marketing or legacy copy may still mention `#F5F7FC`; the app canvas token is **`#eef2fa`**.
 
-**CSS utilities** (see [app/globals.css](app/globals.css)): `.echo-btn-primary`, `.echo-gradient-cyan-lavender`, `.echo-fill-cta-gradient`, `.echo-card`, `.echo-glass-card`, etc.
+### Card borders and elevation (neutral only)
+
+For **in-column cards and list tiles** (dashboard grids, integrations, auth panels, loaders):
+
+- Use a **neutral outline**: **`border border-border`** (or **`border-dashed border-border`** only for **empty / placeholder** regions such as **`DashboardEmptyState`**).
+- **Lift** surfaces with **shadow**, not with **brand-tinted** frames: prefer **`shadow-md`** / **`shadow-lg`** / **`shadow-xl`** (`shadow-black/[…]` in light mode, `dark:shadow-black/…` in dark). **Do not** use **`border-primary`**, **`ring-primary`**, **`ring-[#A577FF]`**, or other **lavender/cyan-tinted rings or borders on whole cards** for emphasis — those are reserved for **§5** gradient wells/tags and primary **buttons**, not card chrome.
+- **`.echo-card`** ([`app/globals.css`](app/globals.css)): **`rounded-lg`**, **`border border-border`**, **`bg-card`**, **`shadow-lg`** — default **elevated bordered** panel. Prefer this over ad-hoc `shadow-sm` on the same node (avoid stacking conflicting shadows).
+- **Workflow list tiles** ([`lib/workflow-status.ts`](lib/workflow-status.ts) — **`workflowShellClass`**, **`workflowListCardClass`**): **`rounded-xl`**, **`border border-border`**, **`bg-card`**, **`shadow-md`** with **`hover:shadow-lg`**. The **“most recently updated”** tile adds **`shadow-xl`** only (still neutral — no colored ring).
+
+**CSS utilities** (see [app/globals.css](app/globals.css)): `.echo-btn-primary`, `.echo-gradient-cyan-lavender`, `.echo-fill-cta-gradient`, `.echo-card` (bordered elevated surface — **`border-border` + shadow**), `.echo-glass-card`, etc.
 
 **Tech:** shadcn/ui, Tailwind v4, Tabler Icons (Lucide where noted), Inter.
 
@@ -46,25 +56,28 @@ Layout code lives in:
 | Profile modal (account)            | [components/profile/profile-modal.tsx](components/profile/profile-modal.tsx) — sidebar nav + panels                                      |
 | Dashboard frame                    | [app/dashboard/layout.tsx](app/dashboard/layout.tsx)                                                                                     |
 
-**Profile modal:** Shell uses **`border-border`** + **`bg-card`** on the dialog (neutral chrome). Left rail is **`echo-sidebar-inset`** / **`bg-sidebar`** (no extra hairlines between blocks — separation is padding + surface only). Section panels use **`border-border`**, **`bg-card`** / **`bg-muted/40`**, **`text-foreground`** / **`text-muted-foreground`**. **Verified** / emphasis pills use **`GradientIconTag`**; section hero icons use **`GradientIconWell`** — not flat tinted boxes (**§4**, **§5**). Where a **brand mark** helps (e.g. Echo on Help, Google on sign-in), use **`ProfileBrandLogo`** — **Brandfetch** CDN hotlinks via `brandfetchLogoUrlForDomain` with Tabler/Lucide fallback (same rules as integrations; requires `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`).
+**Profile modal:** Dialog shell uses **`border-border`** + **`bg-card`** + **`shadow-xl`** (modal chrome). **Left rail** stays **deemphasized**: **`echo-sidebar-inset`** (canvas / `--background`), with corner rounding aligned to the dialog (`rounded-t-2xl` stacked mobile, **`md:rounded-l-2xl`** beside the main panel). **Main panel** (right) is **emphasized** like the dashboard main column: **`PROFILE_MODAL_MAIN_SURFACE_CLASS`** in [`lib/dashboard-shell.ts`](lib/dashboard-shell.ts) — **`bg-card`**, **`shadow-sm`**, **`border-l`** (desktop) or **`border-t`** (stacked), matching **§1** elevation vocabulary. Section header uses **`border-b border-border/60`** on transparent **`bg`** over the card; scroll body inherits the emphasized surface (not **`bg-background`**). Nested section panels still use **`border-border`**, **`.echo-card`** / **`bg-muted/40`** where needed. **Verified** / emphasis pills use **`GradientIconTag`**; section hero icons use **`GradientIconWell`** — not flat tinted boxes (**§4**, **§5**). Where a **brand mark** helps (e.g. Echo on Help, Google on sign-in), use **`ProfileBrandLogo`** — **Brandfetch** CDN hotlinks via `brandfetchLogoUrlForDomain` with Tabler/Lucide fallback (same rules as integrations; requires `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`).
 
 - **Expanded width:** ~240px (`--sidebar-width`). **Collapsed (desktop):** icon rail ~68px — labels hide; tooltips remain.
-- **Header:** Page title (md+), centered **universal command palette** trigger (⌘K only — no other Echo surface should bind ⌘K), notifications (stub), **theme** toggle, **EchoPrism** orb → `/dashboard/chat`. On the workflow **editor**, **⌘⇧K** focuses the canvas step search.
+- **Header:** Page title only (no visible subtitle; route description is **`sr-only`**), centered **universal command palette** trigger (⌘K only — no other Echo surface should bind ⌘K), notifications (stub), **theme** toggle, **EchoPrism** orb → `/dashboard/chat`. On the workflow **editor**, **⌘⇧K** focuses the canvas step search.
 - **EchoPrism / LiveKit:** [components/echo-prism-livekit-session.tsx](components/echo-prism-livekit-session.tsx) on the chat route; token via Echo agent `POST /api/livekit/token` (optional `NEXT_PUBLIC_LIVEKIT_SANDBOX_ID` for sandbox).
 
 ### Main column padding (below the header)
 
 **Source of truth:** [lib/dashboard-shell.ts](lib/dashboard-shell.ts) — `DASHBOARD_MAIN_PAD_CLASS`.
 
-The main content area **below `SiteHeader`** uses responsive horizontal + vertical padding so pages are not flush to the inset edges. Apply it **once** in [app/dashboard/layout.tsx](app/dashboard/layout.tsx); **do not** repeat `p-6 md:p-10` (or similar) on individual dashboard pages — use **`gap-*`** between sections only.
+The main content area **below `SiteHeader`** uses **horizontal** padding (`DASHBOARD_INSET_X_CLASS` via `DASHBOARD_MAIN_PAD_CLASS`) plus **vertical margin** (`DASHBOARD_MAIN_CONTENT_MY_CLASS`) on the same wrapper. Margin (not padding) keeps breathing room top/bottom **without** shrinking the inner scroll/flex box the way layout `py-*` did. Apply **once** in [app/dashboard/layout.tsx](app/dashboard/layout.tsx); add extra **`gap-*`** / **`py-*`** on individual pages if a route needs more spacing.
 
-| Token / export                    | Role                                                                                                                                                     |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DASHBOARD_INSET_X_CLASS`         | **Horizontal** inset only — shared by [`SiteHeader`](components/site-header.tsx) and the main column so the header icon/title line up with page content. |
-| `DASHBOARD_MAIN_PAD_Y_CLASS`      | **Vertical** padding for the scrollable main area only (below the header).                                                                               |
-| `DASHBOARD_MAIN_PAD_CLASS`        | `DASHBOARD_INSET_X_CLASS` + `DASHBOARD_MAIN_PAD_Y_CLASS` on the main content wrapper in [app/dashboard/layout.tsx](app/dashboard/layout.tsx).            |
-| `DASHBOARD_MAIN_PAD_NEGATE_CLASS` | Full-bleed negate (`DASHBOARD_INSET_X_NEGATE_CLASS` + `DASHBOARD_MAIN_PAD_Y_NEGATE_CLASS`) — keep in sync with the pad classes.                          |
-| `dashboardMainBleedClass()`       | Wrapper for **full-bleed** routes that cancel the pad (edge-to-edge in the main column).                                                                 |
+| Token / export                     | Role                                                                                                                                                                                                        |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DASHBOARD_MAIN_SURFACE_CLASS`     | **Emphasized** shell on [`SidebarInset`](components/ui/sidebar.tsx): `bg-card`, `md:rounded-tl-2xl`, light shadow, `md:border-l` — set once in [app/dashboard/layout.tsx](app/dashboard/layout.tsx).        |
+| `PROFILE_MODAL_MAIN_SURFACE_CLASS` | **Profile modal** main column: `bg-card`, `shadow-sm`, `border-l` / `border-t` — same elevation language as `DASHBOARD_MAIN_SURFACE_CLASS` (see [profile-modal.tsx](components/profile/profile-modal.tsx)). |
+| `DASHBOARD_SHELL_TOP_INSET_CLASS`  | **`pt-2`** on the wrapper around `SidebarInset` — thin strip of **`bg-background`** above the main column (sidebar rail stays flush to the top).                                                            |
+| `DASHBOARD_INSET_X_CLASS`          | **Horizontal** inset only — shared by [`SiteHeader`](components/site-header.tsx) and the main column so the header icon/title line up with page content.                                                    |
+| `DASHBOARD_MAIN_CONTENT_MY_CLASS`  | **Vertical margin** (`my-4 sm:my-5 md:my-6`) on the main content wrapper — top/bottom air without layout `py-*`.                                                                                            |
+| `DASHBOARD_MAIN_PAD_CLASS`         | `DASHBOARD_INSET_X_CLASS` (horizontal) — used with `DASHBOARD_MAIN_CONTENT_MY_CLASS` in [app/dashboard/layout.tsx](app/dashboard/layout.tsx).                                                               |
+| `DASHBOARD_MAIN_PAD_NEGATE_CLASS`  | Full-bleed negate: **`DASHBOARD_INSET_X_NEGATE_CLASS`** + **`DASHBOARD_MAIN_CONTENT_MY_NEGATE_CLASS`**.                                                                                                     |
+| `dashboardMainBleedClass()`        | Wrapper for **full-bleed** routes that cancel the pad (edge-to-edge in the main column).                                                                                                                    |
 
 **Full-bleed routes** (segment `layout.tsx` wraps children with `dashboardMainBleedClass()`):
 
@@ -72,6 +85,13 @@ The main content area **below `SiteHeader`** uses responsive horizontal + vertic
 - [app/dashboard/chat/layout.tsx](app/dashboard/chat/layout.tsx) — EchoPrism session.
 
 All other dashboard routes inherit the padded main column from the root dashboard layout.
+
+### Empty states (dashboard)
+
+Use **`DashboardEmptyState`** ([components/dashboard-empty-state.tsx](components/dashboard-empty-state.tsx)) for “no rows yet” views in the main column: **dashed `border-border` frame**, light **`shadow-md`** + subtle **`bg-card/80`** (and optional blur) so the block reads as a **raised** panel on the canvas, full-area **Threads** shader (muted motion, `enableMouseInteraction={false}`), **icon** in a **`rounded-full bg-muted`** well (default accent **`text-[#0891b2]`**), **title** + optional **description**, then **optional `children`** (primary CTA, `CreateWorkflowMenu`, links).
+
+- Prefer **`minHeightClass="min-h-0 flex-1"`** and **`className="min-h-0 flex-1"`** when the empty state should expand inside a flex scroll region (workflows, MCP, schedule).
+- Integrations reuse the same component via **`IntegrationsEmptyState`** ([app/dashboard/integrations/\_components/integrations-empty-state.tsx](app/dashboard/integrations/_components/integrations-empty-state.tsx)).
 
 ---
 
@@ -85,17 +105,18 @@ All other dashboard routes inherit the padded main column from the root dashboar
 | Workflow edit step search icons (Brandfetch + Composio mapping)                                       | `components/echo-flow/echo-flow-step-search-icon.tsx` — `EchoFlowStepSearchIcon`                                                                                                      |
 | Floating dock                                                                                         | `components/ui/floating-dock.tsx`                                                                                                                                                     |
 | Workflow share                                                                                        | `components/workflow-share-dialog.tsx` (or echo-flow variant)                                                                                                                         |
-| Step visual context                                                                                   | `components/echo-flow/step-visual-context.tsx`                                                                                                                                        |
+| **Step context (rich)**                                                                               | `components/echo-flow/step-context-composer.tsx` — previews, `{{cN}}` tokens; video synthesis attaches step frames here                                                               |
+| Stateful async button (marketing)                                                                     | `components/ui/stateful-button.tsx`                                                                                                                                                   |
+| Agent session (LiveKit)                                                                               | `components/agents-ui/blocks/agent-session-view-01`                                                                                                                                   |
+| **Dashboard empty state** (dashed + Threads)                                                          | `components/dashboard-empty-state.tsx` — `DashboardEmptyState`                                                                                                                        |
 
 **Workflow share — public visibility:** Copying the direct link and sending email invites are enabled only when the workflow is **public** (`is_public` on the workflow; enforced by the API). The **owner** turns this on with a **`Switch`** (`size="sm"`) plus **`Label`** and short helper copy at the top of the dialog; collaborators see a read-only note if the workflow is still private. While sharing is off, link and invite controls are **disabled** and visually muted (`text-muted-foreground`, neutral borders per **§4** — no extra brand tint on the switch row). Primary gradient stays on the main **Share** entry points that open the dialog, not on the visibility control itself.
-| Stateful async button (marketing) | `components/ui/stateful-button.tsx` |
-| Agent session (LiveKit) | `components/agents-ui/blocks/agent-session-view-01` |
 
 ### Universal command palette vs contextual search
 
 |                | Universal (`DashboardCommandMenu`)                                                                                                                                                    | Contextual (`EchoSearchWithSuggestions`)                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Trigger**    | Header “Search or jump to…” (emphasized `bg-card` + border; search icon may sit in `GradientIconWell`)                                                                                | Local `<Input>` + icon; live suggestions under the field                                                      |
+| **Trigger**    | Header “Search or jump to…” (`bg-card` + `border-border`; search icon may sit in `GradientIconWell`)                                                                                  | Local `<Input>` + icon; live suggestions under the field                                                      |
 | **Shortcut**   | ⌘/Ctrl+K (global)                                                                                                                                                                     | None by default; editor uses **⌘⇧K** for step search only                                                     |
 | **Scope**      | Routes, account/profile sections, workflows list, integrations catalog                                                                                                                | Single page’s list (steps, actions, integrations grid filter)                                                 |
 | **Navigation** | `router.push`; profile sections use `DashboardProfileNavProvider` / `openProfile(section)`                                                                                            | `onSelect` callback (e.g. focus card, pick action); edit URL `?step=` is for deep links only                  |
@@ -121,8 +142,12 @@ This section is the **source of truth** for neutral UI chrome. It applies across
 
 ### Borders and inputs
 
-- Default: **`border-border`** (or borderless surfaces with shadow). **No** brand-tinted borders on hover or focus for generic inputs, selects, or cards.
+- Default: **`border-border`** on cards and panels where a visible edge helps (**§1**); empty placeholders may use **dashed** `border-border` plus shadow. **No** brand-tinted borders on hover or focus for generic inputs, selects, or **whole cards**.
 - **Allowed** Cyan→Lavender **ring**: **`GradientIconWell`**, **`GradientIconTag`**, and **`corners="full"`** for circular avatars — see **§6**. Do not duplicate that effect with flat `ring-primary` or colored `box-shadow` on plain `Avatar` components.
+
+### Workflow list tiles (layout detail)
+
+Dashboard **workflow grids** use **`workflowShellClass`** / **`workflowListCardClass`** — borders and shadow **steps** are defined in **§1 — Card borders and elevation (neutral only)** (do not add brand-tinted **card** rings). **Media clipping:** put **`overflow-hidden rounded-t-xl`** on the **top media strip** (thumbnail, Brandfetch hero, or placeholder) so the asset clips to the card’s top corners; keep the **“most recently updated”** pulse dot **outside** that clipped strip (sibling wrapper with **`relative`**, dot **`absolute -right-1 -top-1`**).
 
 ### Focus
 
@@ -208,14 +233,29 @@ import { GradientIconTag } from "@/components/ui/gradient-icon-well";
 
 ## 8. Typography & spacing
 
-| Use        | Suggestion                               |
-| ---------- | ---------------------------------------- |
-| Page title | `text-3xl font-bold text-foreground`     |
-| Section    | `text-2xl font-semibold text-foreground` |
-| Body       | `text-base text-muted-foreground`        |
-| Muted      | `text-sm text-muted-foreground`          |
+### Dashboard page title & description (canonical)
 
-Spacing: `gap-4` default between blocks; dashboard **outer** padding is **`DASHBOARD_MAIN_PAD_CLASS`** (see **§2 — Main column padding**); the main column uses `rounded-tl-2xl` against the sidebar.
+**Source of truth:** [`lib/dashboard-page-typography.ts`](lib/dashboard-page-typography.ts). Use these for **in-page hero** rows on dashboard routes (and the profile modal section header) so typography matches (font inherits from the app — **Inter**).
+
+**[`SiteHeader`](components/site-header.tsx)** shows **only the page title** (`h1` + icon); route descriptions from [`dashboard-route-titles.ts`](lib/dashboard-route-titles.ts) are **`sr-only`** for screen readers, not visible under the title.
+
+| Role                       | Export / pattern                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Page title**             | **`DASHBOARD_PAGE_TITLE_CLASS`** — `text-xl font-semibold tracking-tight sm:text-2xl`                                                             |
+| **Page description**       | **`DASHBOARD_PAGE_DESCRIPTION_CLASS`** — `text-sm text-muted-foreground leading-relaxed sm:text-base` (in-page / modal — not in **`SiteHeader`**) |
+| **SiteHeader title color** | Same title scale; override with **`text-card-foreground`** on the `h1` (card surface).                                                            |
+
+Use the constants above for dashboard route titles and lead copy (avoid duplicating sizes). Optional **`mt-1`** between title and description when not using a parent **`gap-*`**.
+
+### Other typography
+
+| Use                              | Suggestion                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| Section (in-card, not page hero) | `text-lg font-semibold text-foreground` or `text-base font-semibold` per context |
+| Body                             | `text-base text-muted-foreground`                                                |
+| Muted                            | `text-sm text-muted-foreground`                                                  |
+
+Spacing: `gap-4` default between blocks; dashboard main column uses **`DASHBOARD_MAIN_PAD_CLASS`** + **`DASHBOARD_MAIN_CONTENT_MY_CLASS`** (see **§2 — Main column padding**). The main column surface uses **`DASHBOARD_MAIN_SURFACE_CLASS`** (`md:rounded-tl-2xl` against the sidebar rail).
 
 ---
 
@@ -224,7 +264,7 @@ Spacing: `gap-4` default between blocks; dashboard **outer** padding is **`DASHB
 - **Canvas:** React Flow; dotted background with Lavender at low opacity.
 - **Top bar (editor):** `EchoSearchWithSuggestions` for steps; Share / Publish; collaborator avatars (`GradientIconWell` **full**) when shared.
 - **Dock:** `FloatingDock` bottom-center.
-- **Inspector:** `EchoNodeInspector`; `StepEditorPanel`; optional `StepVisualContext` when step has screenshot metadata.
+- **Inspector:** `EchoNodeInspector`; `StepEditorPanel` with `StepContextComposer` for step narrative and frame previews (`context_attachments`).
 - **Persistence:** `PUT /api/workflows/{id}/flow` (`flow_graph`).
 
 ### Search (`EchoSearchWithSuggestions`)
@@ -243,7 +283,7 @@ Prefer Tabler; Echo Flow may use Lucide where names differ — keep `h-4`–`h-5
 
 ## 10. CSS variables (`globals.css`)
 
-`@theme inline`: `--color-echo-cetacean`, `--color-echo-lavender`, `--color-echo-cyan`, `--color-echo-ghost`, `--color-echo-surface`, `--color-echo-text`, `--color-echo-text-muted`, `--shadow-echo-card`, `--radius-echo`, etc. Semantic app tokens (`--background`, `--card`, `--sidebar`, …) and the deemphasized vs emphasized hierarchy are documented in **§1 — Deemphasized & emphasized backgrounds** above. **`--ring`** is **neutral** for default focus (see **§4**).
+`@theme inline`: `--color-echo-cetacean`, `--color-echo-lavender`, `--color-echo-cyan`, `--color-echo-ghost`, `--color-echo-surface`, `--color-echo-text`, `--color-echo-text-muted`, `--shadow-echo-card`, `--radius-echo`, etc. Semantic app tokens (`--background`, `--card`, `--sidebar`, …) and the deemphasized vs emphasized hierarchy are documented in **§1 — Deemphasized & emphasized backgrounds** above (dashboard main column = **`--card`**, rail = **`--background`** via `.echo-sidebar-inset`). **`--ring`** is **neutral** for default focus (see **§4**).
 
 ---
 
@@ -282,7 +322,7 @@ Primary language for overlays and elevated panels: `backdrop-blur`, semi-transpa
 
 | Class                                  | Description                                                    |
 | -------------------------------------- | -------------------------------------------------------------- |
-| `.echo-card`                           | Solid bordered card                                            |
+| `.echo-card`                           | `border-border` + `shadow-lg` elevated card (see §1)           |
 | `.echo-glass-card`                     | Glass card                                                     |
 | `.echo-btn-primary`                    | Primary gradient button                                        |
 | `.echo-btn-secondary`                  | Outline (neutral border; see globals)                          |

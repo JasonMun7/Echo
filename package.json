@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "test": "./scripts/run-all-tests.sh",
+    "test:web": "cd apps/web && pnpm test",
     "test:agent": "env PYTHONPATH=agent pytest agent/tests -v",
     "install:backend": "./scripts/install-python-deps.sh",
     "firebase:deploy": "cd firebase && firebase deploy --only firestore",

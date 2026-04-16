@@ -15,8 +15,7 @@ export type DashboardHeaderIconId =
   | "sparkles"
   | "boxes"
   | "plug"
-  | "calendar"
-  | "bell";
+  | "calendar";
 
 export type DashboardPageHeaderMeta = {
   title: string;
@@ -35,12 +34,6 @@ const HEADER_RULES: {
     title: "Dashboard",
     description: "Overview of your workspace and shortcuts to what matters.",
     icon: "layout-dashboard",
-  },
-  {
-    test: (p) => p.startsWith("/dashboard/workflows/new"),
-    title: "New workflow",
-    description: "Start from a capture or build steps from scratch.",
-    icon: "plus-circle",
   },
   {
     test: (p) => /\/dashboard\/workflows\/[^/]+\/runs\//.test(p),
@@ -104,7 +97,7 @@ const HEADER_RULES: {
   },
   {
     test: (p) => p.startsWith("/dashboard/integrations"),
-    title: "Integrations",
+    title: "Integrations & Webhooks",
     description: "OAuth accounts and third-party connections.",
     icon: "plug",
   },
@@ -113,12 +106,6 @@ const HEADER_RULES: {
     title: "Schedule",
     description: "Scheduled runs and automation windows.",
     icon: "calendar",
-  },
-  {
-    test: (p) => p.startsWith("/dashboard/notifications"),
-    title: "Notifications",
-    description: "Workflow shares, invites, and in-app alerts.",
-    icon: "bell",
   },
 ];
 

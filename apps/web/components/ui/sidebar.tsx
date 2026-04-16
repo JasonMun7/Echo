@@ -187,7 +187,7 @@ export const SidebarGroupContent = ({ className, ...props }: React.ComponentProp
 export const SidebarGroupLabel = ({ className, ...props }: React.ComponentProps<"div">) => (
   <div
     className={cn(
-      "px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#150A35]/45 dark:text-white/55",
+      "px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
       className,
     )}
     {...props}
@@ -223,10 +223,10 @@ export const SidebarMenuButton = ({
           className,
         )
       : cn(
-          "group/nav-btn flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
-          "text-sidebar-foreground/90 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
-          "[&_svg]:shrink-0 [&_svg]:text-sidebar-foreground/55 [&_svg]:transition-colors",
-          "hover:[&_svg]:text-sidebar-accent-foreground",
+          "echo-sidebar-nav-item group/nav-btn flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
+          "text-muted-foreground hover:text-foreground",
+          "[&_svg]:shrink-0 [&_svg]:text-muted-foreground [&_svg]:transition-colors",
+          "hover:[&_svg]:text-foreground",
           size === "sm" && "py-1 text-[11px]",
           size === "lg" && "py-2 text-sm",
           className,
@@ -252,7 +252,7 @@ export const SidebarMenuAction = ({
   <button
     type="button"
     className={cn(
-      "flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
+      "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/90 hover:text-foreground",
       showOnHover &&
         "opacity-0 pointer-events-none transition-opacity group-hover/menu-item:pointer-events-auto group-hover/menu-item:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
       className,
@@ -300,26 +300,23 @@ export const DesktopSidebar = ({
     leaveTimerRef.current = setTimeout(() => {
       leaveTimerRef.current = null;
       setOpen(false);
-    }, 220);
+    }, 100);
   }, [isDesktop, clearLeaveTimer, setOpen]);
 
   useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
 
   return (
-    <motion.div
+    <div
       ref={containerRef}
       className={cn(
-        "group/sidebar-rail h-full hidden md:flex md:flex-col shrink-0 overflow-hidden",
+        "group/sidebar-rail hidden h-full shrink-0 overflow-hidden md:flex md:flex-col",
+        "transform-gpu",
+        "[transition-property:width] [transition-duration:220ms] [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]",
+        "motion-reduce:[transition-duration:1ms]",
         className,
       )}
-      initial={false}
-      animate={{
+      style={{
         width: open ? SIDEBAR_WIDTH_EXPANDED : SIDEBAR_WIDTH_COLLAPSED,
-      }}
-      transition={{
-        type: "tween",
-        duration: 0.38,
-        ease: [0.32, 0.72, 0, 1],
       }}
       onMouseEnter={expand}
       onMouseLeave={() => {
@@ -338,13 +335,13 @@ export const DesktopSidebar = ({
     >
       <div
         className={cn(
-          "echo-sidebar-inset h-full w-full min-w-0 flex flex-col overflow-y-auto overflow-x-hidden",
+          "echo-sidebar-inset h-full w-full min-w-0 flex flex-col overflow-y-auto overflow-x-hidden [contain:layout]",
           "px-3 py-3",
         )}
       >
         {children}
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -368,8 +365,8 @@ export const MobileSidebar = ({ className, children, ...props }: React.Component
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: "-100%", opacity: 0 }}
               transition={{
-                duration: 0.3,
-                ease: "easeInOut",
+                duration: 0.22,
+                ease: [0.32, 0.72, 0, 1],
               }}
               className={cn(
                 "fixed h-full w-full inset-0 bg-white p-10 z-[100] flex flex-col justify-between",

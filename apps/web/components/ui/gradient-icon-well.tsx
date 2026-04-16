@@ -85,6 +85,8 @@ type GradientIconTagProps = {
   /** Inner plate (default theme card + card foreground). */
   innerClassName?: string;
   size?: "sm" | "md";
+  /** Stronger hover/focus affordance when used inside links or buttons. */
+  interactive?: boolean;
 };
 
 const TAG_SIZE: Record<NonNullable<GradientIconTagProps["size"]>, string> = {
@@ -100,6 +102,7 @@ export function GradientIconTag({
   className,
   innerClassName,
   size = "md",
+  interactive = false,
 }: GradientIconTagProps) {
   return (
     <span
@@ -107,6 +110,8 @@ export function GradientIconTag({
         "inline-flex max-w-full min-w-0 items-stretch rounded-full p-px",
         WELL_GRADIENT,
         WELL_SHADOW,
+        interactive &&
+          "transition-[box-shadow,filter] duration-200 group-hover:shadow-md group-hover:brightness-[1.02] group-focus-visible:shadow-md group-focus-visible:brightness-[1.02] dark:group-hover:shadow-black/30 dark:group-focus-visible:shadow-black/30",
         className,
       )}
     >
@@ -114,6 +119,8 @@ export function GradientIconTag({
         className={cn(
           "inline-flex min-w-0 max-w-full items-center justify-center rounded-full bg-card text-card-foreground",
           TAG_SIZE[size],
+          interactive &&
+            "transition-colors group-hover:bg-muted/80 group-focus-visible:bg-muted/80",
           innerClassName,
         )}
       >

@@ -2,13 +2,42 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconCircleCheck, IconPlug, IconSearch } from "@tabler/icons-react";
+import { ArrowDownWideNarrow, Filter } from "lucide-react";
 import { EchoSearchWithSuggestions } from "@/components/ui/echo-search-with-suggestions";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { apiFetch, apiErrorMessage } from "@/lib/api";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
+import { cn } from "@/lib/utils";
 import type { Integration } from "./_lib/integration-types";
+import {
+  INTEGRATION_CATEGORY_TABS,
+  type IntegrationCategoryId,
+  integrationMatchesCategoryTab,
+} from "./_lib/integration-categories";
 import { IntegrationSearchDropdownIcon } from "./_components/integration-search-dropdown-icon";
 import { IntegrationCard } from "./_components/integration-card";
 import { IntegrationCardSkeleton } from "./_components/integration-card-skeleton";
@@ -37,6 +66,23 @@ function displayConnected(integration: Integration, optimistic: Record<string, b
   return isEffectivelyConnected(integration);
 }
 
+type ConnectionFilter = "all" | "connected" | "available";
+
+type SortKey = "featured" | "name_asc" | "name_desc" | "connected_first";
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "featured", label: "Featured" },
+  { value: "name_asc", label: "Name (A–Z)" },
+  { value: "name_desc", label: "Name (Z–A)" },
+  { value: "connected_first", label: "Connected first" },
+];
+
+const CONNECTION_FILTER_LABEL: Record<ConnectionFilter, string> = {
+  all: "All integrations",
+  connected: "Connected only",
+  available: "Not connected",
+};
+
 export default function IntegrationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,6 +94,9 @@ export default function IntegrationsPage() {
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
   const [composioConfigured, setComposioConfigured] = useState(false);
   const [query, setQuery] = useState("");
+  const [categoryTab, setCategoryTab] = useState<IntegrationCategoryId>("all");
+  const [connectionFilter, setConnectionFilter] = useState<ConnectionFilter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("featured");
   /** Blocks duplicate link fetches before `window.location` navigates away. */
   const oauthLaunchInFlightRef = useRef(false);
   const disconnectInFlightRef = useRef(false);
@@ -221,158 +270,231 @@ export default function IntegrationsPage() {
     [integrations],
   );
 
-  const filtered = useMemo(
-    () => integrations.filter((i) => matchesQuery(i, query)),
-    [integrations, query],
-  );
+  const orderIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    integrations.forEach((i, idx) => {
+      m.set(i.id, idx);
+    });
+    return m;
+  }, [integrations]);
 
-  const connectedPlugins = useMemo(
-    () => filtered.filter((i) => displayConnected(i, optimistic)),
-    [filtered, optimistic],
-  );
+  const displayList = useMemo(() => {
+    let list = integrations.filter((i) => matchesQuery(i, query));
+    list = list.filter((i) => integrationMatchesCategoryTab(i.id, categoryTab));
+    if (connectionFilter === "connected") {
+      list = list.filter((i) => displayConnected(i, optimistic));
+    } else if (connectionFilter === "available") {
+      list = list.filter((i) => !displayConnected(i, optimistic));
+    }
 
-  const availablePlugins = useMemo(
-    () => filtered.filter((i) => !displayConnected(i, optimistic)),
-    [filtered, optimistic],
-  );
+    const idx = (a: Integration) => orderIndex.get(a.id) ?? 999;
+    const copy = [...list];
+    copy.sort((a, b) => {
+      if (sortKey === "connected_first") {
+        const ca = displayConnected(a, optimistic);
+        const cb = displayConnected(b, optimistic);
+        if (ca !== cb) return ca ? -1 : 1;
+      }
+      if (sortKey === "name_asc") return a.name.localeCompare(b.name);
+      if (sortKey === "name_desc") return b.name.localeCompare(a.name);
+      return idx(a) - idx(b);
+    });
+    return copy;
+  }, [integrations, query, categoryTab, connectionFilter, sortKey, optimistic, orderIndex]);
 
-  const cardGridClass = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+  const hasActiveFilters =
+    query.trim() !== "" ||
+    categoryTab !== "all" ||
+    connectionFilter !== "all" ||
+    sortKey !== "featured";
+
+  const cardGridClass = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3";
+
+  const toolbarRow = !loading ? (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-4",
+        "xl:flex-row xl:items-center xl:justify-between xl:gap-4",
+      )}
+    >
+      <div className="relative w-full min-w-0 shrink-0 xl:max-w-md">
+        <EchoSearchWithSuggestions
+          items={searchItems}
+          placeholder="Search integrations…"
+          aria-label="Search integrations"
+          onQueryChange={setQuery}
+          onSelect={(item) => {
+            setQuery(item.label);
+            requestAnimationFrame(() => {
+              document.getElementById(`integration-card-${item.id}`)?.scrollIntoView({
+                behavior: "smooth",
+                block: "nearest",
+              });
+            });
+          }}
+          className="w-full"
+        />
+      </div>
+
+      <div className="flex min-w-0 flex-1 justify-center">
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-2">
+          {INTEGRATION_CATEGORY_TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setCategoryTab(id)}
+              className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <Badge
+                variant="outline"
+                className={cn(
+                  "border-border px-3 py-1.5 text-xs font-medium sm:text-sm",
+                  categoryTab === id
+                    ? "bg-muted text-foreground"
+                    : "bg-card text-muted-foreground hover:bg-muted/70",
+                )}
+              >
+                {label}
+              </Badge>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-end gap-2 xl:ml-auto xl:w-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" size="sm" className="border-border shrink-0">
+              <Filter className="h-4 w-4 shrink-0" aria-hidden />
+              Filters
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Connection
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              value={connectionFilter}
+              onValueChange={(v) => {
+                if (v === "all" || v === "connected" || v === "available") {
+                  setConnectionFilter(v);
+                }
+              }}
+            >
+              <DropdownMenuRadioItem value="all">
+                {CONNECTION_FILTER_LABEL.all}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="connected">
+                {CONNECTION_FILTER_LABEL.connected}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="available">
+                {CONNECTION_FILTER_LABEL.available}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+          <SelectTrigger
+            size="sm"
+            className="min-w-0 max-w-full border-border data-[size=sm]:h-9 sm:max-w-[min(100%,220px)] sm:min-w-[12rem]"
+            aria-label="Sort integrations"
+          >
+            <ArrowDownWideNarrow className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="text-muted-foreground">Sort by:</span>
+              <SelectValue />
+            </span>
+          </SelectTrigger>
+          <SelectContent align="end">
+            {SORT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  ) : (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-4",
+        "xl:flex-row xl:items-center xl:justify-between xl:gap-4",
+      )}
+    >
+      <Skeleton className="h-10 w-full max-w-md rounded-md" />
+      <div className="flex min-w-0 flex-1 flex-wrap justify-center gap-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Skeleton key={i} className="h-8 w-[4.5rem] shrink-0 rounded-full" />
+        ))}
+      </div>
+      <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 xl:ml-auto xl:w-auto">
+        <Skeleton className="h-9 w-[5.5rem] shrink-0 rounded-md" />
+        <Skeleton className="h-9 w-44 shrink-0 rounded-md" />
+      </div>
+    </div>
+  );
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-background">
-        <div className="flex flex-1 flex-col gap-6 pb-24 md:pb-24">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="max-w-xl">
-              <h1 className="text-2xl font-semibold text-foreground">Integrations</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Connect apps once so Echo can work with them on your behalf. You stay signed in to
-                Echo with Google; third-party access is handled securely by Composio.
-              </p>
-            </div>
-            <div className="relative w-full max-w-md shrink-0">
-              <EchoSearchWithSuggestions
-                items={searchItems}
-                placeholder="Search integrations…"
-                aria-label="Search integrations"
-                onQueryChange={setQuery}
-                onSelect={(item) => {
-                  setQuery(item.label);
-                  requestAnimationFrame(() => {
-                    document.getElementById(`integration-card-${item.id}`)?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "nearest",
-                    });
-                  });
-                }}
-                className="w-full"
-              />
-            </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 pb-24 md:pb-24">
+          <div className="flex max-w-3xl flex-col gap-2">
+            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>Integrations &amp; Webhooks</h1>
+            <p className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "mt-1")}>
+              Seamlessly connect Echo to your incident response, monitoring, and DevOps toolchain.
+              Third-party access is handled securely by Composio.
+            </p>
           </div>
 
           {loading ? (
-            <div className="flex flex-col gap-8">
-              <section className="flex flex-col gap-3" aria-hidden>
-                <div>
-                  <Skeleton className="mb-2 h-7 w-28 rounded-md" />
-                  <Skeleton className="h-4 max-w-md rounded-md" />
-                </div>
-                <div className={cardGridClass}>
-                  {[1, 2].map((i) => (
-                    <IntegrationCardSkeleton key={i} />
-                  ))}
-                </div>
-              </section>
-              <section className="flex flex-col gap-3" aria-hidden>
-                <div>
-                  <Skeleton className="mb-2 h-7 w-36 rounded-md" />
-                  <Skeleton className="h-4 max-w-lg rounded-md" />
-                </div>
-                <div className={cardGridClass}>
-                  {[1, 2, 3, 4].map((i) => (
-                    <IntegrationCardSkeleton key={`a-${i}`} />
-                  ))}
-                </div>
-              </section>
+            <div className="flex flex-col gap-6">
+              {toolbarRow}
+              <div className={cn(cardGridClass, "opacity-60")}>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <IntegrationCardSkeleton key={i} />
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-8">
-              <section className="flex flex-col gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Connected</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Apps ready for workflows and chat tools.
-                  </p>
-                </div>
-                {connectedPlugins.length === 0 ? (
-                  query.trim() ? (
-                    <IntegrationsEmptyState
-                      icon={IconSearch}
-                      title="No connected integrations match your search."
-                      description="Try a different search term."
-                    />
-                  ) : (
-                    <IntegrationsEmptyState
-                      icon={IconPlug}
-                      title="No integrations connected yet"
-                      description="Add one from the Available section below."
-                    />
-                  )
-                ) : (
-                  <div className={cardGridClass}>
-                    {connectedPlugins.map((integration) => (
-                      <IntegrationCard
-                        key={integration.id}
-                        integration={integration}
-                        connectionOverride={optimistic[integration.id]}
-                        connecting={connecting === integration.id}
-                        disconnecting={disconnecting === integration.id}
-                        onConnect={() => void startConnectIntegration(integration.id)}
-                        onDisconnect={() => void disconnectIntegration(integration.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
+            <div className="flex flex-col gap-6">
+              {toolbarRow}
 
-              <section className="flex flex-col gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Available</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Connect these when you&apos;re ready — you&apos;ll leave this page briefly to
-                    sign in with the provider, then return here.
-                  </p>
+              {integrations.length === 0 ? (
+                <IntegrationsEmptyState
+                  icon={IconPlug}
+                  title="No integrations in the catalog"
+                  description="Check back later or contact support if this persists."
+                />
+              ) : displayList.length === 0 ? (
+                <IntegrationsEmptyState
+                  icon={hasActiveFilters ? IconSearch : IconCircleCheck}
+                  title={
+                    hasActiveFilters ? "No integrations match your filters" : "Nothing to show"
+                  }
+                  description={
+                    hasActiveFilters
+                      ? "Try clearing search, changing category, or adjusting filters and sort."
+                      : "Adjust filters to see integrations."
+                  }
+                />
+              ) : (
+                <div className={cardGridClass}>
+                  {displayList.map((integration) => (
+                    <IntegrationCard
+                      key={integration.id}
+                      integration={integration}
+                      connectionOverride={optimistic[integration.id]}
+                      connecting={connecting === integration.id}
+                      disconnecting={disconnecting === integration.id}
+                      onConnect={() => void startConnectIntegration(integration.id)}
+                      onDisconnect={() => void disconnectIntegration(integration.id)}
+                    />
+                  ))}
                 </div>
-                {availablePlugins.length === 0 ? (
-                  query.trim() ? (
-                    <IntegrationsEmptyState
-                      icon={IconSearch}
-                      title="No available integrations match your search."
-                      description="Try a different search term."
-                    />
-                  ) : (
-                    <IntegrationsEmptyState
-                      icon={IconCircleCheck}
-                      title="Everything in the catalog is already connected"
-                      description="All listed apps are connected and ready to use."
-                    />
-                  )
-                ) : (
-                  <div className={cardGridClass}>
-                    {availablePlugins.map((integration) => (
-                      <IntegrationCard
-                        key={integration.id}
-                        integration={integration}
-                        connectionOverride={optimistic[integration.id]}
-                        connecting={connecting === integration.id}
-                        disconnecting={disconnecting === integration.id}
-                        onConnect={() => void startConnectIntegration(integration.id)}
-                        onDisconnect={() => void disconnectIntegration(integration.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
+              )}
             </div>
           )}
         </div>

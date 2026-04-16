@@ -526,8 +526,9 @@ def route_after_inference(state: GuiRunState) -> Literal["execute", "end_error",
 async def synthesis_node(state: SynthesisGraphState) -> dict[str, Any]:
     client = state["client"]
     parts = state["parts"]
+    gcs_prefix = state.get("gcs_prefix")
     try:
-        result = await synthesize_workflow_from_media(client, parts)
+        result = await synthesize_workflow_from_media(client, parts, storage_prefix=gcs_prefix)
         return {
             "steps_data": result["steps"],
             "variables": result.get("variables", []),

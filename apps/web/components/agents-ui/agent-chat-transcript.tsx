@@ -9,7 +9,7 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { AgentChatIndicator } from "@/components/agents-ui/agent-chat-indicator";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 
 /**
  * Props for the AgentChatTranscript component.
@@ -51,6 +51,14 @@ export function AgentChatTranscript({
   className,
   ...props
 }: AgentChatTranscriptProps) {
+  /** Agent SDK often stays on `listening` during tools; infer pending reply from transcript + speech. */
+  const last = messages.at(-1);
+  const lastFromUser = last?.from?.isLocal === true;
+  const awaitingAssistantReply = Boolean(lastFromUser && agentState !== "speaking");
+
+  const showActivityIndicator =
+    agentState === "thinking" || agentState === "initializing" || awaitingAssistantReply;
+
   return (
     <Conversation className={className} {...props}>
       <ConversationContent>
@@ -72,7 +80,24 @@ export function AgentChatTranscript({
           );
         })}
         <AnimatePresence>
-          {agentState === "thinking" && <AgentChatIndicator size="sm" />}
+          {showActivityIndicator && (
+            <motion.div
+              key="agent-activity"
+              layout
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-2 self-start pl-1"
+              aria-live="polite"
+              aria-label="EchoPrism is responding"
+            >
+              <AgentChatIndicator size="sm" />
+              <span className="text-muted-foreground text-xs font-medium">
+                EchoPrism is responding…
+              </span>
+            </motion.div>
+          )}
         </AnimatePresence>
       </ConversationContent>
       <ConversationScrollButton />

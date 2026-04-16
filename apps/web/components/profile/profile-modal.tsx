@@ -20,6 +20,11 @@ import {
   sidebarNavIconClass,
   sidebarNavLabelClass,
 } from "@/lib/sidebar-nav-classes";
+import { PROFILE_MODAL_MAIN_SURFACE_CLASS } from "@/lib/dashboard-shell";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
 
 export type ProfileModalSection = "general" | "appearance" | "notifications" | "account" | "help";
@@ -86,14 +91,20 @@ export function ProfileModal({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "flex h-[min(88vh,720px)] min-h-[480px] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] md:w-[50vw] md:max-w-[50vw] flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl",
+          "flex h-[min(88vh,calc(100vh-2.5rem))] min-h-[480px] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] md:w-[50vw] md:max-w-[50vw] flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl",
+          // Inset from top like dashboard shell (`pt-2` vibe) so the dimmed backdrop reads behind the modal
+          "top-8 left-[50%] z-50 max-h-[min(88vh,calc(100vh-2.5rem))] -translate-x-1/2 translate-y-0 sm:top-10",
         )}
       >
-        <DialogTitle className="sr-only">Account settings</DialogTitle>
+        <DialogTitle className="sr-only">Settings</DialogTitle>
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          {/* Left rail — same surface tokens as dashboard sidebar */}
-          <aside className={cn("echo-sidebar-inset flex w-full shrink-0 flex-col md:w-[220px]")}>
-            <div className="flex items-center justify-between bg-sidebar px-4 py-3 md:block">
+          {/* Settings modal — left rail: deemphasized canvas (`.echo-sidebar-inset`), same as dashboard sidebar */}
+          <aside
+            className={cn(
+              "echo-sidebar-inset flex w-full shrink-0 flex-col rounded-t-2xl md:w-[220px] md:rounded-t-none md:rounded-l-2xl",
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-border/50 px-4 py-3 md:block">
               <div className="flex min-w-0 items-center gap-2.5">
                 <GradientIconWell corners="full" className="size-9 shrink-0">
                   <Avatar className="size-full rounded-full border-0">
@@ -102,23 +113,23 @@ export function ProfileModal({
                       alt=""
                       className="object-cover"
                     />
-                    <AvatarFallback className="rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
+                    <AvatarFallback className="rounded-full bg-muted text-xs font-semibold text-foreground">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
                 </GradientIconWell>
                 <div className="min-w-0 md:px-0">
-                  <p className="truncate text-sm font-semibold text-sidebar-foreground">
+                  <p className="truncate text-sm font-semibold text-foreground">
                     {user?.displayName || "Echo user"}
                   </p>
-                  <p className="truncate text-xs text-sidebar-foreground/65">{user?.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                 </div>
               </div>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="shrink-0 text-sidebar-foreground/85 hover:bg-sidebar-accent md:hidden"
+                className="shrink-0 text-muted-foreground hover:bg-muted md:hidden"
                 onClick={() => onOpenChange(false)}
                 aria-label="Close"
               >
@@ -127,7 +138,7 @@ export function ProfileModal({
             </div>
 
             <nav className="flex flex-1 flex-col gap-1 p-3">
-              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Preferences
               </p>
               {NAV.map(({ section: id, label, icon: Icon }) => {
@@ -146,11 +157,11 @@ export function ProfileModal({
               })}
             </nav>
 
-            <div className="mt-auto flex flex-col gap-2 bg-sidebar p-3">
+            <div className="mt-auto flex flex-col gap-2 border-t border-border/50 p-3">
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className="echo-sidebar-nav-item h-auto w-full justify-start gap-2 rounded-sm px-2 py-1.5 text-muted-foreground hover:text-foreground"
                 asChild
               >
                 <Link
@@ -165,7 +176,7 @@ export function ProfileModal({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full justify-center gap-2 border-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className="w-full justify-center gap-2 border-border bg-transparent text-foreground hover:bg-muted hover:text-foreground"
                 onClick={handleLogout}
               >
                 <IconLogout className="size-4" />
@@ -174,18 +185,24 @@ export function ProfileModal({
             </div>
           </aside>
 
-          {/* Main — header matches SiteHeader strip; body stays demphasized canvas */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-            <header className="flex shrink-0 items-start justify-between gap-4 bg-sidebar px-5 py-3.5">
+          {/* Main — emphasized card surface (see PROFILE_MODAL_MAIN_SURFACE_CLASS); rail stays canvas */}
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+              PROFILE_MODAL_MAIN_SURFACE_CLASS,
+              "rounded-b-2xl md:rounded-r-2xl md:rounded-bl-none",
+            )}
+          >
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border/60 bg-transparent px-5 py-3.5 text-card-foreground">
               <div className="flex min-w-0 items-start gap-3">
                 <GradientIconWell className="mt-0.5 inline-flex h-10 w-10 shrink-0">
                   <SectionHeaderIcon className="h-5 w-5 text-card-foreground" aria-hidden />
                 </GradientIconWell>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-semibold tracking-tight text-sidebar-foreground md:text-xl">
+                  <h2 className={cn(DASHBOARD_PAGE_TITLE_CLASS, "text-card-foreground")}>
                     {titles[section].title}
                   </h2>
-                  <p className="mt-0.5 text-sm text-sidebar-foreground/65">
+                  <p className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "mt-1")}>
                     {titles[section].subtitle}
                   </p>
                 </div>
@@ -194,7 +211,7 @@ export function ProfileModal({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="hidden shrink-0 text-sidebar-foreground/85 hover:bg-sidebar-accent md:inline-flex"
+                className="hidden shrink-0 text-muted-foreground hover:bg-muted md:inline-flex"
                 onClick={() => onOpenChange(false)}
                 aria-label="Close"
               >
@@ -202,7 +219,7 @@ export function ProfileModal({
               </Button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background px-5 py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-transparent px-5 py-5">
               <div className="mx-auto w-full max-w-2xl">
                 {section === "general" && <ProfileGeneralPanel enabled={open} />}
                 {section === "appearance" && <ProfileAppearancePanel />}

@@ -1,14 +1,15 @@
 import { cn } from "@/lib/utils";
 
-/** Emphasized card surface — neutral border/shadow only (no hued border on hover). */
+/** Emphasized list / panel card — neutral border + shadow elevation (see DESIGN_SYSTEM; no tinted card borders). */
 export const workflowShellClass = cn(
-  "rounded-xl border border-border bg-card text-card-foreground shadow-sm shadow-black/[0.04] dark:shadow-black/20",
+  "rounded-xl border border-border bg-card text-card-foreground",
+  "shadow-md shadow-black/[0.08] dark:shadow-black/35",
 );
 
 export const workflowListCardClass = cn(
-  "group relative flex h-full flex-col overflow-hidden transition-shadow",
+  "group relative flex h-full flex-col overflow-hidden transition-[box-shadow,border-color]",
   workflowShellClass,
-  "hover:shadow-md hover:shadow-black/[0.08] dark:hover:shadow-black/30",
+  "hover:shadow-lg hover:shadow-black/[0.11] dark:hover:shadow-black/45",
 );
 
 const LABELS: Record<string, string> = {

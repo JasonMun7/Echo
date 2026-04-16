@@ -3,7 +3,8 @@
 /**
  * EchoPrism LiveKit session for the web dashboard — parity with desktop EchoPrismLiveKitSession.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   RoomAudioRenderer,
   SessionProvider,
@@ -79,8 +80,12 @@ function BargeInEffect({ session }: { session: ReturnType<typeof useSession> }) 
   return null;
 }
 
+const CHAT_PATH = "/dashboard/chat";
+
 export function EchoPrismLiveKitSession({ className }: { className?: string }) {
   const getIdToken = useAuthStore((s) => s.getIdToken);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const tokenSource = useMemo(() => {
     if (SANDBOX_ID) return TokenSource.sandboxTokenServer(SANDBOX_ID);
@@ -113,19 +118,28 @@ export function EchoPrismLiveKitSession({ className }: { className?: string }) {
     });
   }, [getIdToken]);
 
-  const roomName = useMemo(() => `echoprism-${Date.now()}`, []);
+  const [roomName] = useState(() => `echoprism-${Date.now()}`);
   const session = useSession(tokenSource, {
     roomName,
     agentName: AGENT_NAME,
   });
 
+  // `useSession` returns a new object whenever connectionState changes (e.g. connecting → connected).
+  // Do not list `session` in effect deps — that would run cleanup (disconnect) on every transition and
+  // thrash the room ("Client initiated disconnect", ConnectionError in console).
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
   useEffect(() => {
-    void session.start().catch((err) => {
+    if (pathname !== CHAT_PATH) {
+      void sessionRef.current.end();
+      return;
+    }
+    void sessionRef.current.start().catch((err) => {
       console.error("[EchoPrism] Failed to start session:", err);
     });
-    return () => void session.end();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once on mount
-  }, []);
+    return () => void sessionRef.current.end();
+  }, [pathname]);
 
   return (
     <SessionProvider session={session}>
@@ -139,7 +153,9 @@ export function EchoPrismLiveKitSession({ className }: { className?: string }) {
             <AgentSessionView_01
               connectingMessage="Connecting..."
               preConnectMessage="EchoPrism is listening. Ask a question or press the chat button to type."
-              isPreConnectBufferEnabled={true}
+              autoOpenChatOnUserTurn
+              isPreConnectBufferEnabled
+              onAfterDisconnect={() => router.push("/dashboard")}
               supportsChatInput={true}
               supportsVideoInput={true}
               supportsScreenShare={true}

@@ -106,6 +106,8 @@ type InnerProps = {
   dock?: ReactNode;
   /** Optional layer above the graph, below the dock (e.g. remote pointers). */
   collaborationOverlay?: ReactNode;
+  /** Step inspector / editor anchored inside the canvas frame (e.g. docked panel). */
+  stepInspector?: ReactNode;
   /** Pointer position: card-normalized + React Flow graph coords (for peers’ viewports). */
   onCanvasPointerMove?: (report: CanvasPointerReport) => void;
   /** Broadcast live reorder drag to peers (Firestore presence). */
@@ -146,6 +148,7 @@ function EchoWorkflowCanvasInner(
     lockOwnerLabel,
     dock,
     collaborationOverlay,
+    stepInspector,
     onCanvasPointerMove,
     onReorderPresence,
     invalidStepIds,
@@ -558,6 +561,11 @@ function EchoWorkflowCanvasInner(
         {collaborationOverlay ? (
           <div className="echo-flow-remote-pointers pointer-events-none absolute inset-0 z-[30] overflow-hidden">
             {collaborationOverlay}
+          </div>
+        ) : null}
+        {stepInspector ? (
+          <div className="pointer-events-none absolute inset-0 z-[35] overflow-hidden">
+            {stepInspector}
           </div>
         ) : null}
       </div>

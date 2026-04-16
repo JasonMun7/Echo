@@ -23,9 +23,9 @@ import { brandfetchLogoUrlForIntegrationId } from "../_lib/brandfetch-logo";
 import type { Integration } from "../_lib/integration-types";
 
 const ICON_MAP: Record<string, ReactNode> = {
-  IconBrandSlack: <IconBrandSlack className="h-5 w-5" />,
-  IconBrandGithub: <IconBrandGithub className="h-5 w-5" />,
-  IconBrandGoogle: <IconBrandGoogle className="h-5 w-5" />,
+  IconBrandSlack: <IconBrandSlack className="h-5 w-5 text-foreground" />,
+  IconBrandGithub: <IconBrandGithub className="h-5 w-5 text-foreground" />,
+  IconBrandGoogle: <IconBrandGoogle className="h-5 w-5 text-foreground" />,
 };
 
 function effectiveConnected(integration: Integration): boolean {
@@ -73,22 +73,15 @@ export function IntegrationCard({
     <div
       id={`integration-card-${integration.id}`}
       className={cn(
-        "echo-card flex flex-col rounded-xl border border-border bg-card p-3 shadow-sm transition-colors",
-        on
-          ? "shadow-[0_1px_0_0_rgba(165,119,255,0.15)] ring-1 ring-cyan-500/15 dark:ring-cyan-400/20"
-          : "hover:border-muted-foreground/25",
+        "echo-card flex flex-col rounded-xl p-3 transition-colors",
+        "hover:border-muted-foreground/25",
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-            showBrandfetchLogo && "overflow-hidden",
-            showBrandfetchLogo
-              ? "border border-border bg-card shadow-sm"
-              : on
-                ? "echo-gradient-cyan-lavender text-white shadow-sm"
-                : "bg-muted text-muted-foreground",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground",
+            showBrandfetchLogo && "overflow-hidden bg-card shadow-sm",
           )}
         >
           {showBrandfetchLogo && brandfetchUrl ? (
@@ -104,29 +97,16 @@ export function IntegrationCard({
               onError={() => setBrandfetchFailed(true)}
             />
           ) : (
-            ICON_MAP[integration.icon] || <IconPlug className="h-5 w-5" />
+            ICON_MAP[integration.icon] || <IconPlug className="h-5 w-5 text-foreground" />
           )}
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="truncate text-sm font-semibold leading-tight text-foreground">
-              {integration.name}
-            </h3>
-            {canOAuth ? (
-              <Switch
-                checked={switchChecked}
-                disabled={connecting || disconnecting}
-                onCheckedChange={handleSwitch}
-                className="shrink-0 data-[state=checked]:!bg-echo-lavender data-[state=checked]:shadow-sm"
-                aria-label={
-                  on ? "Connected — toggle to disconnect" : "Not connected — toggle to connect"
-                }
-              />
-            ) : null}
-          </div>
+          <h3 className="text-sm font-semibold leading-tight text-foreground">
+            {integration.name}
+          </h3>
           {descriptionLine ? (
             <p
-              className="mt-1 truncate text-xs leading-snug text-muted-foreground"
+              className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground"
               title={descriptionLine}
             >
               {descriptionLine}
@@ -140,66 +120,92 @@ export function IntegrationCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-start justify-between gap-2 border-t border-border pt-2.5">
-        {!canOAuth ? (
-          <p
-            className="min-w-0 flex-1 truncate text-[10px] font-medium leading-snug text-muted-foreground/90"
-            title={noteText}
-          >
-            {noteText}
-          </p>
-        ) : (
-          <span className="min-w-0 flex-1" aria-hidden />
-        )}
-
-        <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger asChild>
+      <div className="mt-3 flex min-h-9 items-center justify-between gap-2 border-t border-border pt-2.5">
+        {canOAuth ? (
+          <>
+            <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="Integration options"
+                  variant="link"
+                  size="sm"
+                  className="h-auto min-h-0 shrink px-0 text-xs text-muted-foreground"
                 >
-                  <IconSettings className="h-4 w-4" stroke={1.5} />
+                  <IconSettings className="mr-1.5 h-4 w-4 shrink-0" stroke={1.5} aria-hidden />
+                  Options
                 </Button>
               </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent side="top">Options</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="w-56">
-            {on && integration.account_name ? (
-              <>
-                <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                  Signed in as{" "}
-                  <span className="font-medium text-foreground">{integration.account_name}</span>
-                </p>
-                <DropdownMenuSeparator />
-              </>
-            ) : null}
-            {canOAuth && on ? (
-              <DropdownMenuItem
-                className="text-[#ef4444] focus:text-[#ef4444]"
-                disabled={connecting || disconnecting}
-                onClick={() => {
-                  void onDisconnect();
-                }}
-              >
-                Disconnect
-              </DropdownMenuItem>
-            ) : null}
-            {!canOAuth ? (
-              <p className="px-2 py-2 text-xs text-muted-foreground">{noteText}</p>
-            ) : null}
-            {canOAuth && !on ? (
-              <p className="px-2 py-2 text-xs text-muted-foreground">
-                Turn on the switch to connect with Composio (OAuth).
-              </p>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuContent align="start" className="w-56">
+                {on && integration.account_name ? (
+                  <>
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                      Signed in as{" "}
+                      <span className="font-medium text-foreground">
+                        {integration.account_name}
+                      </span>
+                    </p>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                {on ? (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    disabled={connecting || disconnecting}
+                    onClick={() => {
+                      void onDisconnect();
+                    }}
+                  >
+                    Disconnect
+                  </DropdownMenuItem>
+                ) : null}
+                {!on ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">
+                    Turn on the switch to connect with Composio (OAuth).
+                  </p>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Switch
+              checked={switchChecked}
+              disabled={connecting || disconnecting}
+              onCheckedChange={handleSwitch}
+              className="shrink-0"
+              aria-label={
+                on ? "Connected — toggle to disconnect" : "Not connected — toggle to connect"
+              }
+            />
+          </>
+        ) : (
+          <>
+            <p
+              className="min-w-0 flex-1 text-[10px] font-medium leading-snug text-muted-foreground"
+              title={noteText}
+            >
+              {noteText}
+            </p>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label="Integration details"
+                    >
+                      <IconSettings className="h-4 w-4" stroke={1.5} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top">Details</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-56">
+                <p className="px-2 py-2 text-xs text-muted-foreground">{noteText}</p>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 Echo Prism Agent Service — LangGraph + OpenRouter (UI-Tars) + Gemini.
 
 Hosts:
-  - /ws/chat — Chat (text) and Voice (Gemini Live)
+  - /api/livekit/* — LiveKit tokens; EchoPrism voice + text chat (unified)
   - /api/synthesize — Workflow synthesis (video, images, description)
   - /api/agent/run — Runner WebSocket (screenshot → action)
 """
@@ -66,7 +66,7 @@ if str(_service_root) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import agent as agent_router
-from routers import chat, livekit, synthesize
+from routers import livekit, synthesize
 
 app = FastAPI(title="Echo Prism Agent", version="0.2.0")
 
@@ -93,7 +93,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(chat.router)
 app.include_router(livekit.router, prefix="/api")
 app.include_router(synthesize.router, prefix="/api")
 app.include_router(agent_router.router, prefix="/api")

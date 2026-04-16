@@ -14,6 +14,7 @@ import {
   IconCopy,
   IconDots,
   IconList,
+  IconLoader,
   IconPlayerPlay,
   IconPlus,
   IconShare,
@@ -34,6 +35,10 @@ import {
   workflowStatusBadgeClass,
   workflowStatusLabel,
 } from "@/lib/workflow-status";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
 import {
   EchoSearchWithSuggestions,
@@ -81,6 +86,7 @@ import {
   type WorkflowStepEditorStep,
 } from "./step-editor-panel";
 import { EchoFlowStepSearchIcon } from "@/components/echo-flow/echo-flow-step-search-icon";
+import { GradientIconWell } from "@/components/ui/gradient-icon-well";
 
 const BROWSER_ACTIONS = [
   "navigate",
@@ -126,6 +132,7 @@ interface Workflow {
   name?: string;
   workflow_type?: "browser" | "desktop";
   source_recording_id?: string;
+  thumbnail_gcs_path?: string;
   owner_uid?: string;
   owner_name?: string;
   shared_with?: string[];
@@ -195,6 +202,7 @@ export default function WorkflowEditPage() {
     }[]
   >([]);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  const [deleteWorkflowOpen, setDeleteWorkflowOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [running, setRunning] = useState(false);
   const [forking, setForking] = useState(false);
@@ -816,12 +824,12 @@ export default function WorkflowEditPage() {
     }
   };
 
-  const handleDeleteWorkflow = async () => {
-    if (!confirm("Delete this workflow? This cannot be undone.")) return;
+  const confirmDeleteWorkflow = async () => {
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/workflows/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
+      setDeleteWorkflowOpen(false);
       router.push("/dashboard/workflows");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete workflow");
@@ -1033,10 +1041,13 @@ export default function WorkflowEditPage() {
 
   const status = workflow?.status ?? "unknown";
   const failureReason = workflow && typeof workflow.error === "string" ? workflow.error.trim() : "";
+  /** Video/screenshot synthesis sets this; distinguishes “empty synthesis” from a blank draft. */
+  const fromRecording =
+    Boolean(workflow?.source_recording_id) || Boolean(workflow?.thumbnail_gcs_path);
 
   if (loading || !workflow) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-background">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="shrink-0 border-b border-border bg-card px-4 py-3 md:px-6">
             <div className="flex items-center gap-3">
@@ -1072,536 +1083,614 @@ export default function WorkflowEditPage() {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      {running && (
-        <>
-          <div className="echo-run-haze" />
-          <div className="echo-run-haze-content">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary/50 border-t-primary" />
-            <p className="animate-pulse text-lg font-bold tracking-wide text-foreground drop-shadow-sm">
-              EchoPrism is taking control…
-            </p>
-          </div>
-        </>
-      )}
-      <EchoFlowCollabStub />
-      <div className="flex min-h-0 flex-1 flex-col">
-        <header className="relative z-20 shrink-0 bg-card/95 backdrop-blur-md">
-          {/* Slim title row — not a heavy “detail page” card */}
-          <div className="flex items-center gap-2 px-4 py-2.5 md:gap-3 md:px-6 md:py-3">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/dashboard/workflows"
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Back to workflows"
-                >
-                  <IconArrowLeft className="h-4 w-4" stroke={1.5} />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Back to workflows</TooltipContent>
-            </Tooltip>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <p className="truncate text-sm font-semibold tracking-tight text-foreground md:text-[15px]">
-                  {String(workflow.name || id)}
-                </p>
-                <span
-                  className={cn(workflowStatusBadgeClass(status), "shrink-0")}
-                  title="Workflow status"
-                >
-                  {workflowStatusLabel(status)}
-                </span>
-                {!isOwner ? (
-                  <span
-                    className={workflowSharedTagClass}
-                    title="This workflow was shared with you"
-                  >
-                    Shared
-                  </span>
-                ) : null}
-                {typeof workflow.source_recording_id === "string" &&
-                workflow.source_recording_id ? (
-                  <code
-                    className="hidden max-w-[10rem] truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground lg:inline-block"
-                    title={`Recording ${String(workflow.source_recording_id)}`}
-                  >
-                    {String(workflow.source_recording_id)}
-                  </code>
-                ) : null}
+    <>
+      <Dialog open={deleteWorkflowOpen} onOpenChange={setDeleteWorkflowOpen}>
+        <DialogContent
+          showCloseButton
+          className={cn(
+            "gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-md",
+          )}
+        >
+          <div className="border-b border-border/60 px-6 pt-6 pb-5">
+            <div className="flex gap-3">
+              <GradientIconWell corners="lg" className="size-10 shrink-0">
+                <IconTrash className="size-5 text-card-foreground" stroke={1.5} aria-hidden />
+              </GradientIconWell>
+              <div className="min-w-0 flex-1 space-y-2 text-left">
+                <DialogTitle className={cn(DASHBOARD_PAGE_TITLE_CLASS, "text-card-foreground")}>
+                  Delete this workflow?
+                </DialogTitle>
+                <DialogDescription className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "text-left")}>
+                  This permanently removes &quot;{String(workflow.name || "Untitled workflow")}
+                  &quot; and its steps. You cannot undo this action.
+                </DialogDescription>
               </div>
             </div>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Editor menu"
-                >
-                  <IconDots className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-44">
-                <DropdownMenuItem asChild>
-                  <Link href={`/dashboard/workflows/${id}`}>
-                    <IconList className="h-4 w-4" />
-                    View workflow
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => void handleRunWorkflow()}
-                  disabled={
-                    running || (workflow.status !== "active" && workflow.status !== "ready")
-                  }
-                >
-                  <IconPlayerPlay className="h-4 w-4" />
-                  {running ? "Starting…" : "Run workflow"}
-                </DropdownMenuItem>
-                {canEdit ? (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setShareOpen(true);
-                      void loadCollaborators();
-                    }}
-                  >
-                    <IconShare className="h-4 w-4" />
-                    Share
-                  </DropdownMenuItem>
-                ) : null}
-                {!isOwner ? (
-                  <DropdownMenuItem onClick={() => void handleFork()} disabled={forking}>
-                    <IconCopy className="h-4 w-4" />
-                    {forking ? "Copying…" : "Make a copy"}
-                  </DropdownMenuItem>
-                ) : null}
-                {isOwner && (
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => void handleDeleteWorkflow()}
-                    disabled={deleting}
-                  >
-                    <IconTrash className="h-4 w-4" />
-                    {deleting ? "Deleting…" : "Delete"}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-
-          {status === "failed" && failureReason && (
-            <div className="border-t border-echo-error/20 bg-echo-error/5 px-4 py-2.5 md:px-6">
-              <p className="text-xs font-medium text-echo-error">Workflow synthesis failed</p>
-              <p className="mt-0.5 text-xs text-echo-error/90">{failureReason}</p>
-            </div>
-          )}
-
-          {isViewOnlyCollaborator && (
-            <div className="border-t border-amber-200/80 bg-amber-50/90 px-4 py-2.5 md:px-6">
-              <p className="text-xs font-medium text-amber-950">View-only access</p>
-              <p className="mt-0.5 text-xs text-amber-900/85">
-                You can explore this workflow on the canvas; editing and publish require{" "}
-                <span className="font-medium">Can edit</span> access from the owner.
-              </p>
-            </div>
-          )}
-
-          {/* Toolbar: search + collaborators + actions */}
-          <div className="flex flex-col gap-3 border-t border-border/60 bg-muted px-4 py-2.5 md:flex-row md:items-center md:justify-between md:px-6 md:py-3">
-            <div className="min-w-0 flex-1 md:max-w-xl">
-              <EchoSearchWithSuggestions
-                inputId="echo-flow-search-input"
-                items={searchItems}
-                placeholder="Find a step… (⌘K)"
-                onSelect={(item) => {
-                  setSelectedStepId(item.id);
-                  canvasRef.current?.fitViewToStep(item.id);
-                }}
-                aria-label="Search steps"
-              />
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {coPresentEditorsBar.length > 0 && (
-                <div
-                  className="mr-1 flex shrink-0 -space-x-2"
-                  title="Others editing this workflow right now"
-                >
-                  {coPresentEditorsBar.map((c) => {
-                    const peerAccent = uidToPeerAccent(c.uid);
-                    return (
-                      <button
-                        key={c.uid}
-                        type="button"
-                        title={`${c.display_name} — click to jump to their cursor on the canvas`}
-                        className={cn(
-                          "z-[1] inline-flex cursor-pointer border-0 bg-transparent p-0 transition-transform hover:z-[2] hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                        )}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const live = presencePeers.find((p) => p.uid === c.uid);
-                          if (live && Number.isFinite(live.flowX) && Number.isFinite(live.flowY)) {
-                            canvasRef.current?.centerOnFlowCoordinates(live.flowX, live.flowY);
-                          } else {
-                            toast.info("Canvas position not available yet", {
-                              description:
-                                "Ask them to move the mouse on the workflow canvas once.",
-                            });
-                          }
-                        }}
-                      >
-                        <Avatar
-                          className="pointer-events-none h-7 w-7 border-2 shadow-sm"
-                          style={{ borderColor: peerAccent.stroke }}
-                        >
-                          {c.photo_url ? (
-                            <AvatarImage
-                              src={c.photo_url}
-                              alt=""
-                              className="object-cover brightness-110 saturate-125 contrast-[1.02]"
-                            />
-                          ) : null}
-                          <AvatarFallback
-                            className="text-[10px] font-semibold text-white"
-                            style={{ backgroundColor: peerAccent.fill }}
-                          >
-                            {(c.display_name || "?")
-                              .split(/\s+/)
-                              .map((p) => p[0])
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {canEdit ? (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-40"
-                        onClick={() => undoEdit()}
-                        disabled={!canUndo}
-                        aria-label="Undo"
-                      >
-                        <Undo2 className="h-4 w-4" strokeWidth={1.5} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Undo (⌘Z)</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-40"
-                        disabled={undoEntriesNewestFirst.length === 0}
-                        title="Jump back through recent edits"
-                        aria-label="Undo history"
-                      >
-                        <History className="h-4 w-4" strokeWidth={1.5} />
-                        History
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="max-h-72 min-w-52 overflow-y-auto">
-                      {undoEntriesNewestFirst.length === 0 ? (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          No undo history yet
-                        </div>
-                      ) : (
-                        undoEntriesNewestFirst.map((entry, idx) => (
-                          <DropdownMenuItem
-                            key={`${entry.label}-${idx}`}
-                            onClick={() => undoMultiple(entry.undoCount)}
-                          >
-                            <span className="font-medium text-foreground">{entry.label}</span>
-                            <span className="ml-2 text-muted-foreground">
-                              {entry.undoCount} checkpoint{entry.undoCount > 1 ? "s" : ""} back
-                            </span>
-                          </DropdownMenuItem>
-                        ))
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </>
-              ) : null}
-              {canEdit ? (
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
-                  onClick={() => {
-                    setShareOpen(true);
-                    void loadCollaborators();
-                  }}
-                >
-                  <IconShare className="h-3.5 w-3.5" />
-                  Share
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving || !canEdit}
-                className="echo-btn-primary inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-white" aria-hidden />
-                ) : (
-                  <IconCheck className="h-3.5 w-3.5 shrink-0 text-white" aria-hidden />
-                )}
-                {saving ? "Publishing…" : "Publish"}
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <div className="relative z-0 flex min-h-0 min-h-[280px] flex-1 flex-col px-4 pb-6 md:px-6">
-          <EchoWorkflowCanvas
-            ref={canvasRef}
-            workflowId={id}
-            steps={steps}
-            persistedGraph={canvasFlow}
-            onReorderSteps={handleReorderSteps}
-            onInsertStepBetween={openInsertStepBetween}
-            stepNodeActions={stepNodeActions}
-            invalidStepIds={invalidStepIds}
-            newStepIds={newStepIds}
-            peerStepAccents={peerStepAccentsByStepId}
-            remoteReorderPeers={remoteReorderActivePeers}
-            remoteReorderOrderedIds={remoteReorderLayoutIds}
-            remoteReorderDraggingStepId={remoteReorderDraggingStepId}
-            onReorderPresence={canEdit && editorAccessOk ? reportReorderPresence : undefined}
-            onSelectStep={setSelectedStepId}
-            lockedStepId={inspectorReadOnly && selectedStepId ? selectedStepId : null}
-            lockOwnerLabel={inspectorReadOnly ? lockOwnerLabel : null}
-            collaborationOverlay={
-              <EchoFlowRemotePointersOverlay
-                lockLabel={activePeerEditorLabel}
-                showLockOnlyPointer={showRemotePointerForActivePeer}
-                presencePeers={presencePeers}
-                lockAccentUid={firstActivePeerUid}
-                lockPhotoUrl={firstActivePeerPhoto}
-              />
-            }
-            onCanvasPointerMove={editorAccessOk ? reportCanvasPosition : undefined}
-            dock={
-              <FloatingDock
-                items={[
-                  {
-                    title: "Zoom in",
-                    icon: <ZoomIn className="h-5 w-5 text-foreground" aria-hidden />,
-                    onClick: () => canvasRef.current?.zoomIn(),
-                  },
-                  {
-                    title: "Fit view",
-                    icon: <Maximize2 className="h-5 w-5 text-foreground" aria-hidden />,
-                    onClick: () => canvasRef.current?.fitView(),
-                  },
-                  {
-                    title: "Add step",
-                    accent: true,
-                    icon: <IconPlus className="h-5 w-5" stroke={1.5} aria-hidden />,
-                    onClick: () => {
-                      if (!canEdit) {
-                        toast.info("View-only access", {
-                          description: "Ask the owner for edit access to add steps.",
-                        });
-                        return;
-                      }
-                      pendingInsertBetweenRef.current = null;
-                      setAddModalReplaceStepId(null);
-                      setAddModalOpen(true);
-                    },
-                  },
-                  {
-                    title: "Undo",
-                    icon: (
-                      <Undo2 className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
-                    ),
-                    onClick: () => {
-                      if (!canEdit) {
-                        toast.info("View-only access", {
-                          description: "Ask the owner for edit access to undo changes.",
-                        });
-                        return;
-                      }
-                      if (!canUndo) return;
-                      undoEdit();
-                    },
-                  },
-                  {
-                    title: "Zoom out",
-                    icon: <ZoomOut className="h-5 w-5 text-foreground" aria-hidden />,
-                    onClick: () => canvasRef.current?.zoomOut(),
-                  },
-                ]}
-              />
-            }
-          />
-          {steps.length === 0 && (
-            <div className="pointer-events-none absolute inset-x-0 top-1/3 z-10 flex justify-center px-4">
-              <div className="pointer-events-auto rounded-xl border border-dashed border-primary/40 bg-card px-6 py-4 text-center text-sm text-muted-foreground shadow-sm">
-                No steps yet. Use <span className="font-medium text-primary">Add step</span> in the
-                dock or open the add-step picker.
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <AddActionModal
-        open={addModalOpen}
-        pickerMode={addModalReplaceStepId ? "changeStepType" : "add"}
-        onOpenChange={(open) => {
-          setAddModalOpen(open);
-          if (!open) {
-            pendingInsertBetweenRef.current = null;
-            setAddModalReplaceStepId(null);
-          }
-        }}
-        actions={availableActions}
-        onPickAction={(a, opts) => {
-          if (addModalReplaceStepId) {
-            const sid = addModalReplaceStepId;
-            const base = getDefaultParamsForAction(a);
-            const merged =
-              opts?.params && typeof opts.params === "object" ? { ...base, ...opts.params } : base;
-            handleStepUpdate(sid, { action: a, params: merged });
-            toast.success(`Step type: ${formatAction(a)}`, {
-              description: "Fields were reset for this action—complete any required values.",
-            });
-            return;
-          }
-          void handleAddStep(a as AnyAction, opts);
-        }}
-      />
-
-      <WorkflowShareDialog
-        open={shareOpen}
-        onOpenChange={setShareOpen}
-        shareEmail={shareEmail}
-        onShareEmailChange={setShareEmail}
-        inviteRole={shareInviteRole}
-        onInviteRoleChange={setShareInviteRole}
-        onShare={handleShare}
-        sharing={sharing}
-        collaborators={collaborators}
-        onUnshare={handleUnshare}
-        onCollaboratorRoleChange={handleCollaboratorRoleChange}
-        roleChangePendingUid={roleChangePendingUid}
-        liveCollaboratorUids={liveCollaboratorUidsForShare}
-        workflowId={id}
-        directLinkVariant="edit"
-        canManageCollaborators={isOwner}
-        currentUserUid={uid ?? null}
-        isPublic={Boolean(workflow?.is_public)}
-        onPublicChange={isOwner ? handleWorkflowPublicChange : undefined}
-        publicSaving={publicSaving}
-        canManagePublic={isOwner}
-      />
-
-      <Dialog open={renameStepId != null} onOpenChange={(open) => !open && setRenameStepId(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Rename step</DialogTitle>
-            <DialogDescription>
-              Custom label shown on the canvas. Leave empty to use the default action name.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={renameDraft}
-            onChange={(e) => setRenameDraft(e.target.value)}
-            placeholder="e.g. Check Slack for mentions"
-            className="mt-1"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                confirmRenameStep();
-              }
-            }}
-          />
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => setRenameStepId(null)}>
-              <IconX className="size-4" aria-hidden />
+          <DialogFooter className="gap-2 border-t border-border/60 bg-card px-6 py-4 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-border"
+              onClick={() => setDeleteWorkflowOpen(false)}
+              disabled={deleting}
+            >
+              <IconX className="size-4 shrink-0" stroke={1.5} />
               Cancel
             </Button>
-            <Button type="button" onClick={confirmRenameStep}>
-              <IconCheck className="size-4" aria-hidden />
-              Save
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => void confirmDeleteWorkflow()}
+            >
+              {deleting ? (
+                <>
+                  <IconLoader className="size-4 shrink-0 animate-spin" stroke={1.5} aria-hidden />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <IconTrash className="size-4 shrink-0" stroke={1.5} aria-hidden />
+                  Delete workflow
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {selectedStepId && selectedStep && selectedStepIndex >= 0 ? (
-        <EchoNodeInspector
-          open
-          expanded={inspectorExpanded}
-          onToggleExpand={() => setInspectorExpanded((e) => !e)}
-          onClose={() => {
-            setSelectedStepId(null);
-            setInspectorExpanded(false);
-          }}
-          title={`Step ${selectedStepIndex + 1} — ${echoStepCardLabel(selectedStep)}`}
-          headerStep={{
-            action: selectedStep.action,
-            composioSlug:
-              selectedStep.action === "api_call" && typeof selectedStep.params?.slug === "string"
-                ? selectedStep.params.slug
-                : null,
-            brandDomain:
-              selectedStep.action === "open_app" || selectedStep.action === "focus_app"
-                ? String(selectedStep.params?.brand_domain ?? "").trim() || null
-                : null,
-          }}
-          rename={{
-            stepNumber: selectedStepIndex + 1,
-            customLabel: String((selectedStep.params?.display_label as string) ?? ""),
-            displayLabel: echoStepCardLabel(selectedStep),
-            defaultActionLabel: formatAction(selectedStep.action),
-            onSaveLabel: (trimmed) => {
-              if (!selectedStepId) return;
-              const p: Record<string, unknown> = { ...(selectedStep.params ?? {}) };
-              if (trimmed) p.display_label = trimmed;
-              else delete p.display_label;
-              handleStepUpdate(selectedStepId, { params: p });
-            },
-            readOnly: inspectorReadOnly || !canEdit,
-          }}
-        >
-          <StepEditorPanel
-            workflowId={id}
-            step={selectedStep}
-            dirtyStepIds={dirtyStepIds}
-            invalidStepIds={invalidStepIds}
-            handleStepUpdate={handleStepUpdate}
-            handleDeleteStep={handleDeleteStep}
-            onSaveStep={() => {
-              if (selectedStepId) void handleSaveStep(selectedStepId);
-            }}
-            saveStepDisabled={
-              !selectedStepId ||
-              !dirtyStepIds.has(selectedStepId) ||
-              inspectorReadOnly ||
-              !canEdit ||
-              savingStepId === selectedStepId
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {running && (
+          <>
+            <div className="echo-run-haze" />
+            <div className="echo-run-haze-content">
+              <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary/50 border-t-primary" />
+              <p className={cn("animate-pulse drop-shadow-sm", DASHBOARD_PAGE_TITLE_CLASS)}>
+                EchoPrism is taking control…
+              </p>
+            </div>
+          </>
+        )}
+        <EchoFlowCollabStub />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <header className="relative z-20 shrink-0 bg-card/95 backdrop-blur-md">
+            {/* Slim title row — not a heavy “detail page” card */}
+            <div className="flex items-center gap-2 px-4 py-2.5 md:gap-3 md:px-6 md:py-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/dashboard/workflows"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Back to workflows"
+                  >
+                    <IconArrowLeft className="h-4 w-4" stroke={1.5} />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Back to workflows</TooltipContent>
+              </Tooltip>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-x-2 gap-y-1">
+                  <p
+                    className="min-w-0 flex-1 truncate py-0.5 text-sm font-semibold leading-snug tracking-tight text-foreground md:text-[15px]"
+                    title={String(workflow.name || id)}
+                  >
+                    {String(workflow.name || id)}
+                  </p>
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span
+                      className={cn(workflowStatusBadgeClass(status), "shrink-0")}
+                      title="Workflow status"
+                    >
+                      {workflowStatusLabel(status)}
+                    </span>
+                    {!isOwner ? (
+                      <span
+                        className={workflowSharedTagClass}
+                        title="This workflow was shared with you"
+                      >
+                        Shared
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Editor menu"
+                  >
+                    <IconDots className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-44">
+                  <DropdownMenuItem asChild>
+                    <Link href={`/dashboard/workflows/${id}`}>
+                      <IconList className="h-4 w-4" />
+                      View workflow
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => void handleRunWorkflow()}
+                    disabled={
+                      running || (workflow.status !== "active" && workflow.status !== "ready")
+                    }
+                  >
+                    <IconPlayerPlay className="h-4 w-4" />
+                    {running ? "Starting…" : "Run workflow"}
+                  </DropdownMenuItem>
+                  {canEdit ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setShareOpen(true);
+                        void loadCollaborators();
+                      }}
+                    >
+                      <IconShare className="h-4 w-4" />
+                      Share
+                    </DropdownMenuItem>
+                  ) : null}
+                  {!isOwner ? (
+                    <DropdownMenuItem onClick={() => void handleFork()} disabled={forking}>
+                      <IconCopy className="h-4 w-4" />
+                      {forking ? "Copying…" : "Make a copy"}
+                    </DropdownMenuItem>
+                  ) : null}
+                  {isOwner && (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={() => setDeleteWorkflowOpen(true)}
+                      disabled={deleting}
+                    >
+                      <IconTrash className="h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {status === "failed" && failureReason && (
+              <div className="border-t border-echo-error/20 bg-echo-error/5 px-4 py-2.5 md:px-6">
+                <p className="text-xs font-medium text-echo-error">Workflow synthesis failed</p>
+                <p className="mt-0.5 text-xs text-echo-error/90">{failureReason}</p>
+              </div>
+            )}
+
+            {status === "ready" && steps.length === 0 && fromRecording && (
+              <div className="border-t border-amber-200/80 bg-amber-50/90 px-4 py-2.5 md:px-6">
+                <p className="text-xs font-medium text-amber-950">No steps were generated</p>
+                <p className="mt-0.5 text-xs text-amber-900/85">
+                  This workflow was created from a recording, but synthesis finished without any
+                  steps (often invalid JSON from the model, an API error, or an unreadable video).
+                  Delete it and try again; if it keeps happening, check the Echo agent logs and{" "}
+                  <span className="font-medium">GEMINI_API_KEY</span> / quota.
+                </p>
+              </div>
+            )}
+
+            {isViewOnlyCollaborator && (
+              <div className="border-t border-amber-200/80 bg-amber-50/90 px-4 py-2.5 md:px-6">
+                <p className="text-xs font-medium text-amber-950">View-only access</p>
+                <p className="mt-0.5 text-xs text-amber-900/85">
+                  You can explore this workflow on the canvas; editing and publish require{" "}
+                  <span className="font-medium">Can edit</span> access from the owner.
+                </p>
+              </div>
+            )}
+
+            {/* Toolbar: search + collaborators + actions */}
+            <div className="flex flex-col gap-3 border-t border-border bg-card px-4 py-2.5 md:flex-row md:items-center md:justify-between md:px-6 md:py-3">
+              <div className="min-w-0 flex-1 md:max-w-xl">
+                <EchoSearchWithSuggestions
+                  inputId="echo-flow-search-input"
+                  items={searchItems}
+                  placeholder="Find a step… (⌘K)"
+                  onSelect={(item) => {
+                    setSelectedStepId(item.id);
+                    canvasRef.current?.fitViewToStep(item.id);
+                  }}
+                  aria-label="Search steps"
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {coPresentEditorsBar.length > 0 && (
+                  <div
+                    className="mr-1 flex shrink-0 -space-x-2"
+                    title="Others editing this workflow right now"
+                  >
+                    {coPresentEditorsBar.map((c) => {
+                      const peerAccent = uidToPeerAccent(c.uid);
+                      return (
+                        <button
+                          key={c.uid}
+                          type="button"
+                          title={`${c.display_name} — click to jump to their cursor on the canvas`}
+                          className={cn(
+                            "z-[1] inline-flex cursor-pointer border-0 bg-transparent p-0 transition-transform hover:z-[2] hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                          )}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const live = presencePeers.find((p) => p.uid === c.uid);
+                            if (
+                              live &&
+                              Number.isFinite(live.flowX) &&
+                              Number.isFinite(live.flowY)
+                            ) {
+                              canvasRef.current?.centerOnFlowCoordinates(live.flowX, live.flowY);
+                            } else {
+                              toast.info("Canvas position not available yet", {
+                                description:
+                                  "Ask them to move the mouse on the workflow canvas once.",
+                              });
+                            }
+                          }}
+                        >
+                          <Avatar
+                            className="pointer-events-none h-7 w-7 border-2 shadow-sm"
+                            style={{ borderColor: peerAccent.stroke }}
+                          >
+                            {c.photo_url ? (
+                              <AvatarImage
+                                src={c.photo_url}
+                                alt=""
+                                className="object-cover brightness-110 saturate-125 contrast-[1.02]"
+                              />
+                            ) : null}
+                            <AvatarFallback
+                              className="text-[10px] font-semibold text-white"
+                              style={{ backgroundColor: peerAccent.fill }}
+                            >
+                              {(c.display_name || "?")
+                                .split(/\s+/)
+                                .map((p) => p[0])
+                                .join("")
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {canEdit ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-40"
+                          onClick={() => undoEdit()}
+                          disabled={!canUndo}
+                          aria-label="Undo"
+                        >
+                          <Undo2 className="h-4 w-4" strokeWidth={1.5} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Undo (⌘Z)</TooltipContent>
+                    </Tooltip>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-40"
+                          disabled={undoEntriesNewestFirst.length === 0}
+                          title="Jump back through recent edits"
+                          aria-label="Undo history"
+                        >
+                          <History className="h-4 w-4" strokeWidth={1.5} />
+                          History
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="max-h-72 min-w-52 overflow-y-auto"
+                      >
+                        {undoEntriesNewestFirst.length === 0 ? (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            No undo history yet
+                          </div>
+                        ) : (
+                          undoEntriesNewestFirst.map((entry, idx) => (
+                            <DropdownMenuItem
+                              key={`${entry.label}-${idx}`}
+                              onClick={() => undoMultiple(entry.undoCount)}
+                            >
+                              <span className="font-medium text-foreground">{entry.label}</span>
+                              <span className="ml-2 text-muted-foreground">
+                                {entry.undoCount} checkpoint{entry.undoCount > 1 ? "s" : ""} back
+                              </span>
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                ) : null}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+                    onClick={() => {
+                      setShareOpen(true);
+                      void loadCollaborators();
+                    }}
+                  >
+                    <IconShare className="h-3.5 w-3.5" />
+                    Share
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !canEdit}
+                  className="echo-btn-primary inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-white" aria-hidden />
+                  ) : (
+                    <IconCheck className="h-3.5 w-3.5 shrink-0 text-white" aria-hidden />
+                  )}
+                  {saving ? "Publishing…" : "Publish"}
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <div className="relative z-0 flex min-h-0 min-h-[280px] flex-1 flex-col px-4 pb-6 md:px-6">
+            <EchoWorkflowCanvas
+              ref={canvasRef}
+              workflowId={id}
+              steps={steps}
+              persistedGraph={canvasFlow}
+              onReorderSteps={handleReorderSteps}
+              onInsertStepBetween={openInsertStepBetween}
+              stepNodeActions={stepNodeActions}
+              invalidStepIds={invalidStepIds}
+              newStepIds={newStepIds}
+              peerStepAccents={peerStepAccentsByStepId}
+              remoteReorderPeers={remoteReorderActivePeers}
+              remoteReorderOrderedIds={remoteReorderLayoutIds}
+              remoteReorderDraggingStepId={remoteReorderDraggingStepId}
+              onReorderPresence={canEdit && editorAccessOk ? reportReorderPresence : undefined}
+              onSelectStep={setSelectedStepId}
+              lockedStepId={inspectorReadOnly && selectedStepId ? selectedStepId : null}
+              lockOwnerLabel={inspectorReadOnly ? lockOwnerLabel : null}
+              collaborationOverlay={
+                <EchoFlowRemotePointersOverlay
+                  lockLabel={activePeerEditorLabel}
+                  showLockOnlyPointer={showRemotePointerForActivePeer}
+                  presencePeers={presencePeers}
+                  lockAccentUid={firstActivePeerUid}
+                  lockPhotoUrl={firstActivePeerPhoto}
+                />
+              }
+              onCanvasPointerMove={editorAccessOk ? reportCanvasPosition : undefined}
+              stepInspector={
+                selectedStepId && selectedStep && selectedStepIndex >= 0 ? (
+                  <EchoNodeInspector
+                    open
+                    embedDock
+                    expanded={inspectorExpanded}
+                    onToggleExpand={() => setInspectorExpanded((e) => !e)}
+                    onClose={() => {
+                      setSelectedStepId(null);
+                      setInspectorExpanded(false);
+                    }}
+                    title={`Step ${selectedStepIndex + 1} — ${echoStepCardLabel(selectedStep)}`}
+                    headerStep={{
+                      action: selectedStep.action,
+                      composioSlug:
+                        selectedStep.action === "api_call" &&
+                        typeof selectedStep.params?.slug === "string"
+                          ? selectedStep.params.slug
+                          : null,
+                      brandDomain:
+                        selectedStep.action === "open_app" || selectedStep.action === "focus_app"
+                          ? String(selectedStep.params?.brand_domain ?? "").trim() || null
+                          : null,
+                    }}
+                    rename={{
+                      stepNumber: selectedStepIndex + 1,
+                      customLabel: String((selectedStep.params?.display_label as string) ?? ""),
+                      displayLabel: echoStepCardLabel(selectedStep),
+                      defaultActionLabel: formatAction(selectedStep.action),
+                      onSaveLabel: (trimmed) => {
+                        if (!selectedStepId) return;
+                        const p: Record<string, unknown> = { ...(selectedStep.params ?? {}) };
+                        if (trimmed) p.display_label = trimmed;
+                        else delete p.display_label;
+                        handleStepUpdate(selectedStepId, { params: p });
+                      },
+                      readOnly: inspectorReadOnly || !canEdit,
+                    }}
+                  >
+                    <StepEditorPanel
+                      workflowId={id}
+                      step={selectedStep}
+                      dirtyStepIds={dirtyStepIds}
+                      invalidStepIds={invalidStepIds}
+                      handleStepUpdate={handleStepUpdate}
+                      handleDeleteStep={handleDeleteStep}
+                      onSaveStep={() => {
+                        if (selectedStepId) void handleSaveStep(selectedStepId);
+                      }}
+                      saveStepDisabled={
+                        !selectedStepId ||
+                        !dirtyStepIds.has(selectedStepId) ||
+                        inspectorReadOnly ||
+                        !canEdit ||
+                        savingStepId === selectedStepId
+                      }
+                      savingStep={savingStepId === selectedStepId}
+                      setInvalidStepIds={setInvalidStepIds}
+                      onOpenStepTypePicker={() => {
+                        setAddModalReplaceStepId(selectedStepId);
+                        setAddModalOpen(true);
+                      }}
+                      readOnly={inspectorReadOnly || !canEdit}
+                      lockOwnerLabel={lockOwnerLabel}
+                    />
+                  </EchoNodeInspector>
+                ) : null
+              }
+              dock={
+                <FloatingDock
+                  items={[
+                    {
+                      title: "Zoom in",
+                      icon: <ZoomIn className="h-5 w-5 text-foreground" aria-hidden />,
+                      onClick: () => canvasRef.current?.zoomIn(),
+                    },
+                    {
+                      title: "Fit view",
+                      icon: <Maximize2 className="h-5 w-5 text-foreground" aria-hidden />,
+                      onClick: () => canvasRef.current?.fitView(),
+                    },
+                    {
+                      title: "Add step",
+                      accent: true,
+                      icon: <IconPlus className="h-5 w-5" stroke={1.5} aria-hidden />,
+                      onClick: () => {
+                        if (!canEdit) {
+                          toast.info("View-only access", {
+                            description: "Ask the owner for edit access to add steps.",
+                          });
+                          return;
+                        }
+                        pendingInsertBetweenRef.current = null;
+                        setAddModalReplaceStepId(null);
+                        setAddModalOpen(true);
+                      },
+                    },
+                    {
+                      title: "Undo",
+                      icon: (
+                        <Undo2 className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
+                      ),
+                      onClick: () => {
+                        if (!canEdit) {
+                          toast.info("View-only access", {
+                            description: "Ask the owner for edit access to undo changes.",
+                          });
+                          return;
+                        }
+                        if (!canUndo) return;
+                        undoEdit();
+                      },
+                    },
+                    {
+                      title: "Zoom out",
+                      icon: <ZoomOut className="h-5 w-5 text-foreground" aria-hidden />,
+                      onClick: () => canvasRef.current?.zoomOut(),
+                    },
+                  ]}
+                />
+              }
+            />
+            {steps.length === 0 && (
+              <div className="pointer-events-none absolute inset-x-0 top-1/3 z-10 flex justify-center px-4">
+                <div className="pointer-events-auto rounded-xl border border-dashed border-primary/40 bg-card px-6 py-4 text-center text-sm text-muted-foreground shadow-sm">
+                  No steps yet. Use <span className="font-medium text-primary">Add step</span> in
+                  the dock or open the add-step picker.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <AddActionModal
+          open={addModalOpen}
+          pickerMode={addModalReplaceStepId ? "changeStepType" : "add"}
+          onOpenChange={(open) => {
+            setAddModalOpen(open);
+            if (!open) {
+              pendingInsertBetweenRef.current = null;
+              setAddModalReplaceStepId(null);
             }
-            savingStep={savingStepId === selectedStepId}
-            setInvalidStepIds={setInvalidStepIds}
-            onOpenStepTypePicker={() => {
-              setAddModalReplaceStepId(selectedStepId);
-              setAddModalOpen(true);
-            }}
-            readOnly={inspectorReadOnly || !canEdit}
-            lockOwnerLabel={lockOwnerLabel}
-          />
-        </EchoNodeInspector>
-      ) : null}
-    </div>
+          }}
+          actions={availableActions}
+          onPickAction={(a, opts) => {
+            if (addModalReplaceStepId) {
+              const sid = addModalReplaceStepId;
+              const base = getDefaultParamsForAction(a);
+              const merged =
+                opts?.params && typeof opts.params === "object"
+                  ? { ...base, ...opts.params }
+                  : base;
+              handleStepUpdate(sid, { action: a, params: merged });
+              toast.success(`Step type: ${formatAction(a)}`, {
+                description: "Fields were reset for this action—complete any required values.",
+              });
+              return;
+            }
+            void handleAddStep(a as AnyAction, opts);
+          }}
+        />
+
+        <WorkflowShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          shareEmail={shareEmail}
+          onShareEmailChange={setShareEmail}
+          inviteRole={shareInviteRole}
+          onInviteRoleChange={setShareInviteRole}
+          onShare={handleShare}
+          sharing={sharing}
+          collaborators={collaborators}
+          onUnshare={handleUnshare}
+          onCollaboratorRoleChange={handleCollaboratorRoleChange}
+          roleChangePendingUid={roleChangePendingUid}
+          liveCollaboratorUids={liveCollaboratorUidsForShare}
+          workflowId={id}
+          directLinkVariant="edit"
+          canManageCollaborators={isOwner}
+          currentUserUid={uid ?? null}
+          isPublic={Boolean(workflow?.is_public)}
+          onPublicChange={isOwner ? handleWorkflowPublicChange : undefined}
+          publicSaving={publicSaving}
+          canManagePublic={isOwner}
+        />
+
+        <Dialog open={renameStepId != null} onOpenChange={(open) => !open && setRenameStepId(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rename step</DialogTitle>
+              <DialogDescription>
+                Custom label shown on the canvas. Leave empty to use the default action name.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              placeholder="e.g. Check Slack for mentions"
+              className="mt-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  confirmRenameStep();
+                }
+              }}
+            />
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setRenameStepId(null)}>
+                <IconX className="size-4" aria-hidden />
+                Cancel
+              </Button>
+              <Button type="button" onClick={confirmRenameStep}>
+                <IconCheck className="size-4" aria-hidden />
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </>
   );
 }

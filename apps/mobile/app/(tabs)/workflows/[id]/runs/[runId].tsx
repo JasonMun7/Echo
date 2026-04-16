@@ -95,8 +95,19 @@ export default function RunDetailScreen() {
             </Pressable>
           ),
           headerRight: () => (
-            <Pressable onPress={() => router.navigate("/(tabs)/workflows")} hitSlop={8}>
-              <Text style={{ fontSize: 14, color: "#8B6CF7", fontWeight: "600" }}>
+            <Pressable
+              onPress={() => router.navigate("/(tabs)/workflows")}
+              hitSlop={8}
+              style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: colors.textMuted,
+                  fontFamily: "Inter-Medium",
+                  fontWeight: "500",
+                }}
+              >
                 All Workflows
               </Text>
             </Pressable>

@@ -27,24 +27,50 @@ export type VoiceState =
   | "muted"
   | "disconnected";
 
+/** Optional fields on `run_started` LiveKit data packets (matches agent `publish_run_started`). */
+export interface RunStartedMeta {
+  ephemeral?: boolean;
+  goalOnly?: boolean;
+  goal?: string;
+  name?: string;
+}
+
 interface LiveKitSessionCallbacks {
   onTranscript?: (text: string, role?: "user" | "agent") => void;
   onToolCall?: (name: string) => void;
   onSynthesisComplete?: (workflowId: string, name?: string) => void;
-  onRunStarted?: (workflowId: string, runId: string) => void;
+  onRunStarted?: (workflowId: string, runId: string, meta?: RunStartedMeta) => void;
   onTurnComplete?: () => void;
 }
+
+/** LiveKit Agents text channel (see LiveKit `LocalParticipant.sendText`). */
+const CHAT_TOPIC = "lk.chat";
+
+export interface UseLiveKitSessionOptions {
+  /** When false, mic stays off until the user unmutes (saves battery; text-first chat). Default true. */
+  enableMicOnConnect?: boolean;
+}
+
+const DEFAULT_SESSION_OPTIONS: Required<UseLiveKitSessionOptions> = {
+  enableMicOnConnect: true,
+};
 
 const AGENT_NAME = "echoprism-agent";
 const BARGE_IN_DEBOUNCE_MS = 280;
 const BARGE_IN_COOLDOWN_MS = 1500;
 
-export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
+export function useLiveKitSession(
+  callbacks: LiveKitSessionCallbacks,
+  options: UseLiveKitSessionOptions = {},
+) {
   const [state, setState] = useState<VoiceState>("idle");
   const [connected, setConnected] = useState(false);
 
   // Create Room eagerly so useIOSAudioManagement has a stable reference
   const [room] = useState(() => new Room());
+
+  const sessionOptionsRef = useRef({ ...DEFAULT_SESSION_OPTIONS, ...options });
+  sessionOptionsRef.current = { ...DEFAULT_SESSION_OPTIONS, ...options };
 
   const intentionalClose = useRef(false);
   const agentSpeakingRef = useRef(false);
@@ -114,8 +140,9 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
 
         room.on(RoomEvent.Connected, () => {
           setConnected(true);
-          setState("listening");
-          room.localParticipant.setMicrophoneEnabled(true);
+          const micOn = sessionOptionsRef.current.enableMicOnConnect;
+          room.localParticipant.setMicrophoneEnabled(micOn);
+          setState(micOn ? "listening" : "muted");
         });
 
         room.on(RoomEvent.Disconnected, () => {
@@ -215,10 +242,25 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
                   );
                   break;
                 case "run_started": {
-                  callbacksRef.current.onRunStarted?.(
-                    (msg.workflowId as string) ?? (msg.workflow_id as string),
-                    (msg.runId as string) ?? (msg.run_id as string),
-                  );
+                  const wf =
+                    (msg.workflowId as string | undefined) ??
+                    (msg.workflow_id as string | undefined) ??
+                    "";
+                  const rn =
+                    (msg.runId as string | undefined) ?? (msg.run_id as string | undefined) ?? "";
+                  const meta: RunStartedMeta | undefined =
+                    msg.ephemeral != null ||
+                    msg.goalOnly != null ||
+                    msg.goal_only != null ||
+                    msg.name != null
+                      ? {
+                          ephemeral: Boolean(msg.ephemeral),
+                          goalOnly: Boolean(msg.goalOnly ?? msg.goal_only),
+                          goal: typeof msg.goal === "string" ? msg.goal : undefined,
+                          name: typeof msg.name === "string" ? msg.name : undefined,
+                        }
+                      : undefined;
+                  callbacksRef.current.onRunStarted?.(wf, rn, meta);
                   break;
                 }
                 case "turn_complete":
@@ -256,6 +298,15 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
       setState("disconnected");
     }
   }, [room, getIdToken, findAgentParticipant]);
+
+  const sendChatText = useCallback(
+    async (text: string) => {
+      const t = text.trim();
+      if (!t || room.state !== "connected") return;
+      await room.localParticipant.sendText(t, { topic: CHAT_TOPIC });
+    },
+    [room],
+  );
 
   const disconnect = useCallback(() => {
     intentionalClose.current = true;
@@ -296,6 +347,7 @@ export function useLiveKitSession(callbacks: LiveKitSessionCallbacks) {
     connect,
     disconnect,
     toggleMute,
+    sendChatText,
     isMuted: state === "muted",
   };
 }

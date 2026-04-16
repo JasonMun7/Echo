@@ -14,6 +14,7 @@ import {
   workflowStatusBadgeClass,
   workflowStatusLabel,
 } from "@/lib/workflow-status";
+import { DASHBOARD_PAGE_TITLE_CLASS } from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -324,7 +325,7 @@ export default function WorkflowDetailPage() {
 
   if (loading || !workflow) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6">
           <Skeleton className="h-32 w-full shrink-0 rounded-xl" />
           <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-xl border border-[#A577FF]/20 bg-white p-4">
@@ -355,13 +356,13 @@ export default function WorkflowDetailPage() {
           <div className="echo-run-haze" />
           <div className="echo-run-haze-content">
             <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#A577FF]/50 border-t-[#A577FF]" />
-            <p className="animate-pulse text-lg font-bold tracking-wide text-foreground drop-shadow-sm">
+            <p className={cn("animate-pulse drop-shadow-sm", DASHBOARD_PAGE_TITLE_CLASS)}>
               EchoPrism is taking control…
             </p>
           </div>
         </>
       )}
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6">
           <div className={cn(workflowShellClass, "shrink-0 p-5 sm:p-6")}>
             <div className="flex flex-col gap-4">
@@ -381,7 +382,13 @@ export default function WorkflowDetailPage() {
 
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                    <h1
+                      className={cn(
+                        "min-w-0 flex-1 break-words leading-snug",
+                        DASHBOARD_PAGE_TITLE_CLASS,
+                      )}
+                      title={String(workflow.name || id)}
+                    >
                       {String(workflow.name || id)}
                     </h1>
                     <div className="flex shrink-0 items-center justify-end">
@@ -389,7 +396,7 @@ export default function WorkflowDetailPage() {
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
                             aria-label="Workflow actions"
                           >
                             <IconDots className="h-4 w-4" />
@@ -463,14 +470,8 @@ export default function WorkflowDetailPage() {
                     ) : null}
                     {typeof workflow.source_recording_id === "string" &&
                       workflow.source_recording_id && (
-                        <span
-                          className="text-muted-foreground"
-                          title="Recording used to create this workflow"
-                        >
-                          <span className="text-muted-foreground">Recording </span>
-                          <code className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
-                            {String(workflow.source_recording_id)}
-                          </code>
+                        <span className="text-muted-foreground" title="Source">
+                          From screen recording
                         </span>
                       )}
                   </div>

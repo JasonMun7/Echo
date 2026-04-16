@@ -49,7 +49,7 @@ function SidebarBrand() {
       href="/dashboard"
       aria-label={isRailMode ? "Echo home" : undefined}
       className={cn(
-        "flex shrink-0 items-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent",
+        "echo-sidebar-nav-item flex shrink-0 items-center rounded-sm text-foreground outline-hidden",
         // Rail: full header width + inner box centers the mark (avoids clipped w-10 in a tight column).
         isRailMode
           ? "m-0 box-border h-10 min-h-10 w-full min-w-0 justify-center p-0"

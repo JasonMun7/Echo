@@ -4,6 +4,7 @@ import { IconX } from "@tabler/icons-react";
 import { Expand, Pencil } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { brandfetchLogoUrlForDomain } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import { GradientIconWell, gradientWellImageClass } from "@/components/ui/gradient-icon-well";
@@ -38,6 +39,12 @@ type EchoNodeInspectorProps = {
   rename?: EchoNodeInspectorRenameProps;
   /** Step identity for header gradient icon (matches canvas nodes). */
   headerStep?: EchoNodeInspectorHeaderStep;
+  /**
+   * When true, the docked (non-expanded) panel is positioned in a relative parent (e.g. the
+   * canvas host) with no full-screen backdrop — clicks on the canvas are not blocked and do not
+   * dismiss the panel via overlay. Expanded mode still uses a modal backdrop.
+   */
+  embedDock?: boolean;
   children: ReactNode;
 };
 
@@ -86,6 +93,7 @@ export function EchoNodeInspector({
   title,
   rename,
   headerStep,
+  embedDock = false,
   children,
 }: EchoNodeInspectorProps) {
   const [editingTitle, setEditingTitle] = useState(false);
@@ -214,53 +222,99 @@ export function EchoNodeInspector({
 
   const body = <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>;
 
+  const expandedBackdrop = (
+    <motion.button
+      type="button"
+      aria-label="Collapse inspector"
+      className="pointer-events-auto fixed inset-0 z-[45] bg-[#150A35]/20"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={() => onToggleExpand()}
+    />
+  );
+
+  const expandedShell = (
+    <motion.div
+      layout
+      className="pointer-events-auto fixed top-1/2 left-1/2 z-[46] flex h-[min(88vh,720px)] min-h-[480px] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col md:w-[50vw] md:max-w-[50vw]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ type: "spring", stiffness: 280, damping: 28 }}
+    >
+      <motion.div
+        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        initial={{ scale: 0.96 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 280, damping: 28 }}
+      >
+        {header}
+        {body}
+      </motion.div>
+    </motion.div>
+  );
+
+  const legacyDockBackdrop = !embedDock ? (
+    <motion.button
+      type="button"
+      aria-label="Dim canvas"
+      className="pointer-events-auto fixed inset-0 z-[45] bg-[#150A35]/20"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={() => onClose()}
+    />
+  ) : null;
+
+  const expandedInPortal =
+    embedDock && typeof document !== "undefined"
+      ? createPortal(
+          <AnimatePresence>
+            {open && expanded ? (
+              <>
+                {expandedBackdrop}
+                {expandedShell}
+              </>
+            ) : null}
+          </AnimatePresence>,
+          document.body,
+        )
+      : null;
+
   return (
-    <AnimatePresence>
-      {open ? (
-        <>
-          <motion.button
-            type="button"
-            aria-label={expanded ? "Collapse inspector" : "Dim canvas"}
-            className="fixed inset-0 z-[45] bg-[#150A35]/20"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => (expanded ? onToggleExpand() : onClose())}
-          />
-          {expanded ? (
-            <motion.div
-              layout
-              className="fixed top-1/2 left-1/2 z-[46] flex h-[min(88vh,720px)] min-h-[480px] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col md:w-[50vw] md:max-w-[50vw]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ type: "spring", stiffness: 280, damping: 28 }}
-            >
+    <>
+      {embedDock ? expandedInPortal : null}
+      <AnimatePresence>
+        {open ? (
+          <>
+            {!embedDock && expanded ? (
+              <>
+                {expandedBackdrop}
+                {expandedShell}
+              </>
+            ) : null}
+            {!embedDock && !expanded ? legacyDockBackdrop : null}
+            {!expanded ? (
               <motion.div
-                className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
-                initial={{ scale: 0.96 }}
-                animate={{ scale: 1 }}
+                layout
+                className={
+                  embedDock
+                    ? "pointer-events-auto absolute right-0 top-3 bottom-3 z-[35] flex w-full max-w-md flex-col overflow-hidden rounded-l-2xl rounded-tr-none border border-border bg-card shadow-2xl"
+                    : "fixed bottom-0 right-0 top-16 z-[46] flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl md:top-20 md:rounded-l-2xl md:rounded-tr-none"
+                }
+                initial={{ x: embedDock ? 40 : 320, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ opacity: 0 }}
                 transition={{ type: "spring", stiffness: 280, damping: 28 }}
               >
                 {header}
                 {body}
               </motion.div>
-            </motion.div>
-          ) : (
-            <motion.div
-              layout
-              className="fixed bottom-0 right-0 top-16 z-[46] flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl md:top-20 md:rounded-l-2xl md:rounded-tr-none"
-              initial={{ x: 320, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ type: "spring", stiffness: 280, damping: 28 }}
-            >
-              {header}
-              {body}
-            </motion.div>
-          )}
-        </>
-      ) : null}
-    </AnimatePresence>
+            ) : null}
+          </>
+        ) : null}
+      </AnimatePresence>
+    </>
   );
 }

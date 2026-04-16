@@ -33,6 +33,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getDashboardPageMetadata, type DashboardHeaderIconId } from "@/lib/dashboard-route-titles";
 import { GradientIconWell } from "@/components/ui/gradient-icon-well";
 import { DASHBOARD_INSET_X_CLASS } from "@/lib/dashboard-shell";
+import { DASHBOARD_PAGE_TITLE_CLASS } from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
 
 const HEADER_ICONS: Record<DashboardHeaderIconId, LucideIcon> = {
@@ -49,7 +50,6 @@ const HEADER_ICONS: Record<DashboardHeaderIconId, LucideIcon> = {
   boxes: Boxes,
   plug: Plug,
   calendar: Calendar,
-  bell: Bell,
 };
 
 interface SiteHeaderProps {
@@ -64,7 +64,7 @@ function EchoPrismOrbButton() {
         <Link
           href="/dashboard/chat"
           aria-label="Open EchoPrism"
-          className="flex size-10 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#21C4DD]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sidebar)]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#21C4DD]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           <div className="size-10 overflow-hidden rounded-lg bg-muted">
             <Orb
@@ -89,13 +89,13 @@ function NotificationsButton() {
       type="button"
       variant="ghost"
       size="icon"
-      className="relative size-9 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      className="relative size-9 text-muted-foreground hover:bg-muted hover:text-foreground"
       aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
       onClick={() => setDrawerOpen(true)}
     >
       <Bell className="size-[18px]" />
       {unreadCount > 0 ? (
-        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-[#21C4DD] to-[#A577FF] px-0.5 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-sidebar">
+        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-[#21C4DD] to-[#A577FF] px-0.5 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-card">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : null}
@@ -115,7 +115,7 @@ export function SiteHeader({ title: titleProp }: SiteHeaderProps) {
       <DashboardCommandMenu open={open} onOpenChange={setOpen} />
       <header
         className={cn(
-          "flex shrink-0 flex-col border-0 bg-sidebar text-sidebar-foreground shadow-none",
+          "flex shrink-0 flex-col border-0 border-b border-border/60 bg-transparent text-card-foreground shadow-none",
           "transition-[width,height] ease-linear",
         )}
         style={{ minHeight: "var(--header-height, 4.5rem)" }}
@@ -134,13 +134,18 @@ export function SiteHeader({ title: titleProp }: SiteHeaderProps) {
                 aria-hidden
               />
             </GradientIconWell>
-            <div className="min-w-0 max-w-[11rem] sm:max-w-[16rem] md:max-w-[18rem] lg:max-w-[22rem]">
-              <h1 className="truncate text-xs font-semibold tracking-tight text-sidebar-foreground sm:text-sm lg:text-base">
+            <div className="min-w-0 max-w-[min(100%,18rem)] sm:max-w-[22rem] md:max-w-[min(100%,28rem)] lg:max-w-[32rem]">
+              <h1
+                className={cn(
+                  "truncate leading-snug",
+                  DASHBOARD_PAGE_TITLE_CLASS,
+                  "text-card-foreground",
+                )}
+                title={title}
+              >
                 {title}
               </h1>
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-sidebar-foreground/65 sm:text-xs">
-                {meta.description}
-              </p>
+              <span className="sr-only">{meta.description}</span>
             </div>
           </div>
           <div className="mx-auto my-3 flex min-w-0 flex-1 justify-center px-1 md:px-2">
@@ -148,7 +153,7 @@ export function SiteHeader({ title: titleProp }: SiteHeaderProps) {
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <NotificationsButton />
-            <ThemeToggle className="text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+            <ThemeToggle className="text-muted-foreground hover:bg-muted hover:text-foreground" />
             <EchoPrismOrbButton />
           </div>
         </div>

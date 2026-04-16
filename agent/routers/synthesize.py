@@ -18,7 +18,7 @@ import firebase_admin.firestore
 from app.auth import get_current_uid, get_firebase_app
 from app.config import GCS_BUCKET, GEMINI_API_KEY
 from app.services.gcs import download_file as gcs_download_file
-from app.services.gcs import upload_file
+from app.services.gcs import generate_signed_read_url, upload_file
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from google import genai
 from google.cloud.firestore import SERVER_TIMESTAMP
@@ -26,6 +26,144 @@ from google.genai import types
 from pydantic import BaseModel as PydanticBaseModel
 
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
+
+_GS_URI_RE = re.compile(r"^gs://[^/]+/(.+)$")
+
+
+def _blob_from_gs_uri(uri: str) -> str | None:
+    m = _GS_URI_RE.match(uri.strip())
+    return m.group(1) if m else None
+
+
+def _safe_rel_path(raw: str) -> str | None:
+    t = raw.strip().lstrip("/").replace("\\", "/")
+    if not t:
+        return None
+    for seg in t.split("/"):
+        if seg == "..":
+            return None
+    return t
+
+
+def _resolve_to_signed_url(url: str, folder_prefix: str) -> str:
+    u = url.strip()
+    if not u:
+        return ""
+    if u.startswith("http://") or u.startswith("https://"):
+        return u
+    if u.startswith("gs://"):
+        bn = _blob_from_gs_uri(u)
+        if bn:
+            try:
+                return generate_signed_read_url(bn)
+            except Exception:
+                return u
+        return u
+    rel = _safe_rel_path(u)
+    if rel and folder_prefix:
+        blob = f"{folder_prefix}/{rel}"
+        try:
+            return generate_signed_read_url(blob)
+        except Exception:
+            return u
+    return u
+
+
+def _sanitize_context_attachments(raw: object, folder_prefix: str) -> list[dict] | None:
+    if not isinstance(raw, list):
+        return None
+    out: list[dict] = []
+    for i, item in enumerate(raw[:12]):
+        if not isinstance(item, dict):
+            continue
+        url_raw = item.get("url") or item.get("gcs_blob") or ""
+        if not isinstance(url_raw, str) or not url_raw.strip():
+            continue
+        signed = _resolve_to_signed_url(url_raw, folder_prefix)
+        if not signed:
+            continue
+        kind = item.get("kind")
+        if kind not in ("image", "video", "file"):
+            kind = "image"
+        name = item.get("name") if isinstance(item.get("name"), str) else f"attachment-{i + 1}"
+        aid = (
+            item.get("id")
+            if isinstance(item.get("id"), str) and str(item.get("id") or "").strip()
+            else str(uuid.uuid4())
+        )
+        entry: dict = {"id": aid, "kind": kind, "name": name, "url": signed}
+        mime = item.get("mime")
+        if isinstance(mime, str) and mime.strip():
+            entry["mime"] = mime.strip()
+        ref = item.get("ref_label")
+        if isinstance(ref, str) and ref.strip():
+            entry["ref_label"] = ref.strip().lower()
+        else:
+            entry["ref_label"] = f"c{len(out) + 1}"
+        out.append(entry)
+    return out or None
+
+
+def _hydrate_step_dict(step: dict, folder_prefix: str) -> dict:
+    s = dict(step)
+    fiu = s.get("frame_image_url")
+    if isinstance(fiu, str) and fiu.strip():
+        s["frame_image_url"] = _resolve_to_signed_url(fiu.strip(), folder_prefix)
+    ca = _sanitize_context_attachments(s.get("context_attachments"), folder_prefix)
+    if ca is not None:
+        s["context_attachments"] = ca
+    elif "context_attachments" in s:
+        del s["context_attachments"]
+    return s
+
+
+def _host_from_url(url: str) -> str | None:
+    from urllib.parse import urlparse
+
+    try:
+        u = urlparse(url.strip() if "://" in url else f"https://{url.strip()}")
+        h = (u.hostname or "").lower()
+        if h.startswith("www."):
+            h = h[4:]
+        return h if h and "." in h else None
+    except Exception:
+        return None
+
+
+def _brand_domain_one(step: dict) -> str | None:
+    action = (step.get("action") or "").lower().replace("_", "")
+    params = step.get("params") or {}
+    if not isinstance(params, dict):
+        return None
+    if action == "navigate":
+        u = params.get("url")
+        if isinstance(u, str) and u.strip():
+            return _host_from_url(u)
+    if action in ("openapp", "focusapp"):
+        bd = params.get("brand_domain")
+        if isinstance(bd, str) and bd.strip():
+            raw = bd.strip().lower()
+            if raw.startswith("www."):
+                raw = raw[4:]
+            if "." in raw:
+                return raw.split("/")[0].split("?")[0]
+        app = params.get("app")
+        if isinstance(app, str) and app.strip() and "." in app:
+            raw = app.strip().lower()
+            if raw.startswith("www."):
+                raw = raw[4:]
+            return raw.split("/")[0].split("?")[0]
+    return None
+
+
+def _brand_domain_from_steps(steps: list) -> str | None:
+    for s in steps:
+        if not isinstance(s, dict):
+            continue
+        d = _brand_domain_one(s)
+        if d:
+            return d
+    return None
 
 
 def _step_firestore_payload(order: int, s: dict) -> dict:
@@ -43,6 +181,9 @@ def _step_firestore_payload(order: int, s: dict) -> dict:
     co = s.get("click_overlay")
     if co is not None and isinstance(co, dict):
         payload["click_overlay"] = co
+    ca = s.get("context_attachments")
+    if isinstance(ca, list) and ca:
+        payload["context_attachments"] = ca
     return payload
 
 
@@ -195,17 +336,39 @@ async def synthesize(
         ):
             from echo_prism_agent.agent import synthesize_via_langgraph
 
-            result = await synthesize_via_langgraph(client, parts)
+            result = await synthesize_via_langgraph(client, parts, gcs_prefix=gcs_prefix)
         else:
             from echo_prism_agent.synthesis.pipeline import synthesize_workflow_from_media
 
-            result = await synthesize_workflow_from_media(client, parts)
-        steps_data = result["steps"]
-        variables = result.get("variables", [])
+            result = await synthesize_workflow_from_media(client, parts, storage_prefix=gcs_prefix)
+        steps_raw = result.get("steps")
+        if not isinstance(steps_raw, list):
+            steps_raw = []
+        steps_data = [s for s in steps_raw if isinstance(s, dict)]
+        variables = result.get("variables", []) if isinstance(result.get("variables"), list) else []
+
+        if len(steps_data) == 0:
+            detail = (
+                "Synthesis returned no steps. The recording may be unreadable, the model output was not "
+                "valid JSON, or the Gemini API key / quota failed. Check agent logs (look for "
+                "'Media synthesis JSON parse' or generate_content errors) and try again."
+            )
+            workflow_ref.update(
+                {
+                    "status": "failed",
+                    "name": workflow_name or "Synthesis failed",
+                    "error": detail,
+                    "updatedAt": SERVER_TIMESTAMP,
+                }
+            )
+            raise HTTPException(status_code=500, detail=detail)
+
+        brand_domain = _brand_domain_from_steps(steps_data)
 
         for i, s in enumerate(steps_data):
             step_id = str(uuid.uuid4())
-            workflow_ref.collection("steps").document(step_id).set(_step_firestore_payload(i, s))
+            hydrated = _hydrate_step_dict(s, gcs_prefix)
+            workflow_ref.collection("steps").document(step_id).set(_step_firestore_payload(i, hydrated))
 
         title = workflow_name or result.get("title") or "Untitled workflow"
         workflow_type = result.get("workflow_type", "browser")
@@ -231,6 +394,8 @@ async def synthesize(
             update_payload["source_recording_id"] = _source_recording_id
         if thumbnail_gcs_path:
             update_payload["thumbnail_gcs_path"] = thumbnail_gcs_path
+        if brand_domain:
+            update_payload["brand_domain"] = brand_domain
         workflow_ref.update(update_payload)
         return {"workflow_id": workflow_id}
     except HTTPException:
@@ -274,25 +439,48 @@ async def synthesize_from_description_impl(
     workflow_ref.set(payload)
     client = genai.Client(api_key=GEMINI_API_KEY)
     result = await synthesize_workflow_from_description(description, name, normalized_wf_type, client)
-    steps_data = result.get("steps", [])
-    variables = result.get("variables", [])
+    steps_raw = result.get("steps", [])
+    if not isinstance(steps_raw, list):
+        steps_raw = []
+    steps_data = [s for s in steps_raw if isinstance(s, dict)]
+    variables = result.get("variables", []) if isinstance(result.get("variables"), list) else []
     actual_type = result.get("workflow_type", normalized_wf_type)
     if actual_type not in ("browser", "desktop"):
         actual_type = "browser"
 
+    if len(steps_data) == 0:
+        detail = (
+            "Description synthesis returned no steps. The model response may not have been valid JSON, "
+            "or the Gemini API failed. Check agent logs and try again."
+        )
+        workflow_ref.update(
+            {
+                "status": "failed",
+                "name": name,
+                "error": detail,
+                "updatedAt": SERVER_TIMESTAMP,
+            }
+        )
+        raise RuntimeError(detail)
+
+    folder_prefix = f"{uid}/{workflow_id}"
+    brand_domain = _brand_domain_from_steps(steps_data)
+
     for i, s in enumerate(steps_data):
         step_id = str(uuid.uuid4())
-        workflow_ref.collection("steps").document(step_id).set(_step_firestore_payload(i, s))
+        hydrated = _hydrate_step_dict(s, folder_prefix)
+        workflow_ref.collection("steps").document(step_id).set(_step_firestore_payload(i, hydrated))
 
-    workflow_ref.update(
-        {
-            "name": result.get("title") or name,
-            "workflow_type": actual_type,
-            "status": "ready",
-            "updatedAt": SERVER_TIMESTAMP,
-            "variables": sorted(variables) if variables else [],
-        }
-    )
+    update_desc: dict = {
+        "name": result.get("title") or name,
+        "workflow_type": actual_type,
+        "status": "ready",
+        "updatedAt": SERVER_TIMESTAMP,
+        "variables": sorted(variables) if variables else [],
+    }
+    if brand_domain:
+        update_desc["brand_domain"] = brand_domain
+    workflow_ref.update(update_desc)
     return workflow_id
 
 

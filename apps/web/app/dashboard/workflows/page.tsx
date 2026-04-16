@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { collection, collectionGroup, query, where, onSnapshot } from "firebase/firestore";
@@ -10,19 +10,19 @@ import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 import { Workflow } from "lucide-react";
 import {
-  IconPlus,
   IconTrash,
   IconDots,
+  IconLoader,
   IconPlayerPlay,
   IconPencil,
   IconList,
-  IconChevronRight,
   IconCopy,
   IconLogout,
+  IconX,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import Threads from "@/components/threads";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -30,14 +30,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DesktopCaptureLink } from "@/components/desktop-capture-link";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CreateWorkflowMenu } from "@/components/create-workflow-menu";
+import { GradientIconWell, gradientWellImageClass } from "@/components/ui/gradient-icon-well";
 import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
+import { brandfetchLogoUrlForDomain } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import {
   workflowListCardClass,
   workflowSharedTagClass,
   workflowStatusBadgeClass,
   workflowStatusLabel,
 } from "@/lib/workflow-status";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
+import { featuredWorkflowId } from "@/lib/workflow-activity";
 import { cn } from "@/lib/utils";
 
 interface Workflow {
@@ -47,6 +62,8 @@ interface Workflow {
   owner_uid?: string;
   workflow_type?: "browser" | "desktop";
   thumbnail_gcs_path?: string;
+  /** Denormalized from synthesis / navigate step — used for list card logo. */
+  brand_domain?: string;
   createdAt: unknown;
   updatedAt: unknown;
   shared_with?: string[];
@@ -71,16 +88,64 @@ function getTime(x: unknown): number {
   return typeof sec === "number" ? sec * 1000 : 0;
 }
 
-function isLatestOrLastModified(
-  w: { id: string; createdAt?: unknown; updatedAt?: unknown },
-  all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>,
-): boolean {
-  if (all.length === 0) return false;
-  const created = all.map((x) => getTime(x.createdAt));
-  const updated = all.map((x) => getTime(x.updatedAt));
-  const maxCreated = Math.max(...created);
-  const maxUpdated = Math.max(...updated);
-  return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
+function WorkflowCardMedia({
+  workflowId,
+  thumbnail_gcs_path,
+  brand_domain,
+}: {
+  workflowId: string;
+  thumbnail_gcs_path?: string;
+  brand_domain?: string;
+}) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const onLogoError = useCallback(() => setLogoFailed(true), []);
+
+  const mediaShell = "relative h-28 w-full shrink-0 overflow-hidden rounded-t-xl";
+
+  if (thumbnail_gcs_path) {
+    return (
+      <div className={mediaShell}>
+        <WorkflowThumbnail workflowId={workflowId} heightClass="h-28" />
+      </div>
+    );
+  }
+
+  const domain = typeof brand_domain === "string" ? brand_domain.trim() : "";
+  const logoUrl = domain && !logoFailed ? brandfetchLogoUrlForDomain(domain) : null;
+
+  if (logoUrl) {
+    return (
+      <div
+        className={cn(
+          mediaShell,
+          "flex items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15",
+        )}
+      >
+        <GradientIconWell corners="xl" className="h-16 w-16">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Brandfetch CDN */}
+          <img
+            src={logoUrl}
+            alt=""
+            className={gradientWellImageClass("xl")}
+            onError={onLogoError}
+          />
+        </GradientIconWell>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        mediaShell,
+        "flex items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15",
+      )}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        <Workflow className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} />
+      </div>
+    </div>
+  );
 }
 
 export default function WorkflowsPage() {
@@ -88,6 +153,7 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteWorkflowId, setDeleteWorkflowId] = useState<string | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [forkingId, setForkingId] = useState<string | null>(null);
   const [leavingId, setLeavingId] = useState<string | null>(null);
@@ -125,10 +191,15 @@ export default function WorkflowsPage() {
     return () => unsub();
   }, [authUid]);
 
-  const handleDelete = async (e: React.MouseEvent, workflowId: string) => {
+  const openDeleteWorkflowDialog = (e: React.MouseEvent, workflowId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm("Delete this workflow? This cannot be undone.")) return;
+    setDeleteWorkflowId(workflowId);
+  };
+
+  const confirmDeleteWorkflow = async () => {
+    if (!deleteWorkflowId) return;
+    const workflowId = deleteWorkflowId;
     setDeletingId(workflowId);
     try {
       const res = await apiFetch(`/api/workflows/${workflowId}`, {
@@ -143,6 +214,7 @@ export default function WorkflowsPage() {
       } else {
         setWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
       }
+      setDeleteWorkflowId(null);
       toast.success("Workflow deleted");
     } catch (err) {
       console.error("Delete failed:", err);
@@ -298,38 +370,37 @@ export default function WorkflowsPage() {
       })
     : [];
 
+  const featuredId = featuredWorkflowId(workflows);
+
   function renderWorkflowCard(w: Workflow) {
     const isOwner = Boolean(authUid && String(w.owner_uid ?? "") === authUid);
     const couldEdit = canEditSharedWorkflow(w, authUid);
-    const isLatest = isLatestOrLastModified(w, workflows);
+    const isFeatured = featuredId != null && w.id === featuredId;
     const isRunning = activeWorkflowId === w.id;
     return (
       <div
         key={w.id}
         className={`relative rounded-xl transition-all ${isRunning ? "bg-linear-to-r from-[#21C4DD] to-[#A577FF] p-[2px] shadow-lg shadow-[#A577FF]/25" : ""}`}
       >
+        {isFeatured ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="absolute -right-1 -top-1 z-10 echo-indicator-flash-dot"
+                onClick={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Most recently updated workflow</TooltipContent>
+          </Tooltip>
+        ) : null}
         <div
           className={cn(
             workflowListCardClass,
             "overflow-visible",
-            isRunning && "border-0",
-            isLatest && !isRunning && "ring-1 ring-border",
+            isFeatured && !isRunning && "shadow-xl shadow-black/[0.12] dark:shadow-black/50",
           )}
         >
-          {isLatest && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  className="absolute -right-1 -top-1 z-10 echo-indicator-flash-dot"
-                  onClick={(e) => e.preventDefault()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                />
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Newest or most recently modified workflow
-              </TooltipContent>
-            </Tooltip>
-          )}
           <div
             className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
             onClick={(e) => e.preventDefault()}
@@ -370,11 +441,11 @@ export default function WorkflowsPage() {
                 {isOwner ? (
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={(e) => handleDelete(e, w.id)}
+                    onClick={(e) => openDeleteWorkflowDialog(e, w.id)}
                     disabled={deletingId === w.id}
                   >
                     <IconTrash className="h-4 w-4" />
-                    {deletingId === w.id ? "Deleting…" : "Delete"}
+                    Delete
                   </DropdownMenuItem>
                 ) : (
                   <>
@@ -407,23 +478,13 @@ export default function WorkflowsPage() {
             }
             className="flex flex-1 cursor-pointer flex-col"
           >
-            {w.thumbnail_gcs_path ? (
-              <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
-            ) : (
-              <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                  <Workflow className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} />
-                </div>
-              </div>
-            )}
+            <WorkflowCardMedia
+              workflowId={w.id}
+              thumbnail_gcs_path={w.thumbnail_gcs_path}
+              brand_domain={w.brand_domain}
+            />
 
-            <div className="flex flex-1 flex-col px-4 pt-4">
-              <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-foreground">
-                {w.name ?? "Untitled workflow"}
-              </span>
-            </div>
-
-            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+            <div className="flex flex-1 flex-col gap-2 px-4 pt-4 pb-4">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {!isOwner ? (
                   <span
@@ -437,11 +498,9 @@ export default function WorkflowsPage() {
                   {workflowStatusLabel(w.status)}
                 </span>
               </div>
-              <IconChevronRight
-                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                stroke={1.5}
-                aria-hidden
-              />
+              <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-foreground">
+                {w.name ?? "Untitled workflow"}
+              </span>
             </div>
           </Link>
         </div>
@@ -483,63 +542,112 @@ export default function WorkflowsPage() {
     );
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="flex shrink-0 items-center justify-between">
-          <h1 className="text-2xl font-semibold text-foreground">Workflows</h1>
-          <DesktopCaptureLink className="echo-btn-primary flex items-center gap-2">
-            <IconPlus className="h-5 w-5" />
-            New Workflow
-          </DesktopCaptureLink>
-        </div>
+  const deleteTargetName =
+    deleteWorkflowId != null
+      ? workflows.find((x) => x.id === deleteWorkflowId)?.name?.trim() || "Untitled workflow"
+      : "";
 
-        {mine.length === 0 && sharedWithMe.length === 0 ? (
-          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-border">
-            <div className="absolute inset-0 overflow-hidden rounded-lg">
-              <Threads
-                color={[165 / 255, 119 / 255, 255 / 255]}
-                amplitude={1.3}
-                distance={0.3}
-                enableMouseInteraction={false}
-              />
-            </div>
-            <div className="relative z-[1] flex flex-col items-center gap-3 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                <Workflow className="h-6 w-6 text-primary" strokeWidth={1.75} />
+  return (
+    <>
+      <Dialog open={deleteWorkflowId != null} onOpenChange={(o) => !o && setDeleteWorkflowId(null)}>
+        <DialogContent
+          showCloseButton
+          className={cn(
+            "gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-md",
+          )}
+        >
+          <div className="border-b border-border/60 px-6 pt-6 pb-5">
+            <div className="flex gap-3">
+              <GradientIconWell corners="lg" className="size-10 shrink-0">
+                <IconTrash className="size-5 text-card-foreground" stroke={1.5} aria-hidden />
+              </GradientIconWell>
+              <div className="min-w-0 flex-1 space-y-2 text-left">
+                <DialogTitle className={cn(DASHBOARD_PAGE_TITLE_CLASS, "text-card-foreground")}>
+                  Delete this workflow?
+                </DialogTitle>
+                <DialogDescription className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "text-left")}>
+                  This permanently removes &quot;{deleteTargetName}&quot; and its steps. You cannot
+                  undo this action.
+                </DialogDescription>
               </div>
-              <p className="font-medium text-foreground">No workflows yet</p>
-              <DesktopCaptureLink className="echo-btn-primary inline-flex items-center gap-2">
-                <IconPlus className="h-5 w-5" />
-                Create your first workflow
-              </DesktopCaptureLink>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col gap-8">
-            {mine.length > 0 ? (
-              <section className="flex flex-col gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  My workflows
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {mine.map(renderWorkflowCard)}
-                </div>
-              </section>
-            ) : null}
-            {sharedWithMe.length > 0 ? (
-              <section className="flex flex-col gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Shared with me
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {sharedWithMe.map(renderWorkflowCard)}
-                </div>
-              </section>
-            ) : null}
+          <DialogFooter className="gap-2 border-t border-border/60 bg-card px-6 py-4 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-border"
+              onClick={() => setDeleteWorkflowId(null)}
+              disabled={deletingId != null}
+            >
+              <IconX className="size-4 shrink-0" stroke={1.5} />
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingId != null}
+              onClick={() => void confirmDeleteWorkflow()}
+            >
+              {deletingId != null ? (
+                <>
+                  <IconLoader className="size-4 shrink-0 animate-spin" stroke={1.5} aria-hidden />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <IconTrash className="size-4 shrink-0" stroke={1.5} aria-hidden />
+                  Delete workflow
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex shrink-0 items-center justify-between">
+            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>Workflows</h1>
+            <CreateWorkflowMenu variant="page-primary" />
           </div>
-        )}
+
+          {mine.length === 0 && sharedWithMe.length === 0 ? (
+            <DashboardEmptyState
+              className="min-h-0 flex-1"
+              minHeightClass="min-h-0 flex-1"
+              title="No workflows yet"
+              description="Create your first workflow to get started."
+              icon={Workflow}
+            >
+              <CreateWorkflowMenu variant="page-empty" />
+            </DashboardEmptyState>
+          ) : (
+            <div className="flex flex-col gap-8">
+              {mine.length > 0 ? (
+                <section className="flex flex-col gap-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    My workflows
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {mine.map(renderWorkflowCard)}
+                  </div>
+                </section>
+              ) : null}
+              {sharedWithMe.length > 0 ? (
+                <section className="flex flex-col gap-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Shared with me
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {sharedWithMe.map(renderWorkflowCard)}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

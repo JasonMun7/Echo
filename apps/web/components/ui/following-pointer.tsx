@@ -1,7 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-import { motion, AnimatePresence, useMotionValue } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, type MotionValue } from "motion/react";
 import { cn } from "@/lib/utils";
+
+const FOLLOW_POINTER_COLORS = [
+  "#0ea5e9",
+  "#737373",
+  "#14b8a6",
+  "#22c55e",
+  "#3b82f6",
+  "#ef4444",
+  "#eab308",
+] as const;
 
 export const FollowerPointerCard = ({
   children,
@@ -61,11 +71,14 @@ export const FollowPointer = ({
   y,
   title,
 }: {
-  x: any;
-  y: any;
+  x: MotionValue<number>;
+  y: MotionValue<number>;
   title?: string | React.ReactNode;
 }) => {
-  const colors = ["#0ea5e9", "#737373", "#14b8a6", "#22c55e", "#3b82f6", "#ef4444", "#eab308"];
+  const accent = useMemo(
+    () => FOLLOW_POINTER_COLORS[Math.floor(Math.random() * FOLLOW_POINTER_COLORS.length)]!,
+    [],
+  );
   return (
     <motion.div
       className="absolute z-50 h-4 w-4 rounded-full"
@@ -101,7 +114,7 @@ export const FollowPointer = ({
       </svg>
       <motion.div
         style={{
-          backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+          backgroundColor: accent,
         }}
         initial={{
           scale: 0.5,

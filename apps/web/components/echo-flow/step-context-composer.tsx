@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import {
   assertFileSize,
   canAddAttachment,
+  isSyntheticFrameAttachment,
   nextAttachmentRefLabel,
   type ContextAttachment,
   MAX_ATTACHMENTS,
@@ -392,6 +393,8 @@ export type StepContextComposerProps = {
   onPromptChange: (next: string) => void;
   attachments: ContextAttachment[];
   onAttachmentsChange: (next: ContextAttachment[]) => void;
+  /** Clears persisted `frame_image_url` when the user removes a synthetic step-frame preview. */
+  onRemoveSyntheticFrame?: () => void;
   disabled?: boolean;
   placeholder?: string;
 };
@@ -408,6 +411,7 @@ export function StepContextComposer({
   onPromptChange,
   attachments,
   onAttachmentsChange,
+  onRemoveSyntheticFrame,
   disabled,
   placeholder = "Describe what the agent should wait for. Tags for uploads appear in this text as you add files.",
 }: StepContextComposerProps) {
@@ -421,6 +425,10 @@ export function StepContextComposer({
   const isMultiLine = useMemo(
     () => migratePromptTokensToCanonical(prompt).includes("\n"),
     [prompt],
+  );
+  const persistedAttachments = useMemo(
+    () => attachments.filter((a) => !isSyntheticFrameAttachment(a)),
+    [attachments],
   );
   const taRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<SpeechRecognition | null>(null);
@@ -510,7 +518,7 @@ export function StepContextComposer({
       });
       setBusy(true);
       try {
-        let list = [...attachments];
+        let list = [...persistedAttachments];
         let nextPrompt = promptRef.current;
         for (const file of fileArray) {
           if (list.length >= MAX_ATTACHMENTS) {
@@ -536,28 +544,37 @@ export function StepContextComposer({
             toast.error(err instanceof Error ? err.message : "Upload failed");
           }
         }
-        if (list.length > attachments.length) {
-          onAttachmentsChange(list);
+        if (list.length > persistedAttachments.length) {
+          const merged = [...attachments.filter((a) => isSyntheticFrameAttachment(a)), ...list];
+          onAttachmentsChange(merged);
           onPromptChange(nextPrompt);
           echoAttachDebug("StepContextComposer onPickFiles: done", {
-            added: list.length - attachments.length,
+            added: list.length - persistedAttachments.length,
           });
           toast.success(
-            list.length - attachments.length === 1
+            list.length - persistedAttachments.length === 1
               ? "Added to context"
-              : `${list.length - attachments.length} files added`,
+              : `${list.length - persistedAttachments.length} files added`,
           );
         }
       } finally {
         setBusy(false);
       }
     },
-    [attachments, onAttachmentsChange, onPromptChange, stepId, uploadOne, workflowId],
+    [
+      attachments,
+      persistedAttachments,
+      onAttachmentsChange,
+      onPromptChange,
+      stepId,
+      uploadOne,
+      workflowId,
+    ],
   );
 
   const captureScreen = useCallback(async () => {
     if (disabled || busy) return;
-    if (!canAddAttachment(attachments)) {
+    if (!canAddAttachment(persistedAttachments)) {
       toast.error(`You can add up to ${MAX_ATTACHMENTS} files.`);
       return;
     }
@@ -569,11 +586,15 @@ export function StepContextComposer({
       });
       const blob = await captureScreenAsPngBlob();
       const file = new File([blob], `screen-capture-${Date.now()}.png`, { type: "image/png" });
-      const ref = nextAttachmentRefLabel(attachments);
+      const ref = nextAttachmentRefLabel(persistedAttachments);
       const row = await uploadOne(file, ref);
       if (row) {
         echoAttachDebug("StepContextComposer captureScreen: uploaded", { ref_label: ref });
-        onAttachmentsChange([...attachments, row]);
+        onAttachmentsChange([
+          ...attachments.filter((a) => isSyntheticFrameAttachment(a)),
+          ...persistedAttachments,
+          row,
+        ]);
         onPromptChange(appendContextTokenToPrompt(promptRef.current, row.ref_label));
         toast.success("Screenshot added to context");
       }
@@ -590,6 +611,7 @@ export function StepContextComposer({
     }
   }, [
     attachments,
+    persistedAttachments,
     busy,
     disabled,
     onAttachmentsChange,
@@ -600,6 +622,11 @@ export function StepContextComposer({
   ]);
 
   const remove = (id: string) => {
+    const row = attachments.find((a) => a.id === id);
+    if (row && isSyntheticFrameAttachment(row)) {
+      onRemoveSyntheticFrame?.();
+      return;
+    }
     onAttachmentsChange(attachments.filter((a) => a.id !== id));
   };
 
@@ -669,7 +696,7 @@ export function StepContextComposer({
     }
   }, [disabled, recording, onPromptChange]);
 
-  const addDisabled = disabled || busy || !canAddAttachment(attachments);
+  const addDisabled = disabled || busy || !canAddAttachment(persistedAttachments);
 
   const promptFieldEl = (
     <ContextPromptRichField

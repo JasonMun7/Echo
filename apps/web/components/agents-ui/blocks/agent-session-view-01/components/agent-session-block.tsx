@@ -86,13 +86,22 @@ interface FadeProps {
   top?: boolean;
   bottom?: boolean;
   className?: string;
+  /** Match the scroll surface (`card` for emphasized dashboard column). */
+  fadeFrom?: "background" | "card";
 }
 
-export function Fade({ top = false, bottom = false, className }: FadeProps) {
+export function Fade({
+  top = false,
+  bottom = false,
+  className,
+  fadeFrom = "background",
+}: FadeProps) {
+  const fromClass = fadeFrom === "card" ? "from-card" : "from-background";
   return (
     <div
       className={cn(
-        "from-background pointer-events-none h-4 bg-linear-to-b to-transparent",
+        "pointer-events-none h-4 bg-linear-to-b to-transparent",
+        fromClass,
         top && "bg-linear-to-b",
         bottom && "bg-linear-to-t",
         className,
@@ -138,6 +147,13 @@ export interface AgentSessionView_01Props {
    * @default true
    */
   isPreConnectBufferEnabled?: boolean;
+  /**
+   * Opens the transcript when the latest session message is from the user so in-chat activity
+   * (e.g. “responding…”) stays visible during tools or voice turns.
+   *
+   * @default false
+   */
+  autoOpenChatOnUserTurn?: boolean;
 
   /** Selects the visualizer style rendered in the main tile area. */
   audioVisualizerType?: "bar" | "wave" | "grid" | "radial" | "aura";
@@ -159,6 +175,10 @@ export interface AgentSessionView_01Props {
   audioVisualizerWaveLineWidth?: number;
   /** Optional class name merged onto the outer `<section>` container. */
   className?: string;
+  /** Runs after the leave control triggers disconnect (navigation, analytics, etc.). */
+  onAfterDisconnect?: () => void;
+  /** Use dashboard main column surface (`bg-card`) instead of page background. */
+  cardSurface?: boolean;
 }
 
 export function AgentSessionView_01({
@@ -168,6 +188,7 @@ export function AgentSessionView_01({
   supportsVideoInput = true,
   supportsScreenShare = true,
   isPreConnectBufferEnabled = true,
+  autoOpenChatOnUserTurn = false,
 
   audioVisualizerType,
   audioVisualizerColor,
@@ -178,6 +199,8 @@ export function AgentSessionView_01({
   audioVisualizerRadialBarCount,
   audioVisualizerRadialRadius,
   audioVisualizerWaveLineWidth,
+  onAfterDisconnect,
+  cardSurface = false,
   ref,
   className,
   ...props
@@ -207,13 +230,24 @@ export function AgentSessionView_01({
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!autoOpenChatOnUserTurn) return;
+    const last = messages.at(-1);
+    if (last?.from?.isLocal === true) {
+      setChatOpen(true);
+    }
+  }, [messages, autoOpenChatOnUserTurn]);
+
+  const fadeFrom = cardSurface ? "card" : "background";
+  const surfaceClass = cardSurface ? "bg-card" : "bg-background";
+
   return (
     <section
       ref={ref}
-      className={cn("bg-background relative z-10 h-full w-full overflow-hidden", className)}
+      className={cn(surfaceClass, "relative z-10 h-full w-full overflow-hidden", className)}
       {...props}
     >
-      <Fade top className="absolute inset-x-4 top-0 z-10 h-40" />
+      <Fade fadeFrom={fadeFrom} top className="absolute inset-x-4 top-0 z-10 h-40" />
       {/* transcript */}
 
       <div className="absolute top-0 bottom-[135px] flex w-full flex-col md:bottom-[170px]">
@@ -266,14 +300,18 @@ export function AgentSessionView_01({
             )}
           </AnimatePresence>
         )}
-        <div className="bg-background relative mx-auto max-w-2xl pb-3 md:pb-12">
-          <Fade bottom className="absolute inset-x-0 top-0 h-4 -translate-y-full" />
+        <div className={cn(surfaceClass, "relative mx-auto max-w-2xl pb-3 md:pb-12")}>
+          <Fade
+            fadeFrom={fadeFrom}
+            bottom
+            className="absolute inset-x-0 top-0 h-4 -translate-y-full"
+          />
           <AgentControlBar
             variant="livekit"
             controls={controls}
             isChatOpen={chatOpen}
             isConnected={session.isConnected}
-            onDisconnect={session.end}
+            onDisconnect={onAfterDisconnect}
             onIsChatOpenChange={setChatOpen}
           />
         </div>

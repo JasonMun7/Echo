@@ -301,38 +301,41 @@ export default function WorkflowDetailScreen() {
           )}
         </View>
 
-        {/* Recent Runs */}
+        {/* Recent Runs — single card shell, row dividers only */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Runs</Text>
           {sortedRuns.length === 0 ? (
             <Text style={styles.emptyText}>No runs yet.</Text>
           ) : (
-            sortedRuns.slice(0, 10).map((run) => {
-              const startMs = getTime(run.startedAt ?? run.createdAt);
-              const endMs = getTime(run.completedAt);
-              const duration = formatDuration(startMs, endMs);
-              const started = formatDate(run.startedAt ?? run.createdAt);
+            <View style={styles.runsCard}>
+              {sortedRuns.slice(0, 10).map((run, idx, arr) => {
+                const startMs = getTime(run.startedAt ?? run.createdAt);
+                const endMs = getTime(run.completedAt);
+                const duration = formatDuration(startMs, endMs);
+                const started = formatDate(run.startedAt ?? run.createdAt);
+                const isLast = idx === arr.length - 1;
 
-              return (
-                <Pressable
-                  key={run.id}
-                  style={styles.runItem}
-                  onPress={() => router.push(`/(tabs)/workflows/${id}/runs/${run.id}`)}
-                >
-                  <View style={styles.runLeft}>
-                    <StatusBadge status={run.status} />
-                    <View style={styles.runInfo}>
-                      <Text style={styles.runDate}>{started}</Text>
-                      <Text style={styles.runMeta}>
-                        {duration !== "—" ? `Duration: ${duration}` : ""}
-                        {run.error ? ` · Error` : ""}
-                      </Text>
+                return (
+                  <Pressable
+                    key={run.id}
+                    style={[styles.runRow, !isLast && styles.runRowDivider]}
+                    onPress={() => router.push(`/(tabs)/workflows/${id}/runs/${run.id}`)}
+                  >
+                    <View style={styles.runLeft}>
+                      <StatusBadge status={run.status} />
+                      <View style={styles.runInfo}>
+                        <Text style={styles.runDate}>{started}</Text>
+                        <Text style={styles.runMeta}>
+                          {duration !== "—" ? `Duration: ${duration}` : ""}
+                          {run.error ? ` · Error` : ""}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                  <Text style={styles.runChevron}>›</Text>
-                </Pressable>
-              );
-            })
+                    <Text style={styles.runChevron}>›</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -526,16 +529,24 @@ const styles = StyleSheet.create({
   },
 
   /* runs */
-  runItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.white,
+  runsCard: {
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: colors.white,
+    overflow: "hidden",
+  },
+  runRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: colors.white,
+  },
+  runRowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   runLeft: {
     flexDirection: "row",

@@ -4,6 +4,7 @@ import {
   forwardRef,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -155,6 +156,10 @@ export const ContextPromptRichField = forwardRef<HTMLDivElement, ContextPromptRi
     forwardedRef,
   ) {
     const innerRef = useRef<HTMLDivElement>(null);
+    /** `:empty` never matches — we always append ZWSP for caret; drive placeholder via data attr instead. */
+    const showPlaceholder = useMemo(() => {
+      return migratePromptTokensToCanonical(value).trim() === "";
+    }, [value]);
     /** After emit(), skip one sync — props can lag the DOM by a render (fixes typing + Strict Mode). */
     const skipSyncFromEmitRef = useRef(false);
     /** Last `contentKey` we rendered into innerHTML (text + attachment set). */
@@ -300,12 +305,14 @@ export const ContextPromptRichField = forwardRef<HTMLDivElement, ContextPromptRi
               contentEditable={!disabled}
               suppressContentEditableWarning
               data-placeholder={placeholder ?? ""}
+              data-echo-placeholder-active={showPlaceholder ? "" : undefined}
               onInput={emit}
               onBlur={emit}
               onKeyDown={onEditorKeyDown}
               onPointerDownCapture={onChipDismissPointerDown}
               className={cn(
-                "echo-context-prompt-editor max-h-44 min-h-9 w-full overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-1.5 text-sm leading-snug text-[#150A35] outline-none [&:empty]:before:text-[#150A35]/38 [&:empty]:before:content-[attr(data-placeholder)]",
+                "echo-context-prompt-editor relative max-h-44 min-h-9 w-full overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-1.5 text-sm leading-snug text-[#150A35] outline-none",
+                "[&[data-echo-placeholder-active]]:before:pointer-events-none [&[data-echo-placeholder-active]]:before:text-[#150A35]/40 [&[data-echo-placeholder-active]]:before:content-[attr(data-placeholder)]",
                 disabled && "cursor-not-allowed opacity-60",
                 className,
               )}

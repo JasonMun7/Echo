@@ -40,6 +40,9 @@ type NotificationsInboxContextValue = {
   drawerOpen: boolean;
   setDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   markRead: (id: string) => Promise<void>;
+  deleteNotification: (id: string) => Promise<boolean>;
+  deleteAllNotifications: () => Promise<boolean>;
+  markAllRead: () => Promise<boolean>;
   /** Firestore doc ids for `workflow_invites` with status `pending` for the current user. */
   pendingWorkflowInviteIds: ReadonlySet<string>;
 };
@@ -168,6 +171,33 @@ export function NotificationsInboxProvider({ children }: { children: React.React
     }
   }, []);
 
+  const deleteNotification = useCallback(async (id: string) => {
+    const res = await apiFetch(`/api/notifications/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      return true;
+    }
+    return false;
+  }, []);
+
+  const deleteAllNotifications = useCallback(async () => {
+    const res = await apiFetch("/api/notifications/delete-all", { method: "POST" });
+    if (res.ok) {
+      setNotifications([]);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const markAllRead = useCallback(async () => {
+    const res = await apiFetch("/api/notifications/mark-all-read", { method: "POST" });
+    if (res.ok) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      return true;
+    }
+    return false;
+  }, []);
+
   const value = useMemo<NotificationsInboxContextValue>(
     () => ({
       notifications,
@@ -176,9 +206,22 @@ export function NotificationsInboxProvider({ children }: { children: React.React
       drawerOpen,
       setDrawerOpen,
       markRead,
+      deleteNotification,
+      deleteAllNotifications,
+      markAllRead,
       pendingWorkflowInviteIds,
     }),
-    [notifications, unreadCount, loading, drawerOpen, markRead, pendingWorkflowInviteIds],
+    [
+      notifications,
+      unreadCount,
+      loading,
+      drawerOpen,
+      markRead,
+      deleteNotification,
+      deleteAllNotifications,
+      markAllRead,
+      pendingWorkflowInviteIds,
+    ],
   );
 
   return (

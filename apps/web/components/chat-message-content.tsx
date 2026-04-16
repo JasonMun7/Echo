@@ -35,11 +35,7 @@ const components = {
     const isBlock = className?.includes("language-");
     if (isBlock) {
       return (
-        <div
-          className={cn(
-            "my-2 rounded-lg border border-[#150A35]/12 bg-[#F5F7FC] p-4 shadow-sm overflow-x-auto echo-card",
-          )}
-        >
+        <div className={cn("echo-card my-2 overflow-x-auto rounded-lg bg-[#F5F7FC] p-4")}>
           <code className="text-sm text-[#150A35] block whitespace-pre" {...props}>
             {children}
           </code>

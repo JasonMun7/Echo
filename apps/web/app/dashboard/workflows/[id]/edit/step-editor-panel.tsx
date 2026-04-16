@@ -1,17 +1,19 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { IconTrash } from "@tabler/icons-react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { WorkflowApiCallFields } from "@/components/workflow-api-call-fields";
 import { OpenAppBrandSearchFields } from "@/components/echo-flow/open-app-brand-search-fields";
 import { StepContextComposer } from "@/components/echo-flow/step-context-composer";
 import { StepContextTagField } from "@/components/echo-flow/step-context-tag-field";
-import { StepVisualContext } from "@/components/echo-flow/step-visual-context";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { formatAction } from "@/lib/workflow-action-labels";
+import { migratePromptTokensToCanonical } from "@/lib/context-prompt-tokens";
 import {
+  SYNTHETIC_FRAME_ATTACHMENT_PREFIX,
+  isSyntheticFrameAttachment,
   normalizeContextAttachments,
   type ContextAttachment,
 } from "@/lib/workflow-step-context-attachments";
@@ -77,6 +79,51 @@ function primaryPromptPatch(
     };
   }
   return { context: value };
+}
+
+/**
+ * Synthesis sometimes keeps a signed `frame_image_url` while `context_attachments` is empty or
+ * dropped during hydrate — tokens like `{{c1}}` still need a matching row for chips + thumbnails.
+ */
+function buildComposerAttachments(step: WorkflowStepEditorStep): ContextAttachment[] {
+  const base = normalizeContextAttachments(step.context_attachments);
+  const fu = typeof step.frame_image_url === "string" ? step.frame_image_url.trim() : "";
+  if (!fu) return base;
+  if (base.some((a) => a.url.trim() === fu)) return base;
+
+  const prompt = migratePromptTokensToCanonical(primaryPromptFromStep(step));
+  const byRef = new Map(base.map((a) => [(a.ref_label ?? "c1").toLowerCase(), a]));
+  const missingRefs = [...prompt.matchAll(/\{\{c(\d+)\}\}/gi)]
+    .map((m) => `c${m[1]}`.toLowerCase())
+    .filter((ref) => !byRef.has(ref));
+
+  if (missingRefs.length > 0) {
+    const ref = missingRefs[0]!;
+    return [
+      ...base,
+      {
+        id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:${ref}`,
+        kind: "image",
+        name: "Step capture",
+        url: fu,
+        ref_label: ref,
+      },
+    ];
+  }
+
+  if (base.length === 0) {
+    return [
+      {
+        id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:c1`,
+        kind: "image",
+        name: "Step capture",
+        url: fu,
+        ref_label: "c1",
+      },
+    ];
+  }
+
+  return base;
 }
 
 function contextComposerPlaceholder(action: string): string {
@@ -427,6 +474,8 @@ export function StepEditorPanel({
   const contextTagsMode = getStepContextTagsMode(step);
   const contextTagsHint = contextTagsHelperText(step.action);
 
+  const composerAttachments = useMemo(() => buildComposerAttachments(step), [step]);
+
   return (
     <div className="space-y-4">
       {readOnly && lockOwnerLabel ? (
@@ -474,7 +523,6 @@ export function StepEditorPanel({
           </button>
         )}
       </div>
-      <StepVisualContext step={step} />
       {auth?.currentUser?.uid ? (
         <StepContextComposer
           workflowId={workflowId}
@@ -498,10 +546,11 @@ export function StepEditorPanel({
               });
             }
           }}
-          attachments={normalizeContextAttachments(step.context_attachments)}
+          attachments={composerAttachments}
           onAttachmentsChange={(next) => {
-            handleStepUpdate(step.id, { context_attachments: next });
-            const nextStep: WorkflowStepEditorStep = { ...step, context_attachments: next };
+            const persisted = next.filter((a) => !isSyntheticFrameAttachment(a));
+            handleStepUpdate(step.id, { context_attachments: persisted });
+            const nextStep: WorkflowStepEditorStep = { ...step, context_attachments: persisted };
             if (publishIssuesForStep(nextStep).length === 0) {
               setInvalidStepIds((prev) => {
                 const n = new Set(prev);
@@ -509,6 +558,9 @@ export function StepEditorPanel({
                 return n;
               });
             }
+          }}
+          onRemoveSyntheticFrame={() => {
+            handleStepUpdate(step.id, { frame_image_url: undefined });
           }}
           disabled={readOnly}
         />

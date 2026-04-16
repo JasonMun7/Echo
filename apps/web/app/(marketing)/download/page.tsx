@@ -81,7 +81,7 @@ export default function DownloadPage() {
               )}
             </div>
 
-            <Card className="echo-card border border-[#150A35]/12 bg-[#F5F7FC] shadow-sm">
+            <Card className="echo-card border-border bg-[#F5F7FC]">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-[#150A35]">
                   Already have Echo Desktop?

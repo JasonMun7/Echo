@@ -15,7 +15,7 @@ from echo_prism_agent.constants import (
 # Synthesis
 SYNTHESIS_MODEL = os.environ.get("ECHOPRISM_SYNTHESIS_MODEL", DEFAULT_SYNTHESIS_MODEL)
 
-# Text chat (Gemini generate_content + tools; WebSocket `/ws/chat` text mode)
+# Text / tool helpers (Gemini generate_content + tools; used by agent utilities)
 CHAT_MODEL = os.environ.get("ECHOPRISM_CHAT_MODEL", DEFAULT_CHAT_MODEL)
 
 # Voice

@@ -43,8 +43,13 @@ import {
   IconPencil,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
-import Threads from "@/components/threads";
+import { DashboardEmptyState } from "@/components/dashboard-empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
+import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -193,8 +198,8 @@ export default function McpToolsPage() {
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-[#1A1A2E]">MCP Tools</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>MCP Tools</h1>
+            <p className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "mt-1")}>
               Register custom HTTP tools that EchoPrism can call during workflow execution.
             </p>
           </div>
@@ -309,32 +314,21 @@ export default function McpToolsPage() {
             ))}
           </div>
         ) : tools.length === 0 ? (
-          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-dashed border-border">
-            <div className="absolute inset-0 overflow-hidden rounded-lg">
-              <Threads
-                color={[165 / 255, 119 / 255, 255 / 255]}
-                amplitude={1.3}
-                distance={0.3}
-                enableMouseInteraction={false}
-              />
-            </div>
-            <div className="relative z-[1] flex flex-col items-center gap-3 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                <IconTool className="h-6 w-6 text-[#0891b2]" />
-              </div>
-              <p className="font-medium text-foreground">No MCP tools yet</p>
-              <p className="text-sm text-foreground/70">
-                Add your first custom tool to get started.
-              </p>
-              <Button
-                onClick={openCreate}
-                className="echo-btn-primary inline-flex items-center gap-2"
-              >
-                <IconPlus className="h-5 w-5" />
-                Add Tool
-              </Button>
-            </div>
-          </div>
+          <DashboardEmptyState
+            className="min-h-0 flex-1"
+            minHeightClass="min-h-0 flex-1"
+            title="No MCP tools yet"
+            description="Add your first custom tool to get started."
+            icon={IconTool}
+          >
+            <Button
+              onClick={openCreate}
+              className="echo-btn-primary inline-flex items-center gap-2"
+            >
+              <IconPlus className="h-5 w-5" />
+              Add Tool
+            </Button>
+          </DashboardEmptyState>
         ) : (
           <Table>
             <TableHeader>

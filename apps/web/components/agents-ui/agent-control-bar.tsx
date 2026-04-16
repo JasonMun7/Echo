@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { useChat } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { useChat, useConnectionState, useEnsureRoom } from "@livekit/components-react";
+import { ConnectionState, Track } from "livekit-client";
 import { Loader, MessageSquareTextIcon, SendHorizontal } from "lucide-react";
 import { motion, type MotionProps } from "motion/react";
 
@@ -65,15 +65,22 @@ const MOTION_PROPS: MotionProps = {
 
 interface AgentChatInputProps {
   chatOpen: boolean;
+  /** When false, input is disabled (e.g. room not fully connected — avoids send on closed PC). */
+  sendEnabled?: boolean;
   onSend?: (message: string) => void;
   className?: string;
 }
 
-function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentChatInputProps) {
+function AgentChatInput({
+  chatOpen,
+  sendEnabled = true,
+  onSend = async () => {},
+  className,
+}: AgentChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState<string>("");
-  const isDisabled = isSending || message.trim().length === 0;
+  const isDisabled = isSending || message.trim().length === 0 || !sendEnabled;
 
   const handleSend = async () => {
     if (isDisabled) {
@@ -115,8 +122,8 @@ function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentC
         autoFocus
         ref={inputRef}
         value={message}
-        disabled={!chatOpen || isSending}
-        placeholder="Type something..."
+        disabled={!chatOpen || isSending || !sendEnabled}
+        placeholder={sendEnabled ? "Type something..." : "Connecting…"}
         onKeyDown={handleKeyDown}
         onChange={(e) => setMessage(e.target.value)}
         className="field-sizing-content max-h-16 min-h-8 flex-1 resize-none py-2 [scrollbar-width:thin] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -127,7 +134,7 @@ function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentC
             size="icon"
             type="button"
             disabled={isDisabled}
-            variant={isDisabled ? "secondary" : "default"}
+            variant="secondary"
             onClick={handleButtonClick}
             className="self-end disabled:cursor-not-allowed"
           >
@@ -258,6 +265,9 @@ export function AgentControlBar({
   ...props
 }: AgentControlBarProps & ComponentProps<"div">) {
   const { send } = useChat();
+  const room = useEnsureRoom();
+  const connectionState = useConnectionState(room);
+  const canSendChat = connectionState === ConnectionState.Connected;
   const publishPermissions = usePublishPermissions();
   const [isChatOpenUncontrolled, setIsChatOpenUncontrolled] = useState(isChatOpen);
   const {
@@ -272,7 +282,12 @@ export function AgentControlBar({
   } = useInputControls({ onDeviceError, saveUserChoices });
 
   const handleSendMessage = async (message: string) => {
-    await send(message);
+    if (!canSendChat) return;
+    try {
+      await send(message);
+    } catch (error) {
+      console.warn("[AgentControlBar] Chat send failed:", error);
+    }
   };
 
   const visibleControls = {
@@ -308,6 +323,7 @@ export function AgentControlBar({
       >
         <AgentChatInput
           chatOpen={isChatOpen || isChatOpenUncontrolled}
+          sendEnabled={canSendChat}
           onSend={handleSendMessage}
           className={cn(variant === "livekit" && "[&_button]:rounded-full")}
         />

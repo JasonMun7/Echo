@@ -10,30 +10,28 @@ export function isDashboardNavActive(pathname: string | null, href: string): boo
 /** Main app sidebar rows — matches profile modal semantics, compact type. */
 export function sidebarDashboardNavLinkClass(active: boolean) {
   return cn(
-    "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors duration-150",
-    active
-      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
+    "echo-sidebar-nav-item flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs outline-hidden",
+    active ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
   );
 }
 
 /** Profile modal rail — slightly larger type. */
 export function sidebarModalNavLinkClass(active: boolean) {
   return cn(
-    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors duration-150",
+    "echo-sidebar-nav-item flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left text-sm outline-hidden",
     active
-      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-none"
-      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
+      ? "bg-muted font-medium text-foreground shadow-none"
+      : "text-muted-foreground hover:text-foreground",
   );
 }
 
 export function sidebarNavIconClass(active: boolean) {
   return cn(
     "size-[18px] shrink-0 transition-colors",
-    active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/55",
+    active ? "text-foreground" : "text-muted-foreground",
   );
 }
 
 export function sidebarNavLabelClass(active: boolean) {
-  return active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/85";
+  return active ? "text-foreground" : "text-muted-foreground";
 }

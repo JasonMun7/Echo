@@ -49,6 +49,10 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       if (user) {
         const port = searchParams.get("port");
         const qs = port ? `?port=${encodeURIComponent(port)}` : "";
+        if (!isDesktop) {
+          router.prefetch("/dashboard");
+          router.prefetch("/dashboard/chat");
+        }
         router.replace(isDesktop ? `/auth/desktop-success${qs}` : "/dashboard");
       }
     });

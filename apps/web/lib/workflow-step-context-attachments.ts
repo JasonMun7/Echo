@@ -1,5 +1,8 @@
 /** Rich context attached to a workflow step (images, videos, files) — stored on the step doc. */
 
+/** Client-only rows merged from `frame_image_url` so the editor preview matches `{{cN}}` tokens; strip before persisting. */
+export const SYNTHETIC_FRAME_ATTACHMENT_PREFIX = "echo-synthetic-frame:";
+
 export type ContextAttachmentKind = "image" | "video" | "file";
 
 export type ContextAttachment = {
@@ -12,6 +15,10 @@ export type ContextAttachment = {
   /** Stable id (c1, c2, …). In step text use tokens like {{c1}} (UI shows “Image 1”, etc.). */
   ref_label?: string;
 };
+
+export function isSyntheticFrameAttachment(a: ContextAttachment): boolean {
+  return a.id.startsWith(SYNTHETIC_FRAME_ATTACHMENT_PREFIX);
+}
 
 const MAX_ATTACHMENTS = 12;
 const MAX_FILE_BYTES = 40 * 1024 * 1024;

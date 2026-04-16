@@ -47,15 +47,14 @@ export function NavUser({
   const isMobile = useIsMobile();
   const signOut = useAuthStore((s) => s.signOut);
   const router = useRouter();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { openProfile } = useDashboardProfileNav();
+  const { drawerOpen, setDrawerOpen } = useNotificationsInbox();
 
   useEffect(() => {
-    // Dropdown + notifications portaled beside the rail — keep expanded while interacting.
-    // Profile modal is separate UI; collapsing the sidebar when it opens (below).
-    setKeepExpanded(dropdownOpen || notificationsOpen);
-  }, [dropdownOpen, notificationsOpen, setKeepExpanded]);
+    // Dropdown + notifications drawer portaled beside the rail — keep expanded while interacting.
+    setKeepExpanded(dropdownOpen || drawerOpen);
+  }, [dropdownOpen, drawerOpen, setKeepExpanded]);
 
   /** Profile opens via context (also collapses the rail). */
   const handleOpenProfile = () => openProfile();
@@ -82,14 +81,14 @@ export function NavUser({
             <SidebarMenuButton
               size="lg"
               className={cn(
-                "min-w-0 max-w-full text-sidebar-foreground",
+                "echo-sidebar-nav-item min-w-0 max-w-full rounded-sm text-foreground outline-hidden",
                 isRailMode && "px-1.5",
-                "data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground",
+                "data-[state=open]:bg-muted data-[state=open]:text-foreground",
               )}
             >
-              <Avatar className="h-8 w-8 rounded-lg border border-sidebar-border">
+              <Avatar className="h-8 w-8 rounded-lg border border-border/80">
                 <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                <AvatarFallback className="rounded-lg bg-sidebar-accent text-sidebar-foreground text-xs">
+                <AvatarFallback className="rounded-lg bg-muted text-muted-foreground text-xs">
                   {initials}
                 </AvatarFallback>
               </Avatar>
@@ -140,7 +139,7 @@ export function NavUser({
                 <IconCreditCard className="size-4" />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setNotificationsOpen(true)}>
+              <DropdownMenuItem onSelect={() => setDrawerOpen(true)}>
                 <IconNotification className="size-4" />
                 Notifications
               </DropdownMenuItem>

@@ -73,7 +73,9 @@
 
 /*
  * Hierarchy: --background = deemphasized page canvas (recedes).
- * --card, --popover, --sidebar = emphasized surfaces (lifted, higher contrast vs canvas).
+ * --card, --popover = emphasized surfaces (lifted above canvas).
+ * Dashboard app rail uses the canvas (see `.echo-sidebar-inset`); main column uses --card.
+ * --sidebar tokens remain for shadcn compatibility; prefer canvas/muted nav on the rail.
  */
 :root {
   --radius: var(--radius-echo);
@@ -190,7 +192,7 @@
 
 @layer utilities {
   .echo-card {
-    @apply rounded-lg border border-border bg-card text-card-foreground shadow-md shadow-black/5 dark:shadow-black/40;
+    @apply rounded-lg border border-border bg-card text-card-foreground shadow-lg shadow-black/[0.08] dark:shadow-black/45;
   }
 
   .echo-run-haze {
@@ -254,15 +256,11 @@
   .echo-gradient-sidebar-secondary {
     background: linear-gradient(to bottom, #150a35, #21c4dd);
   }
-  /* Dashboard sidebar — follows --sidebar / --sidebar-border (same as shadcn tokens) */
+  /* Dashboard sidebar rail — same plane as page canvas (deemphasized vs main column card) */
   .echo-sidebar-inset {
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
+    background: var(--background);
+    color: var(--foreground);
     border-right: none;
-    box-shadow: none;
-  }
-  .dark .echo-sidebar-inset {
-    /* No inset highlight — avoids a stray “edge” that misaligns with the main column header */
     box-shadow: none;
   }
   .echo-gradient-cyan-lavender {
@@ -298,6 +296,18 @@
   }
   .echo-dropdown-item[data-variant="destructive"][data-highlighted],
   .echo-dropdown-item[data-variant="destructive"]:focus-visible {
+    background-image: none !important;
+  }
+
+  /* Dashboard sidebar + settings modal rail — same flat highlight timing as dropdown rows */
+  .echo-sidebar-nav-item {
+    transition:
+      background-color 0.15s ease-out,
+      color 0.15s ease-out;
+  }
+  .echo-sidebar-nav-item:hover:not(:disabled),
+  .echo-sidebar-nav-item:focus-visible {
+    background-color: var(--muted) !important;
     background-image: none !important;
   }
 

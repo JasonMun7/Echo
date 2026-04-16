@@ -6,6 +6,39 @@ import { useCallback, forwardRef, useRef } from "react";
 const CAPTURE_URL = "echo-desktop://capture";
 const REDIRECT_DELAY_MS = 2000;
 
+/** Opens Echo Desktop capture; if the app does not open, redirects to `/dashboard/workflows` after a delay. */
+export function useEchoDesktopCapture() {
+  const router = useRouter();
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openCapture = useCallback(() => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+      redirectTimeoutRef.current = null;
+    }
+    window.location.href = CAPTURE_URL;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current);
+          redirectTimeoutRef.current = null;
+        }
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    redirectTimeoutRef.current = setTimeout(() => {
+      redirectTimeoutRef.current = null;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (document.visibilityState === "visible") {
+        router.push("/dashboard/workflows");
+      }
+    }, REDIRECT_DELAY_MS);
+  }, [router]);
+
+  return { openCapture };
+}
+
 /**
  * Link that opens Echo Desktop capture (echo-desktop://capture).
  * If the app does not open (page stays visible after delay), redirect to /dashboard/workflows
@@ -14,37 +47,16 @@ const REDIRECT_DELAY_MS = 2000;
 export const DesktopCaptureLink = forwardRef<
   HTMLAnchorElement,
   React.PropsWithChildren<React.AnchorHTMLAttributes<HTMLAnchorElement>>
->(function DesktopCaptureLink({ children, className, ...props }, ref) {
-  const router = useRouter();
-  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+>(function DesktopCaptureLink({ children, className, onClick, ...props }, ref) {
+  const { openCapture } = useEchoDesktopCapture();
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
       e.preventDefault();
-      if (redirectTimeoutRef.current) {
-        clearTimeout(redirectTimeoutRef.current);
-        redirectTimeoutRef.current = null;
-      }
-      window.location.href = CAPTURE_URL;
-      const onVisibilityChange = () => {
-        if (document.visibilityState === "hidden") {
-          if (redirectTimeoutRef.current) {
-            clearTimeout(redirectTimeoutRef.current);
-            redirectTimeoutRef.current = null;
-          }
-          document.removeEventListener("visibilitychange", onVisibilityChange);
-        }
-      };
-      document.addEventListener("visibilitychange", onVisibilityChange);
-      redirectTimeoutRef.current = setTimeout(() => {
-        redirectTimeoutRef.current = null;
-        document.removeEventListener("visibilitychange", onVisibilityChange);
-        if (document.visibilityState === "visible") {
-          router.push("/dashboard/workflows");
-        }
-      }, REDIRECT_DELAY_MS);
+      onClick?.(e);
+      openCapture();
     },
-    [router],
+    [onClick, openCapture],
   );
 
   return (

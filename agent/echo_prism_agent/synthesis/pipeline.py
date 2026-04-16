@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import re
+import uuid
 from typing import Any
 
 from echo_prism_agent.constants import (
@@ -125,6 +126,104 @@ def _log_typing_sequence_warnings(steps: list[dict]) -> None:
         logger.warning("Workflow typing hint: %s", w)
 
 
+# Mirrors apps/web step-editor-panel: narrative lives in params.description for these actions.
+_COMPOSER_DESCRIPTION_ACTIONS = frozenset(
+    {
+        "wait_for_element",
+        "click_at",
+        "type_text_at",
+        "hover",
+        "right_click",
+        "double_click",
+        "drag_drop",
+        "drag",
+        "select_option",
+    }
+)
+
+
+def _max_attachment_c_index(attachments: list[dict]) -> int:
+    m = 0
+    for a in attachments:
+        rl = str(a.get("ref_label") or "").strip()
+        mm = re.fullmatch(r"c(\d+)", rl, re.I)
+        if mm:
+            m = max(m, int(mm.group(1)))
+    return m
+
+
+def _ref_token_present(text: str, ref: str) -> bool:
+    rid = ref.strip().lower().lstrip("@")
+    if re.search(r"\{\{" + re.escape(rid) + r"\}\}", text, re.I):
+        return True
+    return bool(re.search(r"(?:^|\s)@" + re.escape(rid) + r"(?:\s|$|[.,;:!?)])", text, re.I))
+
+
+def _append_ref_token_to_text(text: str, ref: str) -> str:
+    if _ref_token_present(text, ref):
+        return text
+    tok = f"{{{{{ref}}}}}"
+    t = text.rstrip()
+    if not t:
+        return f"{tok} "
+    return f"{t} {tok} "
+
+
+def _link_frame_url_to_context_attachments(step: dict) -> dict:
+    """Promote frame_image_url into context_attachments + {{cN}} tokens; drop frame/overlay (rich context only)."""
+    fiu = str(step.get("frame_image_url") or "").strip()
+    if not fiu:
+        return step
+    s = dict(step)
+    params = dict(s.get("params") or {})
+    context = str(s.get("context") or "")
+    action = str(s.get("action") or "")
+
+    raw_att = s.get("context_attachments")
+    attachments: list[dict] = []
+    if isinstance(raw_att, list):
+        for item in raw_att:
+            if isinstance(item, dict) and str(item.get("url") or "").strip():
+                attachments.append(dict(item))
+
+    ref: str | None = None
+    for a in attachments:
+        if str(a.get("url") or "").strip() == fiu:
+            rl = str(a.get("ref_label") or "").strip()
+            if re.fullmatch(r"c\d+", rl, re.I):
+                ref = rl.lower()
+            else:
+                n = _max_attachment_c_index(attachments) + 1
+                ref = f"c{n}"
+                a["ref_label"] = ref
+            break
+
+    if ref is None:
+        n = _max_attachment_c_index(attachments) + 1
+        ref = f"c{n}"
+        attachments.append(
+            {
+                "id": str(uuid.uuid4()),
+                "kind": "image",
+                "name": "Step capture",
+                "url": fiu,
+                "ref_label": ref,
+            }
+        )
+
+    context = _append_ref_token_to_text(context, ref)
+    if action in _COMPOSER_DESCRIPTION_ACTIONS:
+        desc = str(params.get("description") or "")
+        params["description"] = _append_ref_token_to_text(desc, ref)
+
+    s["context"] = context
+    s["params"] = params
+    s["context_attachments"] = attachments
+    s.pop("frame_image_url", None)
+    s.pop("click_overlay", None)
+    return s
+
+
 def _postprocess_steps(steps_data: list[dict]) -> tuple[list[dict], set[str]]:
     """Strip legacy coordinate keys, deduplicate, extract {{variables}}. No bogus coord defaults."""
     variables: set[str] = set()
@@ -143,6 +242,8 @@ def _postprocess_steps(steps_data: list[dict]) -> tuple[list[dict], set[str]]:
         for val in list(params.values()) + [s.get("context", "")]:
             if isinstance(val, str):
                 for m in re.findall(r"\{\{(\w+)\}\}", val):
+                    if re.fullmatch(r"c\d+", m, re.I):
+                        continue
                     variables.add(m)
         step_key = (s.get("action", ""), json.dumps(params, sort_keys=True))
         if step_key == prev_key:
@@ -151,7 +252,8 @@ def _postprocess_steps(steps_data: list[dict]) -> tuple[list[dict], set[str]]:
         s_copy = dict(s)
         s_copy["params"] = params
         processed_steps.append(s_copy)
-    return processed_steps, variables
+    linked = [_link_frame_url_to_context_attachments(st) for st in processed_steps]
+    return linked, variables
 
 
 async def synthesize_frame_step(
@@ -285,6 +387,8 @@ async def synthesize_workflow_from_media(
     client: Any,
     parts: list[Any],
     model: str = SYNTHESIS_MODEL,
+    *,
+    storage_prefix: str | None = None,
 ) -> dict:
     """One-shot multimodal synthesis (video/images). Same semantic JSON as frames/description."""
     try:
@@ -297,7 +401,19 @@ async def synthesize_workflow_from_media(
             "variables": [],
         }
 
-    user_parts = [gtypes.Part.from_text(text=MEDIA_SYNTHESIS_PROMPT), *parts]
+    if storage_prefix:
+        prefix_note = (
+            f"STORAGE: Uploaded assets use GCS prefix `{storage_prefix}/`. "
+            "You may reference them in `frame_image_url` or `context_attachments[].url` as relative filenames "
+            "(e.g. `image_0.png`) inside that prefix, or as full `gs://…` / `https://` URLs."
+        )
+        user_parts = [
+            gtypes.Part.from_text(text=prefix_note),
+            gtypes.Part.from_text(text=MEDIA_SYNTHESIS_PROMPT),
+            *parts,
+        ]
+    else:
+        user_parts = [gtypes.Part.from_text(text=MEDIA_SYNTHESIS_PROMPT), *parts]
     contents = [gtypes.Content(role="user", parts=user_parts)]
     config = gtypes.GenerateContentConfig(
         response_mime_type="application/json",

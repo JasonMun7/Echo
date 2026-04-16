@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Workflow } from "lucide-react";
 import {
-  IconPlus,
   IconArrowRight,
   IconPlayerPlay,
   IconX,
@@ -21,6 +20,7 @@ import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { DataTable } from "@/components/data-table";
 import { SectionCards } from "@/components/section-cards";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CreateWorkflowMenu } from "@/components/create-workflow-menu";
 import { DesktopCaptureLink } from "@/components/desktop-capture-link";
 import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
 import {
@@ -28,7 +28,13 @@ import {
   workflowStatusBadgeClass,
   workflowStatusLabel,
 } from "@/lib/workflow-status";
+import {
+  DASHBOARD_PAGE_DESCRIPTION_CLASS,
+  DASHBOARD_PAGE_TITLE_CLASS,
+} from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
+import { useNotificationsInbox } from "@/components/notifications/notifications-inbox-context";
+import { featuredWorkflowId } from "@/lib/workflow-activity";
 
 interface Workflow {
   id: string;
@@ -62,18 +68,6 @@ function getTime(x: unknown): number {
   return typeof sec === "number" ? sec * 1000 : 0;
 }
 
-function isLatestOrLastModified(
-  w: { id: string; createdAt?: unknown; updatedAt?: unknown },
-  all: Array<{ id: string; createdAt?: unknown; updatedAt?: unknown }>,
-): boolean {
-  if (all.length === 0) return false;
-  const created = all.map((x) => getTime(x.createdAt));
-  const updated = all.map((x) => getTime(x.updatedAt));
-  const maxCreated = Math.max(...created);
-  const maxUpdated = Math.max(...updated);
-  return getTime(w.createdAt) === maxCreated || getTime(w.updatedAt) === maxUpdated;
-}
-
 export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +79,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const user = auth?.currentUser;
+  const { setDrawerOpen } = useNotificationsInbox();
 
   useEffect(() => {
     // Show onboarding for first-time users
@@ -112,14 +107,14 @@ export default function DashboardPage() {
             {
               action: {
                 label: "View",
-                onClick: () => (window.location.href = "/dashboard/notifications"),
+                onClick: () => setDrawerOpen(true),
               },
             },
           );
         }
       })
       .catch(() => {});
-  }, [user]);
+  }, [user, setDrawerOpen]);
 
   useEffect(() => {
     if (!db || !user) {
@@ -220,8 +215,8 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-2">
-              <Skeleton className="h-9 w-52 rounded-lg" />
-              <Skeleton className="h-4 w-72 rounded-lg" />
+              <Skeleton className="h-9 w-52 rounded-lg sm:h-10 sm:w-60" />
+              <Skeleton className="h-4 w-72 rounded-lg sm:h-5 sm:w-80" />
             </div>
             <Skeleton className="h-10 w-36 rounded-lg" />
           </div>
@@ -239,18 +234,17 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>
               Welcome back
               {user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "mt-1")}>
               Here&apos;s what&apos;s happening with your workflows today.
             </p>
           </div>
-          <DesktopCaptureLink className="echo-btn-primary flex shrink-0 items-center gap-2">
-            <IconPlus className="h-5 w-5" />
-            New Workflow
-          </DesktopCaptureLink>
+          <div className="shrink-0">
+            <CreateWorkflowMenu variant="page-primary" />
+          </div>
         </div>
 
         {/* Onboarding banner */}
@@ -362,17 +356,20 @@ export default function DashboardPage() {
                   Create your first workflow to get started
                 </p>
               </div>
-              <DesktopCaptureLink className="echo-btn-primary">Create workflow</DesktopCaptureLink>
+              <CreateWorkflowMenu variant="page-empty" />
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {recentWorkflows.map((w) => (
-                <WorkflowCard
-                  key={w.id}
-                  workflow={w}
-                  isLatest={isLatestOrLastModified(w, workflows)}
-                />
-              ))}
+              {(() => {
+                const featuredId = featuredWorkflowId(workflows);
+                return recentWorkflows.map((w) => (
+                  <WorkflowCard
+                    key={w.id}
+                    workflow={w}
+                    isFeatured={featuredId != null && w.id === featuredId}
+                  />
+                ));
+              })()}
             </div>
           )}
         </div>
@@ -381,22 +378,15 @@ export default function DashboardPage() {
   );
 }
 
-function WorkflowCard({ workflow: w, isLatest }: { workflow: Workflow; isLatest: boolean }) {
+function WorkflowCard({ workflow: w, isFeatured }: { workflow: Workflow; isFeatured: boolean }) {
   const href =
     w.status === "draft" || w.status === "processing"
       ? `/dashboard/workflows/${w.id}/edit`
       : `/dashboard/workflows/${w.id}`;
 
   return (
-    <Link
-      href={href}
-      className={cn(
-        workflowListCardClass,
-        "cursor-pointer overflow-visible",
-        isLatest && "border-primary/30 ring-1 ring-primary/20",
-      )}
-    >
-      {isLatest && (
+    <div className="relative">
+      {isFeatured ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <span
@@ -405,33 +395,45 @@ function WorkflowCard({ workflow: w, isLatest }: { workflow: Workflow; isLatest:
               onMouseDown={(e) => e.stopPropagation()}
             />
           </TooltipTrigger>
-          <TooltipContent side="bottom">Newest or most recently modified workflow</TooltipContent>
+          <TooltipContent side="bottom">Most recently updated workflow</TooltipContent>
         </Tooltip>
-      )}
-      {/* Thumbnail */}
-      {w.thumbnail_gcs_path ? (
-        <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
-      ) : (
-        <div className="flex h-28 w-full items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-            <Workflow className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+      ) : null}
+      <Link
+        href={href}
+        className={cn(
+          workflowListCardClass,
+          "cursor-pointer overflow-visible",
+          isFeatured && "shadow-xl shadow-black/[0.12] dark:shadow-black/50",
+        )}
+      >
+        {w.thumbnail_gcs_path ? (
+          <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-t-xl">
+            <WorkflowThumbnail workflowId={w.id} heightClass="h-28" />
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="relative flex h-28 w-full shrink-0 items-center justify-center overflow-hidden rounded-t-xl bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <Workflow className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+            </div>
+          </div>
+        )}
 
-      <div className="flex flex-1 flex-col px-4 pt-4">
-        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-foreground">
-          {w.name ?? "Untitled workflow"}
-        </span>
-      </div>
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-4 py-3">
-        <span className={workflowStatusBadgeClass(w.status)}>{workflowStatusLabel(w.status)}</span>
-        <IconChevronRight
-          className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-          stroke={1.5}
-          aria-hidden
-        />
-      </div>
-    </Link>
+        <div className="flex flex-1 flex-col px-4 pt-4">
+          <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-foreground">
+            {w.name ?? "Untitled workflow"}
+          </span>
+        </div>
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+          <span className={workflowStatusBadgeClass(w.status)}>
+            {workflowStatusLabel(w.status)}
+          </span>
+          <IconChevronRight
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+            stroke={1.5}
+            aria-hidden
+          />
+        </div>
+      </Link>
+    </div>
   );
 }
