@@ -10,6 +10,7 @@
 
 import type { Step } from "@echo/types";
 import type { OperatorAction } from "@echo/types";
+import { coerceOpenAppDisplayName } from "../operators/app-name-coerce";
 import { execute } from "../operators/unified-operator";
 
 /** Must match Python `is_deterministic` in `execution/operator.py`. */
@@ -95,9 +96,10 @@ export function stepToOperatorAction(step: Step): OperatorAction {
   if ("distance" in params || "amount" in params)
     base.distance = Number(params.distance ?? params.amount ?? 300);
   if ("url" in params) base.url = params.url;
-  if ("appName" in params) base.appName = params.appName;
+  if ("appName" in params && params.appName != null && String(params.appName).trim() !== "")
+    base.appName = coerceOpenAppDisplayName(String(params.appName));
   else if ("app" in params && params.app != null && String(params.app).trim() !== "")
-    base.appName = String(params.app);
+    base.appName = coerceOpenAppDisplayName(String(params.app));
   if ("value" in params) base.value = params.value;
   if ("selector" in params && params.selector != null) base.selector = String(params.selector);
   if ("slug" in params && params.slug != null) base.slug = String(params.slug);

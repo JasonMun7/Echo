@@ -35,3 +35,23 @@ def test_clickandtype_only_quoted_arg() -> None:
     out = parse_action("Action: ClickAndType('I\\'m only')")
     assert out is not None
     assert out["content"] == "I'm only"
+
+
+def test_openapp_named_appname_single_quotes() -> None:
+    out = parse_action("Action: OpenApp(appName='Discord')")
+    assert out is not None
+    assert out["action"] == "openapp"
+    assert out["appName"] == "Discord"
+
+
+def test_openapp_named_app_double_quotes() -> None:
+    out = parse_action('Action: OpenApp(app="Slack")')
+    assert out is not None
+    assert out["appName"] == "Slack"
+
+
+def test_focusapp_positional_quoted_still_works() -> None:
+    out = parse_action('Action: FocusApp("Finder")')
+    assert out is not None
+    assert out["action"] == "focusapp"
+    assert out["appName"] == "Finder"

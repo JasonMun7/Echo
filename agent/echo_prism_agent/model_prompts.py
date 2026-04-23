@@ -83,8 +83,8 @@ SelectOption(x, y, value) # Dropdown flows that still use Echo step params
 
 UI_TARS_V1_5_DESKTOP_EXTRA = """
 ## Echo desktop extensions (optional when needed)
-OpenApp(appName) # Prefer over guessing dock icons
-FocusApp(appName)
+OpenApp("AppName") # Prefer over guessing dock icons — use a real app title string, not the word appName
+FocusApp("AppName")
 PressKey(key='enter')
 ClickAndType(x, y, "exact text") # One action: click the input field and type. Use when the user must enter a name, message, search query, etc. **click() alone does not type characters.**
 type(content='exact text') # Use when the text field is already focused. Append \\n in content to submit (e.g. send message).
@@ -190,8 +190,8 @@ DESKTOP_ACTION_SPACE = """
 - ReadClipboard() - Read and output the current system clipboard content
 - Wait(seconds) - Pause for N seconds (max 30)
 - PressKey(key) - Press a single key e.g. PressKey("enter")
-- OpenApp(appName) - Launch an application by name e.g. OpenApp("Safari")
-- FocusApp(appName) - Bring an app to the foreground e.g. FocusApp("Finder")
+- OpenApp("AppName") - Launch an application by name e.g. OpenApp("Safari")
+- FocusApp("AppName") - Bring an app to the foreground e.g. FocusApp("Finder")
 - AppleScript(code) - Run AppleScript natively on macOS to execute fast deterministic actions instead of clicking visually (e.g. AppleScript("tell app \\"Safari\\" to activate"))
 - PowerShell(code) - Run a PowerShell script natively on Windows to execute fast deterministic actions instead of clicking visually
 
