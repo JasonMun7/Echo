@@ -99,12 +99,13 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       const { gcs_path } = (await uploadRes.json()) as { gcs_path: string };
       set({ recordStatus: "Synthesizing workflow…" });
 
-      const synthFormData = new FormData();
-      synthFormData.append("video_gcs_path", gcs_path);
       const synthRes = await fetch(`${agentBase}/api/synthesize`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: synthFormData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: new URLSearchParams({ video_gcs_path: gcs_path }),
         signal,
       });
       if (!synthRes.ok) {

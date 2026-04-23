@@ -657,6 +657,18 @@ OUTPUT FORMAT (JSON only, no markdown fences)
 When you set `frame_image_url` for a step still, the system also copies that frame into `context_attachments` and adds `{{c1}}`-style tokens for the editor — you may still emit `context_attachments` + `{{cN}}` in `context` for extra stills beyond the main frame.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXT IMAGES — use sparingly (per step)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Only add extra rows to `context_attachments` when a still materially helps the VLM find the right UI for THAT step:
+- click_at / double_click / right_click / type_text_at / hover: attach a still ONLY when it clearly shows the target control.
+- scroll: optionally ONE still for the view to aim for after scrolling (end state).
+- navigate, open_app, focus_app, wait, api_call: usually omit extra stills; rely on `frame_image_url` + prose unless the UI is ambiguous.
+Do NOT attach every available `image_N.png` to every step — empty `context_attachments` is fine when text is enough.
+
+For **video** inputs, extracted stills `image_0.png`, `image_1.png`, … are in **chronological order** over the recording. Map each step to the still taken closest to that moment in the timeline — **do not** reuse the same `image_k` for every step unless they truly occur at the same instant; different UI targets should prefer different indices when available.
+When multiple stills exist, bias **earlier** workflow steps toward **lower** indices and **later** steps toward **higher** indices so the timeline of `image_*` matches the timeline of actions (first meaningful UI interaction should not use the final frame unless that is what is on screen).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BROWSER — params shapes (no coordinates)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - navigate: { "url": "https://...", "description": "..." }

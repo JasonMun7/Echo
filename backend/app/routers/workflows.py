@@ -7,6 +7,7 @@ import logging
 import re
 import uuid
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import firebase_admin.auth
 import firebase_admin.firestore
@@ -17,6 +18,7 @@ from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayRemove, 
 from pydantic import BaseModel
 
 from app.auth import get_current_uid, get_firebase_app
+from app.config import FIREBASE_STORAGE_BUCKET, GCS_BUCKET
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 _log = logging.getLogger(__name__)
@@ -77,6 +79,270 @@ def _assert_can_edit_workflow(uid: str, data: dict[str, Any]) -> None:
         raise HTTPException(status_code=403, detail="View-only access")
 
 
+def _context_media_allowed_buckets() -> set[str]:
+    return {b for b in (GCS_BUCKET, FIREBASE_STORAGE_BUCKET) if b}
+
+
+def _bucket_allows_read(bucket: str) -> bool:
+    """Configured GCS bucket, explicit Firebase bucket env, or typical Firebase default buckets."""
+    if not bucket:
+        return False
+    if bucket in _context_media_allowed_buckets():
+        return True
+    b = bucket.lower()
+    if b.endswith(".appspot.com"):
+        return True
+    if b.endswith(".firebasestorage.app"):
+        return True
+    return False
+
+
+def _allowed_context_blob_path(blob_name: str, workflow_id: str, owner_uid: str, request_uid: str) -> bool:
+    bn = blob_name.strip().lstrip("/")
+    if not bn or any(seg == ".." for seg in bn.split("/")):
+        return False
+    marker = f"/workflow-context/{workflow_id}/"
+    if bn.startswith("uploads/") and marker in bn:
+        parts = bn.split("/")
+        if len(parts) < 3 or parts[0] != "uploads":
+            return False
+        upload_uid = parts[1]
+        return bool(upload_uid) and upload_uid in (owner_uid, request_uid)
+    prefix_syn = f"{owner_uid}/{workflow_id}/"
+    return bn.startswith(prefix_syn)
+
+
+def _parse_context_media_location(src: str) -> tuple[str, str] | None:
+    """Return (bucket, object_path) for GCP / Firebase Storage, or None."""
+    s = src.strip()
+    if not s:
+        return None
+
+    if s.startswith("gs://"):
+        m = re.match(r"^gs://([^/]+)/(.+)$", s)
+        if not m:
+            return None
+        bucket, path = m.group(1), m.group(2)
+        if not _bucket_allows_read(bucket):
+            return None
+        obj = unquote(path).lstrip("/")
+        return (bucket, obj) if obj else None
+
+    if "://" not in s and s.startswith("uploads/") and GCS_BUCKET:
+        obj = unquote(s).lstrip("/")
+        if obj:
+            return (GCS_BUCKET, obj)
+
+    try:
+        u = urlparse(s)
+    except Exception:
+        return None
+
+    host = (u.hostname or "").lower()
+
+    if host == "firebasestorage.googleapis.com":
+        m = re.match(r"/v0/b/([^/]+)/o/(.+)$", u.path)
+        if not m:
+            return None
+        bucket, enc = m.group(1), m.group(2)
+        if not _bucket_allows_read(bucket):
+            return None
+        obj = unquote(enc)
+        return (bucket, obj) if obj else None
+
+    # JSON API style: /download/storage/v1/b/BUCKET/o/ENCODED_OBJECT
+    if host in ("storage.googleapis.com", "www.googleapis.com", "googleapis.com"):
+        m_dl = re.match(r"^/download/storage/v1/b/([^/]+)/o/(.+)$", u.path)
+        if m_dl:
+            bucket, enc = m_dl.group(1), m_dl.group(2)
+            if not _bucket_allows_read(bucket):
+                return None
+            obj = unquote(enc)
+            return (bucket, obj) if obj else None
+        m_api = re.match(r"^/storage/v1/b/([^/]+)/o/(.+)$", u.path)
+        if m_api:
+            bucket, enc = m_api.group(1), m_api.group(2)
+            if not _bucket_allows_read(bucket):
+                return None
+            obj = unquote(enc)
+            return (bucket, obj) if obj else None
+
+    if host in ("storage.googleapis.com", "storage.cloud.google.com"):
+        segs = u.path.lstrip("/").split("/", 1)
+        if len(segs) >= 2:
+            bucket, path = segs[0], segs[1]
+            if _bucket_allows_read(bucket):
+                obj = unquote(path).lstrip("/")
+                if obj:
+                    return (bucket, obj)
+
+    if host.endswith(".storage.googleapis.com") and host not in (
+        "storage.googleapis.com",
+        "storage.cloud.google.com",
+    ):
+        bucket = host[: -len(".storage.googleapis.com")]
+        if _bucket_allows_read(bucket):
+            obj = unquote(u.path.lstrip("/"))
+            if obj:
+                return (bucket, obj)
+
+    return None
+
+
+def _firebase_bucket_read_aliases(bucket: str) -> list[str]:
+    """
+    Firebase default buckets often have two GCS ids (same objects): ``{id}.appspot.com`` and
+    ``{id}.firebasestorage.app``. URLs may use one while uploads or the Storage client expect the other.
+    """
+    out = [bucket]
+    bl = bucket.lower()
+    if bl.endswith(".firebasestorage.app"):
+        pid = bl[: -len(".firebasestorage.app")]
+        if pid:
+            out.append(f"{pid}.appspot.com")
+    elif bl.endswith(".appspot.com"):
+        pid = bl[: -len(".appspot.com")]
+        if pid:
+            out.append(f"{pid}.firebasestorage.app")
+    return list(dict.fromkeys(out))
+
+
+def _download_context_media_bytes(
+    req_id: str,
+    workflow_id: str,
+    url_bucket: str,
+    blob_path: str,
+) -> tuple[bytes, str]:
+    """
+    Try the bucket from the URL, Firebase paired bucket names, then configured ECHO_GCS_BUCKET /
+    ECHO_FIREBASE_STORAGE_BUCKET (with the same aliases) — synthesis and signed URLs can disagree
+    on which bucket id is used for the same underlying bucket.
+    """
+    from app.services.gcs import download_from_bucket, list_blob_names_with_prefix
+
+    order: list[str] = []
+    for b in _firebase_bucket_read_aliases(url_bucket):
+        order.append(b)
+    if GCS_BUCKET:
+        for b in _firebase_bucket_read_aliases(GCS_BUCKET):
+            if b not in order:
+                order.append(b)
+    if FIREBASE_STORAGE_BUCKET:
+        for b in _firebase_bucket_read_aliases(FIREBASE_STORAGE_BUCKET):
+            if b not in order:
+                order.append(b)
+
+    last_nf: gcp_exceptions.NotFound | None = None
+    tried: list[str] = []
+    for b in order:
+        tried.append(b)
+        try:
+            data = download_from_bucket(b, blob_path)
+            if b != url_bucket:
+                _log.info(
+                    "context-media bucket_fallback req_id=%s workflow_id=%s url_bucket=%s resolved_bucket=%s",
+                    req_id,
+                    workflow_id,
+                    url_bucket,
+                    b,
+                )
+            return data, b
+        except gcp_exceptions.NotFound as e:
+            last_nf = e
+            continue
+    if last_nf is None:
+        raise RuntimeError("context-media: no buckets attempted")
+
+    # Synthesis sometimes cites image_K.png when only image_0..image_M exist (K > M). If any
+    # image_*.png exists under the same folder, retry with the highest existing index ≤ K.
+    m_img = re.match(r"^(.*)image_(\d+)\.png$", blob_path, flags=re.I)
+    if m_img:
+        folder_prefix, req_k = m_img.group(1), int(m_img.group(2))
+        tail_re = re.compile(r"image_(\d+)\.png$", flags=re.I)
+        max_idx = -1
+        listing_bucket: str | None = None
+        for b in order:
+            try:
+                names = list_blob_names_with_prefix(b, folder_prefix)
+            except Exception:
+                continue
+            for name in names:
+                tm = tail_re.search(name)
+                if tm:
+                    max_idx = max(max_idx, int(tm.group(1)))
+            if max_idx >= 0:
+                listing_bucket = b
+                break
+        if max_idx >= 0:
+            use_k = min(req_k, max_idx)
+            alt_path = f"{folder_prefix}image_{use_k}.png"
+            if alt_path != blob_path:
+                for b in order:
+                    try:
+                        data = download_from_bucket(b, alt_path)
+                        _log.info(
+                            "context-media image_index_clamped req_id=%s workflow_id=%s "
+                            "requested_key_tail=%s clamped_key_tail=%s listing_bucket=%s read_bucket=%s",
+                            req_id,
+                            workflow_id,
+                            blob_path[-120:] if len(blob_path) > 120 else blob_path,
+                            alt_path[-120:] if len(alt_path) > 120 else alt_path,
+                            listing_bucket,
+                            b,
+                        )
+                        return data, b
+                    except gcp_exceptions.NotFound:
+                        continue
+
+    _log.warning(
+        "context-media tried_buckets req_id=%s workflow_id=%s buckets=%s blob_tail=%s",
+        req_id,
+        workflow_id,
+        tried,
+        blob_path[-200:] if len(blob_path) > 200 else blob_path,
+    )
+    raise last_nf
+
+
+def _redact_context_media_src_for_log(src: str, max_len: int = 280) -> str:
+    """Strip signed-URL secrets before logging."""
+    t = (src or "").strip()
+    t = re.sub(
+        r"([?&])(token|X-Goog-Signature|X-Goog-Credential|X-Goog-Date|X-Goog-Expires)=[^&]*",
+        r"\1\2=<redacted>",
+        t,
+        flags=re.I,
+    )
+    if len(t) > max_len:
+        t = t[: max_len - 1] + "…"
+    return t
+
+
+def _media_type_for_context_blob(blob_path: str) -> str:
+    lower = blob_path.lower()
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    if lower.endswith(".gif"):
+        return "image/gif"
+    if lower.endswith((".jpg", ".jpeg", ".jfif")):
+        return "image/jpeg"
+    if lower.endswith((".heic", ".heif")):
+        return "image/heic"
+    if lower.endswith(".avif"):
+        return "image/avif"
+    if lower.endswith(".svg"):
+        return "image/svg+xml"
+    if lower.endswith(".mp4"):
+        return "video/mp4"
+    if lower.endswith(".webm"):
+        return "video/webm"
+    if lower.endswith(".mov"):
+        return "video/quicktime"
+    return "application/octet-stream"
+
+
 # --- Workflow schemas ---
 class WorkflowCreate(BaseModel):
     name: str | None = None
@@ -94,6 +360,12 @@ class WorkflowFlowUpdate(BaseModel):
     """React Flow graph JSON: nodes, edges, optional viewport (see Echo Flow editor)."""
 
     flow_graph: dict[str, Any]
+
+
+class ContextMediaBody(BaseModel):
+    """Original attachment URL or gs:// URI (POST body avoids very long signed URLs in query strings)."""
+
+    src: str
 
 
 class StepCreate(BaseModel):
@@ -308,6 +580,143 @@ async def get_thumbnail_image(
     elif lower.endswith(".gif"):
         media = "image/gif"
     return Response(content=body, media_type=media)
+
+
+@router.post("/{workflow_id}/context-media")
+async def post_context_media(
+    workflow_id: str,
+    body: ContextMediaBody,
+    uid: str = Depends(get_current_uid),
+):
+    """
+    Return raw bytes for a step context attachment (same auth pattern as thumbnail/image).
+
+    The web app uses this with Bearer + blob URLs because GCS signed URLs often fail when
+    embedded in ``<img src>`` (Referrer / CORP / cross-origin). Firebase download URLs are
+    usually loaded directly in the browser and do not need this endpoint.
+    """
+    req_id = uuid.uuid4().hex[:12]
+    redacted_src = _redact_context_media_src_for_log(body.src or "")
+    _log.info(
+        "context-media start req_id=%s workflow_id=%s uid=%s src_len=%s src=%s",
+        req_id,
+        workflow_id,
+        uid,
+        len(body.src or ""),
+        redacted_src,
+    )
+    try:
+        _, data = _get_workflow(uid, workflow_id, require_owner=False)
+    except HTTPException as e:
+        if e.status_code == 404:
+            _log.warning(
+                "context-media workflow_not_found req_id=%s workflow_id=%s uid=%s",
+                req_id,
+                workflow_id,
+                uid,
+            )
+        raise
+
+    owner_uid = str(data.get("owner_uid") or "")
+    if not owner_uid:
+        _log.error("context-media missing_owner_uid req_id=%s workflow_id=%s", req_id, workflow_id)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "invalid_workflow", "req_id": req_id, "message": "Workflow has no owner_uid"},
+        )
+
+    loc = _parse_context_media_location(body.src)
+    if not loc:
+        host = ""
+        try:
+            host = (urlparse((body.src or "").strip()).hostname or "") or ""
+        except Exception:
+            host = ""
+        _log.warning(
+            "context-media parse_failed req_id=%s workflow_id=%s uid=%s src_hostname=%r src=%s",
+            req_id,
+            workflow_id,
+            uid,
+            host,
+            redacted_src,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "unsupported_media_url",
+                "req_id": req_id,
+                "message": "Could not parse storage URL (expected gs://, firebasestorage, or storage.googleapis.com)",
+                "src_hostname": host or None,
+            },
+        )
+
+    bucket, blob_path = loc
+    if not _allowed_context_blob_path(blob_path, workflow_id, owner_uid, uid):
+        tail = blob_path[-240:] if len(blob_path) > 240 else blob_path
+        _log.warning(
+            "context-media path_denied req_id=%s workflow_id=%s uid=%s owner_uid=%s bucket=%s blob_tail=%s",
+            req_id,
+            workflow_id,
+            uid,
+            owner_uid,
+            bucket,
+            tail,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "path_not_allowed",
+                "req_id": req_id,
+                "bucket": bucket,
+                "object_key_tail": tail,
+                "workflow_id": workflow_id,
+                "message": "Object path is not allowed for this workflow (must be owner synthesis prefix or uploads/…/workflow-context/…/)",
+            },
+        )
+
+    try:
+        raw, resolved_bucket = _download_context_media_bytes(req_id, workflow_id, bucket, blob_path)
+    except gcp_exceptions.NotFound:
+        tail = blob_path[-240:] if len(blob_path) > 240 else blob_path
+        _log.warning(
+            "context-media gcs_not_found req_id=%s workflow_id=%s bucket=%s blob_tail=%s",
+            req_id,
+            workflow_id,
+            bucket,
+            tail,
+        )
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "storage_object_not_found",
+                "req_id": req_id,
+                "bucket": bucket,
+                "object_key_tail": tail,
+                "message": "No object at this bucket/key (wrong URL, expired reference, or different GCP project than backend credentials)",
+            },
+        ) from None
+    except Exception as e:
+        _log.exception("context-media download_failed req_id=%s workflow_id=%s", req_id, workflow_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "download_failed",
+                "req_id": req_id,
+                "message": "Could not load media from storage",
+            },
+        ) from e
+
+    media = _media_type_for_context_blob(blob_path)
+    _log.info(
+        "context-media ok req_id=%s workflow_id=%s bucket=%s bytes=%s",
+        req_id,
+        workflow_id,
+        resolved_bucket,
+        len(raw),
+    )
+    resp = Response(content=raw, media_type=media)
+    resp.headers["X-Echo-Request-Id"] = req_id
+    return resp
 
 
 @router.post("/{workflow_id}/share")

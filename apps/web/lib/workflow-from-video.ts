@@ -63,11 +63,10 @@ export async function uploadWorkflowVideoToStorage(file: File): Promise<string> 
 
 /** Starts synthesis from an uploaded recording path; returns new workflow id. */
 export async function synthesizeWorkflowFromUploadedVideo(gcsPath: string): Promise<string> {
-  const formData = new FormData();
-  formData.append("video_gcs_path", gcsPath);
   const synthRes = await agentFetch("/api/synthesize", {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: new URLSearchParams({ video_gcs_path: gcsPath }),
   });
   if (!synthRes.ok) {
     throw new Error(await apiErrorMessage(synthRes, "Synthesis failed"));

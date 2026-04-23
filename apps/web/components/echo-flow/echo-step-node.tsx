@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { AlertCircle, Copy, CopyPlus, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { AlertCircle, CopyPlus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 import { useEchoStepNodeActions } from "@/components/echo-flow/echo-step-node-actions-context";
 import {
@@ -40,6 +40,8 @@ export type EchoStepNodeData = {
   invalidForPublish?: boolean;
   /** Recently added step — subtle highlight until configured */
   isNewStep?: boolean;
+  /** Local edits not yet persisted */
+  isDirtyStep?: boolean;
   /** Another collaborator is focused on / locking / dragging this step — matches their cursor hue. */
   remotePeerAccent?: PeerPresenceAccent;
 };
@@ -87,7 +89,7 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
           ? "z-[5] border-red-400/90 shadow-[0_4px_20px_-4px_rgba(239,68,68,0.25)] ring-2 ring-red-400/30"
           : showDragStyle
             ? "z-10 scale-[1.02] border-violet-400/90 shadow-[0_8px_28px_-6px_rgba(124,58,237,0.35)] ring-2 ring-violet-400/25"
-            : d.isNewStep
+            : d.isNewStep || d.isDirtyStep
               ? "border-amber-300/90 shadow-[0_4px_18px_-4px_rgba(245,158,11,0.2)] ring-2 ring-amber-300/35"
               : selected
                 ? "border-[#6366f1] shadow-[0_4px_20px_-4px_rgba(99,102,241,0.35)] ring-2 ring-[#6366f1]/20"
@@ -149,6 +151,11 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
                   New
                 </span>
               ) : null}
+              {d.isDirtyStep && !d.invalidForPublish ? (
+                <span className="rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                  Unsaved
+                </span>
+              ) : null}
             </div>
             <div className="mt-3 min-h-0 flex-1 border-t border-slate-100 pt-2.5">
               <p className="text-[15px] font-semibold leading-snug tracking-tight text-slate-900">
@@ -171,10 +178,7 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
           </div>
         </div>
         {!stepActions.menuDisabled &&
-        (stepActions.onRenameStep ||
-          stepActions.onCopyStep ||
-          stepActions.onDuplicateStep ||
-          stepActions.onDeleteStep) ? (
+        (stepActions.onRenameStep || stepActions.onDuplicateStep || stepActions.onDeleteStep) ? (
           <div className="flex shrink-0 items-start">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -202,15 +206,6 @@ function EchoStepNodeInner({ data, selected }: NodeProps) {
                   >
                     <Pencil className="h-4 w-4" aria-hidden />
                     Rename
-                  </DropdownMenuItem>
-                ) : null}
-                {stepActions.onCopyStep ? (
-                  <DropdownMenuItem
-                    className="cursor-pointer"
-                    onSelect={() => stepActions.onCopyStep?.(d.stepId)}
-                  >
-                    <Copy className="h-4 w-4" aria-hidden />
-                    Copy
                   </DropdownMenuItem>
                 ) : null}
                 {stepActions.onDuplicateStep ? (

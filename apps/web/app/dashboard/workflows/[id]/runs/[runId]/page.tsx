@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { doc, collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { MAIN_API_URL, agentFetch, apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import {
-  IconArrowLeft,
   IconCircleCheck,
   IconAlertCircle,
   IconBan,
@@ -24,6 +23,12 @@ import { toast } from "sonner";
 import { getRunStatusBadgeLabel, getTerminalRunPresentation } from "@/lib/run-terminal-ui";
 import { DASHBOARD_PAGE_TITLE_CLASS } from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
+import {
+  WorkflowShareDialog,
+  type WorkflowShareCollaborator,
+  type WorkflowShareRole,
+} from "@/components/workflow-share-dialog";
+import { WorkflowPageHeader, WorkflowPageHeaderShell } from "@/components/workflow-page-header";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
@@ -64,6 +69,15 @@ interface LogEntry {
   timestamp: unknown;
   /** URL of the screenshot captured after this step (when available) */
   screenshot_url?: string;
+}
+
+interface WorkflowHeaderSnapshot {
+  name?: string;
+  status?: string;
+  owner_uid?: string;
+  shared_with?: string[];
+  collaborator_roles?: Record<string, string>;
+  is_public?: boolean;
 }
 
 function formatTimestamp(ts: unknown): string {
@@ -179,6 +193,279 @@ export default function RunDetailPage() {
   const [liveThoughts, setLiveThoughts] = useState<ThoughtEntry[]>([]);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [authUid, setAuthUid] = useState<string | null>(auth?.currentUser?.uid ?? null);
+  const [workflowSnap, setWorkflowSnap] = useState<WorkflowHeaderSnapshot | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareInviteRole, setShareInviteRole] = useState<WorkflowShareRole>("editor");
+  const [sharing, setSharing] = useState(false);
+  const [roleChangePendingUid, setRoleChangePendingUid] = useState<string | null>(null);
+  const [collaborators, setCollaborators] = useState<WorkflowShareCollaborator[]>([]);
+  const [forking, setForking] = useState(false);
+  const [publicSaving, setPublicSaving] = useState(false);
+  const [deletingWorkflow, setDeletingWorkflow] = useState(false);
+  const [desktopRunStarting, setDesktopRunStarting] = useState(false);
+
+  const getCollaboratorStatusLabel = (c: WorkflowShareCollaborator) => {
+    if (c.role === "owner") return "Owner";
+    if (c.status === "pending") return "Pending";
+    if (c.role === "viewer") return "Can view";
+    return "Can edit";
+  };
+
+  useEffect(() => {
+    if (!auth) return;
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setAuthUid(user?.uid ?? null);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!authUid) return;
+    let cancelled = false;
+    apiFetch(`/api/workflows/${workflowId}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data) => {
+        if (!cancelled) setWorkflowSnap(data as WorkflowHeaderSnapshot);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkflowSnap(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowId, authUid]);
+
+  const loadCollaborators = async () => {
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}/collaborators`);
+      if (res.ok) {
+        const data = await res.json();
+        setCollaborators(data.collaborators || []);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleWorkflowPublicChange = async (next: boolean) => {
+    if (!workflowSnap || workflowSnap.owner_uid !== authUid) return;
+    setPublicSaving(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.detail === "string" ? data.detail : "Could not update visibility",
+        );
+      }
+      setWorkflowSnap((prev) => (prev ? { ...prev, is_public: next } : prev));
+      toast.success(next ? "Workflow is public" : "Workflow is private", {
+        description: next
+          ? "You can copy the link and send invites."
+          : "Sharing is disabled until you turn public on again.",
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update visibility");
+    } finally {
+      setPublicSaving(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!shareEmail.trim()) return;
+    if (!workflowSnap?.is_public) {
+      toast.info("Make the workflow public first", {
+        description: "Use the toggle in this dialog to enable sharing.",
+      });
+      return;
+    }
+    setSharing(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: shareEmail.trim(), role: shareInviteRole }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to share");
+      setShareEmail("");
+      toast.success("Workflow shared", {
+        description: "They’ll appear under collaborators once they accept the invite.",
+      });
+      await loadCollaborators();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to share workflow");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleCollaboratorRoleChange = async (targetUid: string, role: WorkflowShareRole) => {
+    setRoleChangePendingUid(targetUid);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}/share/${targetUid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok)
+        throw new Error(typeof data.detail === "string" ? data.detail : "Could not update access");
+      setCollaborators((prev) => prev.map((c) => (c.uid === targetUid ? { ...c, role } : c)));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update access");
+    } finally {
+      setRoleChangePendingUid(null);
+    }
+  };
+
+  const handleUnshare = async (targetUid: string) => {
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}/share/${targetUid}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to remove collaborator");
+      setCollaborators((prev) => prev.filter((c) => c.uid !== targetUid));
+      toast.success("Access removed", {
+        description: "That person no longer sees this workflow.",
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove access");
+    }
+  };
+
+  const handleFork = async () => {
+    setForking(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}/fork`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to make a copy");
+      toast.success("Copy created", {
+        description: "Opening your copy—you can edit and publish it independently.",
+      });
+      router.push(`/dashboard/workflows/${data.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to make a copy");
+    } finally {
+      setForking(false);
+    }
+  };
+
+  const handleDeleteWorkflow = async () => {
+    if (!confirm("Delete this workflow? This cannot be undone.")) return;
+    setDeletingWorkflow(true);
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      router.push("/dashboard/workflows");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete workflow");
+    } finally {
+      setDeletingWorkflow(false);
+    }
+  };
+
+  const handleStartDesktopRun = async () => {
+    setDesktopRunStarting(true);
+    try {
+      const res = await apiFetch(`/api/run/${workflowId}?source=desktop`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || "Failed to start run");
+      }
+      const data = await res.json();
+      if (data.run_id) {
+        toast.success("Run started", {
+          description: "Opening Echo desktop with this run. Track it on the run page.",
+        });
+        window.location.href = `echo-desktop://run?workflow_id=${workflowId}&run_id=${data.run_id}`;
+        router.push(`/dashboard/workflows/${workflowId}/runs/${data.run_id}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start run");
+    } finally {
+      setDesktopRunStarting(false);
+    }
+  };
+
+  const handleSaveWorkflowTitle = async (trimmed: string) => {
+    const uid = authUid;
+    const owner = workflowSnap?.owner_uid === uid;
+    const canEdit =
+      owner ||
+      (uid != null &&
+        workflowSnap != null &&
+        Array.isArray(workflowSnap.shared_with) &&
+        workflowSnap.shared_with.includes(uid) &&
+        workflowSnap.collaborator_roles?.[uid] !== "viewer");
+    if (!canEdit || !workflowSnap) return;
+    try {
+      const res = await apiFetch(`/api/workflows/${workflowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.detail === "string" ? data.detail : "Could not rename workflow",
+        );
+      }
+      setWorkflowSnap((prev) => (prev ? { ...prev, name: trimmed } : prev));
+      toast.success("Workflow renamed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not rename workflow");
+    }
+  };
+
+  const wfTitle = String(workflowSnap?.name ?? workflowId);
+  const wfStatus = workflowSnap?.status ?? "unknown";
+  const isWorkflowOwner = workflowSnap?.owner_uid === authUid;
+  const canEditWorkflow =
+    isWorkflowOwner ||
+    (authUid != null &&
+      workflowSnap != null &&
+      Array.isArray(workflowSnap.shared_with) &&
+      workflowSnap.shared_with.includes(authUid) &&
+      workflowSnap.collaborator_roles?.[authUid] !== "viewer");
+
+  const workflowHeaderProps = {
+    workflowId,
+    workflowTitle: wfTitle,
+    workflowStatus: wfStatus,
+    isOwner: Boolean(isWorkflowOwner),
+    canEditWorkflow,
+    variant: "run" as const,
+    backHref: `/dashboard/workflows/${workflowId}`,
+    backTooltip: "Back to workflow",
+    onSaveWorkflowTitle: canEditWorkflow
+      ? (t: string) => void handleSaveWorkflowTitle(t)
+      : undefined,
+    onRunWorkflow: () => void handleStartDesktopRun(),
+    runWorkflowDisabled:
+      desktopRunStarting ||
+      !workflowSnap ||
+      (workflowSnap.status !== "active" && workflowSnap.status !== "ready"),
+    runWorkflowPending: desktopRunStarting,
+    onOpenShare: canEditWorkflow
+      ? () => {
+          setShareModalOpen(true);
+          void loadCollaborators();
+        }
+      : undefined,
+    onFork: () => void handleFork(),
+    forking,
+    onRequestDeleteWorkflow: isWorkflowOwner ? () => void handleDeleteWorkflow() : undefined,
+    deleteWorkflowPending: deletingWorkflow,
+  };
 
   const voiceRecentContext = useMemo(
     () =>
@@ -363,10 +650,41 @@ export default function RunDetailPage() {
   const isActive = !status || status === "pending" || status === "running";
   const isAwaitingUser = status === "awaiting_user";
 
+  const shareDialogEl = (
+    <WorkflowShareDialog
+      open={shareModalOpen}
+      onOpenChange={setShareModalOpen}
+      shareEmail={shareEmail}
+      onShareEmailChange={setShareEmail}
+      inviteRole={shareInviteRole}
+      onInviteRoleChange={setShareInviteRole}
+      onShare={handleShare}
+      sharing={sharing}
+      collaborators={collaborators}
+      onUnshare={handleUnshare}
+      onCollaboratorRoleChange={handleCollaboratorRoleChange}
+      roleChangePendingUid={roleChangePendingUid}
+      getCollaboratorStatusLabel={getCollaboratorStatusLabel}
+      workflowId={workflowId}
+      directLinkVariant="detail"
+      canManageCollaborators={Boolean(isWorkflowOwner)}
+      currentUserUid={authUid}
+      isPublic={Boolean(workflowSnap?.is_public)}
+      onPublicChange={isWorkflowOwner ? handleWorkflowPublicChange : undefined}
+      publicSaving={publicSaving}
+      canManagePublic={Boolean(isWorkflowOwner)}
+    />
+  );
+
   // ── Active run: show border haze + live thoughts + cancel ─────────────────
   if (isActive) {
     return (
       <>
+        <div className="relative z-[60] shrink-0 pt-4 md:pt-5">
+          <WorkflowPageHeaderShell>
+            <WorkflowPageHeader {...workflowHeaderProps} titleAsPageHeading />
+          </WorkflowPageHeaderShell>
+        </div>
         <div className="echo-run-haze" />
         <div className="echo-run-haze-content">
           <div className="h-12 w-12 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
@@ -436,6 +754,7 @@ export default function RunDetailPage() {
           runId={runId}
           recentContext={voiceRecentContext || undefined}
         />
+        {shareDialogEl}
       </>
     );
   }
@@ -445,6 +764,11 @@ export default function RunDetailPage() {
     const reason = run?.callUserReason as string | undefined;
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="shrink-0 pt-4 md:pt-5">
+          <WorkflowPageHeaderShell>
+            <WorkflowPageHeader {...workflowHeaderProps} titleAsPageHeading subtitle="Run logs" />
+          </WorkflowPageHeaderShell>
+        </div>
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full border border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/40">
@@ -502,15 +826,9 @@ export default function RunDetailPage() {
                 {cancelling ? "Cancelling…" : "Cancel run"}
               </button>
             </div>
-            <Link
-              href={`/dashboard/workflows/${workflowId}`}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <IconArrowLeft className="h-4 w-4" />
-              Back to workflow
-            </Link>
           </div>
         </div>
+        {shareDialogEl}
       </div>
     );
   }
@@ -539,155 +857,155 @@ export default function RunDetailPage() {
           : "bg-muted text-foreground/70";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/dashboard/workflows/${workflowId}`}
-              className="cursor-pointer text-foreground/70 hover:text-foreground"
-            >
-              <IconArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className={DASHBOARD_PAGE_TITLE_CLASS}>Run Logs</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            {statusIcon}
-            <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor}`}>
-              {getRunStatusBadgeLabel(status ?? "", run?.error)}
-            </span>
-          </div>
-        </div>
+    <>
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4 pt-4 md:pt-5">
+          <WorkflowPageHeaderShell className="shrink-0">
+            <WorkflowPageHeader
+              {...workflowHeaderProps}
+              titleAsPageHeading
+              subtitle="Run logs"
+              belowRow={
+                <div className="flex flex-wrap items-center gap-2">
+                  {statusIcon}
+                  <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor}`}>
+                    {getRunStatusBadgeLabel(status ?? "", run?.error)}
+                  </span>
+                </div>
+              }
+            />
+          </WorkflowPageHeaderShell>
 
-        {/* Stopped (cancel / benign disconnect) — glass card, not error red */}
-        {terminalPresentation.kind === "stopped" && (
-          <div className="echo-glass-card rounded-lg border border-border bg-muted/40 px-4 py-4 backdrop-blur-md">
-            <div className="flex gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(165,119,255,0.15)]">
-                <IconBan className="h-5 w-5 text-[#0891b2]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  {terminalPresentation.headline}
-                </p>
-                {terminalPresentation.description && (
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    {terminalPresentation.description}
+          {/* Stopped (cancel / benign disconnect) — glass card, not error red */}
+          {terminalPresentation.kind === "stopped" && (
+            <div className="echo-glass-card rounded-lg border border-border bg-muted/40 px-4 py-4 backdrop-blur-md">
+              <div className="flex gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(165,119,255,0.15)]">
+                  <IconBan className="h-5 w-5 text-[#0891b2]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    {terminalPresentation.headline}
                   </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Real failure + retry */}
-        {terminalPresentation.kind === "failed" && (
-          <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">This run hit an error</p>
-              <p className="mt-1 text-sm text-echo-error">
-                {run?.error != null ? String(run.error) : "Run failed"}
-              </p>
-              {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (
-                <p className="mt-1 text-xs font-mono text-echo-error/80">{run.errorCode}</p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleRetry}
-              disabled={retrying}
-              className="echo-btn-primary ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-            >
-              <IconRefresh className="h-3.5 w-3.5" />
-              {retrying ? "Starting…" : "Retry Run"}
-            </button>
-          </div>
-        )}
-
-        {/* Logs */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-[#150A35]">
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
-            <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
-              Output
-            </span>
-            <span className="ml-auto text-xs text-white/30">{logs.length} lines</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 font-mono text-sm">
-            {logs.length === 0 ? (
-              <p className="text-white/30">No log output.</p>
-            ) : (
-              logs.map((log) => (
-                <div key={log.id} className="mb-3 leading-relaxed">
-                  {/* Step header with timestamp */}
-                  {(log.thought || log.action) && (
-                    <div className="flex items-center gap-2 mb-1">
-                      {formatTimestamp(log.timestamp) && (
-                        <span className="text-white/25 text-xs">
-                          {formatTimestamp(log.timestamp)}
-                        </span>
-                      )}
-                      {log.step_index !== undefined && (
-                        <span className="text-white/25 text-xs">Step {log.step_index + 1}</span>
-                      )}
-                    </div>
-                  )}
-                  {/* Thought row */}
-                  {log.thought && (
-                    <div className="flex gap-2 items-start mb-1">
-                      <IconBrain className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#0891b2]" />
-                      <span className="text-white/70 text-xs leading-relaxed">{log.thought}</span>
-                    </div>
-                  )}
-                  {/* Action row */}
-                  {log.action && (
-                    <div className="flex gap-2 items-start">
-                      <IconBolt className="h-3.5 w-3.5 shrink-0 mt-0.5 text-cyan-400" />
-                      <span className="text-cyan-300 text-xs font-mono">{log.action}</span>
-                    </div>
-                  )}
-                  {/* Screenshot for this step (state after the action); use auth API in production so images load reliably */}
-                  {(log.screenshot_url != null || log.step_index != null) && (
-                    <div className="mt-2 rounded-lg overflow-hidden border border-white/10 bg-white/5 max-w-full w-fit">
-                      <RunStepScreenshot
-                        workflowId={workflowId}
-                        runId={runId}
-                        stepIndex={log.step_index}
-                        token={token}
-                        fallbackUrl={log.screenshot_url}
-                        alt={`Step ${(log.step_index ?? 0) + 1} screenshot`}
-                        className="max-h-48 object-contain block"
-                      />
-                    </div>
-                  )}
-                  {/* Plain message fallback (no thought/action) */}
-                  {!log.thought && !log.action && (
-                    <div className="flex gap-3">
-                      {formatTimestamp(log.timestamp) && (
-                        <span className="shrink-0 text-white/30 text-xs mt-0.5">
-                          {formatTimestamp(log.timestamp)}
-                        </span>
-                      )}
-                      <span
-                        className={
-                          log.level === "error"
-                            ? "text-echo-error"
-                            : log.level === "warn"
-                              ? "text-yellow-400"
-                              : "text-white/80"
-                        }
-                      >
-                        {log.message}
-                      </span>
-                    </div>
+                  {terminalPresentation.description && (
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      {terminalPresentation.description}
+                    </p>
                   )}
                 </div>
-              ))
-            )}
-            <div ref={logsEndRef} />
+              </div>
+            </div>
+          )}
+
+          {/* Real failure + retry */}
+          {terminalPresentation.kind === "failed" && (
+            <div className="flex items-start justify-between rounded-lg border border-echo-error/30 bg-echo-error/5 px-4 py-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">This run hit an error</p>
+                <p className="mt-1 text-sm text-echo-error">
+                  {run?.error != null ? String(run.error) : "Run failed"}
+                </p>
+                {typeof run?.errorCode === "string" && run.errorCode.length > 0 && (
+                  <p className="mt-1 text-xs font-mono text-echo-error/80">{run.errorCode}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleRetry}
+                disabled={retrying}
+                className="echo-btn-primary ml-4 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              >
+                <IconRefresh className="h-3.5 w-3.5" />
+                {retrying ? "Starting…" : "Retry Run"}
+              </button>
+            </div>
+          )}
+
+          {/* Logs */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-[#150A35]">
+            <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+              <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
+                Output
+              </span>
+              <span className="ml-auto text-xs text-white/30">{logs.length} lines</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 font-mono text-sm">
+              {logs.length === 0 ? (
+                <p className="text-white/30">No log output.</p>
+              ) : (
+                logs.map((log) => (
+                  <div key={log.id} className="mb-3 leading-relaxed">
+                    {/* Step header with timestamp */}
+                    {(log.thought || log.action) && (
+                      <div className="flex items-center gap-2 mb-1">
+                        {formatTimestamp(log.timestamp) && (
+                          <span className="text-white/25 text-xs">
+                            {formatTimestamp(log.timestamp)}
+                          </span>
+                        )}
+                        {log.step_index !== undefined && (
+                          <span className="text-white/25 text-xs">Step {log.step_index + 1}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Thought row */}
+                    {log.thought && (
+                      <div className="flex gap-2 items-start mb-1">
+                        <IconBrain className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#0891b2]" />
+                        <span className="text-white/70 text-xs leading-relaxed">{log.thought}</span>
+                      </div>
+                    )}
+                    {/* Action row */}
+                    {log.action && (
+                      <div className="flex gap-2 items-start">
+                        <IconBolt className="h-3.5 w-3.5 shrink-0 mt-0.5 text-cyan-400" />
+                        <span className="text-cyan-300 text-xs font-mono">{log.action}</span>
+                      </div>
+                    )}
+                    {/* Screenshot for this step (state after the action); use auth API in production so images load reliably */}
+                    {(log.screenshot_url != null || log.step_index != null) && (
+                      <div className="mt-2 rounded-lg overflow-hidden border border-white/10 bg-white/5 max-w-full w-fit">
+                        <RunStepScreenshot
+                          workflowId={workflowId}
+                          runId={runId}
+                          stepIndex={log.step_index}
+                          token={token}
+                          fallbackUrl={log.screenshot_url}
+                          alt={`Step ${(log.step_index ?? 0) + 1} screenshot`}
+                          className="max-h-48 object-contain block"
+                        />
+                      </div>
+                    )}
+                    {/* Plain message fallback (no thought/action) */}
+                    {!log.thought && !log.action && (
+                      <div className="flex gap-3">
+                        {formatTimestamp(log.timestamp) && (
+                          <span className="shrink-0 text-white/30 text-xs mt-0.5">
+                            {formatTimestamp(log.timestamp)}
+                          </span>
+                        )}
+                        <span
+                          className={
+                            log.level === "error"
+                              ? "text-echo-error"
+                              : log.level === "warn"
+                                ? "text-yellow-400"
+                                : "text-white/80"
+                          }
+                        >
+                          {log.message}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={logsEndRef} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      {shareDialogEl}
+    </>
   );
 }

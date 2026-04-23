@@ -112,7 +112,17 @@ export function EchoNodeInspector({
 
   const saveEdit = () => {
     if (!rename) return;
-    rename.onSaveLabel(draft.trim());
+    const trimmed = draft.trim();
+    const prev = (rename.customLabel || "").trim();
+    if (trimmed !== prev) {
+      rename.onSaveLabel(trimmed);
+    }
+    setEditingTitle(false);
+  };
+
+  const cancelEdit = () => {
+    if (!rename) return;
+    setDraft(rename.customLabel);
     setEditingTitle(false);
   };
 
@@ -129,27 +139,21 @@ export function EchoNodeInspector({
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => saveEdit()}
               placeholder={rename.defaultActionLabel}
               className="min-w-[8rem] flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring/35"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  saveEdit();
+                  (e.target as HTMLInputElement).blur();
                 }
                 if (e.key === "Escape") {
                   e.preventDefault();
-                  setEditingTitle(false);
+                  cancelEdit();
                 }
               }}
               autoFocus
             />
-            <button
-              type="button"
-              onClick={saveEdit}
-              className="shrink-0 rounded-md bg-foreground px-2.5 py-1 text-xs font-medium text-background hover:bg-foreground/90"
-            >
-              Save
-            </button>
           </div>
         ) : (
           <>

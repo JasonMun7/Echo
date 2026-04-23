@@ -2,18 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
-import {
-  workflowSharedTagClass,
-  workflowShellClass,
-  workflowStatusBadgeClass,
-  workflowStatusLabel,
-} from "@/lib/workflow-status";
+import { workflowShellClass } from "@/lib/workflow-status";
 import { DASHBOARD_PAGE_TITLE_CLASS } from "@/lib/dashboard-page-typography";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,22 +17,11 @@ import {
   type WorkflowShareRole,
 } from "@/components/workflow-share-dialog";
 import {
-  IconArrowLeft,
-  IconPlayerPlay,
-  IconTrash,
-  IconCopy,
-  IconShare,
-  IconDots,
-  IconPencil,
-} from "@tabler/icons-react";
+  WorkflowPageHeader,
+  WorkflowPageHeaderShell,
+  WorkflowPageHeaderSkeleton,
+} from "@/components/workflow-page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { DataTable } from "@/components/data-table";
 
 interface Run {
@@ -327,10 +310,17 @@ export default function WorkflowDetailPage() {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6">
-          <Skeleton className="h-32 w-full shrink-0 rounded-xl" />
-          <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-xl border border-[#A577FF]/20 bg-white p-4">
-            <Skeleton className="h-6 w-24 shrink-0 rounded-md" />
-            <Skeleton className="h-4 w-2/3 max-w-md shrink-0 rounded-md" />
+          <WorkflowPageHeaderShell className="shrink-0">
+            <WorkflowPageHeaderSkeleton showSubtitle />
+          </WorkflowPageHeaderShell>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-md sm:p-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <Skeleton className="h-9 w-28 shrink-0 rounded-lg sm:w-32" />
+              <Skeleton className="h-9 flex-1 rounded-lg sm:max-w-xs" />
+              <Skeleton className="h-9 w-24 shrink-0 rounded-lg" />
+            </div>
+            <Skeleton className="h-4 w-full max-w-2xl rounded-md" />
+            <Skeleton className="h-4 w-[min(100%,80%)] max-w-xl rounded-md" />
             <Skeleton className="min-h-0 flex-1 rounded-lg" />
           </div>
         </div>
@@ -349,6 +339,27 @@ export default function WorkflowDetailPage() {
   const status = workflow.status ?? "unknown";
   const failureReason = typeof workflow.error === "string" ? workflow.error.trim() : "";
 
+  const handleSaveWorkflowTitle = async (trimmed: string) => {
+    if (!canEditWorkflow) return;
+    try {
+      const res = await apiFetch(`/api/workflows/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.detail === "string" ? data.detail : "Could not rename workflow",
+        );
+      }
+      setWorkflow((prev) => (prev ? { ...prev, name: trimmed } : prev));
+      toast.success("Workflow renamed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not rename workflow");
+    }
+  };
+
   return (
     <>
       {running && (
@@ -364,132 +375,46 @@ export default function WorkflowDetailPage() {
       )}
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 flex-1 basis-0 flex-col gap-6">
-          <div className={cn(workflowShellClass, "shrink-0 p-5 sm:p-6")}>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href="/dashboard/workflows"
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/80 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:mt-0.5"
-                      aria-label="Back to workflows"
-                    >
-                      <IconArrowLeft className="h-5 w-5" stroke={1.5} />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Back to workflows</TooltipContent>
-                </Tooltip>
-
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <h1
-                      className={cn(
-                        "min-w-0 flex-1 break-words leading-snug",
-                        DASHBOARD_PAGE_TITLE_CLASS,
-                      )}
-                      title={String(workflow.name || id)}
-                    >
-                      {String(workflow.name || id)}
-                    </h1>
-                    <div className="flex shrink-0 items-center justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
-                            aria-label="Workflow actions"
-                          >
-                            <IconDots className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-44">
-                          <DropdownMenuItem
-                            onClick={() => void handleRun()}
-                            disabled={
-                              running ||
-                              (workflow.status !== "active" && workflow.status !== "ready")
-                            }
-                          >
-                            <IconPlayerPlay className="h-4 w-4" />
-                            {running ? "Starting…" : "Run workflow"}
-                          </DropdownMenuItem>
-                          {canEditWorkflow ? (
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/workflows/${id}/edit`}>
-                                <IconPencil className="h-4 w-4" />
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                          {canEditWorkflow ? (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setShareModalOpen(true);
-                                void loadCollaborators();
-                              }}
-                            >
-                              <IconShare className="h-4 w-4" />
-                              Share
-                            </DropdownMenuItem>
-                          ) : null}
-                          {!isOwner ? (
-                            <DropdownMenuItem onClick={() => void handleFork()} disabled={forking}>
-                              <IconCopy className="h-4 w-4" />
-                              {forking ? "Copying…" : "Make a copy"}
-                            </DropdownMenuItem>
-                          ) : null}
-                          {isOwner && (
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => void handleDelete()}
-                              disabled={deleting}
-                            >
-                              <IconTrash className="h-4 w-4" />
-                              {deleting ? "Deleting…" : "Delete"}
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+          <WorkflowPageHeaderShell className="shrink-0">
+            <WorkflowPageHeader
+              workflowId={id}
+              workflowTitle={String(workflow.name || id)}
+              workflowStatus={status}
+              isOwner={isOwner}
+              canEditWorkflow={canEditWorkflow}
+              variant="detail"
+              backHref="/dashboard/workflows"
+              backTooltip="Back to workflows"
+              titleAsPageHeading
+              onSaveWorkflowTitle={
+                canEditWorkflow ? (t) => void handleSaveWorkflowTitle(t) : undefined
+              }
+              onRunWorkflow={() => void handleRun()}
+              runWorkflowDisabled={
+                running || (workflow.status !== "active" && workflow.status !== "ready")
+              }
+              runWorkflowPending={running}
+              onOpenShare={() => {
+                setShareModalOpen(true);
+                void loadCollaborators();
+              }}
+              onFork={() => void handleFork()}
+              forking={forking}
+              onRequestDeleteWorkflow={isOwner ? () => void handleDelete() : undefined}
+              deleteWorkflowPending={deleting}
+              belowRow={
+                status === "failed" && failureReason ? (
+                  <div className="rounded-lg border border-echo-error/30 bg-echo-error/10 px-3 py-2">
+                    <p className="text-sm font-medium text-echo-error">Workflow synthesis failed</p>
+                    <p className="mt-1 text-sm text-echo-error/90">{failureReason}</p>
+                    <p className="mt-1 text-xs text-foreground/70">
+                      Retry with a clearer recording or edit steps manually once fixed.
+                    </p>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-                    <span
-                      className={workflowStatusBadgeClass(status)}
-                      title="Workflow lifecycle status"
-                    >
-                      {workflowStatusLabel(status)}
-                    </span>
-                    {!isOwner ? (
-                      <span
-                        className={workflowSharedTagClass}
-                        title="This workflow was shared with you"
-                      >
-                        Shared
-                      </span>
-                    ) : null}
-                    {typeof workflow.source_recording_id === "string" &&
-                      workflow.source_recording_id && (
-                        <span className="text-muted-foreground" title="Source">
-                          From screen recording
-                        </span>
-                      )}
-                  </div>
-                  {status === "failed" && failureReason && (
-                    <div className="rounded-lg border border-echo-error/30 bg-echo-error/10 px-3 py-2">
-                      <p className="text-sm font-medium text-echo-error">
-                        Workflow synthesis failed
-                      </p>
-                      <p className="mt-1 text-sm text-echo-error/90">{failureReason}</p>
-                      <p className="mt-1 text-xs text-foreground/70">
-                        Retry with a clearer recording or edit steps manually once fixed.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+                ) : null
+              }
+            />
+          </WorkflowPageHeaderShell>
 
           <section
             className={cn(
@@ -504,7 +429,7 @@ export default function WorkflowDetailPage() {
                 drives the desktop session.
               </p>
             </div>
-            <div className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
+            <div className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden p-4 sm:p-5">
               <DataTable
                 data={tableRuns}
                 singleWorkflow={{ workflowId: id, workflowName: String(workflow.name ?? "") }}

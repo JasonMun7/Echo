@@ -141,6 +141,13 @@ _COMPOSER_DESCRIPTION_ACTIONS = frozenset(
     }
 )
 
+# Normalized action names (lower, no underscores) for post-router keyframe spreading.
+VISUAL_KEYFRAME_ACTIONS = frozenset(a.lower().replace("_", "") for a in _COMPOSER_DESCRIPTION_ACTIONS) | frozenset(
+    {"scroll"}
+)
+
+_KEYFRAME_PNG_LEAF = re.compile(r"^image_(\d+)\.png$", re.I)
+
 
 def _max_attachment_c_index(attachments: list[dict]) -> int:
     m = 0
@@ -169,7 +176,7 @@ def _append_ref_token_to_text(text: str, ref: str) -> str:
     return f"{t} {tok} "
 
 
-def _link_frame_url_to_context_attachments(step: dict) -> dict:
+def link_frame_url_to_context_attachments(step: dict) -> dict:
     """Promote frame_image_url into context_attachments + {{cN}} tokens; drop frame/overlay (rich context only)."""
     fiu = str(step.get("frame_image_url") or "").strip()
     if not fiu:
@@ -224,8 +231,123 @@ def _link_frame_url_to_context_attachments(step: dict) -> dict:
     return s
 
 
+def _norm_action_key(step: dict) -> str:
+    return (str(step.get("action") or "")).lower().replace("_", "")
+
+
+def _keyframe_index_from_url(url: str) -> int | None:
+    leaf = (url.split("?")[0] or "").strip().rstrip("/").split("/")[-1]
+    m = _KEYFRAME_PNG_LEAF.match(leaf)
+    return int(m.group(1)) if m else None
+
+
+def _replace_url_keyframe_index(url: str, new_k: int) -> str:
+    u = url.strip()
+    if not u:
+        return u
+    q = u.split("?", 1)[1] if "?" in u else ""
+    base = u.split("?")[0]
+    parent, _, leaf = base.rpartition("/")
+    if not _KEYFRAME_PNG_LEAF.match(leaf):
+        return u
+    new_leaf = f"image_{new_k}.png"
+    prefix = f"{parent}/" if parent else ""
+    return prefix + new_leaf + (f"?{q}" if q else "")
+
+
+def _first_keyframe_image_attachment(step: dict) -> dict | None:
+    raw = step.get("context_attachments")
+    if not isinstance(raw, list):
+        return None
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        kind = item.get("kind")
+        if isinstance(kind, str) and kind.strip().lower() not in ("", "image"):
+            continue
+        for key in ("url", "gcs_blob"):
+            raw_u = item.get(key)
+            if isinstance(raw_u, str) and _keyframe_index_from_url(raw_u) is not None:
+                return item
+    return None
+
+
+def spread_collapsed_synthesis_keyframes(steps: list[dict], *, hi: int) -> None:
+    """
+    After keyframe URLs are clamped to 0..hi, spread distinct ``image_k.png`` across visual steps
+    when the model collapsed every step onto one still; backfill missing stills for visual actions.
+
+    Mutates ``steps`` in place. Skips when ``hi < 1`` (only one keyframe). When the model already
+    used multiple distinct keyframe indices on visual steps, existing attachments are kept; only
+    steps missing a keyframe still are backfilled.
+    """
+    if hi < 1 or not steps:
+        return
+
+    visual_indices: list[int] = []
+    for i, s in enumerate(steps):
+        if not isinstance(s, dict):
+            continue
+        if _norm_action_key(s) not in VISUAL_KEYFRAME_ACTIONS:
+            continue
+        visual_indices.append(i)
+
+    if not visual_indices:
+        return
+
+    n = len(visual_indices)
+    k_assign = [round(p * hi / max(n - 1, 1)) for p in range(n)]
+
+    k_per_step: dict[int, int | None] = {}
+    for si in visual_indices:
+        att = _first_keyframe_image_attachment(steps[si])
+        if att is None:
+            k_per_step[si] = None
+            continue
+        u = ""
+        for key in ("url", "gcs_blob"):
+            v = att.get(key)
+            if isinstance(v, str) and v.strip():
+                u = v.strip()
+                break
+        k_per_step[si] = _keyframe_index_from_url(u)
+
+    present = [k for k in k_per_step.values() if k is not None]
+    unique_present = set(present)
+    collapsed = len(present) >= 2 and len(unique_present) == 1
+
+    for pos, si in enumerate(visual_indices):
+        step = steps[si]
+        if not isinstance(step, dict):
+            continue
+        target_k = k_assign[pos]
+        cur_k = k_per_step.get(si)
+
+        if cur_k is not None:
+            if collapsed:
+                att = _first_keyframe_image_attachment(step)
+                if att:
+                    for key in ("url", "gcs_blob"):
+                        raw_u = att.get(key)
+                        if isinstance(raw_u, str) and _keyframe_index_from_url(raw_u) is not None:
+                            att[key] = _replace_url_keyframe_index(raw_u, target_k)
+            # model_diverse or a single step with a still: keep existing attachment URLs
+            continue
+
+        step["frame_image_url"] = f"image_{target_k}.png"
+        steps[si] = link_frame_url_to_context_attachments(step)
+
+
 def _postprocess_steps(steps_data: list[dict]) -> tuple[list[dict], set[str]]:
-    """Strip legacy coordinate keys, deduplicate, extract {{variables}}. No bogus coord defaults."""
+    """
+    Strip legacy coordinate keys, deduplicate, extract {{variables}}. No bogus coord defaults.
+
+    Planned (not implemented here): **action-aware attachment pruning** — after model output,
+    drop or merge `context_attachments` on steps where images are unlikely to help (e.g. pure
+    `navigate` / `api_call`), keep at most one extra still on `scroll` end-states, and cap
+    duplicates per ref_label. Pair with `link_frame_url_to_context_attachments` + optional
+    vision pass to pick the best `image_k` index per step from extracted keyframes.
+    """
     variables: set[str] = set()
     processed_steps: list[dict] = []
     prev_key: tuple | None = None
@@ -252,7 +374,7 @@ def _postprocess_steps(steps_data: list[dict]) -> tuple[list[dict], set[str]]:
         s_copy = dict(s)
         s_copy["params"] = params
         processed_steps.append(s_copy)
-    linked = [_link_frame_url_to_context_attachments(st) for st in processed_steps]
+    linked = [link_frame_url_to_context_attachments(st) for st in processed_steps]
     return linked, variables
 
 

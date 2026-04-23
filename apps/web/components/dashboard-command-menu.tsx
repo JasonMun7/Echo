@@ -19,7 +19,10 @@ import {
 } from "@tabler/icons-react";
 import { Bell as BellLucide, Palette } from "lucide-react";
 
-import { brandfetchLogoUrlForIntegrationId } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
+import {
+  brandfetchLogoUrlForDomain,
+  brandfetchLogoUrlForIntegrationId,
+} from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import type { Integration } from "@/app/dashboard/integrations/_lib/integration-types";
 import { useDashboardProfileNav } from "@/components/dashboard-profile-nav-context";
 import {
@@ -34,10 +37,15 @@ import { GradientIconWell, gradientWellImageClass } from "@/components/ui/gradie
 import type { ProfileModalSection } from "@/components/profile/profile-modal";
 import { apiFetch } from "@/lib/api";
 import { workflowStatusLabel } from "@/lib/workflow-status";
-import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
 import { cn } from "@/lib/utils";
 
-type WorkflowListItem = { id: string; name?: string; status?: string; thumbnail_gcs_path?: string };
+type WorkflowListItem = {
+  id: string;
+  name?: string;
+  status?: string;
+  thumbnail_gcs_path?: string;
+  brand_domain?: string;
+};
 
 const NAV_ROUTES: {
   label: string;
@@ -124,18 +132,26 @@ function WellIcon({
   );
 }
 
-/** Same visual as workflow cards: cover image when available, else Lucide `Workflow` in lavender. */
+/** Match workflow list cards: Brandfetch from `brand_domain`, else Lucide `Workflow`. */
 function WorkflowCommandLeading({ workflow }: { workflow: WorkflowListItem }) {
-  if (workflow.thumbnail_gcs_path) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const domain = typeof workflow.brand_domain === "string" ? workflow.brand_domain.trim() : "";
+  const logoUrl = domain && !logoFailed ? brandfetchLogoUrlForDomain(domain) : null;
+
+  if (logoUrl) {
     return (
-      <GradientIconWell
-        corners="lg"
-        className="h-7 w-7 shrink-0"
-        innerClassName="overflow-hidden p-0"
-      >
-        <div className="relative h-[28px] w-[28px] overflow-hidden rounded-[7px] bg-[#F5F7FC]">
-          <WorkflowThumbnail workflowId={workflow.id} heightClass="h-[28px]" />
-        </div>
+      <GradientIconWell corners="lg" className="h-7 w-7 shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element -- Brandfetch CDN */}
+        <img
+          src={logoUrl}
+          alt=""
+          width={28}
+          height={28}
+          loading="lazy"
+          decoding="async"
+          className={gradientWellImageClass("lg")}
+          onError={() => setLogoFailed(true)}
+        />
       </GradientIconWell>
     );
   }

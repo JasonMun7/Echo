@@ -11,6 +11,9 @@ for _env_path in (_repo_root / ".env", _backend_dir / ".env", _repo_root / "agen
         load_dotenv(_env_path, override=True)
 
 GCS_BUCKET = os.getenv("ECHO_GCS_BUCKET", "")
+# Optional: Firebase default bucket (often `*.appspot.com`) when it differs from ECHO_GCS_BUCKET.
+# Required for /context-media to resolve `firebasestorage.googleapis.com` URLs by object path.
+FIREBASE_STORAGE_BUCKET = (os.getenv("ECHO_FIREBASE_STORAGE_BUCKET") or "").strip()
 ECHO_GCP_PROJECT_ID = os.getenv("ECHO_GCP_PROJECT_ID", "")
 # Allowed CORS origins: localhost + FRONTEND_ORIGIN (Cloud Run) or CORS_ORIGINS (comma-separated)
 _defaults = [
