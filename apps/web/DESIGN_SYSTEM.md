@@ -109,6 +109,7 @@ Use **`DashboardEmptyState`** ([components/dashboard-empty-state.tsx](components
 | Stateful async button (marketing)                                                                     | `components/ui/stateful-button.tsx`                                                                                                                                                   |
 | Agent session (LiveKit)                                                                               | `components/agents-ui/blocks/agent-session-view-01`                                                                                                                                   |
 | **Dashboard empty state** (dashed + Threads)                                                          | `components/dashboard-empty-state.tsx` — `DashboardEmptyState`                                                                                                                        |
+| **Icon-only controls (classes + sizing)**                                                             | [`lib/echo-icon-button.ts`](lib/echo-icon-button.ts) — ghost / card hit targets aligned with shadcn `Button`                                                                          |
 
 **Workflow share — public visibility:** Copying the direct link and sending email invites are enabled only when the workflow is **public** (`is_public` on the workflow; enforced by the API). The **owner** turns this on with a **`Switch`** (`size="sm"`) plus **`Label`** and short helper copy at the top of the dialog; collaborators see a read-only note if the workflow is still private. While sharing is off, link and invite controls are **disabled** and visually muted (`text-muted-foreground`, neutral borders per **§4** — no extra brand tint on the switch row). Primary gradient stays on the main **Share** entry points that open the dialog, not on the visibility control itself.
 
@@ -152,6 +153,15 @@ Dashboard **workflow grids** use **`workflowShellClass`** / **`workflowListCardC
 ### Focus
 
 - Visible focus for keyboard users uses a **neutral** `--ring` (grayscale in light and dark). **Do not** use lavender or cyan rings for default focus on text fields and shadcn controls.
+
+### Icon-only buttons (hit targets)
+
+- **Source of truth:** [`lib/echo-icon-button.ts`](lib/echo-icon-button.ts) — reuses shadcn **`buttonVariants`** (`ghost` + `icon-sm`) so `Link`-back controls and custom triggers match **`Button`** focus and sizing.
+- **Prefer `Button`** when the interactive root is a `<button>`: **`variant="ghost"`** + **`size="icon-sm"`** (32×32, dense toolbars, integration cards) or **`size="icon"`** (36×36, **SiteHeader** row — notifications, theme toggle). Avoid one-off `h-8 w-8` + `p-1` stacks unless a surface truly needs a bespoke layout.
+- **Ghost on canvas / neutral chrome:** `echoIconButtonGhostClassName()` for square targets (e.g. workflow header back **`Link`**); `echoIconButtonGhostCircleClassName()` for circular overflow triggers (e.g. header kebab).
+- **Raised “chip” on card or editor chrome** (border + `bg-card` + shadow): **`ECHO_ICON_BUTTON_CARD_CLASS`** (square — editor undo). **`ECHO_ICON_BUTTON_CARD_FLOATING_CLASS`** = same language with **`rounded-full`**, **`bg-card/95`**, **`backdrop-blur-sm`** for menus that sit over thumbnails or busy tiles (workflow grid cards).
+- **Icons:** **`text-muted-foreground`** on ghost controls; keep glyphs **stable** on hover (**§4 — Icons**). Card-surface buttons use **`text-foreground`** on the plate; hover is still **`bg-muted`** on the container.
+- **Accessibility:** **`aria-label`** (or visible text) on every icon-only control; pair with **`Tooltip`** when the affordance would otherwise be unclear.
 
 ### Buttons with text + icons
 
@@ -225,7 +235,7 @@ import { GradientIconTag } from "@/components/ui/gradient-icon-well";
 
 **Primary:** `.echo-btn-primary` — **Cyan → Lavender** (all aliases: `.echo-btn-gradient`, `.echo-btn-cyan-lavender`, etc.). Non-button surfaces: `.echo-fill-cta-gradient` / `.echo-fill-cta-gradient-br`.
 
-**Icon buttons:** Must use shadcn `Tooltip` (`TooltipProvider` at app level). Icon glyphs follow **§4 — Interactive chrome** (no accent tint on hover; container highlight only).
+**Icon-only:** See **§4 — Icon-only buttons (hit targets)** ([`lib/echo-icon-button.ts`](lib/echo-icon-button.ts)). Icon-only triggers should use shadcn **`Tooltip`** where helpful (`TooltipProvider` is at app level). Glyphs follow **§4 — Interactive chrome** (no accent tint on hover; container highlight only).
 
 **Text + icon:** See **§4 — Buttons with text + icons**.
 

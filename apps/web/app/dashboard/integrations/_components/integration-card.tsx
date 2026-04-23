@@ -190,8 +190,8 @@ export function IntegrationCard({
                     <Button
                       type="button"
                       variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      size="icon-sm"
+                      className="shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                       aria-label="Integration details"
                     >
                       <IconSettings className="h-4 w-4" stroke={1.5} />

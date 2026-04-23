@@ -83,8 +83,8 @@ SelectOption(x, y, value) # Dropdown flows that still use Echo step params
 
 UI_TARS_V1_5_DESKTOP_EXTRA = """
 ## Echo desktop extensions (optional when needed)
-OpenApp(appName) # Prefer over guessing dock icons
-FocusApp(appName)
+OpenApp("AppName") # Prefer over guessing dock icons — use a real app title string, not the word appName
+FocusApp("AppName")
 PressKey(key='enter')
 ClickAndType(x, y, "exact text") # One action: click the input field and type. Use when the user must enter a name, message, search query, etc. **click() alone does not type characters.**
 type(content='exact text') # Use when the text field is already focused. Append \\n in content to submit (e.g. send message).
@@ -190,8 +190,8 @@ DESKTOP_ACTION_SPACE = """
 - ReadClipboard() - Read and output the current system clipboard content
 - Wait(seconds) - Pause for N seconds (max 30)
 - PressKey(key) - Press a single key e.g. PressKey("enter")
-- OpenApp(appName) - Launch an application by name e.g. OpenApp("Safari")
-- FocusApp(appName) - Bring an app to the foreground e.g. FocusApp("Finder")
+- OpenApp("AppName") - Launch an application by name e.g. OpenApp("Safari")
+- FocusApp("AppName") - Bring an app to the foreground e.g. FocusApp("Finder")
 - AppleScript(code) - Run AppleScript natively on macOS to execute fast deterministic actions instead of clicking visually (e.g. AppleScript("tell app \\"Safari\\" to activate"))
 - PowerShell(code) - Run a PowerShell script natively on Windows to execute fast deterministic actions instead of clicking visually
 
@@ -655,6 +655,18 @@ OUTPUT FORMAT (JSON only, no markdown fences)
 }
 
 When you set `frame_image_url` for a step still, the system also copies that frame into `context_attachments` and adds `{{c1}}`-style tokens for the editor — you may still emit `context_attachments` + `{{cN}}` in `context` for extra stills beyond the main frame.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXT IMAGES — use sparingly (per step)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Only add extra rows to `context_attachments` when a still materially helps the VLM find the right UI for THAT step:
+- click_at / double_click / right_click / type_text_at / hover: attach a still ONLY when it clearly shows the target control.
+- scroll: optionally ONE still for the view to aim for after scrolling (end state).
+- navigate, open_app, focus_app, wait, api_call: usually omit extra stills; rely on `frame_image_url` + prose unless the UI is ambiguous.
+Do NOT attach every available `image_N.png` to every step — empty `context_attachments` is fine when text is enough.
+
+For **video** inputs, extracted stills `image_0.png`, `image_1.png`, … are in **chronological order** over the recording. Map each step to the still taken closest to that moment in the timeline — **do not** reuse the same `image_k` for every step unless they truly occur at the same instant; different UI targets should prefer different indices when available.
+When multiple stills exist, bias **earlier** workflow steps toward **lower** indices and **later** steps toward **higher** indices so the timeline of `image_*` matches the timeline of actions (first meaningful UI interaction should not use the final frame unless that is what is on screen).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BROWSER — params shapes (no coordinates)

@@ -3,7 +3,26 @@
 /** Client-only rows merged from `frame_image_url` so the editor preview matches `{{cN}}` tokens; strip before persisting. */
 export const SYNTHETIC_FRAME_ATTACHMENT_PREFIX = "echo-synthetic-frame:";
 
+/** Client-only rows inferred from markdown / HTML image URLs in prompt text; strip before persisting. */
+export const SYNTHETIC_INLINE_ATTACHMENT_PREFIX = "echo-synthetic-inline:";
+
 export type ContextAttachmentKind = "image" | "video" | "file";
+
+function inferAttachmentKind(
+  rawKind: unknown,
+  mime: string | undefined,
+  url: string,
+): ContextAttachmentKind {
+  const k = typeof rawKind === "string" ? rawKind.trim().toLowerCase() : "";
+  if (k === "image" || k === "video" || k === "file") return k;
+  const m = (mime ?? "").toLowerCase();
+  if (m.startsWith("image/")) return "image";
+  if (m.startsWith("video/")) return "video";
+  const path = (url.split("?")[0] ?? "").toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|avif|bmp)(\b|$)/i.test(path)) return "image";
+  if (/\.(mp4|webm|mov|m4v)(\b|$)/i.test(path)) return "video";
+  return "file";
+}
 
 export type ContextAttachment = {
   id: string;
@@ -20,6 +39,15 @@ export function isSyntheticFrameAttachment(a: ContextAttachment): boolean {
   return a.id.startsWith(SYNTHETIC_FRAME_ATTACHMENT_PREFIX);
 }
 
+export function isSyntheticInlineAttachment(a: ContextAttachment): boolean {
+  return a.id.startsWith(SYNTHETIC_INLINE_ATTACHMENT_PREFIX);
+}
+
+/** Rows the composer merges for preview that must never be written to Firestore as `context_attachments`. */
+export function isEphemeralComposerAttachment(a: ContextAttachment): boolean {
+  return isSyntheticFrameAttachment(a) || isSyntheticInlineAttachment(a);
+}
+
 const MAX_ATTACHMENTS = 12;
 const MAX_FILE_BYTES = 40 * 1024 * 1024;
 
@@ -32,7 +60,7 @@ export function normalizeContextAttachments(raw: unknown): ContextAttachment[] {
     const id = typeof o.id === "string" ? o.id : "";
     const url = typeof o.url === "string" ? o.url.trim() : "";
     const name = typeof o.name === "string" ? o.name : "file";
-    const kind = o.kind === "image" || o.kind === "video" || o.kind === "file" ? o.kind : "file";
+    const kind = inferAttachmentKind(o.kind, typeof o.mime === "string" ? o.mime : undefined, url);
     const mime = typeof o.mime === "string" ? o.mime : undefined;
     if (!id || !url) continue;
     const refRaw = o.ref_label;

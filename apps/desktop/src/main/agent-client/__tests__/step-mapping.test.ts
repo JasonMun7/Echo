@@ -120,6 +120,14 @@ describe("workflow step mapping (all editor actions)", () => {
     expect(
       stepToOperatorAction({
         ...baseStep,
+        action: "open_app",
+        params: { appName: "appName='Discord'" },
+      }),
+    ).toMatchObject({ action: "openapp", appName: "Discord" });
+
+    expect(
+      stepToOperatorAction({
+        ...baseStep,
         action: "select_option",
         params: { selector: "#m", value: "v" },
       }),

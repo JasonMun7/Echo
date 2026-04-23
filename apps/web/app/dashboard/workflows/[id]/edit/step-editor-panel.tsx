@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { IconTrash } from "@tabler/icons-react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, Save } from "lucide-react";
 import { WorkflowApiCallFields } from "@/components/workflow-api-call-fields";
 import { OpenAppBrandSearchFields } from "@/components/echo-flow/open-app-brand-search-fields";
 import { StepContextComposer } from "@/components/echo-flow/step-context-composer";
@@ -11,9 +19,12 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { formatAction } from "@/lib/workflow-action-labels";
 import { migratePromptTokensToCanonical } from "@/lib/context-prompt-tokens";
+import { extractInlineHttpsImageUrls, inlineUrlKey } from "@/lib/extract-context-inline-media-urls";
 import {
+  MAX_ATTACHMENTS,
   SYNTHETIC_FRAME_ATTACHMENT_PREFIX,
-  isSyntheticFrameAttachment,
+  SYNTHETIC_INLINE_ATTACHMENT_PREFIX,
+  isEphemeralComposerAttachment,
   normalizeContextAttachments,
   type ContextAttachment,
 } from "@/lib/workflow-step-context-attachments";
@@ -82,48 +93,62 @@ function primaryPromptPatch(
 }
 
 /**
- * Synthesis sometimes keeps a signed `frame_image_url` while `context_attachments` is empty or
- * dropped during hydrate — tokens like `{{c1}}` still need a matching row for chips + thumbnails.
+ * Merges persisted `context_attachments`, optional synthetic frame from `frame_image_url` + `{{cN}}`,
+ * and ephemeral thumbnails for `![…](https://…)` / `<img src="https://…">` in the composer prompt.
  */
 function buildComposerAttachments(step: WorkflowStepEditorStep): ContextAttachment[] {
-  const base = normalizeContextAttachments(step.context_attachments);
+  let base = normalizeContextAttachments(step.context_attachments);
   const fu = typeof step.frame_image_url === "string" ? step.frame_image_url.trim() : "";
-  if (!fu) return base;
-  if (base.some((a) => a.url.trim() === fu)) return base;
 
-  const prompt = migratePromptTokensToCanonical(primaryPromptFromStep(step));
-  const byRef = new Map(base.map((a) => [(a.ref_label ?? "c1").toLowerCase(), a]));
-  const missingRefs = [...prompt.matchAll(/\{\{c(\d+)\}\}/gi)]
-    .map((m) => `c${m[1]}`.toLowerCase())
-    .filter((ref) => !byRef.has(ref));
+  if (fu && !base.some((a) => a.url.trim() === fu)) {
+    const prompt = migratePromptTokensToCanonical(primaryPromptFromStep(step));
+    const byRef = new Map(base.map((a) => [(a.ref_label ?? "c1").toLowerCase(), a]));
+    const missingRefs = [...prompt.matchAll(/\{\{c(\d+)\}\}/gi)]
+      .map((m) => `c${m[1]}`.toLowerCase())
+      .filter((ref) => !byRef.has(ref));
 
-  if (missingRefs.length > 0) {
-    const ref = missingRefs[0]!;
-    return [
-      ...base,
-      {
-        id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:${ref}`,
-        kind: "image",
-        name: "Step capture",
-        url: fu,
-        ref_label: ref,
-      },
-    ];
+    if (missingRefs.length > 0) {
+      const ref = missingRefs[0]!;
+      base = [
+        ...base,
+        {
+          id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:${ref}`,
+          kind: "image",
+          name: "Step capture",
+          url: fu,
+          ref_label: ref,
+        },
+      ];
+    } else if (base.length === 0) {
+      base = [
+        {
+          id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:c1`,
+          kind: "image",
+          name: "Step capture",
+          url: fu,
+          ref_label: "c1",
+        },
+      ];
+    }
   }
 
-  if (base.length === 0) {
-    return [
-      {
-        id: `${SYNTHETIC_FRAME_ATTACHMENT_PREFIX}${step.id}:c1`,
-        kind: "image",
-        name: "Step capture",
-        url: fu,
-        ref_label: "c1",
-      },
-    ];
+  const promptForInline = migratePromptTokensToCanonical(primaryPromptFromStep(step));
+  const inlineUrls = extractInlineHttpsImageUrls(promptForInline);
+  const existingUrls = new Set(base.map((a) => a.url.trim()));
+  const out: ContextAttachment[] = [...base];
+  for (const url of inlineUrls) {
+    if (out.length >= MAX_ATTACHMENTS) break;
+    const u = url.trim();
+    if (!u || existingUrls.has(u)) continue;
+    existingUrls.add(u);
+    out.push({
+      id: `${SYNTHETIC_INLINE_ATTACHMENT_PREFIX}${step.id}:${inlineUrlKey(u)}`,
+      kind: "image",
+      name: "Inline image",
+      url: u,
+    });
   }
-
-  return base;
+  return out;
 }
 
 function contextComposerPlaceholder(action: string): string {
@@ -421,6 +446,11 @@ export type StepEditorPanelProps = {
   /** Another collaborator holds the edit lock on this step (§7b). */
   readOnly?: boolean;
   lockOwnerLabel?: string | null;
+  /**
+   * Increment when the user chooses “Rename” on the canvas — focuses the step name field below
+   * (commit on blur or Enter only).
+   */
+  stepDisplayNameEditRequestKey?: number;
 };
 
 function contextTagsHelperText(action: string): string | null {
@@ -448,7 +478,44 @@ export function StepEditorPanel({
   onOpenStepTypePicker,
   readOnly = false,
   lockOwnerLabel,
+  stepDisplayNameEditRequestKey = 0,
 }: StepEditorPanelProps) {
+  const persistedDisplayName = String(step.params?.display_label ?? "");
+  const [displayNameDraft, setDisplayNameDraft] = useState(persistedDisplayName);
+  const displayNameInputRef = useRef<HTMLInputElement>(null);
+  const displayNameFieldFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (displayNameFieldFocusedRef.current) return;
+    setDisplayNameDraft(persistedDisplayName);
+  }, [step.id, persistedDisplayName]);
+
+  useLayoutEffect(() => {
+    if (readOnly || !stepDisplayNameEditRequestKey) return;
+    const el = displayNameInputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, [stepDisplayNameEditRequestKey, readOnly]);
+
+  const commitStepDisplayName = () => {
+    const trimmed = displayNameDraft.trim();
+    const prev = persistedDisplayName.trim();
+    if (trimmed === prev) return;
+    const p: Record<string, unknown> = { ...step.params };
+    if (trimmed) p.display_label = trimmed;
+    else delete p.display_label;
+    handleStepUpdate(step.id, { params: p });
+    const nextStep: WorkflowStepEditorStep = { ...step, params: p };
+    if (publishIssuesForStep(nextStep).length === 0) {
+      setInvalidStepIds((prev) => {
+        const n = new Set(prev);
+        n.delete(step.id);
+        return n;
+      });
+    }
+  };
+
   const applyParams = (nextParams: Record<string, unknown>) => {
     handleStepUpdate(step.id, { params: nextParams });
     if (publishIssuesForStep({ ...step, params: nextParams }).length === 0) {
@@ -548,7 +615,7 @@ export function StepEditorPanel({
           }}
           attachments={composerAttachments}
           onAttachmentsChange={(next) => {
-            const persisted = next.filter((a) => !isSyntheticFrameAttachment(a));
+            const persisted = next.filter((a) => !isEphemeralComposerAttachment(a));
             handleStepUpdate(step.id, { context_attachments: persisted });
             const nextStep: WorkflowStepEditorStep = { ...step, context_attachments: persisted };
             if (publishIssuesForStep(nextStep).length === 0) {
@@ -646,14 +713,16 @@ export function StepEditorPanel({
             <Button
               type="button"
               size="sm"
-              className="echo-btn-primary h-9 gap-2 px-4"
+              className="echo-btn-primary h-9 gap-2 px-4 shadow-sm"
               disabled={saveStepDisabled}
               onClick={() => void onSaveStep()}
             >
               {savingStep ? (
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
-              ) : null}
-              Save step
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-white" aria-hidden />
+              ) : (
+                <Save className="h-4 w-4 shrink-0 text-white" strokeWidth={2} aria-hidden />
+              )}
+              <span className="text-white">Save</span>
             </Button>
           ) : null}
           <button

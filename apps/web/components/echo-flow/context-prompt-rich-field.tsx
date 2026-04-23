@@ -25,7 +25,7 @@ import {
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-const CHIP_ICON_CLASS = "inline-block h-3 w-3 shrink-0 align-[-0.15em] text-[#150A35]";
+const CHIP_ICON_CLASS = "inline-block h-3 w-3 shrink-0 align-[-0.15em] text-foreground";
 
 function chipKindIconMarkup(kind: ContextAttachmentKind): string {
   const common = { size: 12, stroke: 2, className: CHIP_ICON_CLASS, "aria-hidden": true as const };
@@ -46,7 +46,7 @@ function escapeHtml(s: string): string {
 const GRADIENT_CHIP_OUTER =
   "echo-ctx-chip inline-flex max-w-[min(100%,14rem)] cursor-default select-none items-center align-middle rounded-full p-px shadow-sm bg-[linear-gradient(to_right,var(--echo-icon-well-from),var(--echo-icon-well-to))]";
 const GRADIENT_CHIP_INNER =
-  "inline-flex min-w-0 max-w-full items-center gap-0.5 overflow-hidden rounded-full bg-card py-px pl-1 pr-px text-[11px] font-semibold leading-none text-[#150A35]";
+  "inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full bg-card py-px pl-1 pr-px text-[11px] font-semibold leading-none text-foreground";
 
 function buildHtml(prompt: string, attachments: ContextAttachment[]): string {
   const migrated = migratePromptTokensToCanonical(prompt).replace(/\r\n/g, "\n");
@@ -67,8 +67,10 @@ function buildHtml(prompt: string, attachments: ContextAttachment[]): string {
     const att = byRef.get(id.toLowerCase());
     if (att) {
       const { label, kind } = friendlyLabelForAttachment(att, attachments);
-      const dismiss = `<button type="button" tabindex="-1" contenteditable="false" data-echo-ctx-remove="${escapeHtml(id)}" aria-label="Remove ${escapeHtml(label)} from prompt" class="echo-ctx-chip-dismiss inline-flex h-3 w-3 min-h-3 min-w-3 shrink-0 items-center justify-center rounded-full pb-px text-[9px] font-medium leading-none text-[#150A35]/45 transition hover:bg-[#150A35]/12 hover:text-[#150A35]">×</button>`;
-      html += `<span data-echo-ctx="${escapeHtml(id)}" contenteditable="false" class="${GRADIENT_CHIP_OUTER}"><span class="${GRADIENT_CHIP_INNER}"><span aria-hidden="true" class="flex shrink-0 select-none items-center [&>svg]:block">${chipKindIconMarkup(kind)}</span><span class="min-w-0 max-w-[min(100%,10rem)] truncate py-px">${escapeHtml(label)}</span>${dismiss}</span></span>`;
+      const dismiss = `<button type="button" tabindex="-1" contenteditable="false" data-echo-ctx-remove="${escapeHtml(id)}" aria-label="Remove ${escapeHtml(label)} from prompt" class="echo-ctx-chip-dismiss inline-flex h-3 w-3 min-h-3 min-w-3 shrink-0 items-center justify-center rounded-full pb-px text-[9px] font-medium leading-none text-muted-foreground transition hover:bg-muted hover:text-foreground">×</button>`;
+      /** Inline chip: icon only — full previews live in the attachment strip below. */
+      const leadVisual = `<span aria-hidden="true" class="flex shrink-0 select-none items-center [&>svg]:block">${chipKindIconMarkup(kind)}</span>`;
+      html += `<span data-echo-ctx="${escapeHtml(id)}" contenteditable="false" class="${GRADIENT_CHIP_OUTER}"><span class="${GRADIENT_CHIP_INNER}">${leadVisual}<span class="min-w-0 max-w-[min(100%,10rem)] truncate py-px">${escapeHtml(label)}</span>${dismiss}</span></span>`;
     } else {
       html += escapeHtml(m[0]);
     }
@@ -311,8 +313,8 @@ export const ContextPromptRichField = forwardRef<HTMLDivElement, ContextPromptRi
               onKeyDown={onEditorKeyDown}
               onPointerDownCapture={onChipDismissPointerDown}
               className={cn(
-                "echo-context-prompt-editor relative max-h-44 min-h-9 w-full overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-1.5 text-sm leading-snug text-[#150A35] outline-none",
-                "[&[data-echo-placeholder-active]]:before:pointer-events-none [&[data-echo-placeholder-active]]:before:text-[#150A35]/40 [&[data-echo-placeholder-active]]:before:content-[attr(data-placeholder)]",
+                "echo-context-prompt-editor relative max-h-44 min-h-9 w-full overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-1.5 text-sm leading-snug text-foreground outline-none focus-visible:ring-0",
+                "[&[data-echo-placeholder-active]]:before:pointer-events-none [&[data-echo-placeholder-active]]:before:text-muted-foreground/70 [&[data-echo-placeholder-active]]:before:content-[attr(data-placeholder)]",
                 disabled && "cursor-not-allowed opacity-60",
                 className,
               )}
@@ -327,7 +329,7 @@ export const ContextPromptRichField = forwardRef<HTMLDivElement, ContextPromptRi
           onOpenAutoFocus={(ev) => ev.preventDefault()}
           onCloseAutoFocus={(ev) => ev.preventDefault()}
         >
-          <p className="px-2 py-1.5 text-[11px] font-medium text-[#150A35]/55">
+          <p className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground">
             Insert context tag
           </p>
           <div className="max-h-56 overflow-y-auto" role="listbox" aria-label="Context attachments">
@@ -340,10 +342,10 @@ export const ContextPromptRichField = forwardRef<HTMLDivElement, ContextPromptRi
                   key={att.id}
                   type="button"
                   role="option"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[#150A35] hover:bg-[#150A35]/6"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
                   onClick={() => insertAttachmentToken(att)}
                 >
-                  <Icon className="h-4 w-4 shrink-0 text-[#150A35]/60" stroke={2} aria-hidden />
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" stroke={2} aria-hidden />
                   <span className="min-w-0 flex-1 truncate">{label}</span>
                 </button>
               );

@@ -40,8 +40,8 @@ DEFAULT_PLAYWRIGHT_VIEWPORT_WIDTH = 1280
 DEFAULT_PLAYWRIGHT_VIEWPORT_HEIGHT = 936
 
 # --- Gemini model IDs (env defaults; see models_config) ------------------------
-DEFAULT_SYNTHESIS_MODEL = "gemini-3.1-pro-preview"
-DEFAULT_CHAT_MODEL = "gemini-3-flash-preview"
+DEFAULT_SYNTHESIS_MODEL = "gemini-3-flash-preview"
+DEFAULT_CHAT_MODEL = "gemini-3.1-pro-preview"
 DEFAULT_VOICE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
 DEFAULT_TRACE_SCORING_MODEL = "gemini-3-flash-preview"
 

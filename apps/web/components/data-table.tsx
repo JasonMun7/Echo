@@ -334,9 +334,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
   return (
     <div className={cn("w-full flex flex-col gap-4", fillRunsPane && "min-h-0 flex-1 basis-0")}>
       {/* Tab bar + column toggle */}
-      <div
-        className={cn("flex items-center justify-between px-4 lg:px-6", fillRunsPane && "shrink-0")}
-      >
+      <div className={cn("flex items-center justify-between", fillRunsPane && "shrink-0")}>
         <div className="flex gap-1 rounded-lg bg-muted p-1">
           {TABS.map((tab) => {
             const count = countFor(tab.value);
@@ -404,7 +402,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       {/* Table — workflow detail: plain <table> so one scroll container scrolls (Table wraps in extra div). */}
       <div
         className={cn(
-          "rounded-lg border border-border bg-card shadow-sm mx-4 lg:mx-6",
+          "rounded-lg border border-border bg-card shadow-sm",
           fillRunsPane
             ? "echo-runs-table-scroll min-h-0 flex-1 overflow-auto"
             : "overflow-hidden overflow-x-auto",
@@ -490,9 +488,7 @@ export function DataTable({ data: initialData, singleWorkflow }: DataTableProps)
       </div>
 
       {/* Pagination */}
-      <div
-        className={cn("flex items-center justify-between px-4 lg:px-6", fillRunsPane && "shrink-0")}
-      >
+      <div className={cn("flex items-center justify-between", fillRunsPane && "shrink-0")}>
         <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
           {table.getFilteredRowModel().rows.length} run(s)
         </div>

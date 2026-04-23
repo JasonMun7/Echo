@@ -444,9 +444,15 @@ def parse_action(text: str) -> dict[str, Any] | None:
         result["description"] = desc
         result["selector"] = "body"  # fallback visual wait — operator uses this if needed
     elif name in ("openapp", "focusapp"):
-        app_name = (
-            _extract_quoted(args_str) if (args_str.startswith('"') or args_str.startswith("'")) else args_str.strip()
-        )
+        # Models often copy placeholder text as OpenApp(appName='Discord') after prompts
+        # that say OpenApp(appName); parse named args first, then positional quoted/plain.
+        app_name = _extract_named_string_param(args_str, "appName") or _extract_named_string_param(args_str, "app")
+        if app_name is None:
+            app_name = (
+                _extract_quoted(args_str)
+                if (args_str.startswith('"') or args_str.startswith("'"))
+                else args_str.strip()
+            )
         result["appName"] = app_name
     elif name in ("applescript", "powershell"):
         script_code = (

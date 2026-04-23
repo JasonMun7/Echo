@@ -310,6 +310,50 @@ def scale_coords(
 # --- Video frame extraction (synthesis / media uploads) --------------------------------
 
 
+def _normalize_bgr_frame_for_swscale(frame: Any) -> Any | None:
+    """
+    Resize/crop BGR frames to dimensions libswscale tolerates (multiples of 16, min 16).
+
+    Odd sizes (e.g. 2338-wide) often trigger ``Slice parameters … invalid`` during decode/encode.
+    """
+    import cv2
+
+    if frame is None or not hasattr(frame, "size") or frame.size == 0:
+        return None
+    h, w = frame.shape[:2]
+    if h < 16 or w < 16:
+        return None
+
+    max_w = int(os.environ.get("ECHOPRISM_VIDEO_FRAME_MAX_WIDTH", "1920") or 1920)
+    max_w = max(640, min(max_w, 4096))
+    if w > max_w and w > 0:
+        scale = max_w / float(w)
+        nw = max(16, int(w * scale))
+        nh = max(16, int(h * scale))
+        frame = cv2.resize(frame, (nw, nh), interpolation=cv2.INTER_AREA)
+        h, w = frame.shape[:2]
+
+    w16 = max(16, (w // 16) * 16)
+    h16 = max(16, (h // 16) * 16)
+    if (w16, h16) != (w, h):
+        frame = cv2.resize(frame, (w16, h16), interpolation=cv2.INTER_AREA)
+    return frame
+
+
+def _bgr_frame_to_jpeg_bytes(frame: Any) -> bytes | None:
+    """Encode BGR frame as JPEG after normalizing geometry for libswscale."""
+    import cv2
+
+    frame = _normalize_bgr_frame_for_swscale(frame)
+    if frame is None:
+        return None
+    h, w = frame.shape[:2]
+    if h < 2 or w < 2:
+        return None
+    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+    return buf.tobytes() if ok else None
+
+
 def extract_frames_from_video(
     content: bytes,
     mime: str,
@@ -331,6 +375,11 @@ def extract_frames_from_video(
         List of JPEG-encoded frame bytes.
     """
     import cv2
+
+    try:
+        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+    except Exception:
+        pass
 
     if fps_sample is None:
         fps_sample = 1.0
@@ -360,7 +409,11 @@ def extract_frames_from_video(
             return []
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        if total_frames < 0:
+            total_frames = 0
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+        if fps <= 0.01 or fps > 240:
+            fps = 30.0
         frame_interval = max(1, int(fps / fps_sample))
         skip_frames = max(0, int(skip_initial_seconds * fps))
         if total_frames <= 0:
@@ -388,9 +441,10 @@ def extract_frames_from_video(
                     idx += 1
                     continue
                 seek_failures = 0
-                _, jpeg = cv2.imencode(".jpg", frame)
-                frames.append(jpeg.tobytes())
-                count += 1
+                jpeg = _bgr_frame_to_jpeg_bytes(frame)
+                if jpeg:
+                    frames.append(jpeg)
+                    count += 1
                 idx += frame_interval
 
         if not frames and total_frames <= 0:
@@ -407,8 +461,9 @@ def extract_frames_from_video(
                 if not ret:
                     break
                 if read_count % reads_per_sample == 0:
-                    _, jpeg = cv2.imencode(".jpg", frame)
-                    frames.append(jpeg.tobytes())
+                    jpeg = _bgr_frame_to_jpeg_bytes(frame)
+                    if jpeg:
+                        frames.append(jpeg)
                 read_count += 1
 
         if not frames and total_frames > 0:
@@ -426,8 +481,9 @@ def extract_frames_from_video(
                 if not ret:
                     break
                 if read_count % reads_per_sample == 0:
-                    _, jpeg = cv2.imencode(".jpg", frame)
-                    frames.append(jpeg.tobytes())
+                    jpeg = _bgr_frame_to_jpeg_bytes(frame)
+                    if jpeg:
+                        frames.append(jpeg)
                 read_count += 1
 
         cap.release()

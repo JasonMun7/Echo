@@ -7,6 +7,7 @@ Workflow JSON may include ``api_call`` steps; Composio slug + arguments referenc
 """
 
 import asyncio
+import logging
 import os
 import re
 import sys
@@ -26,6 +27,7 @@ from google.genai import types
 from pydantic import BaseModel as PydanticBaseModel
 
 router = APIRouter(prefix="/synthesize", tags=["synthesis"])
+_log = logging.getLogger(__name__)
 
 _GS_URI_RE = re.compile(r"^gs://[^/]+/(.+)$")
 
@@ -117,6 +119,66 @@ def _hydrate_step_dict(step: dict, folder_prefix: str) -> dict:
     return s
 
 
+_IMG_BASENAME_RE = re.compile(r"^image_(\d+)\.png$", re.I)
+
+
+def _clamp_synthesis_image_refs_in_steps(steps: list[dict], *, hi: int) -> None:
+    """Drop model overshoot: relative ``image_N.png`` must not exceed last uploaded screenshot index."""
+    if hi < 0:
+        return
+    for s in steps:
+        fiu = s.get("frame_image_url")
+        if isinstance(fiu, str):
+            rel = _safe_rel_path(fiu.strip())
+            if rel:
+                leaf = rel.split("/")[-1]
+                m = _IMG_BASENAME_RE.match(leaf)
+                if m and int(m.group(1)) > hi:
+                    s["frame_image_url"] = f"image_{hi}.png"
+        raw_ca = s.get("context_attachments")
+        if not isinstance(raw_ca, list):
+            continue
+        for item in raw_ca:
+            if not isinstance(item, dict):
+                continue
+            for key in ("url", "gcs_blob"):
+                raw_u = item.get(key)
+                if not isinstance(raw_u, str) or not raw_u.strip():
+                    continue
+                rel = _safe_rel_path(raw_u.strip())
+                if not rel:
+                    continue
+                leaf = rel.split("/")[-1]
+                m = _IMG_BASENAME_RE.match(leaf)
+                if m and int(m.group(1)) > hi:
+                    item[key] = f"image_{hi}.png"
+
+
+def _video_synthesis_max_image_index(steps: list[dict], *, uploaded_max_index: int) -> int:
+    """
+    Allow up to one keyframe index per synthesized step so the model can map different steps to
+    different stills over time (capped by how many frames were actually uploaded).
+    """
+    if uploaded_max_index < 0:
+        return -1
+    n_steps = sum(1 for s in steps if isinstance(s, dict))
+    if n_steps <= 0:
+        return uploaded_max_index
+    return min(uploaded_max_index, n_steps - 1)
+
+
+def _delete_extra_video_keyframes(gcs_prefix: str, *, keep_last_index: int, total_uploaded: int) -> None:
+    from app.services.gcs import delete_file
+
+    if keep_last_index >= total_uploaded - 1:
+        return
+    for i in range(keep_last_index + 1, total_uploaded):
+        try:
+            delete_file(f"{gcs_prefix}/image_{i}.png")
+        except Exception as e:
+            _log.debug("delete extra keyframe image_%s.png: %s", i, e)
+
+
 def _host_from_url(url: str) -> str | None:
     from urllib.parse import urlparse
 
@@ -192,6 +254,66 @@ def _ensure_agent_path() -> None:
     root = Path(__file__).resolve().parent.parent
     if root.exists() and str(root) not in sys.path:
         sys.path.insert(0, str(root))
+
+
+def _jpeg_bytes_to_png_bytes(jpeg: bytes) -> bytes:
+    """Faster than Pillow for BGR→PNG; input is JPEG from OpenCV extract."""
+    import cv2
+    import numpy as np
+    from echo_prism_agent.ui_tars.screenshot_pipeline import _normalize_bgr_frame_for_swscale
+
+    arr = np.frombuffer(jpeg, dtype=np.uint8)
+    bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise ValueError("jpeg decode failed")
+    bgr = _normalize_bgr_frame_for_swscale(bgr)
+    if bgr is None:
+        raise ValueError("frame normalize failed")
+    ok, buf = cv2.imencode(".png", bgr, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
+    if not ok:
+        raise ValueError("png encode failed")
+    return buf.tobytes()
+
+
+def _extract_and_upload_video_keyframes(content: bytes, mime: str, gcs_prefix: str) -> int:
+    """
+    Sample frames from the recording, upload as ``image_0.png`` … so step context URLs exist
+    (video-only synthesis previously had no ``image_*`` objects under ``gcs_prefix``).
+    """
+    _ensure_agent_path()
+    from echo_prism_agent.ui_tars.screenshot_pipeline import extract_frames_from_video
+
+    max_f = int(os.environ.get("ECHOPRISM_SYNTHESIS_VIDEO_MAX_FRAMES", "24") or 24)
+    max_f = max(1, min(max_f, 120))
+    fps_sample = float(os.environ.get("ECHOPRISM_SYNTHESIS_VIDEO_FPS_SAMPLE", "0.6") or 0.6)
+    skip_s = float(os.environ.get("ECHOPRISM_SYNTHESIS_VIDEO_SKIP_INITIAL_S", "0.5") or 0.5)
+
+    try:
+        frames = extract_frames_from_video(
+            content,
+            mime,
+            max_frames=max_f,
+            fps_sample=fps_sample,
+            skip_initial_seconds=skip_s,
+        )
+    except Exception as e:
+        _log.warning("video keyframe extraction failed: %s", e)
+        return 0
+
+    if not frames:
+        _log.warning("video keyframe extraction produced 0 frames (mime=%s, bytes=%d)", mime, len(content))
+        return 0
+
+    uploaded = 0
+    for i, jpeg in enumerate(frames):
+        try:
+            png = _jpeg_bytes_to_png_bytes(jpeg)
+            upload_file(f"{gcs_prefix}/image_{i}.png", png, "image/png")
+            uploaded += 1
+        except Exception as e:
+            _log.warning("upload keyframe image_%s.png failed: %s", i, e)
+    _log.info("video keyframes uploaded count=%d under prefix=%s/", uploaded, gcs_prefix)
+    return uploaded
 
 
 async def _upload_to_gemini(
@@ -279,6 +401,8 @@ async def synthesize(
 
     try:
         gcs_prefix = f"{uid}/{workflow_id}"
+        max_screenshot_index = -1
+        video_keyframe_upload_count = 0
         parts: list[types.Part] = []
         mime_map = {
             "video/mp4": "video/mp4",
@@ -293,8 +417,14 @@ async def synthesize(
             blob_name = f"{gcs_prefix}/{video.filename or 'video.mp4'}"
             upload_file(blob_name, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            part = await _upload_to_gemini(content, mime)
+            part, n_key = await asyncio.gather(
+                _upload_to_gemini(content, mime),
+                asyncio.to_thread(_extract_and_upload_video_keyframes, content, mime, gcs_prefix),
+            )
             parts.append(part)
+            video_keyframe_upload_count = n_key
+            if n_key > 0:
+                max_screenshot_index = n_key - 1
         elif video_gcs_path:
             match = re.match(r"gs://[^/]+/(.+)", video_gcs_path)
             if not match:
@@ -311,14 +441,23 @@ async def synthesize(
             dest_blob = f"{gcs_prefix}/{blob_name.rsplit('/', 1)[-1]}"
             upload_file(dest_blob, content, ct)
             mime = mime_map.get(ct, "video/mp4")
-            part = await _upload_to_gemini(content, mime)
+            part, n_key = await asyncio.gather(
+                _upload_to_gemini(content, mime),
+                asyncio.to_thread(_extract_and_upload_video_keyframes, content, mime, gcs_prefix),
+            )
             parts.append(part)
+            video_keyframe_upload_count = n_key
+            if n_key > 0:
+                max_screenshot_index = n_key - 1
         else:
             sorted_screenshots = sorted(screenshots, key=lambda f: f.filename or "")
+            max_screenshot_index = len(sorted_screenshots) - 1
             for i, f in enumerate(sorted_screenshots):
                 content = await f.read()
                 ct = f.content_type or "image/png"
-                blob_name = f"{gcs_prefix}/{f.filename or f'image_{i}.png'}"
+                # Always image_0.png, image_1.png, … — synthesis prompts tell the model to use those names;
+                # using the browser filename would store a different key than the model emits (404 on read).
+                blob_name = f"{gcs_prefix}/image_{i}.png"
                 upload_file(blob_name, content, ct)
                 mime = mime_map.get(ct, "image/png")
                 part = await _upload_to_gemini(content, mime)
@@ -365,6 +504,31 @@ async def synthesize(
 
         brand_domain = _brand_domain_from_steps(steps_data)
 
+        if max_screenshot_index >= 0:
+            if has_video and video_keyframe_upload_count > 0:
+                cap_hi = _video_synthesis_max_image_index(steps_data, uploaded_max_index=max_screenshot_index)
+                if cap_hi < max_screenshot_index:
+                    n_steps = sum(1 for s in steps_data if isinstance(s, dict))
+                    _log.info(
+                        "video keyframe cap by step count uploaded=%s cap_hi=%s steps=%s",
+                        video_keyframe_upload_count,
+                        cap_hi,
+                        n_steps,
+                    )
+                    _delete_extra_video_keyframes(
+                        gcs_prefix,
+                        keep_last_index=cap_hi,
+                        total_uploaded=video_keyframe_upload_count,
+                    )
+                max_screenshot_index = cap_hi
+                _clamp_synthesis_image_refs_in_steps(steps_data, hi=max_screenshot_index)
+            else:
+                _clamp_synthesis_image_refs_in_steps(steps_data, hi=max_screenshot_index)
+
+            from echo_prism_agent.synthesis.pipeline import spread_collapsed_synthesis_keyframes
+
+            spread_collapsed_synthesis_keyframes(steps_data, hi=max_screenshot_index)
+
         for i, s in enumerate(steps_data):
             step_id = str(uuid.uuid4())
             hydrated = _hydrate_step_dict(s, gcs_prefix)
@@ -378,9 +542,8 @@ async def synthesize(
         from app.config import GCS_BUCKET as _GCS_BUCKET
 
         thumbnail_gcs_path: str | None = None
-        if not has_video and screenshots:
-            first_ss = sorted(screenshots, key=lambda f: f.filename or "")[0]
-            blob_name_thumb = f"{gcs_prefix}/{first_ss.filename or 'image_0.png'}"
+        if (not has_video and screenshots) or (has_video and max_screenshot_index >= 0):
+            blob_name_thumb = f"{gcs_prefix}/image_0.png"
             thumbnail_gcs_path = f"gs://{_GCS_BUCKET}/{blob_name_thumb}"
 
         update_payload: dict = {

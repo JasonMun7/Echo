@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, collectionGroup, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -9,143 +8,22 @@ import { db } from "@/lib/firebase";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 import { Workflow } from "lucide-react";
-import {
-  IconTrash,
-  IconDots,
-  IconLoader,
-  IconPlayerPlay,
-  IconPencil,
-  IconList,
-  IconCopy,
-  IconLogout,
-  IconX,
-} from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardEmptyState } from "@/components/dashboard-empty-state";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { CreateWorkflowMenu } from "@/components/create-workflow-menu";
-import { GradientIconWell, gradientWellImageClass } from "@/components/ui/gradient-icon-well";
-import { WorkflowThumbnail } from "@/components/workflow-thumbnail";
-import { brandfetchLogoUrlForDomain } from "@/app/dashboard/integrations/_lib/brandfetch-logo";
 import {
-  workflowListCardClass,
-  workflowSharedTagClass,
-  workflowStatusBadgeClass,
-  workflowStatusLabel,
-} from "@/lib/workflow-status";
-import {
-  DASHBOARD_PAGE_DESCRIPTION_CLASS,
-  DASHBOARD_PAGE_TITLE_CLASS,
-} from "@/lib/dashboard-page-typography";
+  DashboardWorkflowListCard,
+  DeleteWorkflowConfirmDialog,
+  type DashboardWorkflowListCardModel,
+} from "@/components/dashboard-workflow-list-card";
+import { DASHBOARD_PAGE_TITLE_CLASS } from "@/lib/dashboard-page-typography";
 import { featuredWorkflowId } from "@/lib/workflow-activity";
-import { cn } from "@/lib/utils";
+import { workflowTimestampMillis } from "@/lib/workflow-timestamps";
 
-interface Workflow {
-  id: string;
-  name?: string;
-  status: string;
-  owner_uid?: string;
+interface Workflow extends DashboardWorkflowListCardModel {
   workflow_type?: "browser" | "desktop";
-  thumbnail_gcs_path?: string;
-  /** Denormalized from synthesis / navigate step — used for list card logo. */
-  brand_domain?: string;
-  createdAt: unknown;
-  updatedAt: unknown;
-  shared_with?: string[];
-  collaborator_roles?: Record<string, string>;
-}
-
-function canEditSharedWorkflow(w: Workflow, uid: string | null | undefined): boolean {
-  if (!uid) return false;
-  if (w.owner_uid === uid) return true;
-  if (!Array.isArray(w.shared_with) || !w.shared_with.includes(uid)) return false;
-  return w.collaborator_roles?.[uid] !== "viewer";
-}
-
-function getTime(x: unknown): number {
-  if (typeof (x as { toMillis?: () => number })?.toMillis === "function") {
-    return (x as { toMillis: () => number }).toMillis();
-  }
-  if (typeof x === "number") return x > 1e12 ? x : x * 1000;
-  if (typeof x === "string") return new Date(x).getTime() || 0;
-  const o = x as { seconds?: number; _seconds?: number };
-  const sec = o?.seconds ?? (o as { _seconds?: number })._seconds;
-  return typeof sec === "number" ? sec * 1000 : 0;
-}
-
-function WorkflowCardMedia({
-  workflowId,
-  thumbnail_gcs_path,
-  brand_domain,
-}: {
-  workflowId: string;
-  thumbnail_gcs_path?: string;
-  brand_domain?: string;
-}) {
-  const [logoFailed, setLogoFailed] = useState(false);
-  const onLogoError = useCallback(() => setLogoFailed(true), []);
-
-  const mediaShell = "relative h-28 w-full shrink-0 overflow-hidden rounded-t-xl";
-
-  if (thumbnail_gcs_path) {
-    return (
-      <div className={mediaShell}>
-        <WorkflowThumbnail workflowId={workflowId} heightClass="h-28" />
-      </div>
-    );
-  }
-
-  const domain = typeof brand_domain === "string" ? brand_domain.trim() : "";
-  const logoUrl = domain && !logoFailed ? brandfetchLogoUrlForDomain(domain) : null;
-
-  if (logoUrl) {
-    return (
-      <div
-        className={cn(
-          mediaShell,
-          "flex items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15",
-        )}
-      >
-        <GradientIconWell corners="xl" className="h-16 w-16">
-          {/* eslint-disable-next-line @next/next/no-img-element -- Brandfetch CDN */}
-          <img
-            src={logoUrl}
-            alt=""
-            className={gradientWellImageClass("xl")}
-            onError={onLogoError}
-          />
-        </GradientIconWell>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={cn(
-        mediaShell,
-        "flex items-center justify-center bg-linear-to-br from-muted/70 to-muted/25 dark:from-muted/40 dark:to-muted/15",
-      )}
-    >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-        <Workflow className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} />
-      </div>
-    </div>
-  );
+  ephemeral?: boolean;
 }
 
 export default function WorkflowsPage() {
@@ -314,7 +192,11 @@ export default function WorkflowsPage() {
       const combined = new Map([...apiMap, ...ownedMap]);
       const list = Array.from(combined.values())
         .filter((w) => (w as Workflow & { ephemeral?: boolean }).ephemeral !== true)
-        .sort((a, b) => getTime(b.createdAt ?? b.updatedAt) - getTime(a.createdAt ?? a.updatedAt));
+        .sort(
+          (a, b) =>
+            workflowTimestampMillis(b.createdAt ?? b.updatedAt) -
+            workflowTimestampMillis(a.createdAt ?? a.updatedAt),
+        );
       setWorkflows(list);
       setLoading(false);
     };
@@ -373,143 +255,22 @@ export default function WorkflowsPage() {
   const featuredId = featuredWorkflowId(workflows);
 
   function renderWorkflowCard(w: Workflow) {
-    const isOwner = Boolean(authUid && String(w.owner_uid ?? "") === authUid);
-    const couldEdit = canEditSharedWorkflow(w, authUid);
-    const isFeatured = featuredId != null && w.id === featuredId;
-    const isRunning = activeWorkflowId === w.id;
     return (
-      <div
+      <DashboardWorkflowListCard
         key={w.id}
-        className={`relative rounded-xl transition-all ${isRunning ? "bg-linear-to-r from-[#21C4DD] to-[#A577FF] p-[2px] shadow-lg shadow-[#A577FF]/25" : ""}`}
-      >
-        {isFeatured ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="absolute -right-1 -top-1 z-10 echo-indicator-flash-dot"
-                onClick={(e) => e.preventDefault()}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Most recently updated workflow</TooltipContent>
-          </Tooltip>
-        ) : null}
-        <div
-          className={cn(
-            workflowListCardClass,
-            "overflow-visible",
-            isFeatured && !isRunning && "shadow-xl shadow-black/[0.12] dark:shadow-black/50",
-          )}
-        >
-          <div
-            className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
-            onClick={(e) => e.preventDefault()}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-sm backdrop-blur-sm hover:bg-muted"
-                  aria-label="Workflow actions"
-                >
-                  <IconDots className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-40">
-                <DropdownMenuItem
-                  onClick={(e) => handleRun(e, w.id)}
-                  disabled={runningId === w.id || (w.status !== "ready" && w.status !== "active")}
-                >
-                  <IconPlayerPlay className="h-4 w-4" />
-                  {runningId === w.id ? "Starting…" : "Run"}
-                </DropdownMenuItem>
-                {couldEdit ? (
-                  <DropdownMenuItem asChild>
-                    <Link href={`/dashboard/workflows/${w.id}/edit`}>
-                      <IconPencil className="h-4 w-4" />
-                      Edit
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem asChild>
-                  <Link href={`/dashboard/workflows/${w.id}`}>
-                    <IconList className="h-4 w-4" />
-                    {isOwner ? "Details and share" : "Details"}
-                  </Link>
-                </DropdownMenuItem>
-                {isOwner ? (
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={(e) => openDeleteWorkflowDialog(e, w.id)}
-                    disabled={deletingId === w.id}
-                  >
-                    <IconTrash className="h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                ) : (
-                  <>
-                    <DropdownMenuItem
-                      onClick={(e) => handleFork(e, w.id)}
-                      disabled={forkingId === w.id}
-                    >
-                      <IconCopy className="h-4 w-4" />
-                      {forkingId === w.id ? "Copying…" : "Make a copy"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={(e) => handleLeave(e, w.id)}
-                      disabled={leavingId === w.id}
-                    >
-                      <IconLogout className="h-4 w-4" />
-                      {leavingId === w.id ? "Leaving…" : "Leave"}
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <Link
-            href={
-              w.status === "draft" || w.status === "processing"
-                ? `/dashboard/workflows/${w.id}/edit`
-                : `/dashboard/workflows/${w.id}`
-            }
-            className="flex flex-1 cursor-pointer flex-col"
-          >
-            <WorkflowCardMedia
-              workflowId={w.id}
-              thumbnail_gcs_path={w.thumbnail_gcs_path}
-              brand_domain={w.brand_domain}
-            />
-
-            <div className="flex flex-1 flex-col gap-2 px-4 pt-4 pb-4">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {!isOwner ? (
-                  <span
-                    className={workflowSharedTagClass}
-                    title="This workflow was shared with you"
-                  >
-                    Shared
-                  </span>
-                ) : null}
-                <span className={workflowStatusBadgeClass(w.status)}>
-                  {workflowStatusLabel(w.status)}
-                </span>
-              </div>
-              <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug text-foreground">
-                {w.name ?? "Untitled workflow"}
-              </span>
-            </div>
-          </Link>
-        </div>
-        {isRunning && (
-          <div className="absolute -right-1 -top-1 z-10 flex items-center gap-1 rounded-full bg-linear-to-r from-[#21C4DD] to-[#A577FF] px-2 py-0.5 text-[10px] font-medium text-white shadow-sm ring-2 ring-card">
-            Running
-          </div>
-        )}
-      </div>
+        workflow={w}
+        authUid={authUid}
+        isFeatured={featuredId != null && w.id === featuredId}
+        activeWorkflowId={activeWorkflowId}
+        onRun={handleRun}
+        runBusyWorkflowId={runningId}
+        onRequestDelete={openDeleteWorkflowDialog}
+        deleteBusyWorkflowId={deletingId}
+        onFork={handleFork}
+        forkBusyWorkflowId={forkingId}
+        onLeave={handleLeave}
+        leaveBusyWorkflowId={leavingId}
+      />
     );
   }
 
@@ -549,61 +310,15 @@ export default function WorkflowsPage() {
 
   return (
     <>
-      <Dialog open={deleteWorkflowId != null} onOpenChange={(o) => !o && setDeleteWorkflowId(null)}>
-        <DialogContent
-          showCloseButton
-          className={cn(
-            "gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-md",
-          )}
-        >
-          <div className="border-b border-border/60 px-6 pt-6 pb-5">
-            <div className="flex gap-3">
-              <GradientIconWell corners="lg" className="size-10 shrink-0">
-                <IconTrash className="size-5 text-card-foreground" stroke={1.5} aria-hidden />
-              </GradientIconWell>
-              <div className="min-w-0 flex-1 space-y-2 text-left">
-                <DialogTitle className={cn(DASHBOARD_PAGE_TITLE_CLASS, "text-card-foreground")}>
-                  Delete this workflow?
-                </DialogTitle>
-                <DialogDescription className={cn(DASHBOARD_PAGE_DESCRIPTION_CLASS, "text-left")}>
-                  This permanently removes &quot;{deleteTargetName}&quot; and its steps. You cannot
-                  undo this action.
-                </DialogDescription>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="gap-2 border-t border-border/60 bg-card px-6 py-4 sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="border-border"
-              onClick={() => setDeleteWorkflowId(null)}
-              disabled={deletingId != null}
-            >
-              <IconX className="size-4 shrink-0" stroke={1.5} />
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deletingId != null}
-              onClick={() => void confirmDeleteWorkflow()}
-            >
-              {deletingId != null ? (
-                <>
-                  <IconLoader className="size-4 shrink-0 animate-spin" stroke={1.5} aria-hidden />
-                  Deleting…
-                </>
-              ) : (
-                <>
-                  <IconTrash className="size-4 shrink-0" stroke={1.5} aria-hidden />
-                  Delete workflow
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteWorkflowConfirmDialog
+        open={deleteWorkflowId != null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteWorkflowId(null);
+        }}
+        workflowDisplayName={deleteTargetName}
+        deleting={deletingId != null}
+        onConfirm={() => void confirmDeleteWorkflow()}
+      />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="flex min-h-0 flex-1 flex-col gap-4">

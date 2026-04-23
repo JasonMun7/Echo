@@ -14,6 +14,7 @@ import { mouse, keyboard, sleep, Point, Button, Key } from "@nut-tree-fork/nut-j
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
 import type { OperatorAction } from "@echo/types";
+import { coerceOpenAppDisplayName } from "./app-name-coerce";
 import { parseUiTarsTypeContent } from "./type-content";
 
 // Configure nut-js for stability (align with UI-TARS-desktop NutJSOperator)
@@ -411,6 +412,7 @@ export async function hotkey(keys: string[]): Promise<void> {
  * Tries exact name first, then fuzzy-matches in /Applications.
  */
 export async function openApp(appName: string): Promise<void> {
+  appName = coerceOpenAppDisplayName(String(appName ?? ""));
   if (process.platform === "darwin") {
     try {
       await execFileAsync("open", ["-a", appName]);
@@ -470,6 +472,7 @@ export async function openApp(appName: string): Promise<void> {
  * Falls back to `open -a` if AppleScript fails.
  */
 export async function focusApp(appName: string): Promise<void> {
+  appName = coerceOpenAppDisplayName(String(appName ?? ""));
   if (process.platform === "darwin") {
     try {
       const script = `tell application "${appName}" to activate`;

@@ -31,8 +31,7 @@ export const DASHBOARD_INSET_X_CLASS = "px-6 sm:px-8 md:px-11 lg:px-14";
 /**
  * Vertical spacing for the main column body (below `SiteHeader`) using **margin**, not padding:
  * it sits outside the content box so route scroll regions keep a predictable flex height and
- * do not feel “clipped” the way layout-level `py-*` did. Keep in sync with
- * {@link DASHBOARD_MAIN_CONTENT_MY_NEGATE_CLASS} for full-bleed routes.
+ * do not feel “clipped” the way layout-level `py-*` did.
  */
 export const DASHBOARD_MAIN_CONTENT_MY_CLASS = "my-4 sm:my-5 md:my-6";
 
@@ -41,27 +40,29 @@ export const DASHBOARD_MAIN_CONTENT_MY_CLASS = "my-4 sm:my-5 md:my-6";
  * [`app/dashboard/layout.tsx`](../app/dashboard/layout.tsx).
  *
  * Horizontal inset only — combine with {@link DASHBOARD_MAIN_CONTENT_MY_CLASS} for the full
- * wrapper. Full-bleed routes use {@link dashboardMainBleedClass}.
+ * wrapper. Nested routes use {@link dashboardMainBleedClass} as a flex host (no negative margins).
  */
 export const DASHBOARD_MAIN_PAD_CLASS = DASHBOARD_INSET_X_CLASS;
 
-/** Negates {@link DASHBOARD_INSET_X_CLASS} (horizontal full-bleed). */
+/**
+ * @deprecated Do not cancel dashboard padding with negative margins. Kept only so existing imports
+ * do not break; prefer layout padding + full-width children inside the content box.
+ */
 export const DASHBOARD_INSET_X_NEGATE_CLASS = "-mx-6 sm:-mx-8 md:-mx-11 lg:-mx-14";
 
-/** Negates {@link DASHBOARD_MAIN_CONTENT_MY_CLASS} for full-bleed segments. */
+/** @deprecated See {@link DASHBOARD_INSET_X_NEGATE_CLASS}. */
 export const DASHBOARD_MAIN_CONTENT_MY_NEGATE_CLASS = "-my-4 sm:-my-5 md:-my-6";
 
-/**
- * Negates horizontal inset + vertical margin so a route can span edge-to-edge in the main column
- * (workflow canvas, chat). Keep in sync with {@link DASHBOARD_MAIN_PAD_CLASS} and
- * {@link DASHBOARD_MAIN_CONTENT_MY_CLASS}.
- */
+/** @deprecated See {@link DASHBOARD_INSET_X_NEGATE_CLASS}. */
 export const DASHBOARD_MAIN_PAD_NEGATE_CLASS = cn(
   DASHBOARD_INSET_X_NEGATE_CLASS,
   DASHBOARD_MAIN_CONTENT_MY_NEGATE_CLASS,
 );
 
-/** Wrapper for full-bleed dashboard segments: breakout + fill height. */
+/**
+ * Flex column that fills the padded dashboard main area (workflow editor, chat). Does not use
+ * negative margins — content aligns with {@link DASHBOARD_MAIN_PAD_CLASS}.
+ */
 export function dashboardMainBleedClass(className?: string) {
-  return cn("flex min-h-0 min-w-0 flex-1 flex-col", DASHBOARD_MAIN_PAD_NEGATE_CLASS, className);
+  return cn("flex min-h-0 min-w-0 flex-1 flex-col", className);
 }

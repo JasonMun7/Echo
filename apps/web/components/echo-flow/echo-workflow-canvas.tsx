@@ -59,6 +59,12 @@ const edgeTypes = { echoInsert: EchoInsertStepEdge };
 
 const EMPTY_STEP_ID_SET = new Set<string>();
 
+/**
+ * Bottom inset for `fitView` so nodes stay above the floating dock (dock wrapper `pb-3` +
+ * `FloatingDockDesktop` `h-[4.25rem]` + small buffer for hover growth).
+ */
+const ECHO_FLOW_DOCK_FITVIEW_BOTTOM_PX = 104;
+
 function isEchoStepNode(n: RFNode): boolean {
   return Boolean((n.data as EchoStepNodeData | undefined)?.stepId);
 }
@@ -100,8 +106,12 @@ type InnerProps = {
   /** Add a step on the connector between two steps (opens action picker in parent). */
   onInsertStepBetween?: EchoFlowCanvasActionsContextValue["onInsertStepBetween"];
   onSelectStep: (id: string | null) => void;
+  /** When set, keeps React Flow `node.selected` in sync (search, deep links, inspector) so step chrome matches canvas clicks. */
+  selectedStepId?: string | null;
   lockedStepId?: string | null;
   lockOwnerLabel?: string | null;
+  /** Rendered inside the canvas card at the very top (e.g. search + publish). */
+  topToolbar?: ReactNode;
   /** Rendered inside the canvas frame, bottom-centered (e.g. floating dock). */
   dock?: ReactNode;
   /** Optional layer above the graph, below the dock (e.g. remote pointers). */
@@ -116,6 +126,8 @@ type InnerProps = {
   invalidStepIds?: Set<string>;
   /** Recently created steps — highlight until configured. */
   newStepIds?: Set<string>;
+  /** Steps with local edits not yet saved to the server. */
+  dirtyStepIds?: Set<string>;
   /** Canvas card ⋯ menu: delete / copy / duplicate / rename. */
   stepNodeActions?: EchoStepNodeActionsContextValue;
   /** stepId → accent for steps another editor has locked or is dragging. */
@@ -144,8 +156,10 @@ function EchoWorkflowCanvasInner(
     onReorderSteps,
     onInsertStepBetween,
     onSelectStep,
+    selectedStepId: selectedStepIdProp,
     lockedStepId,
     lockOwnerLabel,
+    topToolbar,
     dock,
     collaborationOverlay,
     stepInspector,
@@ -153,6 +167,7 @@ function EchoWorkflowCanvasInner(
     onReorderPresence,
     invalidStepIds,
     newStepIds,
+    dirtyStepIds,
     stepNodeActions,
     peerStepAccents,
     remoteReorderPeers = [],
@@ -220,9 +235,11 @@ function EchoWorkflowCanvasInner(
 
   const invalidSet = invalidStepIds ?? EMPTY_STEP_ID_SET;
   const newSet = newStepIds ?? EMPTY_STEP_ID_SET;
+  const dirtySet = dirtyStepIds ?? EMPTY_STEP_ID_SET;
   const decorationSig = useMemo(
-    () => `${[...invalidSet].sort().join(",")}|${[...newSet].sort().join(",")}`,
-    [invalidSet, newSet],
+    () =>
+      `${[...invalidSet].sort().join(",")}|${[...newSet].sort().join(",")}|${[...dirtySet].sort().join(",")}`,
+    [invalidSet, newSet, dirtySet],
   );
 
   const peerAccentSig = useMemo(() => {
@@ -266,6 +283,22 @@ function EchoWorkflowCanvasInner(
   );
 
   const remoteGhostOverlayRef = useRef<HTMLDivElement>(null);
+
+  const dockFitInset = useMemo(
+    () =>
+      dock
+        ? ({
+            top: "8px",
+            right: "10px",
+            bottom: `${ECHO_FLOW_DOCK_FITVIEW_BOTTOM_PX}px`,
+            left: "10px",
+          } as const)
+        : null,
+    [dock],
+  );
+
+  const fitViewPadding = dockFitInset ?? 0.2;
+  const fitViewPaddingStepFocus = dockFitInset ? { ...dockFitInset, top: "12px" as const } : 0.35;
 
   useEffect(() => {
     /** Don’t replace the graph mid–drag — React Flow needs a stable node list while dragging. */
@@ -318,17 +351,38 @@ function EchoWorkflowCanvasInner(
             openAppBrandDomain,
             invalidForPublish: invalidSet.has(s.id),
             isNewStep: newSet.has(s.id),
+            isDirtyStep: dirtySet.has(s.id),
             remotePeerAccent: peerStepAccents?.get(s.id),
           },
         };
       }),
     );
-  }, [steps, setNodes, decorationSig, peerAccentSig, invalidSet, newSet, peerStepAccents]);
+  }, [
+    steps,
+    setNodes,
+    decorationSig,
+    peerAccentSig,
+    invalidSet,
+    newSet,
+    dirtySet,
+    peerStepAccents,
+  ]);
+
+  useEffect(() => {
+    if (selectedStepIdProp === undefined) return;
+    if (reorderDraggingRef.current) return;
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        selected: isEchoStepNode(n) && n.id === selectedStepIdProp,
+      })),
+    );
+  }, [selectedStepIdProp, setNodes]);
 
   useImperativeHandle(
     ref,
     () => ({
-      fitView: () => fitView({ padding: 0.2, duration: 300 }),
+      fitView: () => fitView({ padding: fitViewPadding, duration: 300 }),
       /**
        * Waits until the step exists in props and React Flow has laid it out at the correct Y
        * (needed after insert-between: Firestore + RF update async; immediate fit targets wrong coords).
@@ -350,7 +404,11 @@ function EchoWorkflowCanvasInner(
             Math.abs((node.position?.y ?? -99999) - wantY) < 1;
 
           if (aligned) {
-            fitView({ padding: 0.35, duration: 350, nodes: [{ id: stepId }] });
+            fitView({
+              padding: fitViewPaddingStepFocus,
+              duration: 350,
+              nodes: [{ id: stepId }],
+            });
             return;
           }
 
@@ -360,9 +418,13 @@ function EchoWorkflowCanvasInner(
           }
 
           if (node) {
-            fitView({ padding: 0.35, duration: 350, nodes: [{ id: stepId }] });
+            fitView({
+              padding: fitViewPaddingStepFocus,
+              duration: 350,
+              nodes: [{ id: stepId }],
+            });
           } else {
-            fitView({ padding: 0.2, duration: 300 });
+            fitView({ padding: fitViewPadding, duration: 300 });
           }
         };
 
@@ -378,7 +440,16 @@ function EchoWorkflowCanvasInner(
         });
       },
     }),
-    [fitView, zoomIn, zoomOut, getNodes, setCenter, getViewport],
+    [
+      fitView,
+      zoomIn,
+      zoomOut,
+      getNodes,
+      setCenter,
+      getViewport,
+      fitViewPadding,
+      fitViewPaddingStepFocus,
+    ],
   );
 
   /** Preview + edges only — never call setNodes here (fights React Flow’s drag position updates). */
@@ -463,6 +534,11 @@ function EchoWorkflowCanvasInner(
         className,
       )}
     >
+      {topToolbar ? (
+        <div className="relative z-[22] min-w-0 shrink-0 border-b border-border bg-card/95 px-2 py-2 md:px-3 md:py-2.5">
+          {topToolbar}
+        </div>
+      ) : null}
       {lockedStepId && lockOwnerLabel ? (
         <div className="absolute left-3 top-3 z-10 max-w-xs rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 shadow-sm">
           {lockOwnerLabel} is editing a step.
@@ -538,6 +614,7 @@ function EchoWorkflowCanvasInner(
                   type: "echoInsert",
                 }}
                 fitView
+                fitViewOptions={{ padding: fitViewPadding }}
                 minZoom={0.35}
                 maxZoom={1.6}
                 proOptions={{ hideAttribution: true }}

@@ -30,6 +30,15 @@ def download_file(blob_name: str) -> bytes:
     return blob.download_as_bytes()
 
 
+def download_from_bucket(bucket_name: str, blob_name: str) -> bytes:
+    """Read bytes from an arbitrary GCS bucket (e.g. Firebase Storage bucket != ECHO_GCS_BUCKET)."""
+    if not bucket_name or not blob_name:
+        raise ValueError("bucket_name and blob_name are required")
+    client = storage.Client()
+    blob = client.bucket(bucket_name).blob(blob_name)
+    return blob.download_as_bytes()
+
+
 def delete_file(blob_name: str) -> None:
     bucket = get_bucket()
     blob = bucket.blob(blob_name)
@@ -66,6 +75,15 @@ def list_blobs(prefix: str) -> list[str]:
     """List blob names under the given prefix."""
     bucket = get_bucket()
     blobs = bucket.list_blobs(prefix=prefix)
+    return [b.name for b in blobs]
+
+
+def list_blob_names_with_prefix(bucket_name: str, prefix: str, *, max_results: int = 256) -> list[str]:
+    """List object names under ``prefix`` in any bucket (used for context-media fallbacks)."""
+    if not bucket_name or not prefix:
+        return []
+    client = storage.Client()
+    blobs = client.bucket(bucket_name).list_blobs(prefix=prefix, max_results=max_results)
     return [b.name for b in blobs]
 
 
